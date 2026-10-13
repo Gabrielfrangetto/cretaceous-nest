@@ -18,18 +18,18 @@ Goal: grow the current single-page prototype into a game with free accounts, per
 | Database | Supabase Postgres | Relational data, row-level security so each player only reaches their own rows |
 | Game server logic | Supabase Edge Functions (or a small Node service on Render) | Validates every action that changes coins or items |
 | Payments | Stripe Checkout + webhooks | Hosted checkout, cards and Pix in Brazil, webhooks credit purchases on the server |
-| Frontend | Same game, split into modules and built with Vite | Easier to grow than one 1,100-line file |
+| Frontend | Same game, split into native JavaScript modules | Easier to grow than one 1,100-line file; no build step until a bundler is really needed (then Vite) |
 | Hosting | Render static site | Already in place |
 
 Free-tier notes: Supabase pauses free projects after about a week with no activity; Render free web services sleep after 15 minutes idle (static sites do not). Both are fine for development; plan a paid tier before launch.
 
-## Phase 1 — Code foundation
+## Phase 1 — Code foundation (done)
 
-- [ ] Split `index.html` into `src/` modules (state, eggs, nest, inventory, shop, ui) and add a Vite build
-- [ ] Version the save format (`saveVersion`) with a migration step per version
-- [ ] Export / import save as a text code (backup before cloud saves exist)
-- [ ] Move game balance (timers, prices, rewards) into one config file
-- [ ] Basic automated tests for the economy rules (hatching, feeding, stacking, buying)
+- [x] Split `index.html` into `js/` modules (config, economy, state, art, ui/*) using native ES modules, no build step
+- [x] Version the save format (`saveVersion`) with a migration step per version
+- [x] Export / import save as a text code (backup before cloud saves exist)
+- [x] Move game balance (timers, prices, rewards) into one config file (`js/config.js`)
+- [x] Automated tests for the economy rules and the save format (`node --test`)
 
 ## Phase 2 — Free accounts and cloud saves
 

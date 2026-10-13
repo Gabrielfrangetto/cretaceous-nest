@@ -1,0 +1,14 @@
+{
+  "name": "cretaceous-nest",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Idle browser game: hatch dinosaur eggs, raise and feed the babies.",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
