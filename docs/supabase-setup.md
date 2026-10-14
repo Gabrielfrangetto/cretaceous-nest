@@ -11,8 +11,20 @@ Accounts and cloud saves stay off until `js/cloud-config.js` has a Supabase URL 
 ## 2. Create the tables
 
 1. Open **SQL Editor → New query**.
-2. Paste the whole file `supabase/migrations/20261014000000_accounts_and_saves.sql` and click **Run**.
-3. Check **Table Editor**: `profiles` and `saves` should exist, both with RLS enabled.
+2. Paste each file in `supabase/migrations/`, oldest first, and click **Run** for each one.
+3. Check **Table Editor**: `profiles`, `saves` and `ledger` should exist, all with RLS enabled.
+
+## 2b. Deploy the game server
+
+Signed-in players play through the `game` Edge Function. After any change to `js/config.js`, `js/economy.js`, `js/state.js`, `js/sync.js`, `js/util.js` or `js/game-server.js`, deploy it again:
+
+```
+npx supabase login
+node scripts/sync-shared.js
+npx supabase functions deploy game --project-ref <project-ref> --no-verify-jwt --use-api
+```
+
+`--no-verify-jwt` is needed because the function checks the player's token itself. Deploy the function before pushing a website change that depends on it.
 
 ## 3. Configure sign-in
 
@@ -57,7 +69,7 @@ Both values are public by design: row-level security decides what each signed-in
 - Playing signed out keeps the save in the browser, as before.
 - On the first sign-in, the browser's game moves to the new account.
 - If both the browser and the account already have progress, the game asks which one to keep.
-- While signed in, every change is uploaded about 2 seconds later.
+- While signed in, every action is sent to the game server, which applies the rules with its own clock and stores the result. The browser shows the action at once and takes the server's answer when it arrives.
 - Signing out leaves the progress in the account and starts a new guest game in the browser.
 - Deleting the account removes the profile and the save (the database cascades from `auth.users`).
 

@@ -31,7 +31,7 @@ Free-tier notes: Supabase pauses free projects after about a week with no activi
 - [x] Move game balance (timers, prices, rewards) into one config file (`js/config.js`)
 - [x] Automated tests for the economy rules and the save format (`node --test`)
 
-## Phase 2 — Free accounts and cloud saves (live, being tested)
+## Phase 2 — Free accounts and cloud saves (done)
 
 - [x] Supabase project created and configured (see `docs/supabase-setup.md`)
 - [x] Auth in the game: email sign-in link, optional Google (`js/cloud.js`, `js/ui/account.js`)
@@ -43,15 +43,18 @@ Free-tier notes: Supabase pauses free projects after about a week with no activi
 - [x] Privacy policy and terms of use pages (first draft, to be reviewed before launch)
 - [ ] Custom SMTP sender for sign-in emails (the built-in one is rate limited)
 
-## Phase 3 — Server-authoritative economy (required before selling anything)
+## Phase 3 — Server-authoritative economy (done)
 
-Today the browser decides everything, so anyone can edit their coins. Before real money is involved:
+Signed-in players can no longer change their own coins or items: the server decides.
 
-- [ ] Normalize data: `eggs`, `babies`, `inventory_items`, `wallets` tables instead of one JSON blob
-- [ ] Every action goes through a server function: start egg, warm egg, hatch, feed, buy, upgrade backpack
-- [ ] Server checks time-based rules with its own clock (hatch time, hunger timers, tap limits)
-- [ ] Transaction log for coins and items (audit trail, support and refunds)
+- [x] Every action goes through the `game` Edge Function (start egg, warm, hatch, feed, move, buy, ...)
+- [x] The server runs the same rules file as the browser (`js/economy.js`, copied by `scripts/sync-shared.js`)
+- [x] The server's clock decides hatch and hunger timers; the server rolls the baby's sex
+- [x] Players cannot write their save directly; `write_save` stores it with a revision check
+- [x] Ledger of every coin and item gained or spent (audit trail, support and refunds)
+- [x] Guest saves brought into an account are capped to plausible limits; save codes load only when signed out
 - [ ] Rate limits per user
+- [ ] Split the JSON save into tables (`eggs`, `babies`, `inventory_items`, `wallets`) if queries across players are needed
 
 ## Phase 4 — Content and retention
 
