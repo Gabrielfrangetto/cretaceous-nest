@@ -350,6 +350,7 @@ export function breedProblem(s, maleId, femaleId) {
   if (!m || !f) return 'missing';
   if (sexOf(m) !== 'm' || sexOf(f) !== 'f') return 'not-a-pair';
   if (m.type !== f.type) return 'different-species';
+  if (!isAdult(m) || !isAdult(f)) return 'not-adult';
   if (s.breeding) return 'busy';
   if (trayFull(s)) return 'tray-full';
   return null;

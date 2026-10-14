@@ -10,7 +10,8 @@ import { STATS, GENES_MAX, WILD_GENES, BREED_MINS, EGG_TRAY_SIZE } from '../js/c
 
 const MIN = 60000;
 const ids = STATS.map(s => s.id);
-const baby = (id, type, sex, genes, gen = 1) => ({ id, type, sex, name: id, at: 0, genes, gen });
+// adults (30 meals), since only adults breed
+const baby = (id, type, sex, genes, gen = 1) => ({ id, type, sex, name: id, at: 0, genes, gen, fed: 30 });
 const flat = n => Object.fromEntries(ids.map(id => [id, n]));
 
 test('free-egg babies roll genes in the wild range', () => {
@@ -111,4 +112,12 @@ test('genes in a guest save cannot beat what a free egg gives', () => {
   assert.equal(c.hatched[0].gen, 1);
   assert.deepEqual(c.eggs[0].genes, WILD_GENES_MAX);
   assert.deepEqual(c.current.genes, WILD_GENES_MAX);   // a bred egg in the incubator keeps (capped) genes
+});
+
+test('only adults breed', () => {
+  const s = freshState();
+  s.hatched.push(baby('m1', 'proto', 'm', flat(30)), { ...baby('f1', 'proto', 'f', flat(30)), fed: 29 });
+  assert.equal(breedProblem(s, 'm1', 'f1'), 'not-adult');
+  s.hatched[1].fed = 30;
+  assert.equal(breedProblem(s, 'm1', 'f1'), null);
 });

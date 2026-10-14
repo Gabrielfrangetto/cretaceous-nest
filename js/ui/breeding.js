@@ -1,8 +1,8 @@
 // Breeding panel in the Nest tab: pick a male and a female of the same species; after a while
 // they lay an egg that goes to the egg tray, ready to hatch in the Incubator.
-import { SPECIES, SEX, STATS, GENES_MAX, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE } from '../config.js';
+import { SPECIES, SEX, STATS, GENES_MAX, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, breedProblem } from '../economy.js';
+import { sexOf, breedProblem, isAdult } from '../economy.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { esc, fmt, minsLabel } from '../util.js';
@@ -15,6 +15,7 @@ let maleId = null, femaleId = null, confirmCancel = false, message = '';
 const PROBLEMS = {
   'tray-full': `The egg tray is full (${EGG_TRAY_SIZE} eggs). Hatch some eggs first.`,
   busy: 'A pair is already breeding.',
+  'not-adult': 'Only adults can breed.',
 };
 
 const label = b => `${b.name} ${SEX[sexOf(b)].sym} · ${SPECIES[b.type].species} · Gen ${b.gen || 1} · ${genesText(b.genes)} · ${powerText(b)}`;
@@ -63,15 +64,17 @@ function render() {
     return;
   }
 
-  const males = S.hatched.filter(b => sexOf(b) === 'm');
-  const pairable = males.filter(m => S.hatched.some(f => f.type === m.type && sexOf(f) === 'f'));
+  // only adults breed
+  const adults = S.hatched.filter(isAdult);
+  const males = adults.filter(b => sexOf(b) === 'm');
+  const pairable = males.filter(m => adults.some(f => f.type === m.type && sexOf(f) === 'f'));
   if (!pairable.length) {
-    body.innerHTML = `<p class="hint">To breed you need a male and a female of the same species. Babies inherit their parents' genes, so pick your best pair.</p>${trayLine}${note}`;
+    body.innerHTML = `<p class="hint">To breed you need an adult male and an adult female of the same species. Babies grow up after ${STAGES[STAGES.length - 1].meals} meals. Their babies inherit their genes, so pick your best pair.</p>${trayLine}${note}`;
     return;
   }
   if (!pairable.some(m => m.id === maleId)) maleId = pairable[0].id;
   const male = byId(maleId);
-  const females = S.hatched.filter(f => f.type === male.type && sexOf(f) === 'f');
+  const females = adults.filter(f => f.type === male.type && sexOf(f) === 'f');
   if (!females.some(f => f.id === femaleId)) femaleId = females[0].id;
   const female = byId(femaleId);
   const problem = breedProblem(S, maleId, femaleId);
