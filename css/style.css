@@ -276,11 +276,3 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
   .water-dino img, .water-dino canvas { max-height: 150px; }
 }
 
-/* floating always-on-top window */
-.pip-body { margin: 0; min-height: 100vh; display: grid; place-items: end; padding: 12px; background: var(--bg); color: var(--ink); font-family: var(--body); overflow: hidden; }
-.pip { display: flex; align-items: flex-end; gap: 4px; width: 100%; justify-content: flex-end; }
-.pip .water-bubble { width: auto; flex: 1; margin-bottom: 90px; box-shadow: none; }
-.pip .water-bubble:not(.alert) { border-color: var(--line); }
-.pip .water-bubble:not(.alert)::after { border-left-color: var(--line); }
-.pip .water-bubble.alert { animation: water-in .45s cubic-bezier(.3, 1.5, .5, 1) both; }
-.pip .water-dino img, .pip .water-dino canvas { max-height: 170px; }

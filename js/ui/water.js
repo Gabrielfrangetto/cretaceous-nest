@@ -1,14 +1,12 @@
-// Water reminder: a chosen baby pops up in the corner every few minutes to say it's time to drink
-// water. Settings live in this browser only; they are a personal preference, not game progress.
-//
-// A web page cannot draw inside other tabs, so two things reach the player outside the game:
-// a floating always-on-top window (Document Picture-in-Picture, Chrome and Edge on desktop) and
-// optional system notifications.
+// Water reminder: a chosen baby pops up in the corner every few minutes, with an alarm-clock sound,
+// to say it's time to drink water. Settings live in this browser only; they are a personal
+// preference, not game progress.
 import { SPECIES, SEX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf } from '../economy.js';
 import { babyArt, spriteUrl } from '../art.js';
 import { esc } from '../util.js';
+import { unlockAudio, startAlarm, stopAlarm } from '../alarm.js';
 import {
   defaults, clampEvery, nextDue, isDue, snooze, addGlass, glassesToday, PRESETS, MIN_EVERY, MAX_EVERY, SNOOZE_MIN,
 } from '../reminder.js';
@@ -17,11 +15,8 @@ const KEY = 'cretaceous-nest:water';
 const CHECK_MS = 10000;
 const MESSAGE = 'Time to drink water!';
 const DINO_PX = 10.5;            // babyArt size: sprites are 17 * px tall
-const PIP_SIZE = { width: 340, height: 330 };
 
 let settings = defaults();
-let alerting = false;            // a reminder is showing and waits for Done or Snooze
-let pip = null;                  // the floating window, while open
 const body = document.getElementById('waterBody');
 const pop = document.getElementById('waterPop');
 
@@ -34,19 +29,10 @@ function save() {
 
 const chosenBaby = () => S.hatched.find(b => b.id === settings.babyId) || null;
 const canNotify = () => 'Notification' in window;
-const canFloat = () => 'documentPictureInPicture' in window;
 const timeFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 const nextText = () => settings.on
   ? `Next reminder at ${timeFmt.format(new Date(Math.max(Date.now(), nextDue(settings))))}.`
   : 'Reminders are off.';
-
-// the baby's picture, mirrored so it faces the speech bubble on its left
-function dinoArt(baby, absolute = false) {
-  const art = babyArt(baby.type, DINO_PX, sexOf(baby));
-  // the floating window has no address of its own, so image paths must be absolute there
-  if (absolute && art.tagName === 'IMG') art.src = new URL(art.getAttribute('src'), location.href).href;
-  return art;
-}
 
 // ---------- settings panel ----------
 function render() {
@@ -69,21 +55,18 @@ function render() {
       </div>
     </div>
     <label class="check"><input type="checkbox" id="waterOn" ${settings.on ? 'checked' : ''}> Remind me to drink water</label>
+    <label class="check"><input type="checkbox" id="waterSound" ${settings.sound ? 'checked' : ''}> Play an alarm sound until I answer (up to 1 minute)</label>
     ${canNotify() ? `<label class="check"><input type="checkbox" id="waterNotify" ${settings.notify ? 'checked' : ''}> Also show a system notification when this page is in the background</label>` : ''}
     <p class="hint" id="waterStatus">${nextText()} Glasses today: ${glassesToday(settings, Date.now())}.</p>
-    <div class="row">
-      ${canFloat() ? `<button class="btn small" type="button" id="waterFloat">${pip ? 'Close floating window' : 'Keep on top of other tabs'}</button>` : ''}
-      <button class="ghost" type="button" id="waterTest">Show a test reminder</button>
-    </div>
-    ${canFloat()
-      ? '<p class="hint">The floating window stays on top of every tab and app while this game is open in any tab.</p>'
-      : '<p class="hint">To see reminders over other tabs, turn on system notifications above. A floating window is available in Chrome and Edge on a computer.</p>'}`;
+    <p class="hint">Keep this page open in a tab. Browsers only play sound after you've clicked somewhere on the page since opening it.</p>
+    <div class="row"><button class="ghost" type="button" id="waterTest">Show a test reminder</button></div>`;
 
-  document.getElementById('waterBaby').addEventListener('change', e => { settings.babyId = e.target.value; save(); render(); renderPip(); });
+  document.getElementById('waterBaby').addEventListener('change', e => { settings.babyId = e.target.value; save(); render(); });
   const every = document.getElementById('waterEvery');
   every.addEventListener('change', () => { settings.every = clampEvery(every.value); restart(); });
   body.querySelectorAll('[data-every]').forEach(b => b.addEventListener('click', () => { settings.every = +b.dataset.every; restart(); }));
   document.getElementById('waterOn').addEventListener('change', e => { settings.on = e.target.checked; restart(); });
+  document.getElementById('waterSound').addEventListener('change', e => { settings.sound = e.target.checked; save(); });
   const notify = document.getElementById('waterNotify');
   if (notify) notify.addEventListener('change', async e => {
     settings.notify = e.target.checked;
@@ -98,8 +81,6 @@ function render() {
     }
     save();
   });
-  const float = document.getElementById('waterFloat');
-  if (float) float.addEventListener('click', () => { if (pip) pip.close(); else openPip(); });
   document.getElementById('waterTest').addEventListener('click', () => alertNow(true));
 }
 
@@ -108,12 +89,25 @@ function restart() {
   settings.lastAt = Date.now();
   save();
   render();
-  renderPip();
 }
 
 // ---------- the reminder itself ----------
-function bubbleHTML(baby) {
-  return `
+function answer(kind) {
+  const now = Date.now();
+  if (kind === 'done') addGlass(settings, now);
+  if (kind === 'snooze') snooze(settings, now);
+  save();
+  stopAlarm();
+  pop.hidden = true;
+  render();
+}
+
+function alertNow(test = false) {
+  const baby = chosenBaby();
+  if (!baby) return;
+  const sex = sexOf(baby);
+  const bubble = document.getElementById('waterBubble');
+  bubble.innerHTML = `
     <button class="close" type="button" data-water="close" aria-label="Close">×</button>
     <p class="water-name">${esc(baby.name)} says:</p>
     <p class="water-msg">${MESSAGE}</p>
@@ -122,42 +116,20 @@ function bubbleHTML(baby) {
       <button class="btn small" type="button" data-water="done">Done</button>
       <button class="ghost" type="button" data-water="snooze">Snooze ${SNOOZE_MIN} min</button>
     </div>`;
-}
-
-function wireButtons(root) {
-  root.querySelectorAll('[data-water]').forEach(b => b.addEventListener('click', () => {
-    const now = Date.now();
-    if (b.dataset.water === 'done') addGlass(settings, now);
-    if (b.dataset.water === 'snooze') snooze(settings, now);
-    save();
-    alerting = false;
-    pop.hidden = true;
-    render();
-    renderPip();
-  }));
-}
-
-function showInPage(baby) {
-  document.getElementById('waterBubble').innerHTML = bubbleHTML(baby);
-  wireButtons(document.getElementById('waterBubble'));
+  bubble.querySelectorAll('[data-water]').forEach(b => b.addEventListener('click', () => answer(b.dataset.water)));
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
-  dino.appendChild(dinoArt(baby));
+  dino.appendChild(babyArt(baby.type, DINO_PX, sex));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
-}
 
-function alertNow(test = false) {
-  const baby = chosenBaby();
-  if (!baby) return;
-  alerting = true;
-  if (pip) renderPip();
-  else showInPage(baby);
+  if (settings.sound) startAlarm(test ? 4 : 60);
 
-  if (!test && !pip && settings.notify && document.hidden && canNotify() && Notification.permission === 'granted') {
-    const icon = spriteUrl(baby.type, sexOf(baby));
+  if (!test && settings.notify && document.hidden && canNotify() && Notification.permission === 'granted') {
+    const icon = spriteUrl(baby.type, sex);
     try {
-      new Notification(MESSAGE, { body: `${baby.name} is reminding you.`, icon: icon ? new URL(icon, location.href).href : undefined, tag: 'water' });
+      const n = new Notification(MESSAGE, { body: `${baby.name} is reminding you.`, icon: icon ? new URL(icon, location.href).href : undefined, tag: 'water' });
+      n.onclick = () => { window.focus(); n.close(); };
     } catch (e) { /* some browsers only allow notifications from a service worker */ }
   }
 }
@@ -165,67 +137,17 @@ function alertNow(test = false) {
 function check() {
   // another tab of the game may have shown the reminder already
   settings.lastAt = Math.max(settings.lastAt, read().lastAt);
-  if (isDue(settings, Date.now()) && chosenBaby()) {
-    settings.lastAt = Date.now();
-    save();
-    alertNow();
-    if (!document.getElementById('panelNest').hidden) render();
-  } else if (pip && !alerting) {
-    renderPip();   // keeps "next reminder at" current
-  }
-}
-
-// ---------- floating window ----------
-async function openPip() {
-  try {
-    pip = await window.documentPictureInPicture.requestWindow(PIP_SIZE);
-  } catch (e) {
-    document.getElementById('waterStatus').textContent = "This browser couldn't open the floating window. Turn on system notifications above to see reminders over other tabs.";
-    return;
-  }
-  const doc = pip.document;
-  doc.title = 'Water reminder · Cretaceous Nest';
-  for (const link of document.querySelectorAll('link[rel="stylesheet"], link[rel="preconnect"]')) {
-    const copy = doc.createElement('link');
-    copy.rel = link.rel;
-    copy.href = link.href;
-    if (link.crossOrigin) copy.crossOrigin = link.crossOrigin;
-    doc.head.appendChild(copy);
-  }
-  doc.body.className = 'pip-body';
-  doc.body.innerHTML = '<div class="pip"><div class="water-bubble" id="pipBubble"></div><div class="water-dino" id="pipDino"></div></div>';
-  pip.addEventListener('pagehide', () => { pip = null; render(); });
-  pop.hidden = true;
-  renderPip();
-  render();
-}
-
-function renderPip() {
-  if (!pip) return;
-  const doc = pip.document;
-  const baby = chosenBaby();
-  const bubble = doc.getElementById('pipBubble');
-  const dino = doc.getElementById('pipDino');
-  if (!bubble || !dino) return;
-  if (!baby) { bubble.innerHTML = '<p class="hint">Pick a baby in the game first.</p>'; dino.innerHTML = ''; return; }
-  if (alerting) {
-    bubble.innerHTML = bubbleHTML(baby);
-    bubble.classList.add('alert');
-    wireButtons(bubble);
-    bubble.querySelector('[data-water="close"]').remove();   // the window's own × closes it
-  } else {
-    bubble.classList.remove('alert');
-    bubble.innerHTML = `<p class="water-name">${esc(baby.name)}</p><p class="hint">${settings.on ? `I'll tell you when it's time to drink water. ${nextText()}` : 'Water reminders are off. Turn them on in the game.'}</p>`;
-  }
-  if (dino.dataset.baby !== baby.id) {
-    dino.dataset.baby = baby.id;
-    dino.innerHTML = '';
-    dino.appendChild(doc.adoptNode(dinoArt(baby, true)));
-  }
+  if (!isDue(settings, Date.now()) || !chosenBaby()) return;
+  settings.lastAt = Date.now();
+  save();
+  alertNow();
+  if (!document.getElementById('panelNest').hidden) render();
 }
 
 export function initWater() {
   settings = read();
+  // the first click or key press on the page allows the alarm to play later, even in the background
+  for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, unlockAudio, { once: true, capture: true });
   render();
   subscribe(() => { if (!body.contains(document.activeElement)) render(); });
   setInterval(check, CHECK_MS);

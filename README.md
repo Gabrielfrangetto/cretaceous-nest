@@ -10,7 +10,7 @@ An idle browser game. Pick a dinosaur egg and wait for it to hatch (time keeps r
 - Leaves feed the herbivores and meat feeds the carnivores; every meal uses 1 item from the inventory
 - An inventory that starts with one row of 10 slots (up to 99 items per slot) and grows in the shop, up to 100 slots
 - Coins from hatching eggs and feeding babies, spent on food and bigger backpacks
-- Water reminder: pick a baby and an interval, and it pops up in the corner to remind you to drink water; a floating always-on-top window (Chrome and Edge on desktop) or system notifications show it over other tabs
+- Water reminder: pick a baby and an interval; when it is time, an alarm-clock sound plays and the baby pops up in the corner to remind you to drink water (optional system notifications too)
 - Save codes to back up progress or move it to another browser
 - Optional free accounts with cloud saves (Supabase), see `docs/supabase-setup.md`
 
@@ -56,6 +56,7 @@ js/cloud.js         Supabase sign-in and cloud saves (off until js/cloud-config.
 js/art.js           eggs, nest, item icons and baby sprites
 js/util.js          small helpers
 js/reminder.js      water reminder timing
+js/alarm.js         alarm-clock sound made with the Web Audio API
 js/ui/              one module per part of the screen (tabs, incubator, nest, inventory, shop, backup, account, water)
 sprites/            baby dinosaur images, <species>-m.png and <species>-f.png
 scripts/serve.js    local static server

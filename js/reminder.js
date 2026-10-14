@@ -1,6 +1,6 @@
 // Water reminder timing. Pure, so it can be tested; the screen part is js/ui/water.js.
 //
-// settings: { on, babyId, every (minutes), notify, lastAt (ms), day ('YYYY-M-D'), glasses }
+// settings: { on, babyId, every (minutes), sound, notify, lastAt (ms), day ('YYYY-M-D'), glasses }
 
 export const MIN_EVERY = 1;
 export const MAX_EVERY = 480;
@@ -13,7 +13,7 @@ export function clampEvery(m) {
   return Math.min(MAX_EVERY, Math.max(MIN_EVERY, Math.round(n)));
 }
 
-export const defaults = () => ({ on: false, babyId: null, every: 30, notify: false, lastAt: 0, day: '', glasses: 0 });
+export const defaults = () => ({ on: false, babyId: null, every: 30, sound: true, notify: false, lastAt: 0, day: '', glasses: 0 });
 
 export const nextDue = s => s.lastAt + clampEvery(s.every) * 60000;
 
