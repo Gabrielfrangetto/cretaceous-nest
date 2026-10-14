@@ -63,6 +63,7 @@ js/alarm.js         alarm-clock sound made with the Web Audio API
 js/ui/              one module per part of the screen (tabs, incubator, nest, inventory, shop, backup, account, water)
 sprites/            baby dinosaur images, <species>-m.png and <species>-f.png
 scripts/serve.js    local static server
+scripts/version.js  stamps asset addresses with content hashes (run before committing)
 scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
 tests/              node:test suites
 supabase/           database migrations (tables, row-level security)
@@ -77,6 +78,15 @@ powershell -STA -File scripts/cutout.ps1 -In image.png -Out sprites/rex-f.png
 ```
 
 Add `-Flip` when the image faces left.
+
+## Before each commit
+
+```
+node scripts/version.js
+node --test
+```
+
+`version.js` stamps every script and stylesheet address in the pages with a hash of its contents, so right after a deploy no browser or CDN cache can mix an old file with new ones. A test fails if you forget.
 
 ## Changing the save format
 
