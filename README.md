@@ -65,6 +65,7 @@ sprites/            baby dinosaur images, <species>-m.png and <species>-f.png
 scripts/serve.js    local static server
 scripts/version.js  stamps asset addresses with content hashes (run before committing)
 scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
+scripts/cutout.py   the same on any system (Python + Pillow); any plain background colour
 js/gear-art.js      where equipment sits on each sprite (anchors) and its pictures
 tools/anchors.html  visual editor for those anchors (open it from the local server or the site)
 tests/              node:test suites
@@ -80,6 +81,14 @@ powershell -STA -File scripts/cutout.ps1 -In image.png -Out sprites/rex-f.png
 ```
 
 Add `-Flip` when the image faces left.
+
+On Linux or macOS, or for a dark grey or green background, use the Python version (`pip install pillow`):
+
+```
+python scripts/cutout.py image.png sprites/rex-f.png [--flip]
+```
+
+Adult sprites go in `sprites/adult/` with the same names (`rex-m.png`); the game does not use them yet.
 
 ## Before each commit
 
