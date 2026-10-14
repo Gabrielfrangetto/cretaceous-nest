@@ -2,27 +2,30 @@
 
 export const SPECIES = {
   proto: {
-    egg: 'Spotted Egg', species: 'Protoceratops', mins: 1, rarity: 'Common',
+    egg: 'Spotted Egg', species: 'Protoceratops', build: 'ceratopsian', mins: 1, rarity: 'Common',
     shell: '#eadcbf', mark: '#8b6a44', pattern: 'spots', body: '#c79d63', acc: '#d9662f',
     nick: 'Popcorn', fact: 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.',
   },
   hypa: {
-    egg: 'Striped Egg', species: 'Hypacrosaurus', mins: 5, rarity: 'Uncommon',
+    egg: 'Striped Egg', species: 'Hypacrosaurus', build: 'hadrosaur', mins: 5, rarity: 'Uncommon',
     shell: '#d6e2cc', mark: '#5c7b4f', pattern: 'stripes', body: '#78a463', acc: '#d8bd3e',
     nick: 'Sprout', fact: 'Teeth from Hypacrosaurus embryos suggest almost 6 months inside the egg.',
   },
   raptor: {
-    egg: 'Speckled Egg', species: 'Velociraptor', mins: 15, rarity: 'Rare',
+    egg: 'Speckled Egg', species: 'Velociraptor', build: 'theropod', mins: 15, rarity: 'Rare',
     shell: '#cfd6e4', mark: '#46557a', pattern: 'speckle', body: '#6a7ca8', acc: '#e3ae45',
     nick: 'Sparky', fact: 'An adult Velociraptor was about 2 m long including the tail, and its body was covered in feathers.',
   },
   rex: {
-    egg: 'Golden Egg', species: 'Tyrannosaurus', mins: 60, rarity: 'Legendary',
+    egg: 'Golden Egg', species: 'Tyrannosaurus', build: 'theropod', mins: 60, rarity: 'Legendary',
     shell: '#f0cd68', mark: '#b48114', pattern: 'gold', body: '#a35b40', acc: '#f0cd68',
     nick: 'Rex', fact: 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.',
   },
 };
 export const ORDER = ['proto', 'hypa', 'raptor', 'rex'];
+
+// Body builds: species of one build share equipment art (each sprite still gets its own anchors).
+export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian' };
 
 export const SEX = { m: { word: 'Male', sym: '♂' }, f: { word: 'Female', sym: '♀' } };
 

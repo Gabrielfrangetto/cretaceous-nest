@@ -1,4 +1,6 @@
 // Where each piece of equipment sits on each baby sprite, and the pictures used for it.
+import { SPECIES } from './config.js';
+
 //
 // ANCHORS[type][sex][key] = { x, y, w, r }: the centre of the item as a fraction of the sprite's
 // width (x) and height (y), the item's width as a fraction of the sprite's width (w), and a
@@ -24,11 +26,21 @@ export const ANCHORS = {
   },
 };
 
-// Hand-drawn pictures of the equipment as worn (transparent PNGs drawn facing right). Until one is
-// listed here, the item's icon stands in for it.
+// Hand-drawn pictures of the equipment as worn (transparent PNGs drawn facing right). One picture
+// for every build, or one per build: { theropod: '...', hadrosaur: '...', ceratopsian: '...' }.
+// A build with no picture of its own uses `all` if given, otherwise the item's icon.
 export const GEAR_ART = {
   leaf_crown: 'sprites/gear/leaf_crown.png',
 };
+
+// the picture of a piece for one species, by its build
+export function gearArtFor(id, type) {
+  const art = GEAR_ART[id];
+  if (!art) return null;
+  if (typeof art === 'string') return art;
+  const build = SPECIES[type] && SPECIES[type].build;
+  return art[build] || art.all || null;
+}
 
 // where a piece sits on a sprite: its own fit if it has one, otherwise its slot's
 export function anchorFor(type, sex, slot, id) {

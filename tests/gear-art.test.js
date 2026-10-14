@@ -14,3 +14,17 @@ test("each piece uses its own fit on a sprite, or its slot's until it is tuned",
     if (saved) set.bone_helmet = saved; else delete set.bone_helmet;
   }
 });
+
+test('equipment art is shared by species of one build', async () => {
+  const { GEAR_ART, gearArtFor } = await import('../js/gear-art.js');
+  GEAR_ART.test_hat = { theropod: 'theropod.png', all: 'any.png' };
+  try {
+    assert.equal(gearArtFor('test_hat', 'rex'), 'theropod.png');
+    assert.equal(gearArtFor('test_hat', 'raptor'), 'theropod.png');
+    assert.equal(gearArtFor('test_hat', 'proto'), 'any.png');
+    assert.equal(gearArtFor('leaf_crown', 'hypa'), GEAR_ART.leaf_crown);
+    assert.equal(gearArtFor('nothing', 'rex'), null);
+  } finally {
+    delete GEAR_ART.test_hat;
+  }
+});

@@ -1,6 +1,6 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
 import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS } from './config.js';
-import { anchorFor, GEAR_ART, FITTED, BEHIND } from './gear-art.js';
+import { anchorFor, gearArtFor, FITTED, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -156,7 +156,8 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null) {
       layer.style.top = (a.y * 100) + '%';
       layer.style.width = (a.w * 100) + '%';
       layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
-      if (GEAR_ART[id]) layer.appendChild(pictureOf(asset(GEAR_ART[id])));
+      const art = gearArtFor(id, type);
+      if (art) layer.appendChild(pictureOf(asset(art)));
       else layer.innerHTML = ITEM_ICONS[id];
     }
     box.appendChild(layer);
