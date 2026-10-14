@@ -35,7 +35,7 @@ export const GUEST_LIMITS = {
   coins: 1000,
   babies: 40,
   invSize: 30,
-  items: { leaf: 150, meat: 150, amber: 1 },   // shells are capped by the babies they came from
+  items: { leaf: 150, meat: 150, amber: 1, feather: 60, clay: 60, bone: 60, obsidian: 60 },   // shells are capped by the babies they came from
   mealsPerBaby: 300,
 };
 
@@ -70,6 +70,8 @@ export function capGuestSave(s, now) {
   s.hatched = s.hatched.map(b => ({ ...b, genes: capGenes(b.genes), gen: 1 }));
   s.eggs = (s.eggs || []).map(e => ({ ...e, genes: capGenes(e.genes), gen: 1 }));
   s.breeding = null;
+  // trips in progress can't be checked, so the explorers come home empty-handed
+  if (s.world) s.world.expeditions = [];
 
   // outfits will be earned or bought, which a browser save can't prove, so they stay out of accounts
   s.wardrobe = [];

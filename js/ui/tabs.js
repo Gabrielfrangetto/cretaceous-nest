@@ -1,5 +1,5 @@
 // Tab bar. Other modules ask to be told when their tab opens instead of importing each other.
-const TABS = { incubator: ['tabInc', 'panelInc'], nest: ['tabNest', 'panelNest'], inv: ['tabInv', 'panelInv'], shop: ['tabShop', 'panelShop'], rewards: ['tabRewards', 'panelRewards'] };
+const TABS = { incubator: ['tabInc', 'panelInc'], nest: ['tabNest', 'panelNest'], world: ['tabWorld', 'panelWorld'], inv: ['tabInv', 'panelInv'], shop: ['tabShop', 'panelShop'], rewards: ['tabRewards', 'panelRewards'] };
 const KEY = 'cretaceous-nest:tab';
 const LEGACY_KEY = 'ninho-cretaceo:tab';
 

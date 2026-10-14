@@ -93,7 +93,7 @@ input[type="text"] { width: 100%; max-width: 320px; font: inherit; font-size: 18
 
 /* tabs */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: -12px; overflow-x: auto; scrollbar-width: none; }
-.tab { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 600; font-size: 18px; padding: 10px 16px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; background: none; color: var(--muted); cursor: pointer; }
+.tab { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 600; font-size: 18px; padding: 10px 16px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; flex: none; }
 .tab:hover { color: var(--ink); }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; border-radius: 8px 8px 0 0; }
@@ -417,3 +417,30 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .gear-layer.fitted { left: 0; top: 0; width: 100%; height: 100%; transform: none; }
 .gear-layer.fitted img { width: 100%; height: 100%; }
 .look-row select { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; }
+
+/* ---------- world map ---------- */
+#panelWorld { display: grid; gap: 14px; }
+#panelWorld[hidden] { display: none; }
+.world-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: 18px; align-items: start; }
+@media (max-width: 760px) { .world-layout { grid-template-columns: minmax(0, 1fr); } }
+.world-map-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; min-width: 0; }
+.world-map { display: block; width: 100%; height: auto; }
+.world-map .hex polygon { stroke: var(--panel); stroke-width: 2; }
+.world-map .hex.fog polygon { fill: var(--fog, #565a52); }
+.world-map .hex.frontier polygon { fill: var(--fog-near, #7b8174); stroke: var(--accent); stroke-dasharray: 4 3; }
+.world-map .hex .q { font: 700 16px var(--display); fill: #f3f1e6; text-anchor: middle; }
+.world-map .hex[tabindex] { cursor: pointer; outline: none; }
+.world-map .hex[tabindex]:hover polygon, .world-map .hex[tabindex]:focus-visible polygon { filter: brightness(1.12); stroke: var(--ink); stroke-width: 2.5; }
+.world-map .hex.sel polygon { stroke: var(--accent); stroke-width: 4; stroke-dasharray: none; }
+.world-map .trip circle { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.world-map .trip text { font: 700 10px var(--body); fill: var(--accent-ink); text-anchor: middle; }
+.world-map .trip.back circle { fill: var(--heart); animation: pulse 1.2s ease-in-out infinite; }
+.world-side { display: grid; gap: 14px; min-width: 0; }
+.panel-box { display: grid; gap: 10px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.panel-box select { width: 100%; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.loot { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.loot li { display: flex; align-items: center; gap: 6px; }
+.loot .mini svg, .trips .mini svg { width: 18px; height: 18px; display: block; }
+.trips { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.trip-row { display: grid; gap: 6px; }
+.trip-row .row { justify-content: space-between; }

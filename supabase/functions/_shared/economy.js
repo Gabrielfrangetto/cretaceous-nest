@@ -6,6 +6,7 @@ import {
   OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
+import { isAway, startExpedition, recallExpedition, collectExpedition } from './world.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -110,7 +111,7 @@ export function deriveCombat(st) {
   };
 }
 
-function earn(s, coins) {
+export function earn(s, coins) {
   s.coins += coins;
   bump(s, 'coinsEarned', coins);
 }
@@ -249,6 +250,7 @@ export const isHungry = (b, now) => now - (b.lastFed || b.at) >= hungerEvery(b);
 export function feedBaby(s, id, now) {
   const b = s.hatched.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'missing' };
+  if (isAway(s, id)) return { ok: false, reason: 'away' };
   if (!isHungry(b, now)) return { ok: false, reason: 'full' };
   const food = DIET[b.type];
   if (countItem(s, food) < 1) return { ok: false, reason: 'no-food', food };
@@ -351,6 +353,7 @@ export function breedProblem(s, maleId, femaleId) {
   if (sexOf(m) !== 'm' || sexOf(f) !== 'f') return 'not-a-pair';
   if (m.type !== f.type) return 'different-species';
   if (!isAdult(m) || !isAdult(f)) return 'not-adult';
+  if (isAway(s, maleId) || isAway(s, femaleId)) return 'away';
   if (s.breeding) return 'busy';
   if (trayFull(s)) return 'tray-full';
   return null;
@@ -530,6 +533,15 @@ export const ACTIONS = {
   },
   feed(s, { id }, now) {
     return feedBaby(s, id, now);
+  },
+  explore(s, { babyId, hex }, now) {
+    return startExpedition(s, babyId, hex, now);
+  },
+  recall(s, { id }) {
+    return recallExpedition(s, id);
+  },
+  collectTrip(s, { id }, now) {
+    return collectExpedition(s, id, now);
   },
   move(s, { a, b }) {
     if (!slotIndex(s, a) || !slotIndex(s, b)) return fail('bad-slot');

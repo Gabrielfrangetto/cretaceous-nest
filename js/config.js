@@ -45,6 +45,11 @@ export const ITEMS = {
   shell:        { name: 'Eggshell', plural: 'eggshells', desc: 'Left over from an egg that hatched in the nest.' },
   golden_shell: { name: 'Golden eggshell', plural: 'golden eggshells', desc: 'A piece of the rare Golden Egg, where the Tyrannosaurus hatches from.' },
   amber:        { name: 'Amber', plural: 'amber', desc: 'Fossilized tree resin. Some pieces hold insects from the Cretaceous.' },
+  // materials brought back from expeditions (for crafting, later)
+  feather:      { name: 'Feather', plural: 'feathers', desc: 'Shed by the small feathered dinosaurs of the conifer forests.' },
+  clay:         { name: 'Clay', plural: 'clay', desc: 'Soft river clay from the swamps.' },
+  bone:         { name: 'Old bone', plural: 'old bones', desc: 'Sun-bleached bones found in the badlands.' },
+  obsidian:     { name: 'Obsidian', plural: 'obsidian', desc: 'Sharp volcanic glass from the slopes of the volcano.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
   // mods use the stat engine's stages: flat, increased (0.10 = +10%), more (1.10 = ×1.10).
@@ -86,6 +91,24 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 export const DIET = { proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
+
+// World map: a hex map around the nest, hidden under fog until expeditions reveal it.
+// Each player's map is generated from their own seed. Distance from the nest sets how long a trip
+// takes and how much it brings back.
+export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
+export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
+export const EXPEDITION_SLOTS = 2;           // dinosaurs exploring at the same time
+export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes away; adults anywhere
+export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
+export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
+// loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
+export const BIOMES = {
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', loot: [['leaf', 2, 4]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+};
 
 // Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
 // scale draws juveniles (and adults without an adult sprite yet) larger than babies.

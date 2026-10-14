@@ -3,9 +3,10 @@ import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
+import { expeditionOf } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
-import { plural } from '../util.js';
+import { plural, fmt } from '../util.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -67,7 +68,9 @@ function checkHunger() {
   const now = gameNow();
   let hungryCount = 0;
   for (const b of S.hatched) {
-    const hungry = isHungry(b, now);
+    const trip = expeditionOf(S, b.id);
+    // explorers are away: they get fed when they come home
+    const hungry = !trip && isHungry(b, now);
     if (hungry) hungryCount++;
     const w = walkers.get(b.id);
     if (w && w.hungry !== hungry) {
@@ -77,7 +80,8 @@ function checkHunger() {
     }
     const fed = document.querySelector(`.fed[data-id="${b.id}"]`);
     if (fed) {
-      fed.textContent = hungry ? 'Hungry!' : 'Ate ' + plural(b.fed || 0, 'time', 'times');
+      fed.textContent = trip ? (now >= trip.returnAt ? 'Back from exploring! See the World tab' : 'Exploring · back in ' + fmt(trip.returnAt - now))
+        : hungry ? 'Hungry!' : 'Ate ' + plural(b.fed || 0, 'time', 'times');
       fed.classList.toggle('hungry', hungry);
     }
   }
@@ -100,9 +104,11 @@ function checkHunger() {
 }
 
 function syncWalkers() {
-  const ids = new Set(S.hatched.map(b => b.id));
+  // dinosaurs out exploring are not in the nest
+  const home = S.hatched.filter(b => !expeditionOf(S, b.id));
+  const ids = new Set(home.map(b => b.id));
   for (const [id, w] of walkers) if (!ids.has(id)) { w.el.remove(); walkers.delete(id); }
-  for (const b of S.hatched) {
+  for (const b of home) {
     const have = walkers.get(b.id);
     if (have) {
       have.name.textContent = nameTag(b);
@@ -138,7 +144,9 @@ function syncWalkers() {
     scene.appendChild(el);
     walkers.set(b.id, w);
   }
-  document.getElementById('sceneEmpty').hidden = walkers.size > 0;
+  const empty = document.getElementById('sceneEmpty');
+  empty.hidden = walkers.size > 0;
+  empty.textContent = S.hatched.length ? 'Everyone is out exploring. Check the World tab.' : 'No babies yet. Hatch an egg in the Incubator tab.';
 }
 
 function popText(w, cls, text) {

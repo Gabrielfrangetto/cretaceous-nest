@@ -66,6 +66,16 @@ Signed-in players can no longer change their own coins or items: the server deci
 - [x] Equipment drawn over the sprite (layers, anchors per sprite, anchor editor); [ ] hand-drawn art for each piece
 - [ ] Equipment rarities (Normal, Magic, Rare, Legendary) with rolled bonuses, and where items drop
 - [ ] Combat system using the derived stats
+
+### World map (open world, idle first)
+
+Plan: a hex map under fog explored by idle expeditions (now), later small walkable areas inside special hexes (caves, boss lairs).
+
+- [x] Step 1: hex map per player (seeded), five biomes, fog, expeditions by real time (juveniles near, adults anywhere, 2 at once), loot by biome and distance, discovery coins, explorers come home hungry
+- [ ] Step 2: wild creatures per biome and auto-combat with the derived stats
+- [ ] Step 3: taming wild dinosaurs; crafting equipment from amber, shells, feathers, clay, bone and obsidian
+- [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
+- [ ] Step 5: walkable areas inside special hexes
 - [ ] More species and rarities, seasonal eggs
 - [x] Daily login reward (7-day streak) and achievements
 - [ ] Collection book (dinopedia with real facts)
