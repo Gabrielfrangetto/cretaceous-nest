@@ -61,6 +61,14 @@
     </div>
     <p class="hint food-stock" id="foodStock"></p>
 
+    <section class="water" aria-labelledby="waterTitle">
+      <div>
+        <h2 id="waterTitle">Water reminder</h2>
+        <p class="hint">Pick a baby and it will pop up to remind you to drink water while this page is open.</p>
+      </div>
+      <div id="waterBody" class="water-body"></div>
+    </section>
+
     <section class="collection">
       <div class="collection-head">
         <h2>Your babies</h2>
@@ -114,6 +122,20 @@
   <button class="close" id="accountClose" type="button" aria-label="Close">×</button>
   <div id="accountBody"></div>
 </dialog>
+
+<div class="water-pop" id="waterPop" role="alert" hidden>
+  <div class="water-bubble">
+    <button class="close" id="waterClose" type="button" aria-label="Close">×</button>
+    <p class="water-name" id="waterPopName"></p>
+    <p class="water-msg">Time to drink water!</p>
+    <p class="hint" id="waterPopCount"></p>
+    <div class="row">
+      <button class="btn small" id="waterDone" type="button">Done</button>
+      <button class="ghost" id="waterSnooze" type="button">Snooze</button>
+    </div>
+  </div>
+  <div class="water-dino" id="waterDino"></div>
+</div>
 
 <footer class="site-footer"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></footer>
 </body>

@@ -111,6 +111,9 @@ function babyGrid(type, sex) {
   return g;
 }
 
+// image path for a baby, or null when it only has pixel art (used for system notification icons)
+export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) || null;
+
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
 
 // px sets the size: sprites are px * 17 tall, the pixel fallback is 14 px-sized pixels tall
