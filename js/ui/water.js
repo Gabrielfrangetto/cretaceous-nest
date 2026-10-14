@@ -3,7 +3,7 @@
 // preference, not game progress.
 import { SPECIES, SEX } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf } from '../economy.js';
+import { sexOf, wornGear } from '../economy.js';
 import { dressedArt, spriteUrl } from '../art.js';
 import { esc } from '../util.js';
 import { unlockAudio, startAlarm, stopAlarm } from '../alarm.js';
@@ -119,7 +119,7 @@ function alertNow(test = false) {
   bubble.querySelectorAll('[data-water]').forEach(b => b.addEventListener('click', () => answer(b.dataset.water)));
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
-  dino.appendChild(dressedArt(baby.type, DINO_PX, sex, baby.equip, baby.outfit));
+  dino.appendChild(dressedArt(baby.type, DINO_PX, sex, wornGear(baby), baby.outfit));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 

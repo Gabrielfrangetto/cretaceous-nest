@@ -90,7 +90,8 @@ function sanitize(s) {
     const slot = s.inv[i];
     if (slot) { s.inv[i] = null; addItem(s, slot.id, slot.n); }
   }
-  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(({ stats, ...b }) => ({
+  // growth stages do not exist yet, so no save can hold an adult
+  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(({ stats, stage, ...b }) => ({
     ...b,
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),

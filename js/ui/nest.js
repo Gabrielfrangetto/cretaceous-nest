@@ -1,7 +1,7 @@
 // Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
 import { SPECIES, SEX, DIET, ITEMS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isHungry, countItem } from '../economy.js';
+import { sexOf, isHungry, countItem, wornGear } from '../economy.js';
 import { act } from '../actions.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
@@ -38,14 +38,14 @@ function renderBabies() {
       card.className = 'baby';
       card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
       card.addEventListener('click', () => openBabyInfo(b.id));
-      card.appendChild(dressedArt(b.type, 5, sex, b.equip, b.outfit));
+      card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
       const gear = document.createElement('span'); gear.className = 'gear-icons';
-      gear.innerHTML = Object.values(b.equip || {}).map(id => `<span class="gear-icon" title="${ITEMS[id].name}">${ITEM_ICONS[id]}</span>`).join('');
+      gear.innerHTML = Object.values(wornGear(b)).map(id => `<span class="gear-icon" title="${ITEMS[id].name}">${ITEM_ICONS[id]}</span>`).join('');
       const more = document.createElement('span'); more.className = 'more'; more.textContent = 'See stats';
       card.append(nm, sps, dt, fed, gen, gear, more);
       box.appendChild(card);
@@ -99,9 +99,9 @@ function syncWalkers() {
     if (have) {
       have.name.textContent = nameTag(b);
       // redraw when the baby puts on or takes off equipment
-      const key = JSON.stringify([b.equip || {}, b.outfit || null]);
+      const key = JSON.stringify([wornGear(b), b.outfit || null]);
       if (have.gearKey !== key) {
-        const art = dressedArt(b.type, 4, sexOf(b), b.equip, b.outfit);
+        const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit);
         art.style.transform = have.art.style.transform;
         have.art.replaceWith(art);
         have.art = art;
@@ -115,14 +115,14 @@ function syncWalkers() {
     bubble.className = 'bubble'; bubble.hidden = true;
     const food = DIET[b.type];
     bubble.innerHTML = ITEM_ICONS[food] + '<span>' + ASK[food] + '</span>';
-    const art = dressedArt(b.type, 4, sexOf(b), b.equip, b.outfit);
+    const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
     const depth = Math.random();
     el.style.bottom = Math.round(12 + depth * 60) + 'px';
     el.style.zIndex = String(200 - Math.round(depth * 100));
     const w = {
-      id: b.id, el, art, bubble, name, hungry: null, gearKey: JSON.stringify([b.equip || {}, b.outfit || null]),
+      id: b.id, el, art, bubble, name, hungry: null, gearKey: JSON.stringify([wornGear(b), b.outfit || null]),
       x: Math.random() * (sceneW() - 70), dir: Math.random() < .5 ? 1 : -1,
       speed: 28 + Math.random() * 26, pause: Math.random() * 1.5, walk: 1 + Math.random() * 3, t: Math.random() * 6, hop: 0,
     };

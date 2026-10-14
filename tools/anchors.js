@@ -1,8 +1,8 @@
 // Visual editor for js/gear-art.js ANCHORS: place, size and turn each piece of equipment on each
-// official baby sprite. Click or drag anywhere on the baby: the chosen piece goes there.
+// adult sprite (only adults wear equipment). Click or drag anywhere on the dinosaur: the chosen piece goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS } from '../js/config.js';
 import { ANCHORS } from '../js/gear-art.js';
-import { dressedArt } from '../js/art.js';
+import { dressedArt, adultSpriteUrl } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors';
 const PX = 20;   // sprite drawn 340 px tall
@@ -15,7 +15,16 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(anchors)); }
 const gearFor = slot => Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear' && it.slot === slot);
 const fill = (sel, pairs) => { sel.innerHTML = pairs.map(([v, t]) => `<option value="${v}">${t}</option>`).join(''); };
 
-fill($('type'), ORDER.map(k => [k, SPECIES[k].species]));
+// species with no adult sprite yet stay listed, marked, and show a note instead of a drawing
+const hasAdult = type => adultSpriteUrl(type, 'm') || adultSpriteUrl(type, 'f');
+fill($('type'), ORDER.map(k => [k, SPECIES[k].species + (hasAdult(k) ? '' : ' (no adult sprite yet)')]));
+$('type').value = ORDER.find(hasAdult) || ORDER[0];
+const fillSex = () => {
+  const type = $('type').value, keep = $('sex').value;
+  fill($('sex'), [['m', 'Male'], ['f', 'Female']].map(([v, t]) => [v, t + (adultSpriteUrl(type, v) ? '' : ' (no adult sprite yet)')]));
+  $('sex').value = adultSpriteUrl(type, keep) ? keep : adultSpriteUrl(type, 'm') ? 'm' : adultSpriteUrl(type, 'f') ? 'f' : keep || 'm';
+};
+fillSex();
 fill($('slot'), GEAR_SLOTS.filter(s => DRAWN_SLOTS.includes(s.id)).map(s => [s.id, s.name]));
 const fillItems = () => fill($('item'), gearFor($('slot').value).map(([id, it]) => [id, it.name]));
 fillItems();
@@ -38,13 +47,20 @@ let art = null, active = null;
 
 function render() {
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
+  if (!adultSpriteUrl(type, sex)) {
+    art = active = null;
+    $('canvas').innerHTML = `<p class="hint">There is no adult ${sex === 'm' ? 'male' : 'female'} ${SPECIES[type].species} sprite yet. Add it as sprites/adult/${type}-${sex}.png and list it in ADULT_SPRITES in js/art.js.</p>`;
+    $('readout').textContent = '';
+    $('out').value = 'export const ANCHORS = ' + format(anchors) + ';\n';
+    return;
+  }
   const equip = {};
   if ($('all').checked) for (const id of DRAWN_SLOTS) equip[id] = gearFor(id)[0][0];
   equip[slot] = $('item').value;
   // the editor draws with its own anchors, so what you see is what you have set so far
   const real = ANCHORS[type][sex];
   ANCHORS[type][sex] = anchors[type][sex];
-  art = dressedArt(type, PX, sex, equip);
+  art = dressedArt(type, PX, sex, equip, null, true);
   ANCHORS[type][sex] = real;
   $('canvas').innerHTML = '';
   $('canvas').appendChild(art);
@@ -57,7 +73,7 @@ function render() {
   $('out').value = 'export const ANCHORS = ' + format(anchors) + ';\n';
 }
 
-// pointer anywhere on the baby: the chosen piece jumps there and follows until released
+// pointer anywhere on the dinosaur: the chosen piece jumps there and follows until released
 $('canvas').addEventListener('pointerdown', e => {
   if (!art || !art.contains(e.target)) return;
   e.preventDefault();
@@ -92,7 +108,8 @@ function format(all) {
   }).join('') + '  },\n').join('') + '}';
 }
 
-for (const id of ['type', 'sex', 'item', 'all']) $(id).addEventListener('change', render);
+for (const id of ['sex', 'item', 'all']) $(id).addEventListener('change', render);
+$('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { fillItems(); render(); });
 $('w').addEventListener('input', e => { editable().w = +e.target.value; save(); render(); });
 $('r').addEventListener('input', e => { editable().r = +e.target.value; save(); render(); });

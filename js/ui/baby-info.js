@@ -2,7 +2,7 @@
 // equipment (equip and take off) and family.
 import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear } from '../economy.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
@@ -14,7 +14,7 @@ const body = document.getElementById('babyBody');
 const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 let openId = null, message = '';
 
-const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.' };
+const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.', 'not-adult': 'Only adults can wear equipment.' };
 
 function parentsText(b) {
   if (!b.parents || !b.parents.length) return 'Hatched from a free egg';
@@ -26,6 +26,7 @@ function parentsText(b) {
 }
 
 function equipmentHTML(b) {
+  const adult = isAdult(b);
   const rows = GEAR_SLOTS.map(({ id: slot, name }) => {
     const worn = b.equip && b.equip[slot];
     // pieces in the bag that fit this slot, by inventory position
@@ -38,13 +39,14 @@ function equipmentHTML(b) {
         ? `<span class="gear-icon">${ITEM_ICONS[worn]}</span><span><strong>${esc(ITEMS[worn].name)}</strong>${modsHTML(ITEMS[worn].mods)}</span>`
         : '<span class="hint">Empty</span>'}</div>
       <div class="gear-actions">
-        ${options.length ? `<select data-slot="${slot}" aria-label="Choose ${name.toLowerCase()} equipment">${options.map(({ x, i }) => `<option value="${i}">${esc(ITEMS[x.id].name)}</option>`).join('')}</select>
+        ${adult && options.length ? `<select data-slot="${slot}" aria-label="Choose ${name.toLowerCase()} equipment">${options.map(({ x, i }) => `<option value="${i}">${esc(ITEMS[x.id].name)}</option>`).join('')}</select>
           <button class="ghost" type="button" data-equip="${slot}">${worn ? 'Swap' : 'Equip'}</button>` : ''}
         ${worn ? `<button class="ghost" type="button" data-unequip="${slot}">Take off</button>` : ''}
       </div>
     </li>`;
   }).join('');
-  return `<ul class="gear-slots">${rows}</ul>
+  return `${adult ? '' : '<p class="hint"><strong>Only adults can wear equipment.</strong> Babies grow up in a later update; anything this baby already wears does nothing until then and can be taken off.</p>'}
+    <ul class="gear-slots">${rows}</ul>
     <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Some pieces raise one stat and lower another. Head and neck pieces show on the baby; body and back pieces only change its stats.</p>`;
 }
 
@@ -97,7 +99,7 @@ function render() {
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Meals</dt><dd>${plural(b.fed || 0, 'meal', 'meals')}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, b.equip, b.outfit));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;

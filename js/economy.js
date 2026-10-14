@@ -55,9 +55,15 @@ export function cleanGenes(g, seed) {
 }
 
 // ---------- stats ----------
+// Only adults wear equipment. Growth stages do not exist yet, so no baby is an adult until they do;
+// pieces already worn by a baby can be taken off but give no bonus and are not drawn.
+export const isAdult = baby => !!baby && baby.stage === 'adult';
+// what a baby actually wears: its equipment if it is an adult, otherwise nothing
+export const wornGear = baby => (isAdult(baby) && baby.equip) || {};
+
 // the bonuses from everything a baby wears
 export function gearMods(baby) {
-  return Object.values(baby.equip || {}).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
+  return Object.values(wornGear(baby)).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
 }
 
 // A baby's stats, worked out in stages like an action RPG:
@@ -286,6 +292,7 @@ export function buyGear(s, id) {
 export function equipGear(s, babyId, index) {
   const baby = s.hatched.find(b => b.id === babyId);
   if (!baby) return { ok: false, reason: 'missing' };
+  if (!isAdult(baby)) return { ok: false, reason: 'not-adult' };
   if (!Number.isInteger(index) || index < 0 || index >= s.invSize) return { ok: false, reason: 'bad-slot' };
   const item = s.inv[index];
   if (!item || !isGear(item.id)) return { ok: false, reason: 'not-gear' };

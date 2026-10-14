@@ -1,4 +1,4 @@
-// Where each piece of equipment sits on each baby sprite, and the pictures used for it.
+// Where each piece of equipment sits on each adult sprite (only adults wear equipment), and its pictures.
 import { SPECIES } from './config.js';
 
 // ANCHORS[type][sex][key] = { x, y, w, r, m }: the centre of the item as a fraction of the sprite's

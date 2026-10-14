@@ -94,6 +94,11 @@ const asset = path => new URL('../' + path, import.meta.url).href;
 const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =>
   [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
 
+// adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
+// The game shows no adults until growth stages exist; tools/anchors.html already uses them.
+export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.png') } };
+export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
+
 // pixel-art fallback for species without a sprite, or when an image fails to load
 const BASE = [
   '................', '..........####..', '.........######.', '.........##o####', '.........#######',
@@ -128,12 +133,12 @@ export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) ||
 
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
 
-// The baby as it looks: its outfit's sprite if it wears one, otherwise its own sprite with its small
-// accessories (DRAWN_SLOTS) drawn on top. Returns the plain sprite when nothing is drawn over it,
-// otherwise a box holding the sprite and one layer per accessory.
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null) {
+// The baby as it looks: its outfit's sprite if it wears one, otherwise its own sprite (the adult one
+// when adult is true and it exists) with its small accessories (DRAWN_SLOTS) drawn on top. Returns the
+// plain sprite when nothing is drawn over it, otherwise a box holding the sprite and one layer per accessory.
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, adult = false) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
-  const base = babyArt(type, px, sex, false, look ? asset(look.sprites[sex]) : null);
+  const base = babyArt(type, px, sex, false, look ? asset(look.sprites[sex]) : (adult && adultSpriteUrl(type, sex)) || null);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length) return base;

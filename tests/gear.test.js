@@ -9,7 +9,7 @@ const genes = n => ({ str: n, agi: n, vit: n, res: n });
 function withRex(coins = 1000) {
   const s = freshState();
   s.coins = coins;
-  s.hatched.push({ id: 'r1', type: 'rex', sex: 'm', name: 'Rex', at: 0, gen: 1, genes: genes(100), equip: {} });
+  s.hatched.push({ id: 'r1', type: 'rex', sex: 'm', name: 'Rex', at: 0, gen: 1, genes: genes(100), equip: {}, stage: 'adult' });
   return s;
 }
 const slotOf = (s, id) => s.inv.findIndex(x => x && x.id === id);
@@ -98,4 +98,20 @@ test('a guest save keeps at most one of each piece of equipment', () => {
   assert.deepEqual(c.hatched[1].equip, {});
   assert.equal(countItem(c, 'heavy_armor'), 0);
   assert.equal(countItem(c, 'spiked_collar'), 1);
+});
+
+test('only adults wear equipment; a baby keeps what it wore but gets nothing from it', () => {
+  const s = withRex();
+  buyGear(s, 'heavy_armor');
+  const baby = s.hatched[0];
+  delete baby.stage;
+  assert.equal(equipGear(s, 'r1', slotOf(s, 'heavy_armor')).reason, 'not-adult');
+  baby.equip = { body: 'heavy_armor' };
+  assert.deepEqual(gearMods(baby), []);
+  assert.equal(unequipGear(s, 'r1', 'body').ok, true);
+});
+
+test('a loaded save cannot claim an adult before growth exists', () => {
+  const s = withRex();
+  assert.equal(migrate(JSON.parse(JSON.stringify(s))).hatched[0].stage, undefined);
 });
