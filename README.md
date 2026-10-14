@@ -70,7 +70,7 @@ privacy.html, terms.html
 Sprites are 240 px tall PNGs with a transparent background, facing right. To add one from a generated image (plain light background, or already transparent):
 
 ```
-powershell -STA -File scriptscutout.ps1 -In image.png -Out spritesex-f.png
+powershell -STA -File scripts/cutout.ps1 -In image.png -Out sprites/rex-f.png
 ```
 
 Add `-Flip` when the image faces left.
