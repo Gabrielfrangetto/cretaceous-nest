@@ -6,7 +6,8 @@ import { act } from '../actions.js';
 import { now as gameNow } from '../clock.js';
 import { babyArt, ITEM_ICONS } from '../art.js';
 import { plural } from '../util.js';
-import { statsHTML, totalText } from './stats.js';
+import { totalText } from './stats.js';
+import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
 
 const ASK = { leaf: 'Wants leaves', meat: 'Wants meat' };
@@ -31,16 +32,20 @@ function renderBabies() {
     const df = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     for (const b of S.hatched) {
       const sp = SPECIES[b.type], sex = sexOf(b);
-      const card = document.createElement('div');
+      // the whole card opens the baby's details
+      const card = document.createElement('button');
+      card.type = 'button';
       card.className = 'baby';
+      card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
+      card.addEventListener('click', () => openBabyInfo(b.id));
       card.appendChild(babyArt(b.type, 5, sex));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${totalText(b.stats)}`;
-      const st = document.createElement('div'); st.className = 'card-stats'; st.innerHTML = statsHTML(b.stats, { compact: true });
-      card.append(nm, sps, dt, fed, gen, st);
+      const more = document.createElement('span'); more.className = 'more'; more.textContent = 'See stats';
+      card.append(nm, sps, dt, fed, gen, more);
       box.appendChild(card);
     }
   }
