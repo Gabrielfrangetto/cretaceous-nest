@@ -11,6 +11,7 @@ An idle browser game. Pick a dinosaur egg and wait for it to hatch (time keeps r
 - An inventory that starts with one row of 10 slots (up to 99 items per slot) and grows in the shop, up to 100 slots
 - Coins from hatching eggs and feeding babies, spent on food and bigger backpacks
 - Water reminder: pick a baby and an interval; when it is time, an alarm-clock sound plays and the baby pops up in the corner to remind you to drink water (optional system notifications too)
+- Daily reward with a 7-day streak, and achievements that pay coins (checked by the server for signed-in players)
 - Save codes to back up progress or move it to another browser
 - Optional free accounts with cloud saves (Supabase), see `docs/supabase-setup.md`
 

@@ -3,13 +3,16 @@
 import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, MAX_STACK } from './config.js';
 import { addItem } from './economy.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
 
 export function freshState() {
-  const s = { saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS, updatedAt: 0 };
+  const s = {
+    saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
+    daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0 }, achievements: {}, updatedAt: 0,
+  };
   for (const [id, n] of STARTER) addItem(s, id, n);
   return s;
 }
@@ -28,6 +31,14 @@ const MIGRATIONS = {
       s.invSize = BASE_SLOTS;
     }
     s.inv = s.inv.map(slot => slot ? { id: LEGACY_ITEM[slot.id] || slot.id, n: slot.n } : null);
+    return s;
+  },
+  // v2: before daily rewards and achievements. Meals come from what each baby already ate, and the
+  // coins on hand stand in for coins earned so far.
+  2: s => {
+    s.daily = { last: null, streak: 0, best: 0 };
+    s.stats = { coinsEarned: Math.max(0, Number(s.coins) || 0), meals: s.hatched.reduce((t, b) => t + (Number(b && b.fed) || 0), 0), purchases: 0 };
+    s.achievements = {};
     return s;
   },
 };
@@ -49,6 +60,11 @@ function sanitize(s) {
   if (s.current && !SPECIES[s.current.type]) s.current = null;
   s.updatedAt = Number(s.updatedAt) || 0;
   s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game
+  const d = s.daily || {};
+  s.daily = { last: Number.isInteger(d.last) ? d.last : null, streak: Math.max(0, Math.floor(Number(d.streak) || 0)), best: Math.max(0, Math.floor(Number(d.best) || 0)) };
+  const st = s.stats || {};
+  s.stats = { coinsEarned: Math.max(0, Math.floor(Number(st.coinsEarned) || 0)), meals: Math.max(0, Math.floor(Number(st.meals) || 0)), purchases: Math.max(0, Math.floor(Number(st.purchases) || 0)) };
+  s.achievements = s.achievements && typeof s.achievements === 'object' && !Array.isArray(s.achievements) ? s.achievements : {};
   return s;
 }
 

@@ -2,9 +2,19 @@
 // so the same rules can be tested in Node and later run on a server.
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
-  FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE,
+  FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
 } from './config.js';
 import { hashId, newId } from './util.js';
+
+// running totals the achievements read; older saves get them from their migration
+function bump(s, key, n = 1) {
+  if (!s.stats) s.stats = { coinsEarned: 0, meals: 0, purchases: 0 };
+  s.stats[key] = (s.stats[key] || 0) + n;
+}
+function earn(s, coins) {
+  s.coins += coins;
+  bump(s, 'coinsEarned', coins);
+}
 
 // ---------- inventory ----------
 export const countItem = (s, id) =>
@@ -117,7 +127,7 @@ export function hatchEgg(s, now, rand = Math.random) {
   s.hatched.unshift(baby);
   const lootId = HATCH_LOOT[type];
   const lost = addItem(s, lootId, 1) > 0;
-  s.coins += HATCH_COINS[type];
+  earn(s, HATCH_COINS[type]);
   s.current = null;
   return { baby, coins: HATCH_COINS[type], lootId, lost };
 }
@@ -138,7 +148,8 @@ export function feedBaby(s, id, now) {
   removeItem(s, food, 1);
   b.lastFed = now;
   b.fed = (b.fed || 0) + 1;
-  s.coins += FEED_COINS;
+  earn(s, FEED_COINS);
+  bump(s, 'meals');
   return { ok: true, food, coins: FEED_COINS };
 }
 
@@ -150,6 +161,7 @@ export function buyRow(s) {
   const price = rowPrice(s);
   if (s.coins < price) return { ok: false, reason: 'coins' };
   s.coins -= price;
+  bump(s, 'purchases');
   s.invSize += ROW;
   return { ok: true, price };
 }
@@ -160,8 +172,86 @@ export function buyPack(s, k) {
   if (roomFor(s, pack.id) < pack.qty) return { ok: false, reason: 'room' };
   if (s.coins < pack.price) return { ok: false, reason: 'coins' };
   s.coins -= pack.price;
+  bump(s, 'purchases');
   addItem(s, pack.id, pack.qty);
   return { ok: true, pack };
+}
+
+// ---------- daily reward ----------
+const DAY_MS = 86400000;
+const OFFSET_MS = DAY_OFFSET_HOURS * 3600000;
+
+// the game day number; it changes at midnight in DAY_OFFSET_HOURS
+export const gameDay = now => Math.floor((now + OFFSET_MS) / DAY_MS);
+export const nextDayAt = now => (gameDay(now) + 1) * DAY_MS - OFFSET_MS;
+
+export function dailyStatus(s, now) {
+  const d = s.daily || { last: null, streak: 0, best: 0 };
+  const today = gameDay(now);
+  const claimedToday = d.last === today;
+  const continues = d.last === today - 1;
+  const nextStreak = claimedToday ? d.streak : continues ? d.streak + 1 : 1;
+  const index = (nextStreak - 1) % DAILY_REWARDS.length;
+  return {
+    today, claimedToday,
+    streak: claimedToday || continues ? d.streak : 0,   // a missed day breaks the streak
+    best: d.best || 0,
+    nextStreak, index, reward: DAILY_REWARDS[index],
+  };
+}
+
+export function claimDaily(s, now) {
+  const st = dailyStatus(s, now);
+  if (st.claimedToday) return { ok: false, reason: 'claimed' };
+  earn(s, st.reward.coins);
+  const lost = {};
+  for (const [id, n] of Object.entries(st.reward.items || {})) {
+    const left = addItem(s, id, n);
+    if (left) lost[id] = left;
+  }
+  s.daily = { last: st.today, streak: st.nextStreak, best: Math.max(st.best, st.nextStreak) };
+  return { ok: true, reward: st.reward, streak: st.nextStreak, lost };
+}
+
+// ---------- achievements ----------
+export function achievementProgress(s, metric) {
+  const types = new Set(s.hatched.map(b => b.type));
+  switch (metric) {
+    case 'hatched': return s.hatched.length;
+    case 'hatched_raptor': return s.hatched.filter(b => b.type === 'raptor').length;
+    case 'hatched_rex': return s.hatched.filter(b => b.type === 'rex').length;
+    case 'species': return types.size;
+    case 'pair': return [...types].some(t => {
+      const sexes = new Set(s.hatched.filter(b => b.type === t).map(sexOf));
+      return sexes.has('m') && sexes.has('f');
+    }) ? 1 : 0;
+    case 'meals': return (s.stats && s.stats.meals) || 0;
+    case 'best_streak': return (s.daily && s.daily.best) || 0;
+    case 'slots': return s.invSize;
+    case 'coins_earned': return (s.stats && s.stats.coinsEarned) || 0;
+    default: return 0;
+  }
+}
+
+export function achievementList(s) {
+  return ACHIEVEMENTS.map(a => {
+    const progress = Math.min(a.target, achievementProgress(s, a.metric));
+    const claimed = !!(s.achievements && s.achievements[a.id]);
+    return { ...a, progress, done: progress >= a.target, claimed };
+  });
+}
+
+export const claimableCount = (s, now) =>
+  achievementList(s).filter(a => a.done && !a.claimed).length + (dailyStatus(s, now).claimedToday ? 0 : 1);
+
+export function claimAchievement(s, id, now) {
+  const a = achievementList(s).find(x => x.id === id);
+  if (!a) return { ok: false, reason: 'unknown-achievement' };
+  if (a.claimed) return { ok: false, reason: 'claimed' };
+  if (!a.done) return { ok: false, reason: 'not-done' };
+  earn(s, a.coins);
+  s.achievements = { ...(s.achievements || {}), [id]: now };
+  return { ok: true, achievement: id, coins: a.coins };
 }
 
 // ---------- actions ----------
@@ -227,6 +317,12 @@ export const ACTIONS = {
   },
   buyPack(s, { k }) {
     return buyPack(s, k);
+  },
+  claimDaily(s, args, now) {
+    return claimDaily(s, now);
+  },
+  claimAchievement(s, { id }, now) {
+    return claimAchievement(s, id, now);
   },
 };
 

@@ -35,6 +35,7 @@ export const GUEST_LIMITS = {
   babies: 40,
   invSize: 30,
   items: { leaf: 150, meat: 150, amber: 1 },   // shells are capped by the babies they came from
+  mealsPerBaby: 300,
 };
 
 export function capGuestSave(s, now) {
@@ -46,7 +47,7 @@ export function capGuestSave(s, now) {
     ...b,
     at: Math.min(Number(b.at) || now, now),
     lastFed: b.lastFed ? Math.min(Number(b.lastFed) || now, now) : undefined,
-    fed: Math.max(0, Math.floor(Number(b.fed) || 0)),
+    fed: Math.min(GUEST_LIMITS.mealsPerBaby, Math.max(0, Math.floor(Number(b.fed) || 0))),
   }));
 
   const limits = {
@@ -58,6 +59,10 @@ export function capGuestSave(s, now) {
     const extra = countItem(s, id) - max;
     if (extra > 0) removeItem(s, id, extra);
   }
+
+  // running totals and the streak can't be checked, so they restart from what the save shows
+  s.stats = { coinsEarned: s.coins, meals: s.hatched.reduce((t, b) => t + b.fed, 0), purchases: 0 };
+  s.daily = { last: null, streak: 0, best: 0 };
 
   if (s.current) {
     const sp = SPECIES[s.current.type];

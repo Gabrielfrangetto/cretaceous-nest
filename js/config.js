@@ -57,3 +57,32 @@ export const HATCH_LOOT = { proto: 'shell', hypa: 'shell', raptor: 'shell', rex:
 // food costs less than a meal pays, so feeding always comes out ahead
 export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
+
+// Daily reward. The game day starts at midnight in this UTC offset (Brasília, which has no daylight
+// saving), the same for every player so the server can check it.
+export const DAY_OFFSET_HOURS = -3;
+// one entry per day of the streak; after day 7 it starts again from day 1, and missing a day resets it
+export const DAILY_REWARDS = [
+  { coins: 10 },
+  { coins: 15, items: { leaf: 3 } },
+  { coins: 20 },
+  { coins: 25, items: { meat: 3 } },
+  { coins: 30 },
+  { coins: 40, items: { leaf: 5, meat: 2 } },
+  { coins: 60, items: { amber: 1 } },
+];
+
+// Achievements. metric names are computed in economy.js (achievementProgress).
+export const ACHIEVEMENTS = [
+  { id: 'first_hatch', title: 'First Hatch', desc: 'Hatch your first egg.', metric: 'hatched', target: 1, coins: 20 },
+  { id: 'hatch_10', title: 'Egg Expert', desc: 'Hatch 10 eggs.', metric: 'hatched', target: 10, coins: 100 },
+  { id: 'rare_find', title: 'Rare Find', desc: 'Hatch a Velociraptor from a Speckled Egg.', metric: 'hatched_raptor', target: 1, coins: 50 },
+  { id: 'king', title: 'King of the Nest', desc: 'Hatch a Tyrannosaurus from a Golden Egg.', metric: 'hatched_rex', target: 1, coins: 150 },
+  { id: 'all_species', title: 'Full Collection', desc: 'Hatch every species at least once.', metric: 'species', target: 4, coins: 200 },
+  { id: 'pair', title: 'Perfect Pair', desc: 'Have a male and a female of the same species.', metric: 'pair', target: 1, coins: 75 },
+  { id: 'meals_25', title: 'Good Keeper', desc: 'Feed your babies 25 times.', metric: 'meals', target: 25, coins: 75 },
+  { id: 'meals_100', title: 'Master Keeper', desc: 'Feed your babies 100 times.', metric: 'meals', target: 100, coins: 250 },
+  { id: 'streak_7', title: 'Week Streak', desc: 'Claim the daily reward 7 days in a row.', metric: 'best_streak', target: 7, coins: 150 },
+  { id: 'big_backpack', title: 'Big Backpack', desc: 'Unlock 30 inventory slots.', metric: 'slots', target: 30, coins: 100 },
+  { id: 'coins_1000', title: 'Treasure Hunter', desc: 'Earn 1,000 coins in total.', metric: 'coins_earned', target: 1000, coins: 200 },
+];

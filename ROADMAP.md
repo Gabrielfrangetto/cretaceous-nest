@@ -62,7 +62,8 @@ Signed-in players can no longer change their own coins or items: the server deci
 - [ ] Growth stages: baby → juvenile → adult (needs meals over time)
 - [ ] Breeding: a male and a female of the same species lay a new egg
 - [ ] More species and rarities, seasonal eggs
-- [ ] Daily login reward, achievements, collection book (dinopedia with real facts)
+- [x] Daily login reward (7-day streak) and achievements
+- [ ] Collection book (dinopedia with real facts)
 - [ ] Sound effects and music with a mute toggle
 - [ ] Installable PWA and web push notifications ("Your egg is ready to hatch")
 

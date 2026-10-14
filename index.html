@@ -31,6 +31,7 @@
     <button class="tab" role="tab" id="tabNest" aria-controls="panelNest" type="button">Nest <span class="pill" id="hungryPill" hidden></span></button>
     <button class="tab" role="tab" id="tabInv" aria-controls="panelInv" type="button">Inventory</button>
     <button class="tab" role="tab" id="tabShop" aria-controls="panelShop" type="button">Shop</button>
+    <button class="tab" role="tab" id="tabRewards" aria-controls="panelRewards" type="button">Rewards <span class="pill" id="rewardsPill" hidden></span></button>
   </nav>
 
   <div id="panelInc" role="tabpanel" aria-labelledby="tabInc">
@@ -98,6 +99,10 @@
   <div id="panelShop" role="tabpanel" aria-labelledby="tabShop" hidden>
     <h2>Shop</h2>
     <div id="shopBox"></div>
+  </div>
+
+  <div id="panelRewards" role="tabpanel" aria-labelledby="tabRewards" hidden>
+    <div id="rewardsBox" class="rewards"></div>
   </div>
 
   <details class="backup">
