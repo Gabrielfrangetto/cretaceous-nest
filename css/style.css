@@ -252,7 +252,7 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .water-pop { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 900; display: flex; align-items: flex-end; gap: 4px; max-width: calc(100vw - 32px); pointer-events: none; }
 .water-pop > * { pointer-events: auto; }
 .water-pop.in { animation: water-in .45s cubic-bezier(.3, 1.5, .5, 1) both; }
-.water-bubble { position: relative; display: grid; gap: 6px; width: min(250px, calc(100vw - 150px)); margin-bottom: 70px; padding: 14px 16px; background: var(--panel); color: var(--ink); border: 2px solid var(--ink); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .22); }
+.water-bubble { position: relative; display: grid; gap: 6px; width: min(250px, calc(100vw - 190px)); margin-bottom: 110px; padding: 14px 16px; background: var(--panel); color: var(--ink); border: 2px solid var(--ink); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .22); }
 .water-bubble::after { content: ""; position: absolute; right: -12px; bottom: 22px; border: 8px solid transparent; border-left-color: var(--ink); }
 .water-bubble p { margin: 0; }
 .water-name { font-size: 13px; font-weight: 700; color: var(--muted); padding-right: 24px; overflow-wrap: anywhere; }
@@ -262,7 +262,25 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .water-bubble .close:focus-visible { outline: 3px solid var(--accent); }
 .btn.small { font-size: 15px; padding: 7px 16px; }
 .water-dino { flex: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); }
-.water-dino img, .water-dino canvas { display: block; max-height: 130px; width: auto; image-rendering: auto; }
+/* sprites face right; mirrored, the baby looks at its speech bubble */
+.water-dino img, .water-dino canvas { display: block; max-height: 195px; width: auto; transform: scaleX(-1); }
 .water-dino canvas { image-rendering: pixelated; }
 @keyframes water-in { from { transform: translateY(40px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .water-pop.in { animation: none; } }
+
+/* small screens: the bubble sits above the baby */
+@media (max-width: 480px) {
+  .water-pop { flex-direction: column; align-items: flex-end; gap: 10px; }
+  .water-bubble { width: min(300px, calc(100vw - 32px)); margin-bottom: 0; }
+  .water-bubble::after { right: 46px; bottom: -16px; border-left-color: transparent; border-top-color: var(--ink); }
+  .water-dino img, .water-dino canvas { max-height: 150px; }
+}
+
+/* floating always-on-top window */
+.pip-body { margin: 0; min-height: 100vh; display: grid; place-items: end; padding: 12px; background: var(--bg); color: var(--ink); font-family: var(--body); overflow: hidden; }
+.pip { display: flex; align-items: flex-end; gap: 4px; width: 100%; justify-content: flex-end; }
+.pip .water-bubble { width: auto; flex: 1; margin-bottom: 90px; box-shadow: none; }
+.pip .water-bubble:not(.alert) { border-color: var(--line); }
+.pip .water-bubble:not(.alert)::after { border-left-color: var(--line); }
+.pip .water-bubble.alert { animation: water-in .45s cubic-bezier(.3, 1.5, .5, 1) both; }
+.pip .water-dino img, .pip .water-dino canvas { max-height: 170px; }
