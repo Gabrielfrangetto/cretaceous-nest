@@ -31,9 +31,9 @@ Free-tier notes: Supabase pauses free projects after about a week with no activi
 - [x] Move game balance (timers, prices, rewards) into one config file (`js/config.js`)
 - [x] Automated tests for the economy rules and the save format (`node --test`)
 
-## Phase 2 — Free accounts and cloud saves (code ready, waiting for the Supabase project)
+## Phase 2 — Free accounts and cloud saves (live, being tested)
 
-- [ ] Supabase project created and configured (see `docs/supabase-setup.md`)
+- [x] Supabase project created and configured (see `docs/supabase-setup.md`)
 - [x] Auth in the game: email sign-in link, optional Google (`js/cloud.js`, `js/ui/account.js`)
 - [x] Tables: `profiles` (display name, created_at), `saves` (user_id, data jsonb, save_version, updated_at) in `supabase/migrations/`
 - [x] Row-level security: a player reads and writes only their own rows

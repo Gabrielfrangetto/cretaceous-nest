@@ -78,7 +78,7 @@ function render() {
   if (!user) {
     body.innerHTML = sentTo ? `
       <h2 id="accountTitle">Check your email</h2>
-      <p>We sent a sign-in link to <strong>${esc(sentTo)}</strong>. Open it in this browser to finish signing in.</p>
+      <p>We sent a sign-in link to <strong>${esc(sentTo)}</strong>. Open it to finish signing in. You will be signed in on the browser where you open it.</p>
       <p class="hint">No email after a few minutes? Check your spam folder or send it again.</p>
       <div class="row"><button class="ghost" type="button" id="again">Use a different email</button></div>
       ${note}` : `

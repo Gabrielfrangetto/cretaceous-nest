@@ -28,8 +28,10 @@ export async function initCloud() {
   if (!cloudEnabled) return;
   try {
     const { createClient } = await import(SDK_URL);
+    // implicit flow: the emailed link signs the player in on whatever browser opens it, which matters
+    // when the link is requested on a computer and opened in a phone's mail app
     client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true },
+      auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: true },
     });
   } catch (e) {
     setStatus('unavailable');

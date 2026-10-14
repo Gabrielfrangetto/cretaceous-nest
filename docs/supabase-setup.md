@@ -21,7 +21,7 @@ In **Authentication → URL Configuration**:
 - **Site URL**: the Render address, for example `https://cretaceous-nest.onrender.com`
 - **Redirect URLs**: add the same address, plus `http://localhost:5173` for local testing
 
-Email sign-in links work out of the box. Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
+Email sign-in links work out of the box. The game uses the implicit flow, so a link works in any browser (for example, requested on a computer and opened on a phone), and the player is signed in wherever the link is opened. Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
 
 ### Optional: Google sign-in
 
