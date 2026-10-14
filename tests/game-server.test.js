@@ -131,7 +131,7 @@ test('changeBetween reports coins and items gained or spent', () => {
 
 test('the Edge Function runs exactly the same rules as the browser', () => {
   for (const f of ['config.js', 'util.js', 'economy.js', 'state.js', 'sync.js', 'game-server.js']) {
-    assert.equal(readFileSync(`supabase/functions/_shared/${f}`, 'utf8'), readFileSync(`js/${f}`, 'utf8'),
-      `supabase/functions/_shared/${f} is out of date: run node scripts/sync-shared.js`);
+    const same = readFileSync(`supabase/functions/_shared/${f}`, 'utf8') === readFileSync(`js/${f}`, 'utf8');
+    assert.ok(same, `supabase/functions/_shared/${f} is out of date: run node scripts/sync-shared.js`);
   }
 });

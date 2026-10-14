@@ -1,9 +1,9 @@
 // The player's save: loading, versioned migrations, local persistence, export/import codes,
 // and a tiny change feed the UI modules subscribe to.
-import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, MAX_STACK } from './config.js';
-import { addItem } from './economy.js';
+import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, MAX_STACK, EGG_TRAY_SIZE } from './config.js';
+import { addItem, wildStats, seededRand, cleanStats } from './economy.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
@@ -11,7 +11,8 @@ const CODE_PREFIX = 'CNEST1:';
 export function freshState() {
   const s = {
     saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
-    daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0 }, achievements: {}, updatedAt: 0,
+    daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
+    eggs: [], breeding: null, updatedAt: 0,
   };
   for (const [id, n] of STARTER) addItem(s, id, n);
   return s;
@@ -41,6 +42,14 @@ const MIGRATIONS = {
     s.achievements = {};
     return s;
   },
+  // v3: before stats and breeding. Every baby gets stats rolled from its own id, so the browser and
+  // the server give it the same ones.
+  3: s => {
+    s.hatched = s.hatched.map(b => b && SPECIES[b.type] ? { ...b, stats: wildStats(b.type, seededRand('stats:' + b.id)), gen: 1 } : b);
+    s.eggs = [];
+    s.breeding = null;
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -56,14 +65,27 @@ function sanitize(s) {
     const slot = s.inv[i];
     if (slot) { s.inv[i] = null; addItem(s, slot.id, slot.n); }
   }
-  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id);
+  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(b => ({
+    ...b,
+    stats: cleanStats(b.stats, b.type, 'stats:' + b.id),
+    gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
+  }));
+  s.eggs = (Array.isArray(s.eggs) ? s.eggs : []).filter(e => e && SPECIES[e.type] && e.id).slice(0, EGG_TRAY_SIZE).map(e => ({
+    id: e.id, type: e.type, stats: cleanStats(e.stats, e.type, 'stats:' + e.id),
+    gen: Math.max(1, Math.floor(Number(e.gen) || 1)), parents: Array.isArray(e.parents) ? e.parents.slice(0, 2) : [], laidAt: Number(e.laidAt) || 0,
+  }));
+  const br = s.breeding;
+  s.breeding = br && SPECIES[br.type] && br.maleId && br.femaleId
+    ? { type: br.type, maleId: br.maleId, femaleId: br.femaleId, startedAt: Number(br.startedAt) || 0, readyAt: Number(br.readyAt) || 0 }
+    : null;
   if (s.current && !SPECIES[s.current.type]) s.current = null;
   s.updatedAt = Number(s.updatedAt) || 0;
   s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game
   const d = s.daily || {};
   s.daily = { last: Number.isInteger(d.last) ? d.last : null, streak: Math.max(0, Math.floor(Number(d.streak) || 0)), best: Math.max(0, Math.floor(Number(d.best) || 0)) };
   const st = s.stats || {};
-  s.stats = { coinsEarned: Math.max(0, Math.floor(Number(st.coinsEarned) || 0)), meals: Math.max(0, Math.floor(Number(st.meals) || 0)), purchases: Math.max(0, Math.floor(Number(st.purchases) || 0)) };
+  const count = n => Math.max(0, Math.floor(Number(n) || 0));
+  s.stats = { coinsEarned: count(st.coinsEarned), meals: count(st.meals), purchases: count(st.purchases), eggsLaid: count(st.eggsLaid) };
   s.achievements = s.achievements && typeof s.achievements === 'object' && !Array.isArray(s.achievements) ? s.achievements : {};
   return s;
 }

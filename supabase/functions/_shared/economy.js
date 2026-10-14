@@ -3,6 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
+  STATS, STAT_MAX, WILD_STAT_RANGE, SPECIES_STAT_BONUS, BREED_MINS, BREED_STAT_CHANGE, EGG_TRAY_SIZE,
 } from './config.js';
 import { hashId, newId } from './util.js';
 
@@ -11,6 +12,46 @@ function bump(s, key, n = 1) {
   if (!s.stats) s.stats = { coinsEarned: 0, meals: 0, purchases: 0 };
   s.stats[key] = (s.stats[key] || 0) + n;
 }
+// ---------- stats ----------
+// dice seeded from a string (mulberry32), so a migration gives every device and the server the same stats
+export function seededRand(seed) {
+  let t = hashId(seed) || 1;
+  return () => {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let x = Math.imul(t ^ (t >>> 15), 1 | t);
+    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const roll = (rand, lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+const clampStat = n => Math.min(STAT_MAX, Math.max(1, Math.round(Number(n) || 1)));
+
+// a baby from one of the incubator's free eggs
+export function wildStats(type, rand) {
+  const [lo, hi] = WILD_STAT_RANGE;
+  const bonus = SPECIES_STAT_BONUS[type] || {};
+  return Object.fromEntries(STATS.map(({ id }) => [id, clampStat(roll(rand, lo, hi) + (bonus[id] || 0))]));
+}
+
+// the best a free egg can give, per stat (used to cap stats that can't be checked)
+export const wildMax = type => Object.fromEntries(STATS.map(({ id }) => [id, Math.min(STAT_MAX, WILD_STAT_RANGE[1] + ((SPECIES_STAT_BONUS[type] || {})[id] || 0))]));
+
+// each stat lands between the parents' values, then moves a little
+export function inheritStats(a, b, rand) {
+  const [down, up] = BREED_STAT_CHANGE;
+  return Object.fromEntries(STATS.map(({ id }) => {
+    const lo = Math.min(a[id], b[id]), hi = Math.max(a[id], b[id]);
+    return [id, clampStat(roll(rand, lo, hi) + roll(rand, down, up))];
+  }));
+}
+
+export const statTotal = st => STATS.reduce((t, { id }) => t + ((st && st[id]) || 0), 0);
+
+export function cleanStats(st, type, seed) {
+  if (!st || typeof st !== 'object') return wildStats(type, seededRand(seed));
+  return Object.fromEntries(STATS.map(({ id }) => [id, clampStat(st[id])]));
+}
+
 function earn(s, coins) {
   s.coins += coins;
   bump(s, 'coinsEarned', coins);
@@ -95,8 +136,10 @@ export function discardOne(s, i) {
 }
 
 // ---------- eggs ----------
-export function startEgg(s, type, now) {
+// egg is a bred egg from the tray (carrying its stats and family), or null for a free egg
+export function startEgg(s, type, now, egg = null) {
   s.current = { type, startedAt: now, duration: SPECIES[type].mins * 60000, bonus: 0 };
+  if (egg) Object.assign(s.current, { stats: egg.stats, gen: egg.gen, parents: egg.parents });
 }
 
 export function eggProgress(egg, now) {
@@ -124,6 +167,9 @@ export function hatchEgg(s, now, rand = Math.random) {
   if (!egg || eggProgress(egg, now).frac < 1) return null;
   const type = egg.type;
   const baby = { id: newId(), type, sex: rand() < 0.5 ? 'm' : 'f', name: suggestName(s, type), at: now };
+  baby.stats = egg.stats ? { ...egg.stats } : wildStats(type, rand);
+  baby.gen = egg.gen || 1;
+  if (egg.parents) baby.parents = [...egg.parents];
   s.hatched.unshift(baby);
   const lootId = HATCH_LOOT[type];
   const lost = addItem(s, lootId, 1) > 0;
@@ -175,6 +221,45 @@ export function buyPack(s, k) {
   bump(s, 'purchases');
   addItem(s, pack.id, pack.qty);
   return { ok: true, pack };
+}
+
+// ---------- breeding ----------
+export const trayFull = s => (s.eggs || []).length >= EGG_TRAY_SIZE;
+
+// why this pair can't breed, or null when it can
+export function breedProblem(s, maleId, femaleId) {
+  const m = s.hatched.find(b => b.id === maleId), f = s.hatched.find(b => b.id === femaleId);
+  if (!m || !f) return 'missing';
+  if (sexOf(m) !== 'm' || sexOf(f) !== 'f') return 'not-a-pair';
+  if (m.type !== f.type) return 'different-species';
+  if (s.breeding) return 'busy';
+  if (trayFull(s)) return 'tray-full';
+  return null;
+}
+
+export function startBreeding(s, maleId, femaleId, now) {
+  const problem = breedProblem(s, maleId, femaleId);
+  if (problem) return { ok: false, reason: problem };
+  const type = s.hatched.find(b => b.id === maleId).type;
+  s.breeding = { type, maleId, femaleId, startedAt: now, readyAt: now + BREED_MINS[type] * 60000 };
+  return { ok: true, readyAt: s.breeding.readyAt };
+}
+
+export function collectEgg(s, now, rand = Math.random) {
+  const br = s.breeding;
+  if (!br) return { ok: false, reason: 'not-breeding' };
+  if (now < br.readyAt) return { ok: false, reason: 'not-ready' };
+  if (trayFull(s)) return { ok: false, reason: 'tray-full' };
+  const m = s.hatched.find(b => b.id === br.maleId), f = s.hatched.find(b => b.id === br.femaleId);
+  s.breeding = null;
+  if (!m || !f) return { ok: false, reason: 'missing' };
+  const egg = {
+    id: newId(), type: br.type, stats: inheritStats(m.stats, f.stats, rand),
+    gen: Math.max(m.gen || 1, f.gen || 1) + 1, parents: [m.id, f.id], laidAt: now,
+  };
+  s.eggs = [...(s.eggs || []), egg];
+  bump(s, 'eggsLaid');
+  return { ok: true, egg };
 }
 
 // ---------- daily reward ----------
@@ -229,6 +314,7 @@ export function achievementProgress(s, metric) {
     case 'best_streak': return (s.daily && s.daily.best) || 0;
     case 'slots': return s.invSize;
     case 'coins_earned': return (s.stats && s.stats.coinsEarned) || 0;
+    case 'eggs_laid': return (s.stats && s.stats.eggsLaid) || 0;
     default: return 0;
   }
 }
@@ -263,11 +349,30 @@ const slotIndex = (s, i) => Number.isInteger(i) && i >= 0 && i < s.invSize;
 const MAX_TAPS_PER_REQUEST = 600;
 
 export const ACTIONS = {
-  startEgg(s, { type }, now) {
+  // { type } starts a free egg; { eggId } starts a bred egg from the tray
+  startEgg(s, { type, eggId }, now) {
     if (s.current) return fail('busy');
+    if (eggId) {
+      const egg = (s.eggs || []).find(e => e.id === eggId);
+      if (!egg) return fail('unknown-egg');
+      s.eggs = s.eggs.filter(e => e.id !== eggId);
+      startEgg(s, egg.type, now, egg);
+      return { ok: true };
+    }
     if (!SPECIES[type]) return fail('unknown-egg');
     startEgg(s, type, now);
     return { ok: true };
+  },
+  startBreeding(s, { maleId, femaleId }, now) {
+    return startBreeding(s, maleId, femaleId, now);
+  },
+  cancelBreeding(s) {
+    if (!s.breeding) return fail('not-breeding');
+    s.breeding = null;
+    return { ok: true };
+  },
+  collectEgg(s, args, now, rand) {
+    return collectEgg(s, now, rand);
   },
   warmEgg(s, { taps = 1 }) {
     let saved = 0;

@@ -6,7 +6,8 @@ import { act, hatch as hatchEgg } from '../actions.js';
 import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
 import { fmt, minsLabel, esc } from '../util.js';
-import { setTab } from './tabs.js';
+import { setTab, onTabChange } from './tabs.js';
+import { statsHTML, totalText } from './stats.js';
 
 const stage = document.getElementById('stage');
 let reveal = null;        // the fresh hatchling while it is being named
@@ -32,9 +33,18 @@ function renderChooser() {
       return `<button class="egg-card" type="button" data-k="${k}">
         ${eggSVG(sp)}<strong>${sp.egg}</strong><span>Hatches in ${minsLabel(sp.mins)}</span>
         <span class="rarity">${sp.rarity}</span></button>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+    ${(S.eggs || []).length ? `<div><h2>Your eggs</h2>
+      <p class="sub">Laid by your breeding pairs. The baby inherits the stats shown.</p></div>
+      <div class="eggs">${S.eggs.map(e => {
+        const sp = SPECIES[e.type];
+        return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
+          ${eggSVG(sp)}<strong>${sp.species}</strong><span>Gen ${e.gen} · ${totalText(e.stats)}</span>
+          <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e.stats, { compact: true })}</button>`;
+      }).join('')}</div>` : ''}`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {
-    if (act('startEgg', { type: b.dataset.k }).ok) render();
+    const args = b.dataset.egg ? { eggId: b.dataset.egg } : { type: b.dataset.k };
+    if (act('startEgg', args).ok) render();
   }));
 }
 
@@ -171,6 +181,7 @@ function renderReveal() {
         <p class="eyebrow">It's a ${baby.sex === 'm' ? 'boy' : 'girl'}! A ${sx.word.toLowerCase()} ${sp.species} ${sx.sym}</p>
         <h2>Name your baby</h2>
         <p class="fact">${esc(sp.fact)}</p>
+        <div class="reveal-stats"><p class="hint">Gen ${baby.gen || 1} · ${totalText(baby.stats)}</p>${statsHTML(baby.stats)}</div>
         <p class="hint">${baby.sex === 'm' ? 'Males have bright colors and extra feathers, crests or stripes.' : 'Females have a single base color and no decorations.'} ${esc(loot)}</p>
         <form class="info" id="nameForm">
           <div class="field"><label for="babyName">Name</label>
@@ -199,5 +210,7 @@ export function initIncubator() {
   render();
   // only a replaced save redraws from scratch; normal changes are drawn by the actions above
   subscribe(kind => { if (kind === 'reset' && !hatching) { reveal = null; render(); } });
+  // eggs laid in the Nest show up in the egg list next time the tab opens
+  onTabChange(name => { if (name === 'incubator' && !S.current && !reveal && !hatching) render(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && S.current && !reveal && !hatching) update(); });
 }

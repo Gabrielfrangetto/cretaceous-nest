@@ -6,6 +6,7 @@ import { act } from '../actions.js';
 import { now as gameNow } from '../clock.js';
 import { babyArt, ITEM_ICONS } from '../art.js';
 import { plural } from '../util.js';
+import { statsHTML, totalText } from './stats.js';
 import { currentTab, onTabChange } from './tabs.js';
 
 const ASK = { leaf: 'Wants leaves', meat: 'Wants meat' };
@@ -37,7 +38,9 @@ function renderBabies() {
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
-      card.append(nm, sps, dt, fed);
+      const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${totalText(b.stats)}`;
+      const st = document.createElement('div'); st.className = 'card-stats'; st.innerHTML = statsHTML(b.stats, { compact: true });
+      card.append(nm, sps, dt, fed, gen, st);
       box.appendChild(card);
     }
   }

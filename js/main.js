@@ -10,6 +10,7 @@ import { initAccount } from './ui/account.js';
 import { initCloud } from './cloud.js';
 import { initWater } from './ui/water.js';
 import { initRewards } from './ui/rewards.js';
+import { initBreeding } from './ui/breeding.js';
 
 load();
 initHeader();
@@ -19,6 +20,7 @@ initInventory();
 initShop();
 initBackup();
 initRewards();
+initBreeding();
 initTabs();   // after the modules above, so every tab's handlers are registered before the first tab opens
 initAccount();
 initWater();

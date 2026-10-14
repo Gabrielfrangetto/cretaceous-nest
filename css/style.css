@@ -313,3 +313,31 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .ach-reward { display: grid; justify-items: end; gap: 6px; }
 .ach-coins { display: inline-flex; align-items: center; gap: 3px; font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ach-coins svg { width: 16px; height: 16px; }
+
+/* stats */
+.stat-list { display: grid; gap: 4px; margin: 0; width: 100%; }
+.stat { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; gap: 8px; }
+.stat-list.compact .stat { grid-template-columns: 30px minmax(0, 1fr); gap: 6px; }
+.stat dt { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .03em; }
+.stat dd { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) 26px; align-items: center; gap: 6px; }
+.stat dd b { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.stat-bar { height: 7px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.stat-bar i { display: block; height: 100%; background: var(--accent); }
+.baby .gen { font-size: 12px; font-weight: 700; color: var(--ink); }
+.card-stats { width: 100%; margin-top: 6px; text-align: left; }
+.reveal-stats { display: grid; gap: 6px; max-width: 320px; }
+
+/* breeding */
+.breed { display: grid; gap: 14px; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.breed-body { display: grid; gap: 12px; }
+.breed-body p { margin: 0; }
+.breed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 640px) { .breed-grid { grid-template-columns: minmax(0, 1fr); } }
+.breed-grid .field { gap: 8px; }
+.breed select { width: 100%; font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; }
+.breed select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.breed-expect { display: grid; gap: 6px; }
+.breed-range { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.breed-range span { color: var(--muted); font-size: 12px; margin-right: 2px; }
+.egg-card.bred { align-content: start; }
+.egg-card.bred .stat-list { margin-top: 6px; text-align: left; }

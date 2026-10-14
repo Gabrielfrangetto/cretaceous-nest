@@ -85,4 +85,23 @@ export const ACHIEVEMENTS = [
   { id: 'streak_7', title: 'Week Streak', desc: 'Claim the daily reward 7 days in a row.', metric: 'best_streak', target: 7, coins: 150 },
   { id: 'big_backpack', title: 'Big Backpack', desc: 'Unlock 30 inventory slots.', metric: 'slots', target: 30, coins: 100 },
   { id: 'coins_1000', title: 'Treasure Hunter', desc: 'Earn 1,000 coins in total.', metric: 'coins_earned', target: 1000, coins: 200 },
+  { id: 'proud_parents', title: 'Proud Parents', desc: 'Breed a pair and collect their egg.', metric: 'eggs_laid', target: 1, coins: 100 },
 ];
+
+// Stats. Every baby has four, from 1 to STAT_MAX; the combat system will use them.
+export const STATS = [
+  { id: 'str', name: 'Strength', short: 'STR' },
+  { id: 'agi', name: 'Agility', short: 'AGI' },
+  { id: 'vit', name: 'Vitality', short: 'VIT' },
+  { id: 'res', name: 'Resistance', short: 'RES' },
+];
+export const STAT_MAX = 100;
+export const WILD_STAT_RANGE = [10, 50];      // babies from the incubator's free eggs
+// each species is a little better at one thing
+export const SPECIES_STAT_BONUS = { proto: { res: 10 }, hypa: { vit: 10 }, raptor: { agi: 10 }, rex: { str: 10 } };
+
+// Breeding: a male and a female of the same species lay an egg of that species. Each stat of the
+// baby lands between its parents' values, plus a small random change, so good pairs make better babies.
+export const BREED_MINS = { proto: 5, hypa: 15, raptor: 30, rex: 90 };
+export const BREED_STAT_CHANGE = [-2, 5];
+export const EGG_TRAY_SIZE = 10;

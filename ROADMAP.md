@@ -60,7 +60,8 @@ Signed-in players can no longer change their own coins or items: the server deci
 
 - [ ] Art for eggs and items in the same style as the dinosaur sprites
 - [ ] Growth stages: baby → juvenile → adult (needs meals over time)
-- [ ] Breeding: a male and a female of the same species lay a new egg
+- [x] Stats (STR, AGI, VIT, RES) and breeding: a pair of the same species lays an egg whose baby inherits their stats
+- [ ] Combat system using the stats
 - [ ] More species and rarities, seasonal eggs
 - [x] Daily login reward (7-day streak) and achievements
 - [ ] Collection book (dinopedia with real facts)

@@ -100,6 +100,6 @@ test('a version 2 save gets a streak, totals and achievements', () => {
   const s = migrate(old);
   assert.equal(s.saveVersion, SAVE_VERSION);
   assert.deepEqual(s.daily, { last: null, streak: 0, best: 0 });
-  assert.deepEqual(s.stats, { coinsEarned: 80, meals: 6, purchases: 0 });
+  assert.deepEqual(s.stats, { coinsEarned: 80, meals: 6, purchases: 0, eggsLaid: 0 });
   assert.deepEqual(s.achievements, {});
 });
