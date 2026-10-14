@@ -5,6 +5,8 @@ import { S, subscribe } from '../state.js';
 import { act } from '../actions.js';
 import { ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
+import { modsHTML } from './stats.js';
+import { GEAR_SLOTS } from '../config.js';
 import { currentTab, onTabChange, setTab } from './tabs.js';
 
 const grid = document.getElementById('invGrid');
@@ -34,7 +36,7 @@ function render() {
     const key = s ? s.id + ':' + s.n : '';
     if (b.dataset.key !== key) {
       b.dataset.key = key;
-      b.innerHTML = s ? ITEM_ICONS[s.id] + `<span class="q">${s.n}</span>` : '';
+      b.innerHTML = s ? ITEM_ICONS[s.id] + (ITEMS[s.id].stack === 1 ? '' : `<span class="q">${s.n}</span>`) : '';
       b.classList.toggle('full', !!s && s.n >= MAX_STACK);
     }
     const row = Math.floor(i / ROW) + 1, col = i % ROW + 1;
@@ -65,8 +67,8 @@ function renderSide() {
   const hasEmpty = S.inv.some((x, k) => !x && k < S.invSize);
   side.innerHTML = `<div class="big">${ITEM_ICONS[s.id]}</div>
     <h2>${esc(it.name)}</h2>
-    <p class="qty">${s.n} / ${MAX_STACK}</p>
-    <p class="fact">${esc(it.desc)}</p>
+    ${it.kind === 'gear' ? `<p class="hint">Equipment · ${GEAR_SLOTS.find(g => g.id === it.slot).name}</p>${modsHTML(it.mods)}` : `<p class="qty">${s.n} / ${MAX_STACK}</p>`}
+    <p class="fact">${esc(it.desc)}${it.kind === 'gear' ? ' Equip it from a baby’s window in the Nest.' : ''}</p>
     <div class="row">
       ${s.n > 1 && hasEmpty ? '<button class="ghost" id="invSplit" type="button">Split stack</button>' : ''}
       <button class="ghost" id="invDrop" type="button">Discard 1</button>

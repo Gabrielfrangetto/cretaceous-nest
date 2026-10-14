@@ -1,9 +1,9 @@
 // The player's save: loading, versioned migrations, local persistence, export/import codes,
 // and a tiny change feed the UI modules subscribe to.
-import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, MAX_STACK, EGG_TRAY_SIZE } from './config.js';
-import { addItem, wildGenes, seededRand, cleanGenes } from './economy.js';
+import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS } from './config.js';
+import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear } from './economy.js';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
@@ -65,6 +65,11 @@ const MIGRATIONS = {
     if (s.current) s.current = toGenes(s.current);
     return s;
   },
+  // v5: before equipment
+  5: s => {
+    s.hatched = s.hatched.map(b => b ? { ...b, equip: {} } : b);
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -73,7 +78,7 @@ function sanitize(s) {
   s.invSize = Math.min(SLOTS, Math.max(BASE_SLOTS, Math.floor((s.invSize || BASE_SLOTS) / ROW) * ROW));
   s.inv = Array.from({ length: SLOTS }, (_, i) => {
     const slot = s.inv[i];
-    return slot && ITEMS[slot.id] && slot.n > 0 ? { id: slot.id, n: Math.min(MAX_STACK, Math.floor(slot.n)) } : null;
+    return slot && ITEMS[slot.id] && slot.n > 0 ? { id: slot.id, n: Math.min(maxStack(slot.id), Math.floor(slot.n)) } : null;
   });
   // anything outside the unlocked rows moves back in where it fits
   for (let i = s.invSize; i < SLOTS; i++) {
@@ -84,6 +89,8 @@ function sanitize(s) {
     ...b,
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
+    // only real equipment, each in its own slot
+    equip: Object.fromEntries(GEAR_SLOTS.map(({ id }) => [id, b.equip && b.equip[id]]).filter(([slot, item]) => isGear(item) && ITEMS[item].slot === slot)),
   }));
   s.eggs = (Array.isArray(s.eggs) ? s.eggs : []).filter(e => e && SPECIES[e.type] && e.id).slice(0, EGG_TRAY_SIZE).map(e => ({
     id: e.id, type: e.type, genes: cleanGenes(e.genes, 'stats:' + e.id),

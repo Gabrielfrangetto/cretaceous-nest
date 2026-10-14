@@ -44,6 +44,16 @@ export function derivedHTML(thing) {
   </dl>`;
 }
 
+// one equipment bonus as players read it: "+5 STR", "+10% STR", "−25% AGI", "×1.10 STR"
+const SHORT = Object.fromEntries(STATS.map(s => [s.id, s.short]));
+export function modText(m) {
+  const sign = m.value < 0 ? '−' : '+';
+  if (m.type === 'flat') return `${sign}${Math.abs(m.value)} ${SHORT[m.stat]}`;
+  if (m.type === 'increased') return `${sign}${Math.round(Math.abs(m.value) * 100)}% ${SHORT[m.stat]}`;
+  return `×${m.value.toFixed(2)} ${SHORT[m.stat]}`;
+}
+export const modsHTML = mods => `<span class="mods">${mods.map(m => `<span class="mod ${(m.type === 'more' ? m.value < 1 : m.value < 0) ? 'down' : 'up'}">${modText(m)}</span>`).join('')}</span>`;
+
 // "Base 90 × genes 80 (90%) = 81", then any equipment steps
 export function breakdownHTML(thing) {
   const sheet = statSheet(thing);

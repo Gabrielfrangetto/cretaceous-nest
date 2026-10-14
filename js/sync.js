@@ -3,7 +3,8 @@
 //
 // local.owner is the account id the browser's save belongs to, or null for a guest game.
 import { SPECIES, TAP_CAP } from './config.js';
-import { countItem, removeItem, WILD_GENES_MAX } from './economy.js';
+import { countItem, removeItem, WILD_GENES_MAX, isGear } from './economy.js';
+import { ITEMS } from './config.js';
 
 export const hasProgress = s => !!s && (s.hatched.length > 0 || !!s.current || s.coins > 0);
 
@@ -69,6 +70,19 @@ export function capGuestSave(s, now) {
   s.hatched = s.hatched.map(b => ({ ...b, genes: capGenes(b.genes), gen: 1 }));
   s.eggs = (s.eggs || []).map(e => ({ ...e, genes: capGenes(e.genes), gen: 1 }));
   s.breeding = null;
+
+  // equipment costs coins, so a guest save keeps at most one of each piece, worn or in the bag
+  const owned = new Set();
+  s.hatched = s.hatched.map(b => {
+    const equip = {};
+    for (const [slot, id] of Object.entries(b.equip || {})) if (isGear(id) && !owned.has(id)) { owned.add(id); equip[slot] = id; }
+    return { ...b, equip };
+  });
+  for (const id of Object.keys(ITEMS).filter(isGear)) {
+    const keep = owned.has(id) ? 0 : 1;
+    const extra = countItem(s, id) - keep;
+    if (extra > 0) removeItem(s, id, extra);
+  }
 
   if (s.current) {
     const egg = s.current;

@@ -1,10 +1,11 @@
 // Shop tab: backpack upgrades and food packs.
-import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS } from '../config.js';
+import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS, GEAR_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { rowPrice, countItem, roomFor } from '../economy.js';
 import { act } from '../actions.js';
 import { BAG, ITEM_ICONS } from '../art.js';
 import { esc } from '../util.js';
+import { modsHTML } from './stats.js';
 import { currentTab, onTabChange } from './tabs.js';
 
 let message = '';
@@ -44,6 +45,25 @@ function render() {
       </article>`;
     }).join('')}
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}
+    <section class="gear-shop">
+      <div><h3>Equipment</h3><p class="hint">Bought with coins you earn in the game. Equip it from a baby’s window in the Nest.</p></div>
+      <ul class="gear-list">${Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear').map(([id, it]) => {
+        const fits = roomFor(S, id) >= 1, ok = fits && S.coins >= it.price;
+        const slot = GEAR_SLOTS.find(g => g.id === it.slot).name;
+        return `<li class="gear-card">
+          <span class="gear-icon big">${ITEM_ICONS[id]}</span>
+          <div class="gear-body">
+            <strong>${esc(it.name)}</strong>
+            <span class="hint">${slot} · ${esc(it.desc)}</span>
+            ${modsHTML(it.mods)}
+          </div>
+          <div class="gear-buy">
+            <button class="btn small" type="button" data-gear="${id}" ${ok ? '' : 'disabled'}>${it.price} coins</button>
+            ${!fits ? '<span class="hint">No room</span>' : S.coins < it.price ? `<span class="hint">${it.price - S.coins} more</span>` : ''}
+          </div>
+        </li>`;
+      }).join('')}</ul>
+    </section>
     <div class="earn">
       <h3>How to earn coins</h3>
       <ul>
@@ -55,6 +75,12 @@ function render() {
     const result = act('buyPack', { k: +b.dataset.pack });
     if (!result.ok) return;
     message = `Bought! +${result.pack.qty} ${ITEMS[result.pack.id].plural} in your inventory.`;
+    render();
+  }));
+  box.querySelectorAll('[data-gear]').forEach(b => b.addEventListener('click', () => {
+    const r = act('buyGear', { id: b.dataset.gear });
+    if (!r.ok) return;
+    message = 'Bought! ' + ITEMS[r.item].name + ' is in your inventory. Equip it from a baby’s window in the Nest.';
     render();
   }));
   const buy = document.getElementById('buyRow');

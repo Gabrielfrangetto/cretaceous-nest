@@ -44,8 +44,10 @@ function renderBabies() {
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
+      const gear = document.createElement('span'); gear.className = 'gear-icons';
+      gear.innerHTML = Object.values(b.equip || {}).map(id => `<span class="gear-icon" title="${ITEMS[id].name}">${ITEM_ICONS[id]}</span>`).join('');
       const more = document.createElement('span'); more.className = 'more'; more.textContent = 'See stats';
-      card.append(nm, sps, dt, fed, gen, more);
+      card.append(nm, sps, dt, fed, gen, gear, more);
       box.appendChild(card);
     }
   }

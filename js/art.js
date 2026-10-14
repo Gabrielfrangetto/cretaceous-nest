@@ -72,6 +72,18 @@ export const ITEM_ICONS = {
   amber: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 L14 6 L11.5 14.5 L4.5 14.5 L2 6Z" fill="#e39a2c" stroke="#a5620f" stroke-width="1"/><path d="M5 6 L8 3.5 L10.5 6" stroke="#ffd58a" stroke-width="1" fill="none"/><ellipse cx="8" cy="10" rx="1.4" ry="1" fill="#6b3f0c"/><path d="M6.6 9.4 L5.6 8.8 M9.4 9.4 L10.4 8.8" stroke="#6b3f0c" stroke-width=".7"/></svg>',
 };
 
+// equipment icons (placeholders until the hand-drawn art arrives)
+Object.assign(ITEM_ICONS, {
+  leaf_crown: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11 Q8 5 14 11" stroke="#4d7f2e" stroke-width="2" fill="none"/><path d="M3.5 9.5 L2.5 5 L6 7.5Z M8 7 L7.5 2 L10 5.5Z M12.5 9.5 L13.5 5 L10 7.5Z" fill="#6fa64a"/></svg>',
+  bone_helmet: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11 C2.5 5.5 5 2.5 8 2.5 C11 2.5 13.5 5.5 13.5 11 Z" fill="#e8dfc8" stroke="#8a7a5c"/><rect x="1.5" y="10" width="13" height="3" rx="1" fill="#cfc2a4" stroke="#8a7a5c"/><path d="M6 6.5 H10" stroke="#8a7a5c"/></svg>',
+  spiked_collar: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="9" r="5" fill="none" stroke="#6b4a2e" stroke-width="2.4"/><path d="M8 1.5 L9.2 4 H6.8Z M2.2 6 L4.8 6.8 L3.3 8.6Z M13.8 6 L11.2 6.8 L12.7 8.6Z M3 14 L4.8 11.9 L5.6 13.7Z M13 14 L11.2 11.9 L10.4 13.7Z" fill="#cfcfcf" stroke="#8a8a8a" stroke-width=".4"/></svg>',
+  feather_scarf: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 5.5 Q8 9 14.5 5.5 L14.5 8.8 Q8 12.3 1.5 8.8Z" fill="#d9503a"/><path d="M10 9.5 Q12.6 13.5 9.4 15.2 Q8.3 12.4 10 9.5Z" fill="#f2cf45"/></svg>',
+  leather_vest: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2 H6 L8 5 L10 2 H12 L14 6 L13 14 H3 L2 6Z" fill="#9c6b3f" stroke="#5e3d20"/><path d="M8 5 V14" stroke="#5e3d20"/><circle cx="9.3" cy="8" r=".7" fill="#e3c08a"/><circle cx="9.3" cy="11" r=".7" fill="#e3c08a"/></svg>',
+  heavy_armor: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5 H13 L14 8 L8 15 L2 8Z" fill="#8e98a3" stroke="#4d565f"/><path d="M5 5 H11 M4.3 8 H11.7 M6 11 H10" stroke="#5f6a74"/></svg>',
+  swift_cape: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2 H11 L14.5 14 Q8 11 1.5 14Z" fill="#36b5a5" stroke="#1f7a6f"/><path d="M5 2 Q8 4.2 11 2" stroke="#1f7a6f" fill="none"/></svg>',
+  turtle_shell: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 11.5 C1 5.5 4 2 8 2 C12 2 15 5.5 15 11.5Z" fill="#6f8f3a" stroke="#3f5a1f"/><path d="M6 4.2 H10 L11.5 7.2 L10 10.2 H6 L4.5 7.2Z" fill="#8fae55" stroke="#3f5a1f"/></svg>',
+});
+
 export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 C11 4 21 4 21 10" stroke="#6d4e2a" stroke-width="2.6" fill="none"/><rect x="5" y="9" width="22" height="20" rx="6" fill="#9c7240"/><rect x="9.5" y="17" width="13" height="9" rx="2.5" fill="#c49a5c"/><rect x="14" y="15.5" width="4" height="3.4" rx="1" fill="#6d4e2a"/></svg>';
 
 // ---------- babies ----------

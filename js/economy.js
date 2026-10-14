@@ -55,6 +55,11 @@ export function cleanGenes(g, seed) {
 }
 
 // ---------- stats ----------
+// the bonuses from everything a baby wears
+export function gearMods(baby) {
+  return Object.values(baby.equip || {}).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
+}
+
 // A baby's stats, worked out in stages like an action RPG:
 //   1. species base × (GENE_FLOOR + (1 − GENE_FLOOR) × genes / GENES_MAX)
 //   2. + flat bonuses                        e.g. "+30 Resistance"
@@ -63,7 +68,7 @@ export function cleanGenes(g, seed) {
 //   5. rounded, never below 1
 // mods: [{ stat, type: 'flat' | 'increased' | 'more', value }], with increased as a fraction (0.10 = +10%)
 // and more as a multiplier (1.10). Equipment will supply them.
-export function statSheet(baby, mods = []) {
+export function statSheet(baby, mods = gearMods(baby)) {
   const base = SPECIES_BASE[baby.type];
   const stats = {}, steps = {};
   for (const { id } of STATS) {
@@ -96,22 +101,25 @@ function earn(s, coins) {
 }
 
 // ---------- inventory ----------
+// equipment stacks one per slot; everything else up to MAX_STACK
+export const maxStack = id => (ITEMS[id] && ITEMS[id].stack) || MAX_STACK;
+
 export const countItem = (s, id) =>
   s.inv.reduce((t, slot, i) => t + (slot && slot.id === id && i < s.invSize ? slot.n : 0), 0);
 
 // how many more of an item fit in the unlocked slots
 export const roomFor = (s, id) =>
-  s.inv.reduce((t, slot, i) => i >= s.invSize ? t : t + (!slot ? MAX_STACK : slot.id === id ? MAX_STACK - slot.n : 0), 0);
+  s.inv.reduce((t, slot, i) => i >= s.invSize ? t : t + (!slot ? maxStack(id) : slot.id === id ? maxStack(id) - slot.n : 0), 0);
 
 // fills matching stacks first, then empty slots; returns how many did not fit
 export function addItem(s, id, n) {
   let left = n;
   for (let i = 0; i < s.invSize && left; i++) {
     const slot = s.inv[i];
-    if (slot && slot.id === id && slot.n < MAX_STACK) { const k = Math.min(left, MAX_STACK - slot.n); slot.n += k; left -= k; }
+    if (slot && slot.id === id && slot.n < maxStack(id)) { const k = Math.min(left, maxStack(id) - slot.n); slot.n += k; left -= k; }
   }
   for (let i = 0; i < s.invSize && left; i++) {
-    if (!s.inv[i]) { const k = Math.min(left, MAX_STACK); s.inv[i] = { id, n: k }; left -= k; }
+    if (!s.inv[i]) { const k = Math.min(left, maxStack(id)); s.inv[i] = { id, n: k }; left -= k; }
   }
   return left;
 }
@@ -131,13 +139,13 @@ export function removeItem(s, id, n) {
   return removed;
 }
 
-// drop slot a onto slot b: move into an empty slot, merge the same item up to 99, otherwise swap
+// drop slot a onto slot b: move into an empty slot, merge the same item up to its stack size, otherwise swap
 export function moveSlot(s, a, b) {
   const A = s.inv[a], B = s.inv[b];
   if (!A || a === b) return false;
   if (!B) { s.inv[b] = A; s.inv[a] = null; }
   else if (B.id === A.id) {
-    const k = Math.min(A.n, MAX_STACK - B.n);
+    const k = Math.min(A.n, maxStack(A.id) - B.n);
     B.n += k; A.n -= k;
     if (!A.n) s.inv[a] = null;
     else if (!k) { s.inv[a] = B; s.inv[b] = A; }
@@ -259,6 +267,46 @@ export function buyPack(s, k) {
   bump(s, 'purchases');
   addItem(s, pack.id, pack.qty);
   return { ok: true, pack };
+}
+
+// ---------- equipment ----------
+export const isGear = id => !!(ITEMS[id] && ITEMS[id].kind === 'gear');
+
+export function buyGear(s, id) {
+  if (!isGear(id)) return { ok: false, reason: 'unknown-item' };
+  if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
+  if (s.coins < ITEMS[id].price) return { ok: false, reason: 'coins' };
+  s.coins -= ITEMS[id].price;
+  addItem(s, id, 1);
+  bump(s, 'purchases');
+  return { ok: true, item: id };
+}
+
+// puts the item in inventory slot `index` on the baby; whatever it wore there goes back to that slot
+export function equipGear(s, babyId, index) {
+  const baby = s.hatched.find(b => b.id === babyId);
+  if (!baby) return { ok: false, reason: 'missing' };
+  if (!Number.isInteger(index) || index < 0 || index >= s.invSize) return { ok: false, reason: 'bad-slot' };
+  const item = s.inv[index];
+  if (!item || !isGear(item.id)) return { ok: false, reason: 'not-gear' };
+  const slot = ITEMS[item.id].slot;
+  const old = baby.equip && baby.equip[slot];
+  item.n -= 1;
+  if (!item.n) s.inv[index] = null;
+  if (old) { if (!s.inv[index]) s.inv[index] = { id: old, n: 1 }; else addItem(s, old, 1); }
+  baby.equip = { ...(baby.equip || {}), [slot]: item.id };
+  return { ok: true, slot, item: item.id, removed: old || null };
+}
+
+export function unequipGear(s, babyId, slot) {
+  const baby = s.hatched.find(b => b.id === babyId);
+  const id = baby && baby.equip && baby.equip[slot];
+  if (!id) return { ok: false, reason: 'empty' };
+  if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
+  addItem(s, id, 1);
+  const { [slot]: gone, ...rest } = baby.equip;
+  baby.equip = rest;
+  return { ok: true, item: id };
 }
 
 // ---------- breeding ----------
@@ -411,6 +459,15 @@ export const ACTIONS = {
   },
   collectEgg(s, args, now, rand) {
     return collectEgg(s, now, rand);
+  },
+  buyGear(s, { id }) {
+    return buyGear(s, id);
+  },
+  equip(s, { babyId, index }) {
+    return equipGear(s, babyId, index);
+  },
+  unequip(s, { babyId, slot }) {
+    return unequipGear(s, babyId, slot);
   },
   warmEgg(s, { taps = 1 }) {
     let saved = 0;
