@@ -1,0 +1,47 @@
+# Deploys the `game` Edge Function to Supabase after every push to main that changes the game rules
+# or the function, so the server always runs the same rules as the site Render publishes.
+# Needs the repository secret SUPABASE_ACCESS_TOKEN (a Supabase personal access token); without it
+# the job only prints a notice.
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'supabase/functions/**'
+      - 'scripts/sync-shared.js'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run the tests
+        run: npm test
+
+      - name: Check that the server copy of the rules is up to date
+        run: |
+          node scripts/sync-shared.js
+          git diff --exit-code supabase/functions/_shared || (echo "::error::supabase/functions/_shared is out of date: run node scripts/sync-shared.js and commit" && exit 1)
+
+      - name: Deploy the game function
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: npx --yes supabase@latest functions deploy game --project-ref mhilrzspnbncfaixkzqc --no-verify-jwt --use-api
+
+      - name: No token yet
+        if: env.SUPABASE_ACCESS_TOKEN == ''
+        run: echo "::notice::Add the SUPABASE_ACCESS_TOKEN repository secret to deploy the Edge Function automatically."

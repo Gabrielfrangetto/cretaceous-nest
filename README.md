@@ -99,6 +99,14 @@ node --test
 
 `version.js` stamps every script and stylesheet address in the pages with a hash of its contents, so right after a deploy no browser or CDN cache can mix an old file with new ones. A test fails if you forget.
 
+## Deploying the server
+
+Render publishes the site on every push to `main`. The `game` Edge Function is deployed by GitHub Actions (`.github/workflows/deploy-functions.yml`) on every push that changes the rules, once the repository secret `SUPABASE_ACCESS_TOKEN` (a Supabase personal access token) is set. It can also be run by hand from the Actions tab, or locally:
+
+```
+npx supabase functions deploy game --project-ref mhilrzspnbncfaixkzqc --no-verify-jwt --use-api
+```
+
 ## Changing the save format
 
 Bump `SAVE_VERSION` in `js/state.js` and add a step to `MIGRATIONS` that turns the previous version into the new one. Old saves and save codes are upgraded when they load.
