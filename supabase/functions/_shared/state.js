@@ -90,7 +90,7 @@ function sanitize(s) {
     const slot = s.inv[i];
     if (slot) { s.inv[i] = null; addItem(s, slot.id, slot.n); }
   }
-  // growth stages do not exist yet, so no save can hold an adult
+  // a baby's stage is worked out from its meals; an old stored one is dropped
   s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(({ stats, stage, ...b }) => ({
     ...b,
     genes: cleanGenes(b.genes, 'stats:' + b.id),

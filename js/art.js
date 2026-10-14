@@ -1,5 +1,5 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS } from './config.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
@@ -95,7 +95,7 @@ const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =
   [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
-// The game shows no adults until growth stages exist; tools/anchors.html already uses them.
+// Adults without one are drawn with their baby sprite, scaled up.
 export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.png') } };
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
@@ -133,12 +133,15 @@ export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) ||
 
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
 
-// The baby as it looks: its outfit's sprite if it wears one, otherwise its own sprite (the adult one
-// when adult is true and it exists) with its small accessories (DRAWN_SLOTS) drawn on top. Returns the
-// plain sprite when nothing is drawn over it, otherwise a box holding the sprite and one layer per accessory.
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, adult = false) {
+// The baby as it looks at its growth stage: its outfit's sprite if it wears one, otherwise its own sprite
+// (the adult one for adults, when it exists), drawn larger as it grows, with its small accessories
+// (DRAWN_SLOTS) on top. Returns the plain sprite when nothing is drawn over it, otherwise a box holding
+// the sprite and one layer per accessory.
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby') {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
-  const base = babyArt(type, px, sex, false, look ? asset(look.sprites[sex]) : (adult && adultSpriteUrl(type, sex)) || null);
+  const st = STAGES.find(x => x.id === stage) || STAGES[0];
+  const own = stage === 'adult' ? adultSpriteUrl(type, sex) : null;
+  const base = babyArt(type, px * st.scale, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length) return base;

@@ -1,8 +1,8 @@
 // Detail window for one baby, opened from its card in "Your babies": stats, combat numbers,
 // equipment (equip and take off) and family.
-import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS } from '../config.js';
+import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
@@ -45,7 +45,9 @@ function equipmentHTML(b) {
       </div>
     </li>`;
   }).join('');
-  return `${adult ? '' : '<p class="hint"><strong>Only adults can wear equipment.</strong> Babies grow up in a later update; anything this baby already wears does nothing until then and can be taken off.</p>'}
+  const next = nextStage(b);
+  const until = next && plural(STAGES[STAGES.length - 1].meals - (b.fed || 0), 'more meal', 'more meals');
+  return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
     <ul class="gear-slots">${rows}</ul>
     <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Some pieces raise one stat and lower another. Head and neck pieces show on the baby; body and back pieces only change its stats.</p>`;
 }
@@ -98,8 +100,9 @@ function render() {
       <div><dt>Parents</dt><dd>${esc(parentsText(b))}</dd></div>
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Meals</dt><dd>${plural(b.fed || 0, 'meal', 'meals')}</dd></div>
+      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'meal', 'meals')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;

@@ -3,7 +3,7 @@
 // preference, not game progress.
 import { SPECIES, SEX } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, wornGear } from '../economy.js';
+import { sexOf, wornGear, stageOf } from '../economy.js';
 import { dressedArt, spriteUrl } from '../art.js';
 import { esc } from '../util.js';
 import { unlockAudio, startAlarm, stopAlarm } from '../alarm.js';
@@ -119,7 +119,8 @@ function alertNow(test = false) {
   bubble.querySelectorAll('[data-water]').forEach(b => b.addEventListener('click', () => answer(b.dataset.water)));
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
-  dino.appendChild(dressedArt(baby.type, DINO_PX, sex, wornGear(baby), baby.outfit));
+  // the water scene has a fixed size, so every stage is drawn as big as a baby there
+  dino.appendChild(dressedArt(baby.type, DINO_PX / stageOf(baby).scale, sex, wornGear(baby), baby.outfit, stageOf(baby).id));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 

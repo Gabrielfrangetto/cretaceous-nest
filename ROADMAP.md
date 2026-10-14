@@ -59,7 +59,7 @@ Signed-in players can no longer change their own coins or items: the server deci
 ## Phase 4 — Content and retention
 
 - [ ] Art for eggs and items in the same style as the dinosaur sprites
-- [ ] Growth stages: baby → juvenile → adult (needs meals over time)
+- [x] Growth stages: baby → juvenile (10 meals) → adult (30 meals); placeholder art scales the baby sprite until each adult sprite exists
 - [x] Stats (STR, AGI, VIT, RES) and breeding: a pair of the same species lays an egg whose baby inherits their genes
 - [x] Stat engine: species base × genes (50–100%), then equipment in stages (flat, increased %, more ×); derived combat stats (health, damage, dodge and damage reduction with diminishing returns); gene grades S–D
 - [x] Equipment: items in slots (head, neck, body, back) with fixed bonuses, bought with coins; only adults wear it (pieces for babies and juveniles may come later)

@@ -5,7 +5,7 @@ import { ANCHORS } from '../js/gear-art.js';
 import { dressedArt, adultSpriteUrl } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors';
-const PX = 20;   // sprite drawn 340 px tall
+const PX = 20 / 1.5;   // adults are drawn 1.5× a baby's size: 340 px tall here
 const $ = id => document.getElementById(id);
 
 let anchors = structuredClone(ANCHORS);
@@ -60,7 +60,7 @@ function render() {
   // the editor draws with its own anchors, so what you see is what you have set so far
   const real = ANCHORS[type][sex];
   ANCHORS[type][sex] = anchors[type][sex];
-  art = dressedArt(type, PX, sex, equip, null, true);
+  art = dressedArt(type, PX, sex, equip, null, 'adult');
   ANCHORS[type][sex] = real;
   $('canvas').innerHTML = '';
   $('canvas').appendChild(art);

@@ -163,6 +163,8 @@ img.baby-pop { image-rendering: auto; }
 .bubble svg { width: 20px; height: 20px; display: block; }
 .heart { position: absolute; z-index: 300; font-size: 22px; color: var(--heart); font-weight: 700; pointer-events: none; animation: rise 1s ease-out forwards; }
 .say { position: absolute; z-index: 300; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--panel); padding: 2px 8px; border-radius: 8px; pointer-events: none; white-space: nowrap; animation: rise 1.2s ease-out forwards; }
+.grew { position: absolute; z-index: 300; font-size: 13px; font-weight: 700; color: var(--accent-ink); background: var(--accent); padding: 3px 10px; border-radius: 8px; pointer-events: none; white-space: nowrap; animation: rise 2.4s ease-out forwards; }
+.baby .growth { font-weight: 700; color: var(--ink); }
 .baby .fed { color: var(--accent); font-weight: 700; }
 .baby .fed.hungry { color: var(--heart); }
 

@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE,
+  OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 
@@ -54,10 +54,19 @@ export function cleanGenes(g, seed) {
   return Object.fromEntries(STATS.map(({ id }) => [id, clampGene(g[id])]));
 }
 
+// ---------- growth ----------
+// A baby's stage comes from how many meals it has eaten, which only the rules (and the server) change.
+export const stageOf = b => [...STAGES].reverse().find(st => ((b && b.fed) || 0) >= st.meals);
+// the next stage and how many meals it still needs, or null for adults
+export function nextStage(b) {
+  const next = STAGES[STAGES.indexOf(stageOf(b)) + 1];
+  return next ? { stage: next, mealsLeft: next.meals - ((b && b.fed) || 0) } : null;
+}
+
 // ---------- stats ----------
-// Only adults wear equipment. Growth stages do not exist yet, so no baby is an adult until they do;
-// pieces already worn by a baby can be taken off but give no bonus and are not drawn.
-export const isAdult = baby => !!baby && baby.stage === 'adult';
+// Only adults wear equipment; pieces a younger baby still wears (from before this rule) can be
+// taken off but give no bonus and are not drawn.
+export const isAdult = b => !!b && stageOf(b).id === 'adult';
 // what a baby actually wears: its equipment if it is an adult, otherwise nothing
 export const wornGear = baby => (isAdult(baby) && baby.equip) || {};
 
@@ -244,11 +253,13 @@ export function feedBaby(s, id, now) {
   const food = DIET[b.type];
   if (countItem(s, food) < 1) return { ok: false, reason: 'no-food', food };
   removeItem(s, food, 1);
+  const before = stageOf(b);
   b.lastFed = now;
   b.fed = (b.fed || 0) + 1;
   earn(s, FEED_COINS);
   bump(s, 'meals');
-  return { ok: true, food, coins: FEED_COINS };
+  const after = stageOf(b);
+  return { ok: true, food, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
 }
 
 // ---------- shop ----------

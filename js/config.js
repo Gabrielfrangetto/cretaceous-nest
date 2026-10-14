@@ -87,6 +87,14 @@ export const DIET = { proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' }
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 
+// Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
+// scale draws juveniles (and adults without an adult sprite yet) larger than babies.
+export const STAGES = [
+  { id: 'baby', name: 'Baby', meals: 0, scale: 1 },
+  { id: 'juvenile', name: 'Juvenile', meals: 10, scale: 1.25 },
+  { id: 'adult', name: 'Adult', meals: 30, scale: 1.5 },
+];
+
 // Rewards and prices (coins)
 export const FEED_COINS = 5;
 export const HATCH_COINS = { proto: 10, hypa: 25, raptor: 60, rex: 150 };

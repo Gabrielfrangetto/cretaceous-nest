@@ -1,7 +1,7 @@
 // Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
-import { SPECIES, SEX, DIET, ITEMS } from '../config.js';
+import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isHungry, countItem, wornGear } from '../economy.js';
+import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
@@ -18,6 +18,13 @@ const walkers = new Map();
 const sceneW = () => scene.clientWidth || 600;
 const findBaby = id => S.hatched.find(b => b.id === id);
 const nameTag = b => b.name + ' ' + SEX[sexOf(b)].sym;
+// "Juvenile · 4 meals to Adult"
+export function growthText(b) {
+  const next = nextStage(b);
+  return stageOf(b).name + (next ? ` · ${plural(next.mealsLeft, 'meal', 'meals')} to ${next.stage.name}` : '');
+}
+// what a baby looks like right now, for redrawing when it changes
+const lookKey = b => JSON.stringify([wornGear(b), b.outfit || null, stageOf(b).id]);
 
 function renderBabies() {
   const box = document.getElementById('babies');
@@ -38,16 +45,17 @@ function renderBabies() {
       card.className = 'baby';
       card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
       card.addEventListener('click', () => openBabyInfo(b.id));
-      card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit));
+      card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit, stageOf(b).id));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
+      const grow = document.createElement('span'); grow.className = 'growth'; grow.textContent = growthText(b);
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
       const gear = document.createElement('span'); gear.className = 'gear-icons';
       gear.innerHTML = Object.values(wornGear(b)).map(id => `<span class="gear-icon" title="${ITEMS[id].name}">${ITEM_ICONS[id]}</span>`).join('');
       const more = document.createElement('span'); more.className = 'more'; more.textContent = 'See stats';
-      card.append(nm, sps, dt, fed, gen, gear, more);
+      card.append(nm, sps, grow, dt, fed, gen, gear, more);
       box.appendChild(card);
     }
   }
@@ -98,10 +106,10 @@ function syncWalkers() {
     const have = walkers.get(b.id);
     if (have) {
       have.name.textContent = nameTag(b);
-      // redraw when the baby puts on or takes off equipment
-      const key = JSON.stringify([wornGear(b), b.outfit || null]);
+      // redraw when the baby grows, or puts on or takes off equipment
+      const key = lookKey(b);
       if (have.gearKey !== key) {
-        const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit);
+        const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id);
         art.style.transform = have.art.style.transform;
         have.art.replaceWith(art);
         have.art = art;
@@ -115,14 +123,14 @@ function syncWalkers() {
     bubble.className = 'bubble'; bubble.hidden = true;
     const food = DIET[b.type];
     bubble.innerHTML = ITEM_ICONS[food] + '<span>' + ASK[food] + '</span>';
-    const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit);
+    const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
     const depth = Math.random();
     el.style.bottom = Math.round(12 + depth * 60) + 'px';
     el.style.zIndex = String(200 - Math.round(depth * 100));
     const w = {
-      id: b.id, el, art, bubble, name, hungry: null, gearKey: JSON.stringify([wornGear(b), b.outfit || null]),
+      id: b.id, el, art, bubble, name, hungry: null, gearKey: lookKey(b),
       x: Math.random() * (sceneW() - 70), dir: Math.random() < .5 ? 1 : -1,
       speed: 28 + Math.random() * 26, pause: Math.random() * 1.5, walk: 1 + Math.random() * 3, t: Math.random() * 6, hop: 0,
     };
@@ -139,7 +147,7 @@ function popText(w, cls, text) {
   p.style.left = (w.x + 22) + 'px';
   p.style.bottom = (parseInt(w.el.style.bottom, 10) + 70) + 'px';
   scene.appendChild(p);
-  setTimeout(() => p.remove(), 1200);
+  setTimeout(() => p.remove(), cls === 'grew' ? 2400 : 1200);
 }
 
 function feed(w) {
@@ -147,6 +155,11 @@ function feed(w) {
   if (result.ok) {
     w.hop = 0.45;
     popText(w, 'heart', '♥ +' + result.coins);
+    if (result.grewTo) {
+      const b = S.hatched.find(x => x.id === w.id);
+      const st = STAGES.find(x => x.id === result.grewTo);
+      if (b && st) setTimeout(() => popText(w, 'grew', `${b.name} grew into ${st.id === 'adult' ? 'an adult' : 'a juvenile'}!`), 500);
+    }
   } else if (result.reason === 'no-food') {
     popText(w, 'say', 'No ' + ITEMS[result.food].plural + ' in your inventory');
   } else if (result.reason === 'full') {
