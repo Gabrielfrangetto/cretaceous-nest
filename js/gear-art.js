@@ -31,6 +31,7 @@ export const ANCHORS = {
 // A build with no picture of its own uses `all` if given, otherwise the item's icon.
 export const GEAR_ART = {
   leaf_crown: 'sprites/gear/leaf_crown.png',
+  bone_helmet: { theropod: 'sprites/gear/theropod/bone_helmet.png' },
 };
 
 // the picture of a piece for one species, by its build
