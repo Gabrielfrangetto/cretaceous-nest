@@ -1,12 +1,12 @@
 // Breeding panel in the Nest tab: pick a male and a female of the same species; after a while
 // they lay an egg that goes to the egg tray, ready to hatch in the Incubator.
-import { SPECIES, SEX, STATS, STAT_MAX, BREED_MINS, BREED_STAT_CHANGE, EGG_TRAY_SIZE } from '../config.js';
+import { SPECIES, SEX, STATS, GENES_MAX, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, breedProblem } from '../economy.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { esc, fmt, minsLabel } from '../util.js';
-import { statsHTML, totalText } from './stats.js';
+import { genesHTML, genesText, powerText } from './stats.js';
 import { currentTab, onTabChange } from './tabs.js';
 
 const body = document.getElementById('breedBody');
@@ -17,14 +17,14 @@ const PROBLEMS = {
   busy: 'A pair is already breeding.',
 };
 
-const label = b => `${b.name} ${SEX[sexOf(b)].sym} · ${SPECIES[b.type].species} · Gen ${b.gen || 1} · ${totalText(b.stats)}`;
+const label = b => `${b.name} ${SEX[sexOf(b)].sym} · ${SPECIES[b.type].species} · Gen ${b.gen || 1} · ${genesText(b.genes)} · ${powerText(b)}`;
 const byId = id => S.hatched.find(b => b.id === id);
 
 function rangeHTML(m, f) {
-  const [down, up] = BREED_STAT_CHANGE;
+  const [down, up] = BREED_GENE_CHANGE;
   return `<ul class="breed-range">${STATS.map(({ id, short }) => {
-    const lo = Math.max(1, Math.min(m.stats[id], f.stats[id]) + down);
-    const hi = Math.min(STAT_MAX, Math.max(m.stats[id], f.stats[id]) + up);
+    const lo = Math.max(1, Math.min(m.genes[id], f.genes[id]) + down);
+    const hi = Math.min(GENES_MAX, Math.max(m.genes[id], f.genes[id]) + up);
     return `<li><span>${short}</span> ${lo}–${hi}</li>`;
   }).join('')}</ul>`;
 }
@@ -66,7 +66,7 @@ function render() {
   const males = S.hatched.filter(b => sexOf(b) === 'm');
   const pairable = males.filter(m => S.hatched.some(f => f.type === m.type && sexOf(f) === 'f'));
   if (!pairable.length) {
-    body.innerHTML = `<p class="hint">To breed you need a male and a female of the same species. Babies inherit their parents' stats, so pick your best pair.</p>${trayLine}${note}`;
+    body.innerHTML = `<p class="hint">To breed you need a male and a female of the same species. Babies inherit their parents' genes, so pick your best pair.</p>${trayLine}${note}`;
     return;
   }
   if (!pairable.some(m => m.id === maleId)) maleId = pairable[0].id;
@@ -80,14 +80,14 @@ function render() {
     <div class="breed-grid">
       <div class="field"><label for="breedMale">Male ${SEX.m.sym}</label>
         <select id="breedMale">${pairable.map(b => `<option value="${esc(b.id)}" ${b.id === maleId ? 'selected' : ''}>${esc(label(b))}</option>`).join('')}</select>
-        ${statsHTML(male.stats, { compact: true })}
+        ${genesHTML(male.genes)}
       </div>
       <div class="field"><label for="breedFemale">Female ${SEX.f.sym}</label>
         <select id="breedFemale">${females.map(b => `<option value="${esc(b.id)}" ${b.id === femaleId ? 'selected' : ''}>${esc(label(b))}</option>`).join('')}</select>
-        ${statsHTML(female.stats, { compact: true })}
+        ${genesHTML(female.genes)}
       </div>
     </div>
-    <div class="breed-expect"><span class="hint">Their baby's stats will land around:</span>${rangeHTML(male, female)}</div>
+    <div class="breed-expect"><span class="hint">Their baby's genes will land around:</span>${rangeHTML(male, female)}</div>
     <div class="row">
       <button class="btn" type="button" id="startBreed" ${problem ? 'disabled' : ''}>Breed them (${minsLabel(BREED_MINS[male.type])})</button>
     </div>

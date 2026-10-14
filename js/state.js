@@ -1,9 +1,9 @@
 // The player's save: loading, versioned migrations, local persistence, export/import codes,
 // and a tiny change feed the UI modules subscribe to.
 import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, MAX_STACK, EGG_TRAY_SIZE } from './config.js';
-import { addItem, wildStats, seededRand, cleanStats } from './economy.js';
+import { addItem, wildGenes, seededRand, cleanGenes } from './economy.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
@@ -42,12 +42,27 @@ const MIGRATIONS = {
     s.achievements = {};
     return s;
   },
-  // v3: before stats and breeding. Every baby gets stats rolled from its own id, so the browser and
+  // v3: before stats and breeding. Every baby gets genes rolled from its own id, so the browser and
   // the server give it the same ones.
   3: s => {
-    s.hatched = s.hatched.map(b => b && SPECIES[b.type] ? { ...b, stats: wildStats(b.type, seededRand('stats:' + b.id)), gen: 1 } : b);
+    s.hatched = s.hatched.map(b => b && SPECIES[b.type] ? { ...b, genes: wildGenes(seededRand('stats:' + b.id)), gen: 1 } : b);
     s.eggs = [];
     s.breeding = null;
+    return s;
+  },
+  // v4: one number per stat, which included a +10 bonus in the species' strong stat. Those numbers
+  // become genes without the bonus, since each species' base now plays that part.
+  4: s => {
+    const OLD_BONUS = { proto: { res: 10 }, hypa: { vit: 10 }, raptor: { agi: 10 }, rex: { str: 10 } };
+    const toGenes = (thing) => {
+      if (!thing || !thing.stats || thing.genes) return thing;
+      const { stats, ...rest } = thing;
+      const bonus = OLD_BONUS[thing.type] || {};
+      return { ...rest, genes: Object.fromEntries(Object.entries(stats).map(([id, v]) => [id, Math.max(1, v - (bonus[id] || 0))])) };
+    };
+    s.hatched = s.hatched.map(toGenes);
+    s.eggs = (s.eggs || []).map(toGenes);
+    if (s.current) s.current = toGenes(s.current);
     return s;
   },
 };
@@ -65,13 +80,13 @@ function sanitize(s) {
     const slot = s.inv[i];
     if (slot) { s.inv[i] = null; addItem(s, slot.id, slot.n); }
   }
-  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(b => ({
+  s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id).map(({ stats, ...b }) => ({
     ...b,
-    stats: cleanStats(b.stats, b.type, 'stats:' + b.id),
+    genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
   }));
   s.eggs = (Array.isArray(s.eggs) ? s.eggs : []).filter(e => e && SPECIES[e.type] && e.id).slice(0, EGG_TRAY_SIZE).map(e => ({
-    id: e.id, type: e.type, stats: cleanStats(e.stats, e.type, 'stats:' + e.id),
+    id: e.id, type: e.type, genes: cleanGenes(e.genes, 'stats:' + e.id),
     gen: Math.max(1, Math.floor(Number(e.gen) || 1)), parents: Array.isArray(e.parents) ? e.parents.slice(0, 2) : [], laidAt: Number(e.laidAt) || 0,
   }));
   const br = s.breeding;
@@ -79,6 +94,7 @@ function sanitize(s) {
     ? { type: br.type, maleId: br.maleId, femaleId: br.femaleId, startedAt: Number(br.startedAt) || 0, readyAt: Number(br.readyAt) || 0 }
     : null;
   if (s.current && !SPECIES[s.current.type]) s.current = null;
+  if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
   s.updatedAt = Number(s.updatedAt) || 0;
   s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game
   const d = s.daily || {};

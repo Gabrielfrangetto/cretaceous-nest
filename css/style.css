@@ -358,3 +358,22 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .info-facts div { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; }
 .info-facts dt { font-size: 13px; font-weight: 700; color: var(--muted); }
 .info-facts dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+
+/* stat engine displays */
+.stat dd { grid-template-columns: minmax(0, 1fr) 30px 18px; }
+.grade { font-size: 11px; font-weight: 700; text-align: center; border-radius: 4px; line-height: 16px; color: #fff; }
+.g-S { background: #b07a0e; }
+.g-A { background: #4f8a3a; }
+.g-B { background: #3b7392; }
+.g-C { background: #7a6a8e; }
+.g-D { background: #8a7e72; }
+.stat-bar.genes i { background: var(--grass2); }
+.grade-key { font-size: 12px; }
+.baby-info h3 { margin-top: 4px; }
+.derived { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.derived div { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.derived dt { font-size: 12px; font-weight: 700; color: var(--muted); }
+.derived dd { margin: 0; font-family: var(--display); font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; }
+.how summary { cursor: pointer; font-size: 14px; font-weight: 700; color: var(--accent); }
+.how summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.breakdown { margin: 8px 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; font-variant-numeric: tabular-nums; }

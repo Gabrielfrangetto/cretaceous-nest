@@ -3,7 +3,7 @@
 //
 // local.owner is the account id the browser's save belongs to, or null for a guest game.
 import { SPECIES, TAP_CAP } from './config.js';
-import { countItem, removeItem, wildMax } from './economy.js';
+import { countItem, removeItem, WILD_GENES_MAX } from './economy.js';
 
 export const hasProgress = s => !!s && (s.hatched.length > 0 || !!s.current || s.coins > 0);
 
@@ -64,25 +64,23 @@ export function capGuestSave(s, now) {
   s.stats = { coinsEarned: s.coins, meals: s.hatched.reduce((t, b) => t + b.fed, 0), purchases: 0, eggsLaid: 0 };
   s.daily = { last: null, streak: 0, best: 0 };
 
-  // bred stats can't be checked either, so nothing may beat what a free egg can give
-  const capStats = (st, type) => {
-    const max = wildMax(type);
-    return st ? Object.fromEntries(Object.entries(max).map(([id, m]) => [id, Math.min(m, st[id])])) : st;
-  };
-  s.hatched = s.hatched.map(b => ({ ...b, stats: capStats(b.stats, b.type), gen: 1 }));
-  s.eggs = (s.eggs || []).map(e => ({ ...e, stats: capStats(e.stats, e.type), gen: 1 }));
+  // bred genes can't be checked either, so nothing may beat what a free egg can give
+  const capGenes = g => g ? Object.fromEntries(Object.entries(WILD_GENES_MAX).map(([id, m]) => [id, Math.min(m, g[id])])) : g;
+  s.hatched = s.hatched.map(b => ({ ...b, genes: capGenes(b.genes), gen: 1 }));
+  s.eggs = (s.eggs || []).map(e => ({ ...e, genes: capGenes(e.genes), gen: 1 }));
   s.breeding = null;
 
   if (s.current) {
-    const sp = SPECIES[s.current.type];
-    const duration = sp.mins * 60000;
+    const egg = s.current;
+    const duration = SPECIES[egg.type].mins * 60000;
     s.current = {
-      type: s.current.type,
-      startedAt: Math.min(Number(s.current.startedAt) || now, now),
+      type: egg.type,
+      startedAt: Math.min(Number(egg.startedAt) || now, now),
       duration,
-      bonus: Math.min(Math.max(0, Number(s.current.bonus) || 0), duration * TAP_CAP),
+      bonus: Math.min(Math.max(0, Number(egg.bonus) || 0), duration * TAP_CAP),
     };
-    if (s.current.stats) s.current.stats = capStats(s.current.stats, s.current.type);
+    // a bred egg keeps its genes, held to free-egg limits like everything else
+    if (egg.genes) Object.assign(s.current, { genes: capGenes(egg.genes), gen: 1 });
   }
   return s;
 }

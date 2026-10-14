@@ -7,7 +7,7 @@ import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
 import { fmt, minsLabel, esc } from '../util.js';
 import { setTab, onTabChange } from './tabs.js';
-import { statsHTML, totalText } from './stats.js';
+import { statsHTML, powerText, genesText } from './stats.js';
 
 const stage = document.getElementById('stage');
 let reveal = null;        // the fresh hatchling while it is being named
@@ -35,12 +35,12 @@ function renderChooser() {
         <span class="rarity">${sp.rarity}</span></button>`;
     }).join('')}</div>
     ${(S.eggs || []).length ? `<div><h2>Your eggs</h2>
-      <p class="sub">Laid by your breeding pairs. The baby inherits the stats shown.</p></div>
+      <p class="sub">Laid by your breeding pairs. The baby inherits these genes.</p></div>
       <div class="eggs">${S.eggs.map(e => {
         const sp = SPECIES[e.type];
         return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
-          ${eggSVG(sp)}<strong>${sp.species}</strong><span>Gen ${e.gen} · ${totalText(e.stats)}</span>
-          <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e.stats, { compact: true })}</button>`;
+          ${eggSVG(sp)}<strong>${sp.species}</strong><span>Gen ${e.gen} · ${powerText(e)} · ${genesText(e.genes)}</span>
+          <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e, { compact: true })}</button>`;
       }).join('')}</div>` : ''}`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {
     const args = b.dataset.egg ? { eggId: b.dataset.egg } : { type: b.dataset.k };
@@ -181,7 +181,7 @@ function renderReveal() {
         <p class="eyebrow">It's a ${baby.sex === 'm' ? 'boy' : 'girl'}! A ${sx.word.toLowerCase()} ${sp.species} ${sx.sym}</p>
         <h2>Name your baby</h2>
         <p class="fact">${esc(sp.fact)}</p>
-        <div class="reveal-stats"><p class="hint">Gen ${baby.gen || 1} · ${totalText(baby.stats)}</p>${statsHTML(baby.stats)}</div>
+        <div class="reveal-stats"><p class="hint">Gen ${baby.gen || 1} · ${powerText(baby)} · ${genesText(baby.genes)}</p>${statsHTML(baby)}</div>
         <p class="hint">${baby.sex === 'm' ? 'Males have bright colors and extra feathers, crests or stripes.' : 'Females have a single base color and no decorations.'} ${esc(loot)}</p>
         <form class="info" id="nameForm">
           <div class="field"><label for="babyName">Name</label>

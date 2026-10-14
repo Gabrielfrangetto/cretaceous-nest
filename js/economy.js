@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  STATS, STAT_MAX, WILD_STAT_RANGE, SPECIES_STAT_BONUS, BREED_MINS, BREED_STAT_CHANGE, EGG_TRAY_SIZE,
+  STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE,
 } from './config.js';
 import { hashId, newId } from './util.js';
 
@@ -12,8 +12,8 @@ function bump(s, key, n = 1) {
   if (!s.stats) s.stats = { coinsEarned: 0, meals: 0, purchases: 0 };
   s.stats[key] = (s.stats[key] || 0) + n;
 }
-// ---------- stats ----------
-// dice seeded from a string (mulberry32), so a migration gives every device and the server the same stats
+// ---------- genes ----------
+// dice seeded from a string (mulberry32), so a migration gives every device and the server the same genes
 export function seededRand(seed) {
   let t = hashId(seed) || 1;
   return () => {
@@ -24,32 +24,70 @@ export function seededRand(seed) {
   };
 }
 const roll = (rand, lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
-const clampStat = n => Math.min(STAT_MAX, Math.max(1, Math.round(Number(n) || 1)));
+const clampGene = n => Math.min(GENES_MAX, Math.max(1, Math.round(Number(n) || 1)));
+const sumOf = (values, id) => STATS.reduce((t, s) => t + ((values && values[id ? id(s) : s.id]) || 0), 0);
 
 // a baby from one of the incubator's free eggs
-export function wildStats(type, rand) {
-  const [lo, hi] = WILD_STAT_RANGE;
-  const bonus = SPECIES_STAT_BONUS[type] || {};
-  return Object.fromEntries(STATS.map(({ id }) => [id, clampStat(roll(rand, lo, hi) + (bonus[id] || 0))]));
+export function wildGenes(rand) {
+  const [lo, hi] = WILD_GENES;
+  return Object.fromEntries(STATS.map(({ id }) => [id, roll(rand, lo, hi)]));
 }
 
-// the best a free egg can give, per stat (used to cap stats that can't be checked)
-export const wildMax = type => Object.fromEntries(STATS.map(({ id }) => [id, Math.min(STAT_MAX, WILD_STAT_RANGE[1] + ((SPECIES_STAT_BONUS[type] || {})[id] || 0))]));
+// the best a free egg can give (used to cap genes that can't be checked)
+export const WILD_GENES_MAX = Object.fromEntries(STATS.map(({ id }) => [id, WILD_GENES[1]]));
 
-// each stat lands between the parents' values, then moves a little
-export function inheritStats(a, b, rand) {
-  const [down, up] = BREED_STAT_CHANGE;
+// each gene lands between the parents' genes, then moves a little
+export function inheritGenes(a, b, rand) {
+  const [down, up] = BREED_GENE_CHANGE;
   return Object.fromEntries(STATS.map(({ id }) => {
     const lo = Math.min(a[id], b[id]), hi = Math.max(a[id], b[id]);
-    return [id, clampStat(roll(rand, lo, hi) + roll(rand, down, up))];
+    return [id, clampGene(roll(rand, lo, hi) + roll(rand, down, up))];
   }));
 }
 
-export const statTotal = st => STATS.reduce((t, { id }) => t + ((st && st[id]) || 0), 0);
+export const genesTotal = g => sumOf(g);
+export const genesPercent = g => Math.round(genesTotal(g) / (STATS.length * GENES_MAX) * 100);
+export const geneGrade = n => GENE_GRADES.find(([min]) => n >= min)[1];
 
-export function cleanStats(st, type, seed) {
-  if (!st || typeof st !== 'object') return wildStats(type, seededRand(seed));
-  return Object.fromEntries(STATS.map(({ id }) => [id, clampStat(st[id])]));
+export function cleanGenes(g, seed) {
+  if (!g || typeof g !== 'object') return wildGenes(seededRand(seed));
+  return Object.fromEntries(STATS.map(({ id }) => [id, clampGene(g[id])]));
+}
+
+// ---------- stats ----------
+// A baby's stats, worked out in stages like an action RPG:
+//   1. species base × (GENE_FLOOR + (1 − GENE_FLOOR) × genes / GENES_MAX)
+//   2. + flat bonuses                        e.g. "+30 Resistance"
+//   3. × (1 + sum of "increased" bonuses)    e.g. "+10% Strength", "−25% Agility": these add up together
+//   4. × each "more" multiplier              e.g. "×1.10 Strength": these multiply each other
+//   5. rounded, never below 1
+// mods: [{ stat, type: 'flat' | 'increased' | 'more', value }], with increased as a fraction (0.10 = +10%)
+// and more as a multiplier (1.10). Equipment will supply them.
+export function statSheet(baby, mods = []) {
+  const base = SPECIES_BASE[baby.type];
+  const stats = {}, steps = {};
+  for (const { id } of STATS) {
+    const genes = baby.genes[id];
+    const factor = GENE_FLOOR + (1 - GENE_FLOOR) * genes / GENES_MAX;
+    const fromGenes = base[id] * factor;
+    const mine = mods.filter(m => m.stat === id);
+    const flat = mine.filter(m => m.type === 'flat').reduce((t, m) => t + m.value, 0);
+    const increased = mine.filter(m => m.type === 'increased').reduce((t, m) => t + m.value, 0);
+    const more = mine.filter(m => m.type === 'more').reduce((t, m) => t * m.value, 1);
+    const value = Math.max(1, Math.round((fromGenes + flat) * Math.max(0, 1 + increased) * more));
+    stats[id] = value;
+    steps[id] = { base: base[id], genes, factor, fromGenes, flat, increased, more, value };
+  }
+  return { stats, steps, derived: deriveCombat(stats), power: sumOf(stats) };
+}
+
+export function deriveCombat(st) {
+  return {
+    hp: Math.round(DERIVED.hpBase + st.vit * DERIVED.hpPerVit),
+    damage: Math.round(st.str * DERIVED.damagePerStr * 10) / 10,
+    dodge: st.agi / (st.agi + DERIVED.dodgeHalfAt),
+    reduction: st.res / (st.res + DERIVED.reductionHalfAt),
+  };
 }
 
 function earn(s, coins) {
@@ -136,10 +174,10 @@ export function discardOne(s, i) {
 }
 
 // ---------- eggs ----------
-// egg is a bred egg from the tray (carrying its stats and family), or null for a free egg
+// egg is a bred egg from the tray (carrying its genes and family), or null for a free egg
 export function startEgg(s, type, now, egg = null) {
   s.current = { type, startedAt: now, duration: SPECIES[type].mins * 60000, bonus: 0 };
-  if (egg) Object.assign(s.current, { stats: egg.stats, gen: egg.gen, parents: egg.parents });
+  if (egg) Object.assign(s.current, { genes: egg.genes, gen: egg.gen, parents: egg.parents });
 }
 
 export function eggProgress(egg, now) {
@@ -167,7 +205,7 @@ export function hatchEgg(s, now, rand = Math.random) {
   if (!egg || eggProgress(egg, now).frac < 1) return null;
   const type = egg.type;
   const baby = { id: newId(), type, sex: rand() < 0.5 ? 'm' : 'f', name: suggestName(s, type), at: now };
-  baby.stats = egg.stats ? { ...egg.stats } : wildStats(type, rand);
+  baby.genes = egg.genes ? { ...egg.genes } : wildGenes(rand);
   baby.gen = egg.gen || 1;
   if (egg.parents) baby.parents = [...egg.parents];
   s.hatched.unshift(baby);
@@ -254,7 +292,7 @@ export function collectEgg(s, now, rand = Math.random) {
   s.breeding = null;
   if (!m || !f) return { ok: false, reason: 'missing' };
   const egg = {
-    id: newId(), type: br.type, stats: inheritStats(m.stats, f.stats, rand),
+    id: newId(), type: br.type, genes: inheritGenes(m.genes, f.genes, rand),
     gen: Math.max(m.gen || 1, f.gen || 1) + 1, parents: [m.id, f.id], laidAt: now,
   };
   s.eggs = [...(s.eggs || []), egg];

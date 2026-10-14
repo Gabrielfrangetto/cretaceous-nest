@@ -60,8 +60,11 @@ Signed-in players can no longer change their own coins or items: the server deci
 
 - [ ] Art for eggs and items in the same style as the dinosaur sprites
 - [ ] Growth stages: baby → juvenile → adult (needs meals over time)
-- [x] Stats (STR, AGI, VIT, RES) and breeding: a pair of the same species lays an egg whose baby inherits their stats
-- [ ] Combat system using the stats
+- [x] Stats (STR, AGI, VIT, RES) and breeding: a pair of the same species lays an egg whose baby inherits their genes
+- [x] Stat engine: species base × genes (50–100%), then equipment in stages (flat, increased %, more ×); derived combat stats (health, damage, dodge and damage reduction with diminishing returns); gene grades S–D
+- [ ] Equipment: items in slots (head, neck, body, back) with fixed bonuses, drawn over the sprite
+- [ ] Equipment rarities (Normal, Magic, Rare, Legendary) with rolled bonuses, and where items drop
+- [ ] Combat system using the derived stats
 - [ ] More species and rarities, seasonal eggs
 - [x] Daily login reward (7-day streak) and achievements
 - [ ] Collection book (dinopedia with real facts)
@@ -70,7 +73,7 @@ Signed-in players can no longer change their own coins or items: the server deci
 
 ## Phase 5 — Monetization
 
-Principles: no pay-to-win pressure, everything core stays free, purchases save time or add cosmetics.
+Principles (decided): **never pay-to-win**. Anything bought with real money is cosmetic only. Equipment with stats is earned by playing (drops, breeding, coin shop); money buys looks, including skins that change how equipment looks without changing its stats.
 
 - [ ] Premium currency (bought with real money) separate from coins earned in play
 - [ ] Products: cosmetic nests and backgrounds, extra incubator slots, instant hatch, starter pack, supporter badge

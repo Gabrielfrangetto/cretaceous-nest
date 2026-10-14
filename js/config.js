@@ -88,20 +88,35 @@ export const ACHIEVEMENTS = [
   { id: 'proud_parents', title: 'Proud Parents', desc: 'Breed a pair and collect their egg.', metric: 'eggs_laid', target: 1, coins: 100 },
 ];
 
-// Stats. Every baby has four, from 1 to STAT_MAX; the combat system will use them.
+// ---------- stats ----------
+// Every baby has genes from 1 to GENES_MAX for each stat: its quality, inherited when breeding.
+// Its actual stats come from its species' base and those genes, then equipment (statSheet in economy.js).
 export const STATS = [
   { id: 'str', name: 'Strength', short: 'STR' },
   { id: 'agi', name: 'Agility', short: 'AGI' },
   { id: 'vit', name: 'Vitality', short: 'VIT' },
   { id: 'res', name: 'Resistance', short: 'RES' },
 ];
-export const STAT_MAX = 100;
-export const WILD_STAT_RANGE = [10, 50];      // babies from the incubator's free eggs
-// each species is a little better at one thing
-export const SPECIES_STAT_BONUS = { proto: { res: 10 }, hypa: { vit: 10 }, raptor: { agi: 10 }, rex: { str: 10 } };
+export const GENES_MAX = 100;
+export const WILD_GENES = [10, 50];           // babies from the incubator's free eggs
+export const GENE_GRADES = [[90, 'S'], [75, 'A'], [55, 'B'], [35, 'C'], [0, 'D']];
 
-// Breeding: a male and a female of the same species lay an egg of that species. Each stat of the
-// baby lands between its parents' values, plus a small random change, so good pairs make better babies.
+// Each species' stats with perfect genes. Rarer species have a higher total.
+export const SPECIES_BASE = {
+  proto:  { str: 50, agi: 40, vit: 60, res: 85 },   // 235
+  hypa:   { str: 45, agi: 50, vit: 85, res: 65 },   // 245
+  raptor: { str: 60, agi: 95, vit: 55, res: 50 },   // 260
+  rex:    { str: 90, agi: 40, vit: 85, res: 75 },   // 290
+};
+// genes scale the base from GENE_FLOOR (genes 0) up to 100% (genes 100): base × (0.5 + genes / 200)
+export const GENE_FLOOR = 0.5;
+
+// Combat stats worked out from the final stats. Dodge and damage reduction have diminishing
+// returns: they reach 50% when the stat equals the "half at" value and never reach 100%.
+export const DERIVED = { hpBase: 50, hpPerVit: 10, damagePerStr: 1.5, dodgeHalfAt: 100, reductionHalfAt: 100 };
+
+// Breeding: a male and a female of the same species lay an egg of that species. Each gene of the
+// baby lands between its parents' genes, plus a small random change, so good pairs make better babies.
 export const BREED_MINS = { proto: 5, hypa: 15, raptor: 30, rex: 90 };
-export const BREED_STAT_CHANGE = [-2, 5];
+export const BREED_GENE_CHANGE = [-2, 5];
 export const EGG_TRAY_SIZE = 10;
