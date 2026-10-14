@@ -3,7 +3,8 @@
 # Usage: powershell -STA -File scripts\cutout.ps1 -In image.png -Out sprites\rex-f.png [-Flip]
 # -Flip mirrors images drawn facing left; the game expects sprites facing right.
 # -Holes N also clears enclosed background patches of N pixels or more (the middle of a ring or wreath).
-param([string]$In, [string]$Out, [int]$Height = 240, [switch]$Flip, [int]$Holes = 0)
+# -Pale only takes near-white as background, for pale drawings (bone, cream) that the default eats into.
+param([string]$In, [string]$Out, [int]$Height = 240, [switch]$Flip, [int]$Holes = 0, [switch]$Pale)
 Add-Type -AssemblyName PresentationCore, WindowsBase
 $src = @"
 using System;
@@ -11,7 +12,7 @@ using System.Collections.Generic;
 public static class Cutout {
   // Removes a light, low-saturation background (and the soft ground shadow) connected to the image border.
   // holeMin > 0 also clears enclosed background patches of at least that many pixels (the middle of a ring).
-  public static int[] Run(byte[] px, int w, int h, int holeMin) {
+  public static int[] Run(byte[] px, int w, int h, int holeMin, bool pale) {
     bool[] bg = new bool[w * h];
     var q = new Queue<int>();
     // an image that already has transparency only needs its ground shadow removed, so colour matching
@@ -25,7 +26,8 @@ public static class Cutout {
       if (i / w < band) return false;
       int b = px[i*4], g = px[i*4+1], r = px[i*4+2];
       int mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b));
-      return hasAlpha ? (mn > 140 && (mx - mn) < 80) : (mn > 175 && (mx - mn) < 48);
+      if (hasAlpha) return mn > 140 && (mx - mn) < 80;
+      return pale ? (mn > 246 && (mx - mn) < 10) : (mn > 175 && (mx - mn) < 48);
     };
     for (int x = 0; x < w; x++) { foreach (int y in new[] {0, h-1}) { int i = y*w+x; if (!bg[i] && bgish(i)) { bg[i] = true; q.Enqueue(i); } } }
     for (int y = 0; y < h; y++) { foreach (int x in new[] {0, w-1}) { int i = y*w+x; if (!bg[i] && bgish(i)) { bg[i] = true; q.Enqueue(i); } } }
@@ -35,17 +37,23 @@ public static class Cutout {
       foreach (int n in nb) if (n >= 0 && !bg[n] && bgish(n)) { bg[n] = true; q.Enqueue(n); }
     }
     if (holeMin > 0) {
-      // background-coloured patches the border fill could not reach; big ones are holes, small ones highlights
+      // near-white patches the border fill could not reach; big ones are holes, small ones highlights.
+      // Stricter than bgish, so a hole does not run into pale parts of the drawing (bone, cream).
+      Func<int, bool> holeish = i => {
+        int b = px[i*4], g = px[i*4+1], r = px[i*4+2];
+        int mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b));
+        return px[i*4+3] >= 40 && mn > 232 && (mx - mn) < 20;
+      };
       bool[] seen = new bool[w * h];
       for (int s = 0; s < w * h; s++) {
-        if (bg[s] || seen[s] || !bgish(s)) continue;
+        if (bg[s] || seen[s] || !holeish(s)) continue;
         var part = new List<int>();
         var pq = new Queue<int>();
         seen[s] = true; pq.Enqueue(s);
         while (pq.Count > 0) {
           int i = pq.Dequeue(); part.Add(i); int x = i % w, y = i / w;
           int[] nb = { x > 0 ? i-1 : -1, x < w-1 ? i+1 : -1, y > 0 ? i-w : -1, y < h-1 ? i+w : -1 };
-          foreach (int n in nb) if (n >= 0 && !bg[n] && !seen[n] && bgish(n)) { seen[n] = true; pq.Enqueue(n); }
+          foreach (int n in nb) if (n >= 0 && !bg[n] && !seen[n] && holeish(n)) { seen[n] = true; pq.Enqueue(n); }
         }
         if (part.Count >= holeMin) foreach (int i in part) bg[i] = true;
       }
@@ -75,7 +83,7 @@ $frame = New-Object System.Windows.Media.Imaging.FormatConvertedBitmap($dec.Fram
 $w = $frame.PixelWidth; $h = $frame.PixelHeight
 $px = New-Object byte[] ($w * $h * 4)
 $frame.CopyPixels($px, $w * 4, 0)
-$box = [Cutout]::Run($px, $w, $h, $Holes)
+$box = [Cutout]::Run($px, $w, $h, $Holes, [bool]$Pale)
 $pad = 6
 $x0 = [Math]::Max(0, $box[0] - $pad); $y0 = [Math]::Max(0, $box[1] - $pad)
 $x1 = [Math]::Min($w - 1, $box[2] + $pad); $y1 = [Math]::Min($h - 1, $box[3] + $pad)
