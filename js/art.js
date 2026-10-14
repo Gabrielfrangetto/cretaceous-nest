@@ -88,12 +88,11 @@ Object.assign(ITEM_ICONS, {
 export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 C11 4 21 4 21 10" stroke="#6d4e2a" stroke-width="2.6" fill="none"/><rect x="5" y="9" width="22" height="20" rx="6" fill="#9c7240"/><rect x="9.5" y="17" width="13" height="9" rx="2.5" fill="#c49a5c"/><rect x="14" y="15.5" width="4" height="3.4" rx="1" fill="#6d4e2a"/></svg>';
 
 // ---------- babies ----------
-const SPRITES = {
-  proto:  { m: 'sprites/proto-m.png',  f: 'sprites/proto-f.png' },
-  hypa:   { m: 'sprites/hypa-m.png',   f: 'sprites/hypa-f.png' },
-  raptor: { m: 'sprites/raptor-m.png', f: 'sprites/raptor-f.png' },
-  rex:    { m: 'sprites/rex-m.png',    f: 'sprites/rex-f.png' },
-};
+// image paths are resolved from this file, not from the page, so pages in other folders
+// (tools/anchors.html) find the same pictures
+const asset = path => new URL('../' + path, import.meta.url).href;
+const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =>
+  [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
 
 // pixel-art fallback for species without a sprite, or when an image fails to load
 const BASE = [
@@ -151,7 +150,7 @@ export function dressedArt(type, px, sex = 'f', equip = null) {
     layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
     if (GEAR_ART[id]) {
       const img = new Image();
-      img.src = GEAR_ART[id];
+      img.src = asset(GEAR_ART[id]);
       img.alt = '';
       img.draggable = false;
       layer.appendChild(img);

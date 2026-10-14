@@ -12,9 +12,9 @@
   @media (max-width: 760px) { .tool-grid { grid-template-columns: minmax(0, 1fr); } }
   .canvas { position: relative; display: grid; place-items: center; min-height: 440px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
     background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 24px 24px; }
-  .canvas .dino-art .gear-layer { pointer-events: auto; cursor: grab; outline: 2px dashed transparent; }
-  .canvas .dino-art .gear-layer.active { outline-color: var(--accent); }
-  .canvas .dino-art .gear-layer.active:active { cursor: grabbing; }
+  .canvas .dino-art { cursor: crosshair; touch-action: none; }
+  /* the piece being edited is always on top, even ones normally worn behind the body */
+  .canvas .dino-art .gear-layer.active { z-index: 3; outline: 2px dashed var(--accent); }
   .controls { display: grid; gap: 12px; padding: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
   .controls select, .controls input[type="range"] { width: 100%; }
   .controls select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
@@ -28,7 +28,7 @@
   <header>
     <div>
       <h1>Equipment anchors</h1>
-      <p class="sub">Drag the highlighted piece onto the baby, then size and turn it. Changes are kept in this browser; copy the result into <code>js/gear-art.js</code> (or send it to Claude).</p>
+      <p class="sub">Click or drag anywhere on the baby to move the highlighted piece there, then size and turn it. Changes are kept in this browser; copy the result into <code>js/gear-art.js</code> (or send it to Claude).</p>
     </div>
   </header>
   <div class="tool-grid">
