@@ -71,6 +71,10 @@ export function capGuestSave(s, now) {
   s.eggs = (s.eggs || []).map(e => ({ ...e, genes: capGenes(e.genes), gen: 1 }));
   s.breeding = null;
 
+  // outfits will be earned or bought, which a browser save can't prove, so they stay out of accounts
+  s.wardrobe = [];
+  s.hatched = s.hatched.map(({ outfit, ...b }) => b);
+
   // equipment costs coins, so a guest save keeps at most one of each piece, worn or in the bag
   const owned = new Set();
   s.hatched = s.hatched.map(b => {

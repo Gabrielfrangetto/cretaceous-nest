@@ -36,5 +36,12 @@ export function anchorFor(type, sex, slot, id) {
   return set[id] || set[slot] || null;
 }
 
+// Accessories drawn for one exact sprite (the best fit): a PNG the same size as that sprite, empty
+// except for the piece, made by painting the piece onto the official sprite and keeping only the
+// changed pixels (scripts/extract-gear.ps1). FITTED[item][type][sex] = path. These need no anchor.
+export const FITTED = {
+  // leaf_crown: { rex: { m: 'sprites/fitted/leaf_crown/rex-m.png' } },
+};
+
 // pieces worn on the back are drawn behind the body; the rest in front of it
 export const BEHIND = new Set(['back']);

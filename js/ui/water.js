@@ -119,7 +119,7 @@ function alertNow(test = false) {
   bubble.querySelectorAll('[data-water]').forEach(b => b.addEventListener('click', () => answer(b.dataset.water)));
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
-  dino.appendChild(dressedArt(baby.type, DINO_PX, sex, baby.equip));
+  dino.appendChild(dressedArt(baby.type, DINO_PX, sex, baby.equip, baby.outfit));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 

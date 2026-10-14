@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE,
+  OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE,
 } from './config.js';
 import { hashId, newId } from './util.js';
 
@@ -309,6 +309,20 @@ export function unequipGear(s, babyId, slot) {
   return { ok: true, item: id };
 }
 
+// ---------- outfits ----------
+// an outfit fits a baby of its species; null puts the baby back in its own look
+export const outfitFits = (id, baby) => !!(OUTFITS[id] && OUTFITS[id].species === baby.type);
+
+export function setOutfit(s, babyId, outfitId) {
+  const baby = s.hatched.find(b => b.id === babyId);
+  if (!baby) return { ok: false, reason: 'missing' };
+  if (outfitId == null) { delete baby.outfit; return { ok: true, outfit: null }; }
+  if (!(s.wardrobe || []).includes(outfitId)) return { ok: false, reason: 'not-owned' };
+  if (!outfitFits(outfitId, baby)) return { ok: false, reason: 'wrong-species' };
+  baby.outfit = outfitId;
+  return { ok: true, outfit: outfitId };
+}
+
 // ---------- breeding ----------
 export const trayFull = s => (s.eggs || []).length >= EGG_TRAY_SIZE;
 
@@ -468,6 +482,9 @@ export const ACTIONS = {
   },
   unequip(s, { babyId, slot }) {
     return unequipGear(s, babyId, slot);
+  },
+  setOutfit(s, { babyId, outfitId = null }) {
+    return setOutfit(s, babyId, outfitId);
   },
   warmEgg(s, { taps = 1 }) {
     let saved = 0;

@@ -1,6 +1,6 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX } from './config.js';
-import { anchorFor, GEAR_ART, BEHIND } from './gear-art.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS } from './config.js';
+import { anchorFor, GEAR_ART, FITTED, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -128,42 +128,54 @@ export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) ||
 
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
 
-// The baby with what it wears drawn over it (pieces on the back go behind). Returns the plain sprite
-// when it wears nothing, otherwise a box holding the sprite and one layer per piece.
-export function dressedArt(type, px, sex = 'f', equip = null) {
-  const base = babyArt(type, px, sex);
-  const worn = Object.entries(equip || {}).filter(([, id]) => ITEM_ICONS[id]);
+// The baby as it looks: its outfit's sprite if it wears one, otherwise its own sprite with its small
+// accessories (DRAWN_SLOTS) drawn on top. Returns the plain sprite when nothing is drawn over it,
+// otherwise a box holding the sprite and one layer per accessory.
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null) {
+  const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
+  const base = babyArt(type, px, sex, false, look ? asset(look.sprites[sex]) : null);
+  // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
+  const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length) return base;
   const box = document.createElement('span');
   box.className = 'dino-art';
   base.classList.add('dino-base');
   box.appendChild(base);
   for (const [slot, id] of worn) {
-    const a = anchorFor(type, sex, slot, id);
-    if (!a) continue;
     const layer = document.createElement('span');
     layer.className = 'gear-layer' + (BEHIND.has(slot) ? ' behind' : '');
-    layer.style.left = (a.x * 100) + '%';
-    layer.style.top = (a.y * 100) + '%';
-    layer.style.width = (a.w * 100) + '%';
-    layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
-    if (GEAR_ART[id]) {
-      const img = new Image();
-      img.src = asset(GEAR_ART[id]);
-      img.alt = '';
-      img.draggable = false;
-      layer.appendChild(img);
+    const fitted = FITTED[id] && FITTED[id][type] && FITTED[id][type][sex];
+    if (fitted) {
+      // drawn for this exact sprite, at its size: it simply covers the sprite
+      layer.classList.add('fitted');
+      layer.appendChild(pictureOf(asset(fitted)));
     } else {
-      layer.innerHTML = ITEM_ICONS[id];
+      const a = anchorFor(type, sex, slot, id);
+      if (!a) continue;
+      layer.style.left = (a.x * 100) + '%';
+      layer.style.top = (a.y * 100) + '%';
+      layer.style.width = (a.w * 100) + '%';
+      layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
+      if (GEAR_ART[id]) layer.appendChild(pictureOf(asset(GEAR_ART[id])));
+      else layer.innerHTML = ITEM_ICONS[id];
     }
     box.appendChild(layer);
   }
   return box;
 }
 
-// px sets the size: sprites are px * 17 tall, the pixel fallback is 14 px-sized pixels tall
-export function babyArt(type, px, sex = 'f', pixelOnly = false) {
-  const src = !pixelOnly && SPRITES[type] && SPRITES[type][sex];
+function pictureOf(src) {
+  const img = new Image();
+  img.src = src;
+  img.alt = '';
+  img.draggable = false;
+  return img;
+}
+
+// px sets the size: sprites are px * 17 tall, the pixel fallback is 14 px-sized pixels tall.
+// srcOverride draws another picture of the same baby (an outfit) instead of its own sprite.
+export function babyArt(type, px, sex = 'f', pixelOnly = false, srcOverride = null) {
+  const src = !pixelOnly && (srcOverride || (SPRITES[type] && SPRITES[type][sex]));
   if (src) {
     const img = new Image();
     img.src = src;

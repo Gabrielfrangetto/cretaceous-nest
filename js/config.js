@@ -68,6 +68,15 @@ export const GEAR_SLOTS = [
   { id: 'body', name: 'Body' },
   { id: 'back', name: 'Back' },
 ];
+// Only small accessories are drawn on the baby; body and back pieces give their stats without
+// changing how it looks (its look comes from its outfit).
+export const DRAWN_SLOTS = ['head', 'neck'];
+
+// Outfits: a whole new look for a baby, drawn as a complete sprite per sex. Cosmetic only: no stats.
+// Players keep the outfits they own in a wardrobe; later they come from events, achievements and the
+// cosmetic shop. Example:
+//   knight_rex: { name: 'Knight', species: 'rex', sprites: { m: 'sprites/outfits/knight_rex-m.png', f: 'sprites/outfits/knight_rex-f.png' } },
+export const OUTFITS = {};
 export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 
 // Feeding

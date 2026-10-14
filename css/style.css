@@ -411,3 +411,7 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .gear-layer.behind { z-index: 0; }
 .gear-layer img, .gear-layer svg { display: block; width: 100%; height: auto; margin: 0; }
 .walker .dino-art { display: block; }
+/* an accessory drawn for this exact sprite covers it 1:1 */
+.gear-layer.fitted { left: 0; top: 0; width: 100%; height: 100%; transform: none; }
+.gear-layer.fitted img { width: 100%; height: 100%; }
+.look-row select { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; }

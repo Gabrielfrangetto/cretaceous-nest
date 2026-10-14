@@ -1,6 +1,6 @@
 // Visual editor for js/gear-art.js ANCHORS: place, size and turn each piece of equipment on each
 // official baby sprite. Click or drag anywhere on the baby: the chosen piece goes there.
-import { SPECIES, ORDER, ITEMS, GEAR_SLOTS } from '../js/config.js';
+import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS } from '../js/config.js';
 import { ANCHORS } from '../js/gear-art.js';
 import { dressedArt } from '../js/art.js';
 
@@ -16,7 +16,7 @@ const gearFor = slot => Object.entries(ITEMS).filter(([, it]) => it.kind === 'ge
 const fill = (sel, pairs) => { sel.innerHTML = pairs.map(([v, t]) => `<option value="${v}">${t}</option>`).join(''); };
 
 fill($('type'), ORDER.map(k => [k, SPECIES[k].species]));
-fill($('slot'), GEAR_SLOTS.map(s => [s.id, s.name]));
+fill($('slot'), GEAR_SLOTS.filter(s => DRAWN_SLOTS.includes(s.id)).map(s => [s.id, s.name]));
 const fillItems = () => fill($('item'), gearFor($('slot').value).map(([id, it]) => [id, it.name]));
 fillItems();
 
@@ -39,7 +39,7 @@ let art = null, active = null;
 function render() {
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
   const equip = {};
-  if ($('all').checked) for (const s of GEAR_SLOTS) equip[s.id] = gearFor(s.id)[0][0];
+  if ($('all').checked) for (const id of DRAWN_SLOTS) equip[id] = gearFor(id)[0][0];
   equip[slot] = $('item').value;
   // the editor draws with its own anchors, so what you see is what you have set so far
   const real = ANCHORS[type][sex];

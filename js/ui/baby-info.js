@@ -1,8 +1,8 @@
 // Detail window for one baby, opened from its card in "Your babies": stats, combat numbers,
 // equipment (equip and take off) and family.
-import { SPECIES, SEX, ITEMS, GEAR_SLOTS } from '../config.js';
+import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear } from '../economy.js';
+import { sexOf, isGear, outfitFits } from '../economy.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
@@ -45,7 +45,23 @@ function equipmentHTML(b) {
     </li>`;
   }).join('');
   return `<ul class="gear-slots">${rows}</ul>
-    <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Some pieces raise one stat and lower another.</p>`;
+    <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Some pieces raise one stat and lower another. Head and neck pieces show on the baby; body and back pieces only change its stats.</p>`;
+}
+
+// outfits: a whole new look, no stats
+function lookHTML(b) {
+  const owned = (S.wardrobe || []).filter(id => outfitFits(id, b));
+  if (!owned.length) {
+    return `<p class="hint">Outfits change how a baby looks without changing its stats. You don't have one for ${SPECIES[b.type].species} yet.</p>`;
+  }
+  return `<div class="row look-row">
+      <select id="outfitSel" aria-label="Outfit">
+        <option value="">Its own look</option>
+        ${owned.map(id => `<option value="${id}" ${b.outfit === id ? 'selected' : ''}>${esc(OUTFITS[id].name)}</option>`).join('')}
+      </select>
+      <button class="ghost" type="button" id="outfitBtn">Wear</button>
+    </div>
+    <p class="hint">Outfits only change the look. While a baby wears one, its head and neck pieces aren't drawn, but still count.</p>`;
 }
 
 function render() {
@@ -64,6 +80,8 @@ function render() {
     </div>
     ${statsHTML(b)}
     <p class="hint grade-key">Letters grade the genes behind each stat: S 90+, A 75+, B 55+, C 35+, D below. Breed the best genes to raise them.</p>
+    <h3>Look</h3>
+    ${lookHTML(b)}
     <h3>Equipment</h3>
     ${equipmentHTML(b)}
     ${message ? `<p class="hint warn-text" role="status">${esc(message)}</p>` : ''}
@@ -79,7 +97,7 @@ function render() {
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Meals</dt><dd>${plural(b.fed || 0, 'meal', 'meals')}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, b.equip));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, b.equip, b.outfit));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;
@@ -93,6 +111,12 @@ function render() {
     render();
   }));
   document.getElementById('gearShop').addEventListener('click', () => { dialog.close(); setTab('shop'); });
+  const wear = document.getElementById('outfitBtn');
+  if (wear) wear.addEventListener('click', () => {
+    const r = act('setOutfit', { babyId: b.id, outfitId: document.getElementById('outfitSel').value || null });
+    message = r.ok ? '' : 'That outfit could not be worn.';
+    render();
+  });
 }
 
 export function openBabyInfo(id) {

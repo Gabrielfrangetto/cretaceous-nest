@@ -1,9 +1,9 @@
 // The player's save: loading, versioned migrations, local persistence, export/import codes,
 // and a tiny change feed the UI modules subscribe to.
-import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS } from './config.js';
-import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear } from './economy.js';
+import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS } from './config.js';
+import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits } from './economy.js';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
@@ -12,7 +12,7 @@ export function freshState() {
   const s = {
     saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
     daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
-    eggs: [], breeding: null, updatedAt: 0,
+    eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
   };
   for (const [id, n] of STARTER) addItem(s, id, n);
   return s;
@@ -70,6 +70,11 @@ const MIGRATIONS = {
     s.hatched = s.hatched.map(b => b ? { ...b, equip: {} } : b);
     return s;
   },
+  // v6: before outfits
+  6: s => {
+    s.wardrobe = [];
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -101,6 +106,14 @@ function sanitize(s) {
     ? { type: br.type, maleId: br.maleId, femaleId: br.femaleId, startedAt: Number(br.startedAt) || 0, readyAt: Number(br.readyAt) || 0 }
     : null;
   if (s.current && !SPECIES[s.current.type]) s.current = null;
+  // outfits: only real ones, owned, on a baby of their species
+  s.wardrobe = [...new Set((Array.isArray(s.wardrobe) ? s.wardrobe : []).filter(id => OUTFITS[id]))];
+  s.hatched = s.hatched.map(b => {
+    if (b.outfit == null) return b;
+    if (s.wardrobe.includes(b.outfit) && outfitFits(b.outfit, b)) return b;
+    const { outfit, ...rest } = b;
+    return rest;
+  });
   if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
   s.updatedAt = Number(s.updatedAt) || 0;
   s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game
