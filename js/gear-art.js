@@ -27,7 +27,7 @@ export const ANCHORS = {
 // Hand-drawn pictures of the equipment as worn (transparent PNGs drawn facing right). Until one is
 // listed here, the item's icon stands in for it.
 export const GEAR_ART = {
-  // heavy_armor: 'sprites/gear/heavy_armor.png',
+  leaf_crown: 'sprites/gear/leaf_crown.png',
 };
 
 // where a piece sits on a sprite: its own fit if it has one, otherwise its slot's

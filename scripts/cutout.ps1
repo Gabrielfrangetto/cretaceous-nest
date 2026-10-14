@@ -2,14 +2,16 @@
 # image that already has transparency, the ground shadow), crops, scales to 240 px tall and saves a PNG.
 # Usage: powershell -STA -File scripts\cutout.ps1 -In image.png -Out sprites\rex-f.png [-Flip]
 # -Flip mirrors images drawn facing left; the game expects sprites facing right.
-param([string]$In, [string]$Out, [int]$Height = 240, [switch]$Flip)
+# -Holes N also clears enclosed background patches of N pixels or more (the middle of a ring or wreath).
+param([string]$In, [string]$Out, [int]$Height = 240, [switch]$Flip, [int]$Holes = 0)
 Add-Type -AssemblyName PresentationCore, WindowsBase
 $src = @"
 using System;
 using System.Collections.Generic;
 public static class Cutout {
   // Removes a light, low-saturation background (and the soft ground shadow) connected to the image border.
-  public static int[] Run(byte[] px, int w, int h) {
+  // holeMin > 0 also clears enclosed background patches of at least that many pixels (the middle of a ring).
+  public static int[] Run(byte[] px, int w, int h, int holeMin) {
     bool[] bg = new bool[w * h];
     var q = new Queue<int>();
     // an image that already has transparency only needs its ground shadow removed, so colour matching
@@ -31,6 +33,22 @@ public static class Cutout {
       int i = q.Dequeue(); int x = i % w, y = i / w;
       int[] nb = { x > 0 ? i-1 : -1, x < w-1 ? i+1 : -1, y > 0 ? i-w : -1, y < h-1 ? i+w : -1 };
       foreach (int n in nb) if (n >= 0 && !bg[n] && bgish(n)) { bg[n] = true; q.Enqueue(n); }
+    }
+    if (holeMin > 0) {
+      // background-coloured patches the border fill could not reach; big ones are holes, small ones highlights
+      bool[] seen = new bool[w * h];
+      for (int s = 0; s < w * h; s++) {
+        if (bg[s] || seen[s] || !bgish(s)) continue;
+        var part = new List<int>();
+        var pq = new Queue<int>();
+        seen[s] = true; pq.Enqueue(s);
+        while (pq.Count > 0) {
+          int i = pq.Dequeue(); part.Add(i); int x = i % w, y = i / w;
+          int[] nb = { x > 0 ? i-1 : -1, x < w-1 ? i+1 : -1, y > 0 ? i-w : -1, y < h-1 ? i+w : -1 };
+          foreach (int n in nb) if (n >= 0 && !bg[n] && !seen[n] && bgish(n)) { seen[n] = true; pq.Enqueue(n); }
+        }
+        if (part.Count >= holeMin) foreach (int i in part) bg[i] = true;
+      }
     }
     int minX = w, minY = h, maxX = -1, maxY = -1;
     for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
@@ -57,7 +75,7 @@ $frame = New-Object System.Windows.Media.Imaging.FormatConvertedBitmap($dec.Fram
 $w = $frame.PixelWidth; $h = $frame.PixelHeight
 $px = New-Object byte[] ($w * $h * 4)
 $frame.CopyPixels($px, $w * 4, 0)
-$box = [Cutout]::Run($px, $w, $h)
+$box = [Cutout]::Run($px, $w, $h, $Holes)
 $pad = 6
 $x0 = [Math]::Max(0, $box[0] - $pad); $y0 = [Math]::Max(0, $box[1] - $pad)
 $x1 = [Math]::Min($w - 1, $box[2] + $pad); $y1 = [Math]::Min($h - 1, $box[3] + $pad)
