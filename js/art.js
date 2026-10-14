@@ -155,7 +155,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null) {
       layer.style.left = (a.x * 100) + '%';
       layer.style.top = (a.y * 100) + '%';
       layer.style.width = (a.w * 100) + '%';
-      layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
+      layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)${a.m ? ' scaleX(-1)' : ''}`;
       const art = gearArtFor(id, type);
       if (art) layer.appendChild(pictureOf(asset(art)));
       else layer.innerHTML = ITEM_ICONS[id];

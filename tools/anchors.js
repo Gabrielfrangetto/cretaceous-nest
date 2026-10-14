@@ -31,7 +31,7 @@ function editable() {
 }
 const showReadout = a => {
   const own = !!set()[$('item').value];
-  $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}° · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
+  $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}°${a.m ? ' · mirrored' : ''} · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
 };
 
 let art = null, active = null;
@@ -52,7 +52,7 @@ function render() {
   active = [...art.querySelectorAll('.gear-layer')][order.indexOf(slot)];
   active.classList.add('active');
   const a = current();
-  $('w').value = a.w; $('r').value = a.r || 0;
+  $('w').value = a.w; $('r').value = a.r || 0; $('m').checked = !!a.m;
   showReadout(a);
   $('out').value = 'export const ANCHORS = ' + format(anchors) + ';\n';
 }
@@ -84,7 +84,7 @@ $('canvas').addEventListener('pointerdown', e => {
 
 // the same shape as js/gear-art.js: per sprite, the slot defaults, then each tuned item
 function format(all) {
-  const anchor = a => `{ x: ${a.x}, y: ${a.y}, w: ${a.w}, r: ${a.r || 0} }`;
+  const anchor = a => `{ x: ${a.x}, y: ${a.y}, w: ${a.w}, r: ${a.r || 0}${a.m ? ', m: true' : ''} }`;
   const keys = s => [...GEAR_SLOTS.map(g => g.id), ...Object.keys(ITEMS).filter(id => s[id])];
   return '{\n' + ORDER.map(type => `  ${type}: {\n` + ['m', 'f'].map(sex => {
     const s = all[type][sex];
@@ -96,6 +96,7 @@ for (const id of ['type', 'sex', 'item', 'all']) $(id).addEventListener('change'
 $('slot').addEventListener('change', () => { fillItems(); render(); });
 $('w').addEventListener('input', e => { editable().w = +e.target.value; save(); render(); });
 $('r').addEventListener('input', e => { editable().r = +e.target.value; save(); render(); });
+$('m').addEventListener('change', e => { const a = editable(); if (e.target.checked) a.m = true; else delete a.m; save(); render(); });
 $('resetItem').addEventListener('click', () => {
   delete set()[$('item').value];
   save(); render();
