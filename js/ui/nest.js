@@ -1,7 +1,9 @@
 // Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
 import { SPECIES, SEX, DIET, ITEMS } from '../config.js';
-import { S, commit, subscribe } from '../state.js';
-import { sexOf, isHungry, feedBaby, countItem } from '../economy.js';
+import { S, subscribe } from '../state.js';
+import { sexOf, isHungry, countItem } from '../economy.js';
+import { act } from '../actions.js';
+import { now as gameNow } from '../clock.js';
 import { babyArt, ITEM_ICONS } from '../art.js';
 import { plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -44,7 +46,7 @@ function renderBabies() {
 }
 
 function checkHunger() {
-  const now = Date.now();
+  const now = gameNow();
   let hungryCount = 0;
   for (const b of S.hatched) {
     const hungry = isHungry(b, now);
@@ -119,11 +121,10 @@ function popText(w, cls, text) {
 }
 
 function feed(w) {
-  const result = feedBaby(S, w.id, Date.now());
+  const result = act('feed', { id: w.id });
   if (result.ok) {
     w.hop = 0.45;
     popText(w, 'heart', '♥ +' + result.coins);
-    commit();
   } else if (result.reason === 'no-food') {
     popText(w, 'say', 'No ' + ITEMS[result.food].plural + ' in your inventory');
   } else if (result.reason === 'full') {

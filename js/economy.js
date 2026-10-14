@@ -1,7 +1,7 @@
 // Game rules. Every function works on a state object passed in and touches no DOM or storage,
 // so the same rules can be tested in Node and later run on a server.
 import {
-  SPECIES, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
+  SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE,
 } from './config.js';
 import { hashId, newId } from './util.js';
@@ -57,7 +57,7 @@ export function moveSlot(s, a, b) {
 }
 
 // merges repeated stacks and orders items by their order in ITEMS
-export function sortInventory(s, itemOrder) {
+export function sortInventory(s, itemOrder = Object.keys(ITEMS)) {
   const totals = {};
   for (const slot of s.inv) if (slot) totals[slot.id] = (totals[slot.id] || 0) + slot.n;
   s.inv = Array(SLOTS).fill(null);
@@ -162,4 +162,76 @@ export function buyPack(s, k) {
   s.coins -= pack.price;
   addItem(s, pack.id, pack.qty);
   return { ok: true, pack };
+}
+
+// ---------- actions ----------
+// Every change a player can make, by name. The browser applies these for instant feedback and the
+// server applies the very same functions to decide what really happened, so the rules live once.
+// Each returns { ok: true, ...details } or { ok: false, reason }.
+const fail = reason => ({ ok: false, reason });
+const slotIndex = (s, i) => Number.isInteger(i) && i >= 0 && i < s.invSize;
+const MAX_TAPS_PER_REQUEST = 600;
+
+export const ACTIONS = {
+  startEgg(s, { type }, now) {
+    if (s.current) return fail('busy');
+    if (!SPECIES[type]) return fail('unknown-egg');
+    startEgg(s, type, now);
+    return { ok: true };
+  },
+  warmEgg(s, { taps = 1 }) {
+    let saved = 0;
+    const n = Math.min(MAX_TAPS_PER_REQUEST, Math.max(1, Math.floor(Number(taps) || 1)));
+    for (let i = 0; i < n && warmEgg(s); i++) saved++;
+    return saved ? { ok: true, saved } : fail('warm');
+  },
+  giveUpEgg(s) {
+    if (!s.current) return fail('no-egg');
+    s.current = null;
+    return { ok: true };
+  },
+  hatch(s, args, now, rand) {
+    const result = hatchEgg(s, now, rand);
+    return result ? { ok: true, ...result } : fail('not-ready');
+  },
+  rename(s, { id, name }) {
+    const baby = s.hatched.find(b => b.id === id);
+    const clean = String(name ?? '').trim().slice(0, 24);
+    if (!baby) return fail('missing');
+    if (!clean) return fail('empty-name');
+    baby.name = clean;
+    return { ok: true };
+  },
+  feed(s, { id }, now) {
+    return feedBaby(s, id, now);
+  },
+  move(s, { a, b }) {
+    if (!slotIndex(s, a) || !slotIndex(s, b)) return fail('bad-slot');
+    return moveSlot(s, a, b) ? { ok: true } : fail('empty-slot');
+  },
+  sort(s) {
+    sortInventory(s);
+    return { ok: true };
+  },
+  split(s, { i }) {
+    if (!slotIndex(s, i)) return fail('bad-slot');
+    const j = splitStack(s, i);
+    return j >= 0 ? { ok: true, to: j } : fail('cannot-split');
+  },
+  discard(s, { i }) {
+    if (!slotIndex(s, i)) return fail('bad-slot');
+    return discardOne(s, i) ? { ok: true } : fail('empty-slot');
+  },
+  buyRow(s) {
+    return buyRow(s);
+  },
+  buyPack(s, { k }) {
+    return buyPack(s, k);
+  },
+};
+
+export function applyAction(s, name, args, now, rand = Math.random) {
+  const fn = Object.hasOwn(ACTIONS, name) ? ACTIONS[name] : null;
+  if (!fn) return fail('unknown-action');
+  return fn(s, args && typeof args === 'object' ? args : {}, now, rand);
 }

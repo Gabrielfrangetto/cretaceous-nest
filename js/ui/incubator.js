@@ -1,7 +1,9 @@
 // Incubator tab: pick an egg, warm it, hatch it and name the baby.
 import { SPECIES, ORDER, SEX, ITEMS } from '../config.js';
-import { S, commit, subscribe } from '../state.js';
-import { startEgg, eggProgress, warmEgg, hatchEgg } from '../economy.js';
+import { S, subscribe } from '../state.js';
+import { eggProgress } from '../economy.js';
+import { act, hatch as hatchEgg } from '../actions.js';
+import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
 import { fmt, minsLabel, esc } from '../util.js';
 import { setTab } from './tabs.js';
@@ -32,8 +34,7 @@ function renderChooser() {
         <span class="rarity">${sp.rarity}</span></button>`;
     }).join('')}</div>`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {
-    startEgg(S, b.dataset.k, Date.now());
-    commit(); render();
+    if (act('startEgg', { type: b.dataset.k }).ok) render();
   }));
 }
 
@@ -65,13 +66,13 @@ function renderIncubator() {
 function renderActions() {
   const a = document.getElementById('actions');
   if (!a || !S.current) return;
-  const ready = eggProgress(S.current, Date.now()).frac >= 1;
+  const ready = eggProgress(S.current, now()).frac >= 1;
   a.innerHTML = ready
     ? `<button class="btn" id="hatch" type="button">Hatch!</button>`
     : `<button class="ghost ${confirmGiveUp ? 'warn' : ''}" id="giveup" type="button">${confirmGiveUp ? 'Tap again to throw this egg away' : 'Change egg'}</button>`;
   if (ready) document.getElementById('hatch').addEventListener('click', hatch);
   else document.getElementById('giveup').addEventListener('click', () => {
-    if (confirmGiveUp) { confirmGiveUp = false; S.current = null; commit(); render(); return; }
+    if (confirmGiveUp) { confirmGiveUp = false; act('giveUpEgg'); render(); return; }
     confirmGiveUp = true; renderActions();
     clearTimeout(giveUpTimer);
     giveUpTimer = setTimeout(() => { confirmGiveUp = false; renderActions(); }, 4000);
@@ -80,7 +81,7 @@ function renderActions() {
 
 function update() {
   if (!S.current) return;
-  const { frac, left } = eggProgress(S.current, Date.now());
+  const { frac, left } = eggProgress(S.current, now());
   const ready = frac >= 1;
   document.getElementById('timer').textContent = ready ? 'Ready!' : fmt(left);
   document.getElementById('fill').style.width = (frac * 100).toFixed(2) + '%';
@@ -105,9 +106,9 @@ function update() {
 
 function onEggTap(e) {
   if (!S.current) return;
-  if (eggProgress(S.current, Date.now()).frac >= 1) { hatch(); return; }
+  if (eggProgress(S.current, now()).frac >= 1) { hatch(); return; }
   const egg = e.currentTarget;
-  const saved = warmEgg(S);
+  const saved = act('warmEgg', { taps: 1 }).ok;
   egg.classList.remove('tap'); void egg.offsetWidth; egg.classList.add('tap');
   const area = document.getElementById('nestArea');
   const f = document.createElement('span');
@@ -118,20 +119,31 @@ function onEggTap(e) {
   f.style.top = ((e.clientY || r.top + 60) - r.top - 20) + 'px';
   area.appendChild(f);
   setTimeout(() => f.remove(), 900);
-  if (saved) { commit(); update(); }
+  if (saved) update();
 }
 
-function hatch() {
+async function hatch() {
   if (!S.current || reveal || hatching) return;
+  if (eggProgress(S.current, now()).frac < 1) return;
   const type = S.current.type;
-  const result = hatchEgg(S, Date.now());
-  if (!result) return;
   hatching = true;
   clearInterval(tick); tick = null;
   const egg = document.getElementById('egg');
+  egg.disabled = true;
+  document.getElementById('actions').innerHTML = '<p class="hint">Hatching…</p>';
+  // signed-in players wait for the server, which rolls the baby
+  const result = await hatchEgg();
+  if (!result.ok) {
+    hatching = false;
+    render();
+    const hint = document.getElementById('hint');
+    if (hint) hint.textContent = result.reason === 'not-ready'
+      ? 'Almost there. The egg needs a few more seconds.'
+      : "Couldn't reach the server. Check your connection and try again.";
+    return;
+  }
   egg.classList.remove('ready');
   egg.innerHTML = eggSVG(SPECIES[type], 3, true);
-  egg.disabled = true;
   document.getElementById('actions').innerHTML = '';
   requestAnimationFrame(() => requestAnimationFrame(() => egg.classList.add('open')));
   const baby = babyArt(type, 7, result.baby.sex);
@@ -139,7 +151,6 @@ function hatch() {
   const area = document.getElementById('nestArea');
   setTimeout(() => area.appendChild(baby), 350);
   // the baby is already saved with a default name, so closing the page now loses nothing
-  commit();
   const loot = `+${result.coins} coins. ` + (result.lost
     ? 'Your inventory is full, so the shell was lost.'
     : `+1 ${ITEMS[result.lootId].name} in your inventory.`);
@@ -178,7 +189,7 @@ function renderReveal() {
     const name = input.value.trim() || baby.name;
     const saved = S.hatched.find(x => x.id === baby.id);
     reveal = null;
-    if (saved && saved.name !== name) { saved.name = name; commit(); }
+    if (saved && saved.name !== name) act('rename', { id: baby.id, name });
     render();
     setTab('nest');
   });

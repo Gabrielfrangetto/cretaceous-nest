@@ -1,7 +1,8 @@
 // Shop tab: backpack upgrades and food packs.
 import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS } from '../config.js';
-import { S, commit, subscribe } from '../state.js';
-import { rowPrice, buyRow, buyPack, countItem, roomFor } from '../economy.js';
+import { S, subscribe } from '../state.js';
+import { rowPrice, countItem, roomFor } from '../economy.js';
+import { act } from '../actions.js';
 import { BAG, ITEM_ICONS } from '../art.js';
 import { esc } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -51,16 +52,16 @@ function render() {
       </ul>
     </div>`;
   box.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => {
-    const result = buyPack(S, +b.dataset.pack);
+    const result = act('buyPack', { k: +b.dataset.pack });
     if (!result.ok) return;
     message = `Bought! +${result.pack.qty} ${ITEMS[result.pack.id].plural} in your inventory.`;
-    commit();
+    render();
   }));
   const buy = document.getElementById('buyRow');
   if (buy) buy.addEventListener('click', () => {
-    if (!buyRow(S).ok) return;
+    if (!act('buyRow').ok) return;
     message = `Bought! Your inventory now has ${S.invSize} slots.`;
-    commit();
+    render();
   });
 }
 

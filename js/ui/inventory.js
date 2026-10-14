@@ -1,7 +1,7 @@
 // Inventory tab: the slot grid, item details, tap-to-move and mouse drag.
 import { ITEMS, SLOTS, ROW, MAX_STACK } from '../config.js';
-import { S, commit, subscribe } from '../state.js';
-import { moveSlot, sortInventory, splitStack, discardOne } from '../economy.js';
+import { S, subscribe } from '../state.js';
+import { act } from '../actions.js';
 import { ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
 import { currentTab, onTabChange, setTab } from './tabs.js';
@@ -68,8 +68,8 @@ function renderSide() {
       <button class="ghost" id="invDrop" type="button">Discard 1</button>
     </div>`;
   const split = document.getElementById('invSplit');
-  if (split) split.addEventListener('click', () => { if (splitStack(S, sel) >= 0) commit(); });
-  document.getElementById('invDrop').addEventListener('click', () => { if (discardOne(S, sel)) commit(); });
+  if (split) split.addEventListener('click', () => act('split', { i: sel }));
+  document.getElementById('invDrop').addEventListener('click', () => act('discard', { i: sel }));
 }
 
 function onSlot(i) {
@@ -78,8 +78,8 @@ function onSlot(i) {
   if (sel === i) { sel = -1; render(); return; }
   const from = sel;
   sel = -1;
-  if (moveSlot(S, from, i)) { sel = S.inv[i] ? i : -1; commit(); }
-  else render();
+  if (act('move', { a: from, b: i }).ok) sel = S.inv[i] ? i : -1;
+  render();
 }
 
 // mouse drag; touch uses tap-to-select, tap-to-place
@@ -115,15 +115,14 @@ window.addEventListener('pointerup', () => {
   suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
   if (over) over.classList.remove('over');
   const to = over ? +over.dataset.i : -1;
-  if (to >= 0 && to !== from && moveSlot(S, from, to)) { sel = S.inv[to] ? to : -1; commit(); }
-  else render();
+  if (to >= 0 && to !== from && act('move', { a: from, b: to }).ok) sel = S.inv[to] ? to : -1;
+  render();
 });
 
 export function initInventory() {
   document.getElementById('invSort').addEventListener('click', () => {
-    sortInventory(S, Object.keys(ITEMS));
     sel = -1;
-    commit();
+    act('sort');
   });
   subscribe(() => { if (currentTab() === 'inv') render(); });
   onTabChange(name => { if (name === 'inv') render(); });

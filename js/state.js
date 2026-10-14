@@ -117,3 +117,13 @@ export function replaceState(next, source = 'local') {
   persist();
   notify('reset', source);
 }
+
+// takes the server's copy after an action without tearing down screens that are still valid;
+// only a different egg in the incubator (or none) needs the full redraw a reset gives
+export function adoptState(next) {
+  const view = s => s.current ? s.current.type + ':' + s.current.startedAt : '';
+  const changedView = view(S) !== view(next);
+  S = next;
+  persist();
+  notify(changedView ? 'reset' : 'change', 'cloud');
+}

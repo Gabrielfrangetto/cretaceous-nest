@@ -1,5 +1,6 @@
 // Backup panel: copy the save as a text code, or load a code from another browser or device.
 import { S, exportCode, parseCode, replaceState } from '../state.js';
+import { cloudState } from '../cloud.js';
 
 let pending = null, confirmTimer = null;
 
@@ -32,6 +33,12 @@ export function initBackup() {
   });
 
   loadBtn.addEventListener('click', () => {
+    // an account's progress is kept by the server, so a code (which can be edited) cannot replace it
+    if (cloudState().user) {
+      pending = null;
+      setStatus('Save codes can only be loaded while signed out. Your account keeps its own progress on the server.', true);
+      return;
+    }
     if (pending) {
       clearTimeout(confirmTimer);
       pending.owner = S.owner;   // a loaded code becomes this player's progress, signed in or not
