@@ -19,7 +19,10 @@
     </div>
     <div class="head-side">
       <p class="coins" aria-label="Coins"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="#e9b83a" stroke="#a87812"/><path d="M8 12.2 C6.6 12.2 6.2 10.8 6.9 9.6 L5.2 6.3 M8 9.2 L8 4.4 M9.1 9.6 L10.8 6.3" stroke="#7d5408" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg><b id="coinsVal">0</b></p>
-      <p class="sync">Progress saved in this browser</p>
+      <div class="row account-row">
+        <p class="sync" id="syncStatus">Progress saved in this browser</p>
+        <button class="ghost account-btn" id="accountBtn" type="button" hidden>Sign in</button>
+      </div>
     </div>
   </header>
 
@@ -106,5 +109,12 @@
     <p class="status" id="backupStatus" role="status"></p>
   </details>
 </main>
+
+<dialog id="accountDialog" class="account-dialog" aria-labelledby="accountTitle">
+  <button class="close" id="accountClose" type="button" aria-label="Close">×</button>
+  <div id="accountBody"></div>
+</dialog>
+
+<footer class="site-footer"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></footer>
 </body>
 </html>

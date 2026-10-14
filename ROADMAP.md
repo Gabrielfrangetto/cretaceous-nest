@@ -31,15 +31,17 @@ Free-tier notes: Supabase pauses free projects after about a week with no activi
 - [x] Move game balance (timers, prices, rewards) into one config file (`js/config.js`)
 - [x] Automated tests for the economy rules and the save format (`node --test`)
 
-## Phase 2 — Free accounts and cloud saves
+## Phase 2 — Free accounts and cloud saves (code ready, waiting for the Supabase project)
 
-- [ ] Supabase project with Auth (email magic link + Google)
-- [ ] Tables: `profiles` (display name, created_at), `saves` (user_id, data jsonb, save_version, updated_at)
-- [ ] Row-level security: a player reads and writes only their own rows
-- [ ] Guest mode keeps working with localStorage; signing up uploads the guest save
-- [ ] Sync rules: load newest save on sign-in, save on every change (debounced), resolve conflicts by `updated_at`
-- [ ] Account page: change display name, sign out, delete account and data
-- [ ] Privacy policy and terms of use pages (LGPD), cookie/consent notice if analytics is added
+- [ ] Supabase project created and configured (see `docs/supabase-setup.md`)
+- [x] Auth in the game: email sign-in link, optional Google (`js/cloud.js`, `js/ui/account.js`)
+- [x] Tables: `profiles` (display name, created_at), `saves` (user_id, data jsonb, save_version, updated_at) in `supabase/migrations/`
+- [x] Row-level security: a player reads and writes only their own rows
+- [x] Guest mode keeps working with localStorage; signing up uploads the guest save
+- [x] Sync rules (`js/sync.js`): newest save wins for the same account, the player chooses when a guest game and an account save both have progress, uploads 2 s after each change
+- [x] Account panel: change display name, sign out, delete account and data
+- [x] Privacy policy and terms of use pages (first draft, to be reviewed before launch)
+- [ ] Custom SMTP sender for sign-in emails (the built-in one is rate limited)
 
 ## Phase 3 — Server-authoritative economy (required before selling anything)
 

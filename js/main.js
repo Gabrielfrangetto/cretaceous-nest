@@ -6,6 +6,8 @@ import { initInventory } from './ui/inventory.js';
 import { initShop } from './ui/shop.js';
 import { initBackup } from './ui/backup.js';
 import { initTabs } from './ui/tabs.js';
+import { initAccount } from './ui/account.js';
+import { initCloud } from './cloud.js';
 
 load();
 initHeader();
@@ -14,4 +16,6 @@ initNest();
 initInventory();
 initShop();
 initBackup();
-initTabs();   // last, so every tab's handlers are registered before the first tab opens
+initTabs();   // after the modules above, so every tab's handlers are registered before the first tab opens
+initAccount();
+initCloud();  // loads the account SDK only when js/cloud-config.js is filled in

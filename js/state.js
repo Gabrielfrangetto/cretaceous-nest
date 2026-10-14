@@ -9,7 +9,7 @@ const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
 
 export function freshState() {
-  const s = { saveVersion: SAVE_VERSION, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS, updatedAt: 0 };
+  const s = { saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS, updatedAt: 0 };
   for (const [id, n] of STARTER) addItem(s, id, n);
   return s;
 }
@@ -48,6 +48,7 @@ function sanitize(s) {
   s.hatched = s.hatched.filter(b => b && SPECIES[b.type] && b.id);
   if (s.current && !SPECIES[s.current.type]) s.current = null;
   s.updatedAt = Number(s.updatedAt) || 0;
+  s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game
   return s;
 }
 
@@ -86,9 +87,10 @@ export function parseCode(code) {
 export let S = freshState();
 const listeners = new Set();
 
-// fn(kind): 'change' after an action, 'reset' when the whole save was replaced
+// fn(kind, source): kind is 'change' after an action or 'reset' when the whole save was replaced;
+// source is 'cloud' when the account sync made the change, so it is not uploaded straight back
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-function notify(kind) { for (const fn of listeners) fn(kind); }
+function notify(kind, source) { for (const fn of listeners) fn(kind, source); }
 
 function storage() { try { return globalThis.localStorage || null; } catch (e) { return null; } }
 
@@ -106,12 +108,12 @@ export function load() {
 export function commit() {
   S.updatedAt = Date.now();
   persist();
-  notify('change');
+  notify('change', 'local');
 }
 
-export function replaceState(next) {
+export function replaceState(next, source = 'local') {
   S = next;
-  S.updatedAt = Date.now();
+  if (source !== 'cloud') S.updatedAt = Date.now();
   persist();
-  notify('reset');
+  notify('reset', source);
 }

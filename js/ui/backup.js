@@ -34,6 +34,7 @@ export function initBackup() {
   loadBtn.addEventListener('click', () => {
     if (pending) {
       clearTimeout(confirmTimer);
+      pending.owner = S.owner;   // a loaded code becomes this player's progress, signed in or not
       replaceState(pending);
       pending = null;
       input.value = '';
