@@ -60,13 +60,20 @@ js/alarm.js         alarm-clock sound made with the Web Audio API
 js/ui/              one module per part of the screen (tabs, incubator, nest, inventory, shop, backup, account, water)
 sprites/            baby dinosaur images, <species>-m.png and <species>-f.png
 scripts/serve.js    local static server
+scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
 tests/              node:test suites
 supabase/           database migrations (tables, row-level security)
 docs/               setup guides
 privacy.html, terms.html
 ```
 
-Sprites are 240 px tall PNGs with a transparent background, facing right.
+Sprites are 240 px tall PNGs with a transparent background, facing right. To add one from a generated image (plain light background, or already transparent):
+
+```
+powershell -STA -File scriptscutout.ps1 -In image.png -Out spritesex-f.png
+```
+
+Add `-Flip` when the image faces left.
 
 ## Changing the save format
 
