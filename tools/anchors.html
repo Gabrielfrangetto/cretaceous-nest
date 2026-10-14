@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Equipment Anchors · Cretaceous Nest</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  .tool { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: grid; gap: 18px; }
+  .tool-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 20px; align-items: start; }
+  @media (max-width: 760px) { .tool-grid { grid-template-columns: minmax(0, 1fr); } }
+  .canvas { position: relative; display: grid; place-items: center; min-height: 440px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 24px 24px; }
+  .canvas .dino-art .gear-layer { pointer-events: auto; cursor: grab; outline: 2px dashed transparent; }
+  .canvas .dino-art .gear-layer.active { outline-color: var(--accent); }
+  .canvas .dino-art .gear-layer.active:active { cursor: grabbing; }
+  .controls { display: grid; gap: 12px; padding: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  .controls select, .controls input[type="range"] { width: 100%; }
+  .controls select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .controls .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .readout { font: 13px/1.4 ui-monospace, Consolas, monospace; color: var(--muted); }
+  #out { width: 100%; min-height: 220px; font: 12px/1.4 ui-monospace, Consolas, monospace; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+</style>
+</head>
+<body>
+<main class="tool">
+  <header>
+    <div>
+      <h1>Equipment anchors</h1>
+      <p class="sub">Drag the highlighted piece onto the baby, then size and turn it. Changes are kept in this browser; copy the result into <code>js/gear-art.js</code> (or send it to Claude).</p>
+    </div>
+  </header>
+  <div class="tool-grid">
+    <div class="canvas" id="canvas"></div>
+    <div class="controls">
+      <div class="pair">
+        <div class="field"><label for="type">Species</label><select id="type"></select></div>
+        <div class="field"><label for="sex">Sex</label><select id="sex"><option value="m">Male</option><option value="f">Female</option></select></div>
+      </div>
+      <div class="pair">
+        <div class="field"><label for="slot">Slot</label><select id="slot"></select></div>
+        <div class="field"><label for="item">Item shown</label><select id="item"></select></div>
+      </div>
+      <div class="field"><label for="w">Size</label><input type="range" id="w" min="0.05" max="1.2" step="0.01"></div>
+      <div class="field"><label for="r">Rotation</label><input type="range" id="r" min="-60" max="60" step="1"></div>
+      <label class="check"><input type="checkbox" id="all"> Show the other slots too</label>
+      <p class="readout" id="readout"></p>
+      <div class="row">
+        <button class="btn small" type="button" id="copy">Copy all anchors</button>
+        <button class="ghost" type="button" id="reset">Reset this sprite</button>
+      </div>
+      <p class="hint" id="msg" role="status"></p>
+    </div>
+  </div>
+  <textarea id="out" readonly aria-label="Anchors to paste into js/gear-art.js"></textarea>
+</main>
+<script type="module" src="anchors.js"></script>
+</body>
+</html>

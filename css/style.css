@@ -155,7 +155,7 @@ h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 19px; 
 .walker canvas { display: block; image-rendering: pixelated; }
 .walker img { display: block; pointer-events: none; }
 img.baby-pop { image-rendering: auto; }
-.baby img { margin-bottom: 6px; }
+.baby > img, .baby > canvas, .baby > .dino-art { margin-bottom: 6px; }
 .walker:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
 .walker .nm { font-size: 11px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--panel) 75%, transparent); padding: 0 6px; border-radius: 6px; margin-top: 2px; white-space: nowrap; }
 .bubble { position: absolute; bottom: calc(100% + 4px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; animation: beg 1s ease-in-out infinite; }
@@ -263,7 +263,9 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .btn.small { font-size: 15px; padding: 7px 16px; }
 .water-dino { flex: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); }
 /* sprites face right; mirrored, the baby looks at its speech bubble */
-.water-dino img, .water-dino canvas { display: block; max-height: 195px; width: auto; transform: scaleX(-1); }
+/* the whole dressed baby is mirrored, so its equipment turns with it */
+.water-dino > * { transform: scaleX(-1); }
+.water-dino > img, .water-dino > canvas, .water-dino .dino-base { display: block; max-height: 195px; width: auto; }
 .water-dino canvas { image-rendering: pixelated; }
 @keyframes water-in { from { transform: translateY(40px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .water-pop.in { animation: none; } }
@@ -273,7 +275,7 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
   .water-pop { flex-direction: column; align-items: flex-end; gap: 10px; }
   .water-bubble { width: min(300px, calc(100vw - 32px)); margin-bottom: 0; }
   .water-bubble::after { right: 46px; bottom: -16px; border-left-color: transparent; border-top-color: var(--ink); }
-  .water-dino img, .water-dino canvas { max-height: 150px; }
+  .water-dino > img, .water-dino > canvas, .water-dino .dino-base { max-height: 150px; }
 }
 
 
@@ -351,7 +353,7 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .info-head { display: flex; align-items: center; gap: 16px; padding-right: 24px; }
 .info-head h2 { overflow-wrap: anywhere; }
 .info-art { flex: none; }
-.info-art img, .info-art canvas { display: block; max-height: 136px; width: auto; }
+.info-art > img, .info-art > canvas, .info-art .dino-base { display: block; max-height: 136px; width: auto; }
 .info-art canvas { image-rendering: pixelated; }
 .info-total { margin: 4px 0 0; font-family: var(--display); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
 .info-facts { display: grid; gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -401,3 +403,11 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .gear-card { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .gear-body { display: grid; gap: 2px; min-width: 0; }
 .gear-buy { display: grid; justify-items: end; gap: 4px; }
+
+/* equipment drawn on the baby: layers are placed in % of the sprite box (js/gear-art.js) */
+.dino-art { position: relative; display: inline-block; line-height: 0; isolation: isolate; }
+.dino-art .dino-base { position: relative; z-index: 1; display: block; }
+.gear-layer { position: absolute; z-index: 2; pointer-events: none; line-height: 0; }
+.gear-layer.behind { z-index: 0; }
+.gear-layer img, .gear-layer svg { display: block; width: 100%; height: auto; margin: 0; }
+.walker .dino-art { display: block; }

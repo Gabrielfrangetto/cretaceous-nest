@@ -65,6 +65,8 @@ sprites/            baby dinosaur images, <species>-m.png and <species>-f.png
 scripts/serve.js    local static server
 scripts/version.js  stamps asset addresses with content hashes (run before committing)
 scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
+js/gear-art.js      where equipment sits on each sprite (anchors) and its pictures
+tools/anchors.html  visual editor for those anchors (open it from the local server or the site)
 tests/              node:test suites
 supabase/           database migrations (tables, row-level security)
 docs/               setup guides

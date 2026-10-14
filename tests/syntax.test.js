@@ -11,7 +11,7 @@ const files = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
 
 test('every game script parses', () => {
   const broken = [];
-  for (const file of files('js')) {
+  for (const file of [...files('js'), ...files('tools')]) {
     try { execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' }); }
     catch (e) { broken.push(`${file}: ${String(e.stderr).split('\n').find(l => l.includes('Error')) || 'syntax error'}`); }
   }

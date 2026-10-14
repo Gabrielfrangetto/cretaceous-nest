@@ -62,7 +62,8 @@ Signed-in players can no longer change their own coins or items: the server deci
 - [ ] Growth stages: baby → juvenile → adult (needs meals over time)
 - [x] Stats (STR, AGI, VIT, RES) and breeding: a pair of the same species lays an egg whose baby inherits their genes
 - [x] Stat engine: species base × genes (50–100%), then equipment in stages (flat, increased %, more ×); derived combat stats (health, damage, dodge and damage reduction with diminishing returns); gene grades S–D
-- [ ] Equipment: items in slots (head, neck, body, back) with fixed bonuses, drawn over the sprite
+- [x] Equipment: items in slots (head, neck, body, back) with fixed bonuses, bought with coins
+- [x] Equipment drawn over the sprite (layers, anchors per sprite, anchor editor); [ ] hand-drawn art for each piece
 - [ ] Equipment rarities (Normal, Magic, Rare, Legendary) with rolled bonuses, and where items drop
 - [ ] Combat system using the derived stats
 - [ ] More species and rarities, seasonal eggs

@@ -4,7 +4,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, isHungry, countItem } from '../economy.js';
 import { act } from '../actions.js';
 import { now as gameNow } from '../clock.js';
-import { babyArt, ITEM_ICONS } from '../art.js';
+import { dressedArt, ITEM_ICONS } from '../art.js';
 import { plural } from '../util.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
@@ -38,7 +38,7 @@ function renderBabies() {
       card.className = 'baby';
       card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
       card.addEventListener('click', () => openBabyInfo(b.id));
-      card.appendChild(babyArt(b.type, 5, sex));
+      card.appendChild(dressedArt(b.type, 5, sex, b.equip));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
       const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
@@ -96,21 +96,33 @@ function syncWalkers() {
   for (const [id, w] of walkers) if (!ids.has(id)) { w.el.remove(); walkers.delete(id); }
   for (const b of S.hatched) {
     const have = walkers.get(b.id);
-    if (have) { have.name.textContent = nameTag(b); continue; }
+    if (have) {
+      have.name.textContent = nameTag(b);
+      // redraw when the baby puts on or takes off equipment
+      const key = JSON.stringify(b.equip || {});
+      if (have.gearKey !== key) {
+        const art = dressedArt(b.type, 4, sexOf(b), b.equip);
+        art.style.transform = have.art.style.transform;
+        have.art.replaceWith(art);
+        have.art = art;
+        have.gearKey = key;
+      }
+      continue;
+    }
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'walker';
     const bubble = document.createElement('span');
     bubble.className = 'bubble'; bubble.hidden = true;
     const food = DIET[b.type];
     bubble.innerHTML = ITEM_ICONS[food] + '<span>' + ASK[food] + '</span>';
-    const art = babyArt(b.type, 4, sexOf(b));
+    const art = dressedArt(b.type, 4, sexOf(b), b.equip);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
     const depth = Math.random();
     el.style.bottom = Math.round(12 + depth * 60) + 'px';
     el.style.zIndex = String(200 - Math.round(depth * 100));
     const w = {
-      id: b.id, el, art, bubble, name, hungry: null,
+      id: b.id, el, art, bubble, name, hungry: null, gearKey: JSON.stringify(b.equip || {}),
       x: Math.random() * (sceneW() - 70), dir: Math.random() < .5 ? 1 : -1,
       speed: 28 + Math.random() * 26, pause: Math.random() * 1.5, walk: 1 + Math.random() * 3, t: Math.random() * 6, hop: 0,
     };

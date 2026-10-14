@@ -1,5 +1,6 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
 import { SPECIES, SEX } from './config.js';
+import { ANCHORS, GEAR_ART, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -127,6 +128,40 @@ function babyGrid(type, sex) {
 export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) || null;
 
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
+
+// The baby with what it wears drawn over it (pieces on the back go behind). Returns the plain sprite
+// when it wears nothing, otherwise a box holding the sprite and one layer per piece.
+export function dressedArt(type, px, sex = 'f', equip = null) {
+  const base = babyArt(type, px, sex);
+  const worn = Object.entries(equip || {}).filter(([, id]) => ITEM_ICONS[id]);
+  if (!worn.length) return base;
+  const box = document.createElement('span');
+  box.className = 'dino-art';
+  base.classList.add('dino-base');
+  box.appendChild(base);
+  const anchors = (ANCHORS[type] && ANCHORS[type][sex]) || {};
+  for (const [slot, id] of worn) {
+    const a = anchors[slot];
+    if (!a) continue;
+    const layer = document.createElement('span');
+    layer.className = 'gear-layer' + (BEHIND.has(slot) ? ' behind' : '');
+    layer.style.left = (a.x * 100) + '%';
+    layer.style.top = (a.y * 100) + '%';
+    layer.style.width = (a.w * 100) + '%';
+    layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)`;
+    if (GEAR_ART[id]) {
+      const img = new Image();
+      img.src = GEAR_ART[id];
+      img.alt = '';
+      img.draggable = false;
+      layer.appendChild(img);
+    } else {
+      layer.innerHTML = ITEM_ICONS[id];
+    }
+    box.appendChild(layer);
+  }
+  return box;
+}
 
 // px sets the size: sprites are px * 17 tall, the pixel fallback is 14 px-sized pixels tall
 export function babyArt(type, px, sex = 'f', pixelOnly = false) {

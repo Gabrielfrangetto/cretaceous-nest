@@ -4,7 +4,7 @@ import { SPECIES, SEX, ITEMS, GEAR_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, isGear } from '../economy.js';
 import { act } from '../actions.js';
-import { babyArt, ITEM_ICONS } from '../art.js';
+import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML } from './stats.js';
 import { setTab } from './tabs.js';
@@ -79,7 +79,7 @@ function render() {
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Meals</dt><dd>${plural(b.fed || 0, 'meal', 'meals')}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(babyArt(b.type, 8, sex));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, b.equip));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;
