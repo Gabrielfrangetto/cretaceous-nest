@@ -1,4 +1,5 @@
-// Inventory tab: the slot grid, item details, tap-to-move and mouse drag.
+// Inventory tab: the slot grid and item details. A click selects an item; moving it takes a drag
+// (mouse: press and drag; touch: press and hold, then drag; keyboard: arrow keys on the selected item).
 import { ITEMS, SLOTS, ROW, MAX_STACK } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { act } from '../actions.js';
@@ -8,6 +9,8 @@ import { currentTab, onTabChange, setTab } from './tabs.js';
 
 const grid = document.getElementById('invGrid');
 let sel = -1, suppressClick = false, drag = null;
+const HOLD_MS = 250;     // touch: how long to hold an item before it lifts, so a swipe still scrolls
+const MOVE_PX = 6;
 
 function buildGrid() {
   for (let i = 0; i < SLOTS; i++) {
@@ -15,6 +18,7 @@ function buildGrid() {
     b.type = 'button'; b.className = 'slot'; b.dataset.i = i;
     b.addEventListener('click', () => onSlot(i));
     b.addEventListener('pointerdown', e => startDrag(e, i));
+    b.addEventListener('keydown', e => onSlotKey(e, i));
     grid.appendChild(b);
   }
 }
@@ -53,7 +57,7 @@ function renderSide() {
   const s = sel >= 0 ? S.inv[sel] : null;
   if (!s) {
     side.innerHTML = `<h2>No item selected</h2>
-      <p class="hint">Tap an item to see its details. Then tap another slot to move it, stack it or swap places. On a computer you can also drag.</p>
+      <p class="hint">Tap an item to see its details. Drag it to another slot to move it, stack it or swap places. On a touch screen, press and hold the item, then drag.</p>
       <p class="hint">Each slot holds one kind of item, up to ${MAX_STACK}. You start with one row of ${ROW} slots.</p>`;
     return;
   }
@@ -72,54 +76,104 @@ function renderSide() {
   document.getElementById('invDrop').addEventListener('click', () => act('discard', { i: sel }));
 }
 
+// a click or tap only selects; moving takes a drag
 function onSlot(i) {
   if (suppressClick) return;
-  if (sel < 0) { if (S.inv[i]) sel = i; render(); return; }
-  if (sel === i) { sel = -1; render(); return; }
-  const from = sel;
-  sel = -1;
-  if (act('move', { a: from, b: i }).ok) sel = S.inv[i] ? i : -1;
+  sel = sel === i || !S.inv[i] ? -1 : i;
   render();
 }
 
-// mouse drag; touch uses tap-to-select, tap-to-place
-function startDrag(e, i) {
-  if (e.pointerType !== 'mouse' || e.button !== 0 || !S.inv[i]) return;
-  drag = { from: i, x: e.clientX, y: e.clientY, ghost: null, over: null };
+// keyboard: arrow keys move the selected item to the next slot over
+const ARROWS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -ROW, ArrowDown: ROW };
+function onSlotKey(e, i) {
+  if (!(e.key in ARROWS) || sel !== i) return;
+  const to = i + ARROWS[e.key];
+  if (to < 0 || to >= S.invSize || (Math.abs(ARROWS[e.key]) === 1 && Math.floor(to / ROW) !== Math.floor(i / ROW))) return;
+  e.preventDefault();
+  if (act('move', { a: i, b: to }).ok) sel = S.inv[to] ? to : -1;
+  render();
+  grid.children[to].focus();
 }
-window.addEventListener('pointermove', e => {
-  if (!drag) return;
-  if (!drag.ghost) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
-    drag.ghost = document.createElement('div');
-    drag.ghost.className = 'drag-ghost';
-    drag.ghost.innerHTML = ITEM_ICONS[S.inv[drag.from].id];
-    document.body.appendChild(drag.ghost);
+
+// ---------- dragging ----------
+function startDrag(e, i) {
+  if (!S.inv[i] || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const touch = e.pointerType !== 'mouse';
+  drag = { from: i, id: e.pointerId, x: e.clientX, y: e.clientY, touch, armed: !touch, ghost: null, over: null, timer: null };
+  if (touch) {
+    drag.timer = setTimeout(() => {
+      if (!drag) return;
+      drag.armed = true;
+      lift(drag.x, drag.y);
+      if (navigator.vibrate) navigator.vibrate(10);
+    }, HOLD_MS);
   }
-  drag.ghost.style.left = e.clientX + 'px';
-  drag.ghost.style.top = e.clientY + 'px';
-  const t = document.elementFromPoint(e.clientX, e.clientY);
+}
+
+function lift(x, y) {
+  drag.ghost = document.createElement('div');
+  drag.ghost.className = 'drag-ghost';
+  drag.ghost.innerHTML = ITEM_ICONS[S.inv[drag.from].id];
+  document.body.appendChild(drag.ghost);
+  grid.children[drag.from].classList.add('dragging');
+  follow(x, y);
+}
+
+function follow(x, y) {
+  drag.ghost.style.left = x + 'px';
+  drag.ghost.style.top = y + 'px';
+  const t = document.elementFromPoint(x, y);
   const slot = t && t.closest ? t.closest('.slot') : null;
   if (drag.over !== slot) {
     if (drag.over) drag.over.classList.remove('over');
     drag.over = slot;
     if (slot) slot.classList.add('over');
   }
-});
-window.addEventListener('pointerup', () => {
-  if (!drag) return;
-  const { from, ghost, over } = drag;
+}
+
+function endDrag() {
+  if (!drag) return null;
+  const d = drag;
   drag = null;
-  if (!ghost) return;
-  ghost.remove();
-  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
-  if (over) over.classList.remove('over');
-  const to = over ? +over.dataset.i : -1;
-  if (to >= 0 && to !== from && act('move', { a: from, b: to }).ok) sel = S.inv[to] ? to : -1;
-  render();
+  clearTimeout(d.timer);
+  if (d.ghost) d.ghost.remove();
+  if (d.over) d.over.classList.remove('over');
+  grid.children[d.from]?.classList.remove('dragging');
+  return d;
+}
+
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.armed) {
+    // a touch that moves before the hold is a scroll, not a drag
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > MOVE_PX) endDrag();
+    else { drag.x = e.clientX; drag.y = e.clientY; }
+    return;
+  }
+  if (!drag.ghost) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < MOVE_PX) return;
+    lift(e.clientX, e.clientY);
+  }
+  follow(e.clientX, e.clientY);
 });
 
+// while an item is lifted, the finger drags it instead of scrolling the page
+document.addEventListener('touchmove', e => { if (drag && drag.armed) e.preventDefault(); }, { passive: false });
+
+window.addEventListener('pointerup', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = endDrag();
+  if (!d.ghost) return;
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  const to = d.over ? +d.over.dataset.i : -1;
+  if (to >= 0 && to !== d.from && act('move', { a: d.from, b: to }).ok) sel = S.inv[to] ? to : -1;
+  render();
+});
+window.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) endDrag(); });
+
 export function initInventory() {
+  // a long press on an item would otherwise open the browser's menu
+  grid.addEventListener('contextmenu', e => { if (e.target.closest('.slot')) e.preventDefault(); });
   document.getElementById('invSort').addEventListener('click', () => {
     sel = -1;
     act('sort');
