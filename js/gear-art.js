@@ -1,8 +1,10 @@
 // Where each piece of equipment sits on each baby sprite, and the pictures used for it.
 //
-// ANCHORS[type][sex][slot] = { x, y, w, r }: the centre of the item as a fraction of the sprite's
+// ANCHORS[type][sex][key] = { x, y, w, r }: the centre of the item as a fraction of the sprite's
 // width (x) and height (y), the item's width as a fraction of the sprite's width (w), and a
-// rotation in degrees (r). Tune them visually with tools/anchors.html, which prints this object.
+// rotation in degrees (r). The key is an item id (each piece has its own fit on each sprite) or a
+// slot name, used as the starting point for pieces not tuned yet. Tune them visually with
+// tools/anchors.html, which prints this object.
 export const ANCHORS = {
   proto: {
     m: { head: { x: 0.72, y: 0.3, w: 0.34, r: 0 }, neck: { x: 0.56, y: 0.6, w: 0.3, r: 0 }, body: { x: 0.45, y: 0.76, w: 0.46, r: 0 }, back: { x: 0.3, y: 0.62, w: 0.44, r: -10 } },
@@ -27,6 +29,12 @@ export const ANCHORS = {
 export const GEAR_ART = {
   // heavy_armor: 'sprites/gear/heavy_armor.png',
 };
+
+// where a piece sits on a sprite: its own fit if it has one, otherwise its slot's
+export function anchorFor(type, sex, slot, id) {
+  const set = (ANCHORS[type] && ANCHORS[type][sex]) || {};
+  return set[id] || set[slot] || null;
+}
 
 // pieces worn on the back are drawn behind the body; the rest in front of it
 export const BEHIND = new Set(['back']);

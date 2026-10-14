@@ -1,6 +1,6 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
 import { SPECIES, SEX } from './config.js';
-import { ANCHORS, GEAR_ART, BEHIND } from './gear-art.js';
+import { anchorFor, GEAR_ART, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -138,9 +138,8 @@ export function dressedArt(type, px, sex = 'f', equip = null) {
   box.className = 'dino-art';
   base.classList.add('dino-base');
   box.appendChild(base);
-  const anchors = (ANCHORS[type] && ANCHORS[type][sex]) || {};
   for (const [slot, id] of worn) {
-    const a = anchors[slot];
+    const a = anchorFor(type, sex, slot, id);
     if (!a) continue;
     const layer = document.createElement('span');
     layer.className = 'gear-layer' + (BEHIND.has(slot) ? ' behind' : '');

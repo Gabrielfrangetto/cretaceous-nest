@@ -20,8 +20,19 @@ fill($('slot'), GEAR_SLOTS.map(s => [s.id, s.name]));
 const fillItems = () => fill($('item'), gearFor($('slot').value).map(([id, it]) => [id, it.name]));
 fillItems();
 
-const current = () => anchors[$('type').value][$('sex').value][$('slot').value];
-const showReadout = a => { $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}°`; };
+const set = () => anchors[$('type').value][$('sex').value];
+// the item's own fit, or its slot's as a starting point
+const current = () => set()[$('item').value] || set()[$('slot').value];
+// the first change to an item copies its slot's fit into an entry of its own, so other items stay put
+function editable() {
+  const s = set(), id = $('item').value;
+  if (!s[id]) s[id] = { ...s[$('slot').value] };
+  return s[id];
+}
+const showReadout = a => {
+  const own = !!set()[$('item').value];
+  $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}° · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
+};
 
 let art = null, active = null;
 
@@ -52,7 +63,7 @@ $('canvas').addEventListener('pointerdown', e => {
   e.preventDefault();
   const place = ev => {
     const rect = art.getBoundingClientRect();
-    const a = current();
+    const a = editable();
     a.x = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientX - rect.left) / rect.width)) * 1000) / 1000;
     a.y = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientY - rect.top) / rect.height)) * 1000) / 1000;
     active.style.left = (a.x * 100) + '%';
@@ -71,17 +82,25 @@ $('canvas').addEventListener('pointerdown', e => {
   addEventListener('pointerup', up);
 });
 
-// the same shape as js/gear-art.js, one sprite per line
+// the same shape as js/gear-art.js: per sprite, the slot defaults, then each tuned item
 function format(all) {
   const anchor = a => `{ x: ${a.x}, y: ${a.y}, w: ${a.w}, r: ${a.r || 0} }`;
-  return '{\n' + ORDER.map(type => `  ${type}: {\n` + ['m', 'f'].map(sex =>
-    `    ${sex}: { ` + GEAR_SLOTS.map(({ id }) => `${id}: ${anchor(all[type][sex][id])}`).join(', ') + ' },\n').join('') + '  },\n').join('') + '}';
+  const keys = s => [...GEAR_SLOTS.map(g => g.id), ...Object.keys(ITEMS).filter(id => s[id])];
+  return '{\n' + ORDER.map(type => `  ${type}: {\n` + ['m', 'f'].map(sex => {
+    const s = all[type][sex];
+    return `    ${sex}: {\n` + keys(s).map(k => `      ${k}: ${anchor(s[k])},\n`).join('') + '    },\n';
+  }).join('') + '  },\n').join('') + '}';
 }
 
 for (const id of ['type', 'sex', 'item', 'all']) $(id).addEventListener('change', render);
 $('slot').addEventListener('change', () => { fillItems(); render(); });
-$('w').addEventListener('input', e => { current().w = +e.target.value; save(); render(); });
-$('r').addEventListener('input', e => { current().r = +e.target.value; save(); render(); });
+$('w').addEventListener('input', e => { editable().w = +e.target.value; save(); render(); });
+$('r').addEventListener('input', e => { editable().r = +e.target.value; save(); render(); });
+$('resetItem').addEventListener('click', () => {
+  delete set()[$('item').value];
+  save(); render();
+  $('msg').textContent = `${ITEMS[$('item').value].name} is back to its slot's default fit on this sprite.`;
+});
 $('reset').addEventListener('click', () => {
   const type = $('type').value, sex = $('sex').value;
   anchors[type][sex] = structuredClone(ANCHORS[type][sex]);
