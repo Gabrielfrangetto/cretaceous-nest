@@ -147,6 +147,12 @@ export async function sendSignInLink(email) {
   if (error) throw error;
 }
 
+// the code printed in the sign-in email; signs in on this browser wherever the email was read
+export async function verifySignInCode(email, code) {
+  const { error } = await client.auth.verifyOtp({ email, token: code.replace(/\s+/g, ''), type: 'email' });
+  if (error) throw error;
+}
+
 export async function signInWithGoogle() {
   const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
   if (error) throw error;

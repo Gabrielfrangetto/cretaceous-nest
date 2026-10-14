@@ -229,3 +229,4 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .doc ul { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
 .doc a { color: var(--accent); }
 .doc .updated { color: var(--muted); font-size: 14px; }
+.code-input { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace !important; font-size: 22px !important; letter-spacing: .2em; max-width: 220px !important; }

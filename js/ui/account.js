@@ -2,7 +2,7 @@
 import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudEnabled, cloudState, onCloudChange, resolveChoice,
-  sendSignInLink, signInWithGoogle, signOut, saveDisplayName, deleteAccount,
+  sendSignInLink, verifySignInCode, signInWithGoogle, signOut, saveDisplayName, deleteAccount,
 } from '../cloud.js';
 import { esc } from '../util.js';
 
@@ -31,6 +31,7 @@ function friendly(err, fallback) {
   const text = err && err.message || '';
   if (!text || /fetch|network|load failed/i.test(text)) return "Couldn't reach the sign-in service. Check your connection and try again.";
   if (/rate limit|too many/i.test(text)) return 'Too many sign-in emails were sent. Wait a few minutes and try again.';
+  if (/expired|invalid/i.test(text)) return 'That code is wrong or expired. Check the latest email, or send a new one.';
   return text || fallback;
 }
 
@@ -78,9 +79,15 @@ function render() {
   if (!user) {
     body.innerHTML = sentTo ? `
       <h2 id="accountTitle">Check your email</h2>
-      <p>We sent a sign-in link to <strong>${esc(sentTo)}</strong>. Open it to finish signing in. You will be signed in on the browser where you open it.</p>
-      <p class="hint">No email after a few minutes? Check your spam folder or send it again.</p>
-      <div class="row"><button class="ghost" type="button" id="again">Use a different email</button></div>
+      <p>We sent a sign-in email to <strong>${esc(sentTo)}</strong>.</p>
+      <form id="codeForm" class="account-form">
+        <div class="field"><label for="signInCode">Type the code from the email to sign in on this browser</label>
+        <input type="text" id="signInCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required placeholder="123456" class="code-input"></div>
+        <div class="row"><button class="btn" type="submit">Sign in</button></div>
+      </form>
+      <p class="hint">Or open the link in the email. The link signs you in on the browser where you open it, so on a phone it signs in the phone.</p>
+      <p class="hint">No email after a few minutes? Check your spam folder.</p>
+      <div class="row"><button class="ghost" type="button" id="again">Send again or use a different email</button></div>
       ${note}` : `
       <h2 id="accountTitle">Save your progress</h2>
       <p class="hint">A free account keeps your nest safe and lets you play on any device. The game you have in this browser moves to your account.</p>
@@ -93,6 +100,13 @@ function render() {
       ${note}${legal}`;
     if (sentTo) {
       document.getElementById('again').addEventListener('click', () => { sentTo = ''; message = ''; render(); });
+      document.getElementById('codeForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const button = e.submitter || e.target.querySelector('button');
+        button.disabled = true;
+        try { await verifySignInCode(sentTo, document.getElementById('signInCode').value); message = ''; }
+        catch (err) { button.disabled = false; say(friendly(err, 'Could not sign in with that code.'), true); }
+      });
       return;
     }
     document.getElementById('signInForm').addEventListener('submit', async e => {

@@ -21,7 +21,20 @@ In **Authentication → URL Configuration**:
 - **Site URL**: the Render address, for example `https://cretaceous-nest.onrender.com`
 - **Redirect URLs**: add the same address, plus `http://localhost:5173` for local testing
 
-Email sign-in links work out of the box. The game uses the implicit flow, so a link works in any browser (for example, requested on a computer and opened on a phone), and the player is signed in wherever the link is opened. Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
+Email sign-in links work out of the box. The game uses the implicit flow, so a link works in any browser (for example, requested on a computer and opened on a phone), and the player is signed in wherever the link is opened.
+
+### Sign-in code in the email
+
+The game also accepts the code printed in the email, so a player can read the email on a phone and sign in on the computer. Add the code to both email templates in **Authentication → Emails** (`Magic Link` and `Confirm signup`), for example:
+
+```html
+<h2>Your Cretaceous Nest sign-in</h2>
+<p>Type this code in the game:</p>
+<p style="font-size:28px;letter-spacing:4px"><strong>{{ .Token }}</strong></p>
+<p>Or open this link on the device you want to play on: <a href="{{ .ConfirmationURL }}">Sign in</a></p>
+```
+
+The code expires with the link (1 hour by default). Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
 
 ### Optional: Google sign-in
 
