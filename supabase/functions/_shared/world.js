@@ -8,7 +8,7 @@
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, creatureFighter, teamFight, unitOf } from './combat.js';
@@ -122,6 +122,14 @@ export function canReach(s, key) {
 // minutes for a trip there and back
 export const tripMins = key => hexDist(parseKey(key)) * TRIP_MINS_PER_HEX;
 
+// a scout (ROLES) in a team leads it: faster trips, fewer fights outside lairs, more eggs
+export const hasScout = (s, members) => members.some(id => {
+  const b = id !== PLAYER_ID && s.hatched.find(x => x.id === id);
+  return !!b && (ROLES[b.type] || {}).ability === 'scout' && stageOf(b).id !== 'baby';
+});
+// a team's trip there and back, in minutes
+export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1);
+
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
 export function healBaby(s, babyId, now) {
@@ -202,12 +210,12 @@ export function startExpedition(s, team, key, now) {
   const problem = exploreProblem(s, team, key, now);
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
-  const units = teamFrom(s, team);
+  const units = teamFrom(s, team), members = units.flatMap(u => u.members);
   w.trips += 1;
   // the trip number seeds the loot, so the browser and the server roll the same things
   const exp = {
-    id: `t${w.trips}`, team: units, members: units.flatMap(u => u.members),
-    hex: key, trip: w.trips, startedAt: now, returnAt: now + tripMins(key) * 60000,
+    id: `t${w.trips}`, team: units, members,
+    hex: key, trip: w.trips, startedAt: now, returnAt: now + teamTripMins(s, members, key) * 60000,
   };
   w.expeditions.push(exp);
   return { ok: true, expedition: exp };
@@ -249,7 +257,8 @@ export function collectExpedition(s, id, now) {
   // a creature may be waiting; losing means coming home hurt with nothing
   let battle = null;
   const threat = threatAt(w.seed, h);
-  if (units.length && fightRand() < threat.chance) {
+  const scout = hasScout(s, exp.members);
+  if (units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1)) {
     const team = teamUnits(s, units), foe = threat.foe;
     const result = teamFight(team, foe, fightRand);
     // whoever went down is injured; the rest are bruised by how much health they lost, and everyone
@@ -284,7 +293,7 @@ export function collectExpedition(s, id, now) {
     // an egg of one of the biome's species, for the egg tray
     const lair = !!(battle && battle.lair);
     const kinds = eggKinds(biomeAt(w.seed, h), d, lair);
-    if (kinds.length && rand() < EGG_CHANCE(d, lair)) {
+    if (kinds.length && rand() < EGG_CHANCE(d, lair) * (scout ? SCOUT.egg : 1)) {
       const [lo, hi] = EGG_GENES(d, lair);
       const egg = {
         id: `egg-${w.seed}-${exp.trip}`, type: pickWeighted(kinds, rand), gen: 1, parents: [], laidAt: now,
@@ -340,7 +349,7 @@ export function cleanWorld(world, s) {
         id: String(e.id), team: e.team, members: e.team.flatMap(u => u.members), hex: e.hex, trip: Math.max(1, Math.floor(Number(e.trip) || 1)),
         startedAt: Number(e.startedAt) || 0,
         // never sooner than the trip really takes
-        returnAt: Math.max(Number(e.returnAt) || 0, (Number(e.startedAt) || 0) + tripMins(e.hex) * 60000),
+        returnAt: Math.max(Number(e.returnAt) || 0, (Number(e.startedAt) || 0) + teamTripMins(s, e.team.flatMap(u => u.members), e.hex) * 60000),
       })),
   };
 }

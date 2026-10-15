@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { fighterOf, creatureFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
-import { ALL_HEXES, hexKey, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft } from '../js/world.js';
+import { ALL_HEXES, hexKey, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey } from '../js/world.js';
 import { packOf } from '../js/packs.js';
-import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES } from '../js/config.js';
+import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES, SCOUT } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -118,4 +118,29 @@ test('older saves turn a one-explorer trip into a team of one', () => {
   assert.deepEqual(m.world.expeditions[0].members, ['a']);
   assert.equal(m.world.expeditions[0].team[0].kind, 'dino');
   assert.equal(isAway(m, 'a'), true);
+});
+
+test('a Compsognathus scouts for its team: shorter trips, fewer fights, more eggs', () => {
+  const key = '4,0';
+  const trips = (team, g) => {
+    const s = game(dino('d1', 'dilo', g), dino('c1', 'compy', g));
+    let fights = 0, eggs = 0, mins = 0;
+    for (let i = 0; i < 300; i++) {
+      s.world.expeditions = [];
+      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; });
+      const r = applyAction(s, 'explore', { team: team.map(id => ({ kind: 'dino', id })), hex: key }, T0);
+      assert.equal(r.ok, true, r.reason);
+      mins = (r.expedition.returnAt - T0) / 60000;
+      const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+      if (c.battle) fights++;
+      if (c.egg) eggs++;
+      s.eggs = [];
+    }
+    return { fights, eggs, mins };
+  };
+  const without = trips(['d1'], 100), led = trips(['d1', 'c1'], 100);
+  assert.equal(without.mins, tripMins(key));
+  assert.equal(led.mins, tripMins(key) * SCOUT.trip);
+  assert.ok(threatAt(42, parseKey(key)).lair || led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
+  assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });

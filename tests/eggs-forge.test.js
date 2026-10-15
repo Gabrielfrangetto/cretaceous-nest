@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, isAdult } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { newWorld } from '../js/world.js';
-import { RECIPES, ITEMS, BIOMES, EGG_GENES, STARTERS, DIET, STATS } from '../js/config.js';
+import { RECIPES, ITEMS, BIOMES, EGG_GENES, STARTERS, ROLES, DIET, STATS } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 function game() {
@@ -57,31 +57,32 @@ test('the incubator only hatches eggs you have', () => {
   assert.equal(s.current, null);
 });
 
-test('a new game starts by picking one of four starter babies, once', () => {
+test('a new game starts by picking one of two starter babies, a fighter or an explorer, once', () => {
   const s = game();
   assert.equal(s.starter, false);
-  assert.equal(STARTERS.length, 4);
-  assert.deepEqual(STARTERS.map(t => DIET[t][0]).sort(), ['leaf', 'leaf', 'meat', 'meat']);
+  assert.deepEqual(STARTERS, ['dilo', 'compy']);
+  assert.deepEqual(STARTERS.map(t => ROLES[t].role), ['Fighter', 'Explorer']);
+  assert.equal(applyAction(s, 'pickStarter', { type: 'psitta' }, T0).reason, 'unknown-species');
   assert.equal(applyAction(s, 'pickStarter', { type: 'rex' }, T0).reason, 'unknown-species');
-  const r = applyAction(s, 'pickStarter', { type: 'psitta' }, T0);
+  const r = applyAction(s, 'pickStarter', { type: 'dilo' }, T0);
   assert.equal(r.ok, true);
   assert.equal(s.hatched.length, 1);
-  assert.equal(s.hatched[0].type, 'psitta');
+  assert.equal(s.hatched[0].type, 'dilo');
   assert.equal(applyAction(s, 'pickStarter', { type: 'compy' }, T0).reason, 'picked');
   // the same save offers the same baby in the browser and on the server
   const twin = game();
-  applyAction(twin, 'pickStarter', { type: 'psitta' }, T0);
+  applyAction(twin, 'pickStarter', { type: 'dilo' }, T0);
   assert.deepEqual([twin.hatched[0].sex, twin.hatched[0].genes], [s.hatched[0].sex, s.hatched[0].genes]);
   // games from before starters have already started
   const old = game(); delete old.starter; old.saveVersion = 8;
   assert.equal(migrate(old).starter, true);
 });
 
-test('each starter is led by a different stat: two meat eaters (STR, AGI), two plant eaters (RES, VIT)', async () => {
+test('the fighter starter is led by strength, the explorer by agility', async () => {
   const { SPECIES_BASE } = await import('../js/config.js');
   const top = t => Object.entries(SPECIES_BASE[t]).sort((a, b) => b[1] - a[1])[0][0];
   assert.deepEqual(STARTERS.map(t => [t, DIET[t][0], top(t)]), [
-    ['dilo', 'meat', 'str'], ['compy', 'meat', 'agi'], ['scelido', 'leaf', 'res'], ['psitta', 'leaf', 'vit'],
+    ['dilo', 'meat', 'str'], ['compy', 'meat', 'agi'],
   ]);
 });
 
@@ -100,7 +101,7 @@ test('eggs near the nest are common; rare ones need distance; legendaries only l
   const { eggKinds } = await import('../js/world.js');
   const { SPECIES } = await import('../js/config.js');
   const rarities = (b, d, lair) => [...new Set(eggKinds(b, d, lair).map(k => SPECIES[k.type].rarity))].sort();
-  assert.deepEqual(rarities('meadow', 1, false), ['Starter']);
+  assert.deepEqual(rarities('meadow', 1, false), ['Common', 'Starter']);
   assert.deepEqual(rarities('forest', 2, false), ['Common']);
   assert.ok(rarities('forest', 5, false).includes('Rare'));
   assert.ok(!rarities('volcano', 7, false).includes('Legendary'));

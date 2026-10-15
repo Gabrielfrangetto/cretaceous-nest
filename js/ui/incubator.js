@@ -1,6 +1,6 @@
 // Incubator tab: a new game's starter pick, then hatching the eggs you own (found on expeditions or
 // laid by breeding pairs): warm it, hatch it and name the baby.
-import { SPECIES, STARTERS, DIET, SEX, ITEMS } from '../config.js';
+import { SPECIES, STARTERS, ROLES, DIET, SEX, ITEMS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { eggProgress, starterBaby, dietLabel } from '../economy.js';
 import { act, hatch as hatchEgg } from '../actions.js';
@@ -48,15 +48,17 @@ function renderChooser() {
   }));
 }
 
-// a brand-new game: pick the first baby from four small, simple species
+// a brand-new game: pick the first baby, a fighter or an explorer
 function renderStarters() {
   stage.innerHTML = `<div><h2>Choose your first dinosaur</h2>
-    <p class="sub">Every keeper starts with one baby. Meat eaters are quick and strong; plant eaters are tough. More species hatch from eggs your explorers find.</p></div>
+    <p class="sub">Every keeper starts with one baby: a fighter or an explorer. More species, each good at something of its own, hatch from eggs your explorers find.</p></div>
     <div class="eggs starters">${STARTERS.map(type => {
       const sp = SPECIES[type], b = starterBaby(S, type);
       return `<button class="egg-card starter" type="button" data-type="${type}">
         <span class="starter-art" data-art="${type}"></span>
         <strong>${sp.species} ${SEX[b.sex].sym}</strong>
+        <span class="starter-role">${ROLES[type].role}</span>
+        <span class="starter-role-text">${ROLES[type].text}</span>
         <span>${dietLabel(type)} · ${genesText(b.genes)}</span>
         ${statsHTML(b, { compact: true })}</button>`;
     }).join('')}</div>`;

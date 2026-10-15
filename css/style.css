@@ -645,3 +645,6 @@ body.guide-room { padding-bottom: 70vh; }
 .team-unit > span { min-width: 0; overflow-wrap: anywhere; }
 .team-add select { flex: 1 1 160px; min-width: 0; }
 .field .label { display: block; font-weight: 700; margin-bottom: 4px; }
+
+.starter-role { font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--accent, #b97a14); }
+.starter-role-text { font-size: 13px; color: var(--muted); max-width: 28ch; }

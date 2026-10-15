@@ -93,6 +93,23 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [ ] Sound effects and music with a mute toggle
 - [ ] Installable PWA and web push notifications ("Your egg is ready to hatch")
 
+## Activities (species roles)
+
+Each species will be good at an activity beyond its stats (ROLES in config.js). The two starters cover
+the activities the game has: Dilophosaurus fights, Compsognathus explores (scout: faster trips, fewer
+fights, more eggs). The rest belong to species found as eggs:
+
+- [x] Fighting — Dilophosaurus (starter)
+- [x] Exploring — Compsognathus (starter)
+- [ ] Foraging: more leaves, herbs, insects and amber (Psittacosaurus, hadrosaurs)
+- [ ] Hunting and fishing: brings food home (Baryonyx and Spinosaurus fish, Coelophysis hunts)
+- [ ] Carrying: the whole team carries more (Argentinosaurus, Parasaurolophus)
+- [ ] Nest care: eggs hatch sooner, babies grow on fewer meals (Psittacosaurus, hadrosaurs)
+- [ ] Guarding the nest from raids while the team is away (Scelidosaurus, Ankylosaurus, Stegosaurus); needs nest raids
+- [ ] Scouting: see a hex's creature before going, avoid ambushes (Hypsilophodon, Velociraptor)
+- [ ] Digging: bones, amber and obsidian in badlands and volcanoes (Protoceratops, Pachycephalosaurus)
+- [ ] Training: an experienced adult trains the young
+
 ## Phase 5 — Monetization
 
 Principles (decided): **never pay-to-win**. Anything bought with real money is cosmetic only. Equipment with stats is earned by playing (drops, breeding, coin shop); money buys looks, including skins that change how equipment looks without changing its stats.

@@ -9,14 +9,14 @@
 const S_ = (species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact) =>
   ({ species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact });
 const SPECIES_LIST = {
-  // starters: each led by one stat; a new player picks one
+  // starters: a new player picks one, a fighter or an explorer (ROLES)
   dilo:    S_('Dilophosaurus', 'theropod', 'Starter', ['meat'], { str: 75, agi: 50, vit: 40, res: 35 },
              'Crested Egg', '#e9dccb', '#9a3f2c', 'speckle', '#b5603e', '#e3b53a', 'Crest', 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.'),
   compy:   S_('Compsognathus', 'theropod', 'Starter', ['meat', 'insect'], { str: 40, agi: 85, vit: 40, res: 35 },
              'Tiny Egg', '#e6e1cf', '#7d8a5a', 'speckle', '#8aa05a', '#d7b847', 'Pip', 'Compsognathus was about the size of a chicken and hunted lizards and insects.'),
-  scelido: S_('Scelidosaurus', 'armored', 'Starter', ['leaf'], { str: 30, agi: 30, vit: 55, res: 85 },
+  scelido: S_('Scelidosaurus', 'armored', 'Common', ['leaf'], { str: 30, agi: 30, vit: 55, res: 85 },
              'Knobbly Egg', '#d8d2bf', '#5d6b4a', 'spots', '#7d8a5c', '#c9b27a', 'Knobs', 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.'),
-  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Starter', ['leaf'], { str: 35, agi: 35, vit: 80, res: 50 },
+  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Common', ['leaf'], { str: 35, agi: 35, vit: 80, res: 50 },
              'Pebble Egg', '#e3dcc4', '#6d6a4a', 'spots', '#b59a5e', '#7a5a33', 'Beaky', 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.'),
   // common
   coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
@@ -116,7 +116,17 @@ export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, 
   ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
 }]));
 export const ORDER = Object.keys(SPECIES_LIST);
-export const STARTERS = ['dilo', 'compy', 'scelido', 'psitta'];
+export const STARTERS = ['dilo', 'compy'];
+
+// What a species is best at outside its stats. Every activity will have species that are good at it
+// (fighting, exploring, foraging, hunting and fishing, carrying, nest care, guarding, scouting,
+// digging); for now the two starters: one for each activity the game has so far.
+export const ROLES = {
+  dilo: { role: 'Fighter', text: 'The best fighter of the small dinosaurs: strong jaws and clawed hands.' },
+  compy: { role: 'Explorer', ability: 'scout', text: 'Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs.' },
+};
+// a team with a scout in it
+export const SCOUT = { trip: 0.75, encounter: 0.5, egg: 1.5 };
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
 export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian', armored: 'Armored', sauropod: 'Sauropod' };
@@ -357,12 +367,12 @@ export const GUIDE = {
   starters: {
     tab: 'incubator', side: 'left', spot: '#stage',
     pages: [
-      'Here they are: the four little dinosaurs every new keeper can start with. Two of them eat plants and two eat meat, and each one has a personality of its own.',
-      { focus: '[data-type="scelido"], [data-type="psitta"]',
-        text: 'These two are our plant eaters. They love ferns and leaves, and most of them are gentle souls. Scelidosaurus wears bony armor on its back, and Psittacosaurus is as sturdy as they come. Still, a scared plant eater can kick or nip, so always handle them with care!' },
-      { focus: '[data-type="dilo"], [data-type="compy"]',
-        text: 'And these two are the meat eaters. Nothing makes them happier than a good piece of meat. Dilophosaurus hits the hardest, and little Compsognathus is the quickest of them all. Some of them are real loners, so give them space and be careful: those teeth are sharp!' },
-      "All four are healthy and ready for a keeper. If you want to explore the world out there, choose one to help you: it's a wild, hostile place, and nobody should face it alone.",
+      'Here they are: the two little dinosaurs every new keeper can start with. Both eat meat, and each one is good at something different.',
+      { focus: '[data-type="dilo"]',
+        text: "Dilophosaurus is a fighter. It hits the hardest of all the small dinosaurs, so it's the one to have beside you when something wild jumps out of the ferns." },
+      { focus: '[data-type="compy"]',
+        text: "Little Compsognathus is an explorer. It's far too small to fight anything big, but it has a wonderful nose: with it in your team you travel faster, slip past danger and find more eggs." },
+      "Whichever you choose, the world out there is wild and hostile, and nobody should face it alone. Later you'll find eggs of many more species, each good at something of its own.",
     ],
     done: "I'll choose!",
   },

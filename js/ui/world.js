@@ -1,10 +1,10 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, put a team together, send it; when it comes back, collect what it found.
-import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
+import { SCOUT, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, tripMins, lootTable, exploreProblem, expeditionOf,
+  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, explorerOf, memberProblem, teamFrom, teamUnits,
 } from '../world.js';
 import { packOf } from '../packs.js';
@@ -135,7 +135,7 @@ function mapSVG(t) {
 }
 
 // what waits there and how a fight would likely go for the chosen explorer
-function threatHTML(h, units) {
+function threatHTML(h, units, scout) {
   if (!isRevealed(S, hexKey(...h))) return '<p class="hint">Unknown dangers.</p>';
   const th = threatAt(S.world.seed, h);
   const odds = units.length ? teamWinChance(units, th.foe) : null;
@@ -144,7 +144,7 @@ function threatHTML(h, units) {
   const danger = odds == null ? '' : dangerOf(odds);
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.foe.power}</span></p>
-    <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * 100)}% chance to meet it.`}</p>
+    <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}`}</p>
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
   </div>`;
 }
@@ -176,6 +176,7 @@ function sideHTML(t) {
     if (free) team = [free];
   }
   const problem = exploreProblem(S, team, selected, t);
+  const scout = hasScout(S, team.flatMap(membersOf));
   const blocker = team.map(u => unitProblem(u, t)).find(Boolean);
   const units = teamUnits(S, (teamFrom(S, team) || []).filter(Boolean));
   const left = choices.filter(c => !team.some(u => unitKey(u) === unitKey(c)));
@@ -189,9 +190,9 @@ function sideHTML(t) {
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${tripMins(selected)} min there and back${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${scout ? ' (a scout leads the way)' : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
-    ${threatHTML(h, units)}
+    ${threatHTML(h, units, scout)}
     <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
       ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
       ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
@@ -304,9 +305,9 @@ function render() {
   });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
-    const names = team.map(unitName);
+    const names = team.map(unitName), mins = teamTripMins(S, team.flatMap(membersOf), selected);
     const r = act('explore', { team, hex: selected });
-    message = r.ok ? `${esc(listNames(names))} set off. Back in ${tripMins(selected)} min.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    message = r.ok ? `${esc(listNames(names))} set off. Back in ${mins} min.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
     if (r.ok) team = [];   // the next free one is suggested
     render();
   });
