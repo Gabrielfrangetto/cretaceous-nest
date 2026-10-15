@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, FRENZY_WILD,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, seededRand } from './economy.js';
@@ -135,18 +135,27 @@ export function teamFight(units, foe, rand) {
       } else {
         if (!standing(hp[who]).length) continue;
         const mad = frenzy.has(who), boost = mad ? FRENZY_DAMAGE : 1;
-        // a rival may turn on another one, and a frenzied one strikes whoever is closest
-        const rivals = isRival(who) && !mad ? units.flatMap((_, j) => j !== who && isRival(j) && sameKind(j, who) && standing(hp[j]).length ? [j] : []) : [];
-        const friends = mad ? units.flatMap((_, j) => j !== who && standing(hp[j]).length ? [j] : []) : [];
-        const clash = rivals.length && rand() < RIVAL_CLASH;
-        if (clash || (friends.length && rand() < FRENZY_WILD)) {
-          const pool = clash ? rivals : friends;
+        const others = test => units.flatMap((_, j) => j !== who && standing(hp[j]).length && test(j) ? [j] : []);
+        // a rival may turn on another one of its kind, and then every one of them goes into a frenzy
+        const rivals = isRival(who) && !mad ? others(j => isRival(j) && sameKind(j, who)) : [];
+        const clash = rivals.length > 0 && rand() < RIVAL_CLASH;
+        // in a frenzy it is every one for itself: each strikes the foe or one of the other frenzied
+        // ones; the last one standing strikes the foe or anyone left in the team
+        let pool = [];
+        if (clash) pool = rivals;
+        else if (mad) {
+          const mates = others(j => frenzy.has(j));
+          const targets = mates.length ? mates : others(() => true);
+          const pick = Math.floor(rand() * (targets.length + 1));
+          if (pick < targets.length) pool = [targets[pick]];
+        }
+        if (pool.length) {
           const ally = pool[Math.floor(rand() * pool.length)];
           const alive = standing(hp[ally]);
           const member = alive[Math.floor(rand() * alive.length)];
           const dmg = rounded(hitOf(units[who].members[0], units[ally].members[member], 0.75 + rand() * 0.5) * boost);
           hp[ally][member] = Math.max(0, hp[ally][member] - dmg);
-          if (clash) { frenzy.add(who); frenzy.add(ally); }
+          if (clash) units.forEach((_, j) => { if (j === ally || (isRival(j) && sameKind(j, who) && standing(hp[j]).length)) frenzy.add(j); });
           log.push({ by: who, ally, member, dmg, left: hp[ally][member], ...(clash ? { clash: true } : { frenzy: true }) });
           continue;
         }

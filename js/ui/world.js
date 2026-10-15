@@ -165,7 +165,7 @@ function rivalsHTML(members) {
   const types = members.map(id => id !== PLAYER_ID && byId(id)).filter(Boolean).map(b => b.type);
   return [...new Set(types)].filter(t => SPECIES[t].rival && types.filter(x => x === t).length > 1).map(t => {
     const n = types.filter(x => x === t).length;
-    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. In a fight they may turn on each other and go into a frenzy: ${Math.round((FRENZY_DAMAGE - 1) * 100)}% more damage, but they bite whoever is closest, friend or foe. Win in a frenzy and the kill brings ${FRENZY_LOOT}× the loot.</p>`;
+    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. In a fight they may turn on each other and go into a frenzy: ${Math.round((FRENZY_DAMAGE - 1) * 100)}% more damage, but they bite the foe and each other alike, and the last one standing bites anyone in the team. Win in a frenzy and the kill brings ${FRENZY_LOOT}× the loot.</p>`;
   }).join('');
 }
 

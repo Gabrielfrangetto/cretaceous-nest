@@ -169,6 +169,22 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
     assert.ok(r.log.filter(e => e.frenzy).every(e => r.frenzy.includes(e.by)));
   }
   assert.ok(clashes > 10, `${clashes} clashes`);
+  // with a Triceratops along: it is only bitten once a single Allosaurus is left standing
+  let lastOnes = 0;
+  for (let i = 0; i < 200; i++) {
+    const team = [...pair(), unitOf('t1', [fighterOf(dino('t1', 'trike'))])];
+    const r = teamFight(team, foe, seededRand('ffa' + i));
+    const hp = team.map(u => u.members.map(m => m.hp));
+    for (const e of r.log) {
+      if (e.ally === 2) {
+        assert.ok(hp[0][0] <= 0 || hp[1][0] <= 0, 'the Triceratops is bitten only when one Allosaurus is down');
+        lastOnes++;
+      }
+      if (e.ally !== undefined) hp[e.ally][e.member] = e.left;
+      else if (e.by === 'foe' && !e.miss) hp[e.to][e.member] = e.left;
+    }
+  }
+  assert.ok(lastOnes > 0, 'the last Allosaurus standing bites its friends');
   // a lone Allosaurus, or two raptors, never turn on anyone
   for (const team of [[pair()[0]], [unitOf('r1', [fighterOf(dino('r1', 'raptor'))]), unitOf('r2', [fighterOf(dino('r2', 'raptor'))])]])
     assert.equal(teamFight(team, foe, seededRand('calm')).log.some(e => e.ally !== undefined), false);
