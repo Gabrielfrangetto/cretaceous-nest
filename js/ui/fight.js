@@ -150,8 +150,9 @@ export function playFight(battle, summary, who) {
       showUnit(blow.ally);
     } else {
       lunge(boxes[blow.by]);
-      // a noncombatant struck lashes back
-      if (blow.counter) pop(boxes[blow.by], 'Kick!', 'mad');
+      // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
+      const move = blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops
       else if (!blow.dmg) pop(foeBox, 'No effect', 'miss');

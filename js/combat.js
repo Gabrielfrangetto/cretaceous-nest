@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, ROLE_TARGET, ROLE_DAMAGE, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, seededRand } from './economy.js';
@@ -16,7 +16,7 @@ export function fighterOf(baby) {
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
-    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear };
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher };
   return { name: baby.name, ...sheet.derived, agi: sheet.stats.agi, power: sheet.power, ...body };
 }
 
@@ -45,7 +45,7 @@ export function wildFighter(type, dist, lair = false) {
   const stats = wildStats(sp.base, level);
   return {
     name: sp.species, ...deriveCombat(stats), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size: youngSize(sp.size, dist, lair), bite: sp.bite, hide: youngHide(sp.hide, level), role: sp.role,
+    size: youngSize(sp.size, dist, lair), bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher,
   };
 }
 
@@ -104,10 +104,12 @@ export function winChance(a, b, runs = 120) {
 // An expedition's team fights what it meets together. A unit is one dinosaur, the player, or a pack:
 // { name, pack, members: [fighter] }; the foe is a unit too (one animal, or a wild pack or herd).
 // Before the fight, every unit facing a foe bigger than its fear flees; a team left with nobody
-// who fights runs off altogether. Then every round each side acts in agility order: each standing
-// unit strikes one member of the foe, and the foe strikes one standing unit (a random member of it),
-// going for defenders more and noncombatants less (ROLE_TARGET). A blow never carries over to
-// another member, so a pack loses at most one member per blow.
+// who fights runs off altogether. Then every round each side acts in agility order. The foe strikes
+// one standing unit (a random member of it), going for defenders more and noncombatants less
+// (ROLE_TARGET). Each unit acts by its role: an attacker strikes a member of the foe; a defender
+// charges or holds its ground, striking back at whatever attacks it; a noncombatant only strikes
+// back when attacked, or through an opening when the foe goes for someone else. A blow never
+// carries over to another member, so a pack loses at most one member per blow.
 export const unitOf = (name, members, pack = false) => ({ name, pack, members });
 const FIGHT_ROUNDS = Math.ceil(FIGHT_MAX_TURNS / 2);
 const standing = hp => hp.flatMap((h, i) => h > 0 ? [i] : []);
@@ -146,19 +148,15 @@ export function unitHit(u, hp, foe, roll) {
 }
 export const unitHp = u => u.members.reduce((t, m) => t + m.hp, 0);
 
-// each member's damage for its role, and for a fisher whether the fight is in the water
+// a fisher's damage for whether the fight is in the water
 function withRoles(u, swamp) {
-  return { ...u, members: u.members.map(m => {
-    const role = m.role || 'attacker';
-    const cut = ROLE_DAMAGE[role] * (role === 'fisher' ? (swamp ? FISHER.swamp : FISHER.land) : 1);
-    return cut === 1 ? m : { ...m, damage: m.damage * cut };
-  }) };
+  return { ...u, members: u.members.map(m => m.fisher ? { ...m, damage: m.damage * (swamp ? FISHER.swamp : FISHER.land) } : m) };
 }
 
 // log, by: a team unit's index or 'foe':
 //   { by, member, miss } | { by, member, dmg, left, foeLeft }: a team blow on the foe's member
-//     (left: that member's health, foeLeft: the whole foe's); counter: true when a noncombatant
-//     lashes back after being struck;
+//     (left: that member's health, foeLeft: the whole foe's); charge: a defender's charge;
+//     counter: striking back when attacked; opening: a noncombatant's blow while the foe is busy;
 //   { by: 'foe', to, member, miss } | { by: 'foe', to, member, dmg, left }: the foe striking a unit;
 //   { by, ally, member, dmg, left, clash? | frenzy? }: a rival or a frenzied one striking its own team.
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
@@ -194,6 +192,18 @@ export function teamFight(units, foe, rand, opts = {}) {
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
       log.push({ by: who, member, dmg, left: foeHp[member], foeLeft: foeLeft(), ...extra });
     };
+    // defenders out of their guard after a charge
+    const exposed = new Set();
+    // once the foe has gone for a unit: a defender or noncombatant it attacked strikes back, and every
+    // other noncombatant may land a blow through the opening
+    const afterAttack = to => {
+      const role = roleOf(units[to]);
+      if (role !== 'attacker' && standing(hp[to]).length && foeLeft() > 0) strike(to, 0.75 + rand() * 0.5, 1, { counter: true });
+      for (const j of fighting) {
+        if (j === to || foeLeft() <= 0 || roleOf(units[j]) !== 'noncombatant' || !standing(hp[j]).length) continue;
+        if (rand() < OPENING) strike(j, 0.75 + rand() * 0.5, 1, { opening: true });
+      }
+    };
     for (let round = 0; round < FIGHT_ROUNDS && foeLeft() > 0 && up(); round++) {
       for (const who of order) {
         if (foeLeft() <= 0 || !up()) break;
@@ -205,15 +215,24 @@ export function teamFight(units, foe, rand, opts = {}) {
           for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { to = targets[k]; break; } }
           const alive = standing(hp[to]);
           const member = alive[Math.floor(rand() * alive.length)];
-          if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); continue; }
-          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], 0.75 + rand() * 0.5));
+          if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
+          // a defender caught out of its guard by its own charge takes more
+          const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
+          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], 0.75 + rand() * 0.5) * open);
           hp[to][member] = Math.max(0, hp[to][member] - dmg);
           log.push({ by: 'foe', to, member, dmg, left: hp[to][member] });
-          // a noncombatant struck lashes back once, if it still stands
-          if (roleOf(units[to]) === 'noncombatant' && standing(hp[to]).length && foeLeft() > 0) strike(to, 0.75 + rand() * 0.5, 1, { counter: true });
+          afterAttack(to);
           continue;
         }
-        if (!standing(hp[who]).length || roleOf(units[who]) === 'noncombatant') continue;
+        if (!standing(hp[who]).length) continue;
+        const role = roleOf(units[who]);
+        // a noncombatant never goes for the foe on its own
+        if (role === 'noncombatant') continue;
+        // a defender charges now and then; otherwise it holds its ground, ready to strike back
+        if (role === 'defender') {
+          if (rand() < (units[who].members[0].charge || 0)) { exposed.add(who); strike(who, 0.75 + rand() * 0.5, CHARGE_DAMAGE, { charge: true }); }
+          continue;
+        }
         const mad = frenzy.has(who), boost = mad ? FRENZY_DAMAGE : 1;
         const others = test => fighting.filter(j => j !== who && standing(hp[j]).length && test(j));
         // a rival may turn on another one of its kind, and then every one of them goes into a frenzy

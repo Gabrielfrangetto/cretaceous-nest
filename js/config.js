@@ -82,7 +82,9 @@ const SIZE = {
 };
 
 // Weapons and hide, fixed for a species whatever its genes, from how the real animal fought:
-//   role:   how it fights (ROLES_IN_COMBAT): attacker, defender, noncombatant or fisher
+//   role:   how it fights (see ROLE_TARGET): attacker, defender or noncombatant
+//   charge: a defender's chance a turn to charge instead of holding its ground
+//   fisher: at home in the water (FISHER)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -94,34 +96,40 @@ const SIZE = {
 export const BODY = {
   compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', fear: 'tiny' },
   dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, role: 'attacker', fear: 'large' },
-  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', fear: 'huge' },
+  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
   coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
-  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', fear: 'large' },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
-  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', fear: 'large' },
+  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
-  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', fear: 'huge' },
-  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, role: 'fisher', fear: 'large' },
+  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', charge: 0.2, fear: 'huge' },
+  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
-  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, role: 'defender', fear: 'colossal' },
-  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', fear: 'colossal' },
+  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, role: 'defender', charge: 0.35, fear: 'colossal' },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', charge: 0.15, fear: 'colossal' },
   allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
-  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, role: 'fisher', fear: 'huge' },
+  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', fear: 'huge' },
   rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, role: 'attacker', fear: 'colossal' },
-  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', fear: 'colossal' },
+  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
 };
 // How each role fights:
-//   attacker: strikes the foe in full.
-//   defender: the foe goes for it ROLE_TARGET times as often; it takes the hits and strikes back for
-//             ROLE_DAMAGE of its damage.
-//   noncombatant: never attacks and is rarely gone for; struck, it lashes back once (a kick, a tail).
-//             A team of only noncombatants runs off without a fight.
-//   fisher: at home in the water: FISHER.swamp of its damage in a swamp, FISHER.land elsewhere.
-export const ROLE_TARGET = { attacker: 1, defender: 3, noncombatant: 0.3, fisher: 1 };
-export const ROLE_DAMAGE = { attacker: 1, defender: 0.75, noncombatant: 1, fisher: 1 };
+//   attacker: the hunters. Strikes the foe every turn.
+//   defender: plant eaters that protect themselves. The foe goes for it ROLE_TARGET times as often.
+//             Each turn it either charges (its charge chance: CHARGE_DAMAGE times its blow, but
+//             CHARGE_EXPOSED more damage from the next blow it takes), or holds its ground and
+//             strikes back at whatever attacks it.
+//   noncombatant: never attacks. Struck, it lashes back; and when the foe goes for someone else it
+//             may land a blow through the opening (OPENING a time). Only when it stays: anything
+//             bigger than its fear and it has run. A team of only noncombatants runs off.
+// fishers (Baryonyx, Spinosaurus) are attackers at home in the water: FISHER.swamp of their damage
+// in a swamp, FISHER.land elsewhere.
+export const ROLE_TARGET = { attacker: 1, defender: 3, noncombatant: 0.3 };
+export const CHARGE_DAMAGE = 2;
+export const CHARGE_EXPOSED = 1.25;
+export const OPENING = 0.35;
 export const FISHER = { swamp: 1.3, land: 0.85 };
 // creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
 // with thinner hide (see creatureFighter)

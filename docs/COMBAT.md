@@ -5,7 +5,7 @@ Worst case for the defender: the attacker has perfect genes and lands its hardes
 
 ## Weapons, hides and roles
 
-Role: how it fights (see ROLE_TARGET in config.js). Runs from: it flees, before the fight, from anything bigger than this.
+Role: attacker (goes for the foe), defender (charges or holds its ground and strikes back) or noncombatant (only strikes back, or through an opening); see config.js. Runs from: it flees, before the fight, from anything bigger than this.
 
 | Species | Size | Weapon | Strongest blow | Hide | Role | Stands up to |
 |---|---|---|---|---|---|---|
@@ -21,12 +21,12 @@ Role: how it fights (see ROLE_TARGET in config.js). Runs from: it flees, before 
 | Pachycephalosaurus | medium | Thick bony dome for ramming | 125 | 8 | defender | large |
 | Velociraptor | small | Sickle claw on each foot | 32 | 0 | attacker | medium |
 | Stegosaurus | large | Spiked tail (the thagomizer) | 130 | 18 | defender | huge |
-| Baryonyx | large | Huge thumb claws and fish-catching jaws | 140 | 10 | fisher | large |
+| Baryonyx | large | Huge thumb claws and fish-catching jaws | 140 | 10 | attacker | large |
 | Parasaurolophus | large | Tail and kicks | 55 | 8 | noncombatant | large |
 | Triceratops | huge | Three horns and a shield of a frill | 170 | 20 | defender | colossal |
 | Ankylosaurus | huge | Bony tail club; armored all over | 160 | 35 | defender | colossal |
 | Allosaurus | large | Blade-like teeth, slashing bites | 160 | 12 | attacker | huge |
-| Spinosaurus | huge | Long jaws and big claws | 180 | 18 | fisher | huge |
+| Spinosaurus | huge | Long jaws and big claws | 180 | 18 | attacker | huge |
 | Tyrannosaurus | huge | The strongest bite of any land animal | 260 | 25 | attacker | colossal |
 | Argentinosaurus | colossal | Its sheer weight: stomps and a whip-like tail | 200 | 30 | defender | colossal |
 

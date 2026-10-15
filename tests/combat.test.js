@@ -149,11 +149,25 @@ test('who is afraid runs before the fight: a Gallimimus leaves the player alone 
   assert.equal(alone.escaped, true);
   assert.equal(alone.win, false);
   assert.deepEqual(alone.log, []);
-  // against a small pack it stays, never attacks, and only lashes back when struck
+  // against a small pack it stays and never attacks on its own: it strikes back when attacked, or
+  // through an opening while the pack goes for someone else
   const compys = encounterUnit({ species: 'compy', pack: [3, 3], loot: [] }, 2);
   const f = teamFight([me, galli], compys, seededRand('stay'));
   assert.deepEqual(f.fled, []);
-  assert.ok(f.log.filter(e => e.by === 1).every(e => e.counter));
+  const its = f.log.filter(e => e.by === 1);
+  assert.ok(its.length && its.every(e => e.counter || e.opening));
+  assert.ok(its.some(e => e.opening));
+});
+
+test('a defender charges now and then, otherwise holds its ground and strikes back', () => {
+  const foe = encounterUnit({ species: 'dilo', loot: [] }, 5);
+  const trike = unitOf('t', [fighterOf(dino('t', 50, 'trike'))]);
+  let charges = 0, counters = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = teamFight([trike], foe, seededRand('d' + i));
+    for (const e of r.log) if (e.by === 0) { assert.ok(e.charge || e.counter); if (e.charge) charges++; else counters++; }
+  }
+  assert.ok(charges > 0 && counters > charges, `${charges} charges, ${counters} counters`);
 });
 
 test('the foe goes for defenders more and noncombatants less', () => {
