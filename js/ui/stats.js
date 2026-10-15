@@ -1,7 +1,7 @@
 // Stat and gene displays: bars on cards and eggs, the full sheet in the baby window, and the
 // step-by-step calculation behind each stat.
-import { STATS, GENES_MAX } from '../config.js';
-import { statSheet, geneGrade, genesPercent } from '../economy.js';
+import { STATS, GENES_MAX, LOAD_FREE } from '../config.js';
+import { statSheet, geneGrade, genesPercent, carriedWeight, carryCapacity, loadFactor } from '../economy.js';
 
 const BAR_SCALE = 100;   // stats can pass 100 with equipment; the bar just fills up
 const pct = x => `${Math.round(x * 100)}%`;
@@ -32,6 +32,14 @@ export function genesHTML(genes) {
 }
 
 export const genesText = genes => `Genes ${genesPercent(genes)}%`;
+
+// how much it carries out of its capacity, and what the load costs in agility
+export function loadHTML(b) {
+  const w = carriedWeight(b), cap = carryCapacity(b), share = Math.min(1, w / cap), f = loadFactor(b);
+  return `<div class="load"><span class="load-label">Load <strong>${w} / ${cap}</strong></span>
+    <span class="load-bar" aria-hidden="true"><i class="${f < 1 ? 'heavy' : ''}" style="width:${(share * 100).toFixed(0)}%"></i><b style="left:${LOAD_FREE * 100}%"></b></span>
+    <span class="hint">${f < 1 ? `Heavy: −${Math.round((1 - f) * 100)}% AGI` : 'Light: no penalty'}</span></div>`;
+}
 
 // combat numbers worked out from the stats
 export function derivedHTML(thing) {

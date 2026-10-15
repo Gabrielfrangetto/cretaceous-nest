@@ -609,3 +609,11 @@ body.guide-room { padding-bottom: 70vh; }
 .guide-dim { opacity: .28; filter: grayscale(.6); transition: opacity .3s, filter .3s; }
 .guide-focus { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-4px); transition: transform .3s; }
 @media (prefers-reduced-motion: reduce) { .guide-focus { transform: none; } }
+
+/* equipment load: how much is carried out of the capacity; past the mark it costs agility */
+.load { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; font-size: 14px; }
+.load-bar { position: relative; height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.load-bar i { position: absolute; inset: 0 auto 0 0; background: #4f8a3a; border-radius: 999px; }
+.load-bar i.heavy { background: var(--accent); }
+.load-bar b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--muted); opacity: .6; }
+@media (max-width: 480px) { .load { grid-template-columns: 1fr auto; } .load-bar { grid-column: 1 / -1; grid-row: 2; } }

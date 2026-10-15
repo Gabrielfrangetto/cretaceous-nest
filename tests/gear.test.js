@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buyGear, equipGear, unequipGear, statSheet, gearMods, countItem, addItem, applyAction, roomFor } from '../js/economy.js';
+import { buyGear, equipGear, unequipGear, statSheet, gearMods, countItem, addItem, applyAction, roomFor, loadFactor } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import { ITEMS, SPECIES_BASE } from '../js/config.js';
@@ -51,9 +51,10 @@ test('one item per slot, and bonuses from different slots stack', () => {
   const s = withRex();
   for (const id of ['bone_helmet', 'spiked_collar', 'heavy_armor', 'swift_cape']) { buyGear(s, id); equipGear(s, 'r1', slotOf(s, id)); }
   assert.deepEqual(s.hatched[0].equip, { head: 'bone_helmet', neck: 'spiked_collar', body: 'heavy_armor', back: 'swift_cape' });
-  assert.equal(gearMods(s.hatched[0]).length, 3 + 1 + 2 + 1);
+  assert.equal(gearMods(s.hatched[0]).filter(m => !m.weight).length, 3 + 1 + 2 + 1);
   // agility: -5% (helmet) -25% (armor) +15% (cape) add up to -15%
-  assert.equal(statSheet(s.hatched[0]).stats.agi, Math.round(SPECIES_BASE.rex.agi * 0.85));
+  // (plus a little for the load: 30 of the Rex's 56 capacity)
+  assert.equal(statSheet(s.hatched[0]).stats.agi, Math.round(SPECIES_BASE.rex.agi * 0.85 * loadFactor(s.hatched[0])));
 });
 
 test('taking equipment off needs room in the bag', () => {

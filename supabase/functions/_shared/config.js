@@ -69,7 +69,16 @@ export const RARITIES = {
   Legendary: { mins: 60, coins: 150, breed: 90, minDist: 5, weight: 1, lairOnly: true },
 };
 
-export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, { ...sp, mins: RARITIES[sp.rarity].mins }]));
+// body size: sets how much equipment a species can carry (CARRY)
+const SIZE = {
+  compy: 'tiny',
+  dilo: 'small', scelido: 'small', psitta: 'small', coelo: 'small', hypsi: 'small',
+  proto: 'medium', galli: 'medium', hypa: 'medium', pachy: 'medium', raptor: 'medium',
+  stego: 'large', bary: 'large', para: 'large', trike: 'large', ankylo: 'large', allo: 'large',
+  spino: 'huge', rex: 'huge', argent: 'huge',
+};
+
+export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, { ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k] }]));
 export const ORDER = Object.keys(SPECIES_LIST);
 export const STARTERS = ['dilo', 'compy', 'scelido', 'psitta'];
 
@@ -158,6 +167,25 @@ export const ITEMS = {
   golden_crown:  { name: 'Golden Crown', plural: 'golden crowns', kind: 'gear', slot: 'head', stack: 1,
                    desc: 'Made from the shell of a Golden Egg.', mods: [{ stat: 'str', type: 'increased', value: 0.08 }, { stat: 'vit', type: 'increased', value: 0.08 }, { stat: 'res', type: 'more', value: 1.05 }] },
 };
+// Equipment weight. Every piece weighs something; a dinosaur (or the player) can carry up to its
+// capacity: its size's CARRY plus a little for its strength from genes (CARRY_PER_STR per point).
+// Nothing past capacity can be worn, and a load over LOAD_FREE of capacity costs agility, up to
+// LOAD_AGI_LOSS at a full load: small, quick species are best kept light.
+export const CARRY = { tiny: 4, small: 10, medium: 18, large: 30, huge: 45 };
+export const CARRY_PER_STR = 0.1;
+export const PLAYER_CARRY = 20;
+export const LOAD_FREE = 0.5;
+export const LOAD_AGI_LOSS = 0.2;
+const WEIGHT = {
+  // dinosaur equipment
+  leaf_crown: 1, feather_scarf: 1, amber_charm: 1, obsidian_fang: 2, swift_cape: 2, feather_cloak: 2, spiked_collar: 3,
+  golden_crown: 4, bone_helmet: 5, leather_vest: 6, clay_plate: 12, turtle_shell: 14, heavy_armor: 20,
+  // the player's weapons and armor
+  hide_cap: 1, sandals: 1, feather_boots: 1, wooden_club: 4, obsidian_blade: 4, hide_tunic: 4, obsidian_helm: 4,
+  bone_sword: 5, wooden_shield: 5, bone_shield: 6, clay_armor: 12,
+};
+for (const [id, w] of Object.entries(WEIGHT)) ITEMS[id].weight = w;
+
 export const GEAR_SLOTS = [
   { id: 'head', name: 'Head' },
   { id: 'neck', name: 'Neck' },

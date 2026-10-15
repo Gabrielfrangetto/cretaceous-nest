@@ -6,7 +6,7 @@ import { act } from '../actions.js';
 import { ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
 import { modsHTML } from './stats.js';
-import { GEAR_SLOTS } from '../config.js';
+import { GEAR_SLOTS, PLAYER_SLOTS } from '../config.js';
 import { currentTab, onTabChange, setTab } from './tabs.js';
 
 const grid = document.getElementById('invGrid');
@@ -67,7 +67,7 @@ function renderSide() {
   const hasEmpty = S.inv.some((x, k) => !x && k < S.invSize);
   side.innerHTML = `<div class="big">${ITEM_ICONS[s.id]}</div>
     <h2>${esc(it.name)}</h2>
-    ${it.kind === 'gear' ? `<p class="hint">Equipment · ${GEAR_SLOTS.find(g => g.id === it.slot).name}</p>${modsHTML(it.mods)}` : `<p class="qty">${s.n} / ${MAX_STACK}</p>`}
+    ${it.kind === 'gear' || it.kind === 'arms' ? `<p class="hint">${it.kind === 'arms' ? 'Your weapons and armor' : 'Dinosaur equipment'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · weight ${it.weight}</p>${modsHTML(it.mods)}` : `<p class="qty">${s.n} / ${MAX_STACK}</p>`}
     <p class="fact">${esc(it.desc)}${it.kind === 'gear' ? ' Equip it from a baby’s window in the Nest.' : ''}</p>
     <div class="row">
       ${s.n > 1 && hasEmpty ? '<button class="ghost" id="invSplit" type="button">Split stack</button>' : ''}

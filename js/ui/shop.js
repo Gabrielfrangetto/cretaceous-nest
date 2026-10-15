@@ -18,7 +18,7 @@ const gearCards = kind => Object.entries(ITEMS).filter(([, it]) => it.kind === k
           <span class="gear-icon big">${ITEM_ICONS[id]}</span>
           <div class="gear-body">
             <strong>${esc(it.name)}</strong>
-            <span class="hint">${slot} · ${esc(it.desc)}</span>
+            <span class="hint">${slot} · weight ${it.weight} · ${esc(it.desc)}</span>
             ${modsHTML(it.mods)}
           </div>
           <div class="gear-buy">

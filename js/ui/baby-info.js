@@ -2,11 +2,11 @@
 // equipment (equip and take off) and family.
 import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
-import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML } from './stats.js';
+import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
 
 const dialog = document.getElementById('babyDialog');
@@ -14,7 +14,7 @@ const body = document.getElementById('babyBody');
 const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 let openId = null, message = '';
 
-const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.', 'not-adult': 'Only adults can wear equipment.' };
+const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.', 'not-adult': 'Only adults can wear equipment.', 'too-heavy': 'Too heavy: that would be more than it can carry.' };
 
 function parentsText(b) {
   if (!b.parents || !b.parents.length) return 'Hatched from a free egg';
@@ -39,7 +39,11 @@ function equipmentHTML(b) {
         ? `<span class="gear-icon">${ITEM_ICONS[worn]}</span><span><strong>${esc(ITEMS[worn].name)}</strong>${modsHTML(ITEMS[worn].mods)}</span>`
         : '<span class="hint">Empty</span>'}</div>
       <div class="gear-actions">
-        ${adult && options.length ? `<select data-slot="${slot}" aria-label="Choose ${name.toLowerCase()} equipment">${options.map(({ x, i }) => `<option value="${i}">${esc(ITEMS[x.id].name)}</option>`).join('')}</select>
+        ${adult && options.length ? `<select data-slot="${slot}" aria-label="Choose ${name.toLowerCase()} equipment">${options.map(({ x, i }) => {
+          // how heavy it is, and whether it would push the load past what this dinosaur can carry
+          const over = carriedWeight(b) - itemWeight(worn) + itemWeight(x.id) > carryCapacity(b);
+          return `<option value="${i}">${esc(ITEMS[x.id].name)} · weight ${itemWeight(x.id)}${over ? ' · too heavy' : ''}</option>`;
+        }).join('')}</select>
           <button class="ghost" type="button" data-equip="${slot}">${worn ? 'Swap' : 'Equip'}</button>` : ''}
         ${worn ? `<button class="ghost" type="button" data-unequip="${slot}">Take off</button>` : ''}
       </div>
@@ -48,8 +52,9 @@ function equipmentHTML(b) {
   const next = nextStage(b);
   const until = next && plural(STAGES[STAGES.length - 1].meals - (b.fed || 0), 'more meal', 'more meals');
   return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
+    ${loadHTML(b)}
     <ul class="gear-slots">${rows}</ul>
-    <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Some pieces raise one stat and lower another. Head and neck pieces show on the baby; body and back pieces only change its stats.</p>`;
+    <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Every piece has a weight: big, strong dinosaurs carry more, and a load over half of what one can carry costs agility. Head and neck pieces show on the dinosaur; body and back pieces only change its stats.</p>`;
 }
 
 // outfits: a whole new look, no stats

@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, GUIDE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
@@ -72,9 +72,29 @@ export const isPlayer = b => !!b && b.id === PLAYER_ID;
 // what a baby actually wears: its equipment if it is an adult, otherwise nothing (the player always wears theirs)
 export const wornGear = baby => ((isPlayer(baby) || isAdult(baby)) && baby.equip) || {};
 
-// the bonuses from everything a baby wears
+// ---------- weight ----------
+// How much equipment it can carry: its size's capacity plus a little for its strength from genes
+// (equipment doesn't raise it). The player has a capacity of their own.
+export function carryCapacity(b) {
+  const str = statSheet(b, []).stats.str;
+  return Math.round(((isPlayer(b) ? PLAYER_CARRY : CARRY[SPECIES[b.type].size]) + str * CARRY_PER_STR) * 10) / 10;
+}
+export const itemWeight = id => (ITEMS[id] && ITEMS[id].weight) || 0;
+export const carriedWeight = b => Object.values(wornGear(b)).reduce((t, id) => t + itemWeight(id), 0);
+// the agility multiplier from the load: nothing up to LOAD_FREE of capacity, then down to
+// 1 − LOAD_AGI_LOSS at a full load (and no lower for a load from before weights existed)
+export function loadFactor(b) {
+  const share = carriedWeight(b) / carryCapacity(b);
+  if (share <= LOAD_FREE) return 1;
+  return 1 - LOAD_AGI_LOSS * Math.min(1, (share - LOAD_FREE) / (1 - LOAD_FREE));
+}
+
+// the bonuses from everything a baby wears, and what the load costs
 export function gearMods(baby) {
-  return Object.values(wornGear(baby)).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
+  const mods = Object.values(wornGear(baby)).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
+  const load = loadFactor(baby);
+  if (load < 1) mods.push({ stat: 'agi', type: 'more', value: Math.round(load * 100) / 100, weight: true });
+  return mods;
 }
 
 // A baby's stats, worked out in stages like an action RPG:
@@ -327,6 +347,7 @@ export function equipGear(s, babyId, index) {
   if (!item || !isGear(item.id)) return { ok: false, reason: 'not-gear' };
   const slot = ITEMS[item.id].slot;
   const old = baby.equip && baby.equip[slot];
+  if (carriedWeight(baby) - itemWeight(old) + itemWeight(item.id) > carryCapacity(baby)) return { ok: false, reason: 'too-heavy' };
   item.n -= 1;
   if (!item.n) s.inv[index] = null;
   if (old) { if (!s.inv[index]) s.inv[index] = { id: old, n: 1 }; else addItem(s, old, 1); }
@@ -387,6 +408,7 @@ export function equipArms(s, index) {
   if (!item || !isArms(item.id)) return { ok: false, reason: 'not-arms' };
   const slot = ITEMS[item.id].slot, p = s.player;
   const old = p.equip[slot];
+  if (carriedWeight(p) - itemWeight(old) + itemWeight(item.id) > carryCapacity(p)) return { ok: false, reason: 'too-heavy' };
   item.n -= 1;
   if (!item.n) s.inv[index] = null;
   if (old) { if (!s.inv[index]) s.inv[index] = { id: old, n: 1 }; else addItem(s, old, 1); }

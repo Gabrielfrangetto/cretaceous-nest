@@ -24,7 +24,7 @@ function render() {
         <span class="gear-icon big">${ITEM_ICONS[r.id]}</span>
         <div class="gear-body">
           <strong>${esc(it.name)}</strong>
-          <span class="hint">${it.kind === 'arms' ? 'For you' : 'For dinosaurs'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · ${esc(it.desc)}</span>
+          <span class="hint">${it.kind === 'arms' ? 'For you' : 'For dinosaurs'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · weight ${it.weight} · ${esc(it.desc)}</span>
           ${modsHTML(it.mods)}
           <ul class="needs">${parts.map(p => `<li class="${p.have >= p.n ? 'got' : 'short'}"><span class="mini">${ITEM_ICONS[p.id]}</span>${p.have}/${p.n} ${esc(p.n === 1 ? ITEMS[p.id].name : ITEMS[p.id].plural)}</li>`).join('')}</ul>
         </div>

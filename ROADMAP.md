@@ -65,6 +65,13 @@ Signed-in players can no longer change their own coins or items: the server deci
 - [x] Equipment: items in slots (head, neck, body, back) with fixed bonuses, bought with coins; only adults wear it (pieces for babies and juveniles may come later)
 - [x] Equipment drawn over the sprite (layers, anchors per sprite, anchor editor); [ ] hand-drawn art for each piece
 - [ ] Equipment rarities (Normal, Magic, Rare, Legendary) with rolled bonuses, and where items drop
+
+### Horizontal-ish progression (decided): big species stay stronger, but numbers, preparation and the right match-up can win
+- [x] Equipment weight: every piece weighs something, each species carries by size (tiny to huge) plus strength; nothing past capacity, and a load over half of it costs up to 20% agility
+- [ ] Teams on expeditions (up to 5 dinosaurs, maybe with the player) and pack bonuses (e.g. 3+ Compsognathus)
+- [ ] Body parts: each species and creature has regions to attack and defend (Triceratops: head armored and reflects, body normal, neck weak for double damage); training improves aim
+- [ ] One ability per species, added one by one
+- [ ] Dinopedia: species and creature pages; learning a creature's weak spots helps your dinosaurs aim
 - [x] Combat system using the derived stats (expedition fights; see World map)
 
 ### World map (open world, idle first)

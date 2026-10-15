@@ -2,7 +2,7 @@
 // Pick a hex, pick a dinosaur, send it; when it comes back, collect what it found.
 import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, stageOf, isHungry, countItem, isArms, statSheet } from '../economy.js';
+import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, tripMins, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, explorerOf,
@@ -12,7 +12,7 @@ import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { ITEM_ICONS, playerArt } from '../art.js';
-import { modsHTML } from './stats.js';
+import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 
@@ -169,7 +169,10 @@ function youHTML(t) {
       <span class="gear-slot-name">${slotName}</span>
       <div class="gear-worn">${worn ? `<span class="gear-icon">${ITEM_ICONS[worn]}</span><span><strong>${esc(ITEMS[worn].name)}</strong>${modsHTML(ITEMS[worn].mods)}</span>` : '<span class="hint">Empty</span>'}</div>
       <div class="gear-actions">
-        ${!away && options.length ? `<select data-arms-slot="${slot}" aria-label="Choose ${slotName.toLowerCase()}">${options.map(({ x, i }) => `<option value="${i}">${esc(ITEMS[x.id].name)}</option>`).join('')}</select>
+        ${!away && options.length ? `<select data-arms-slot="${slot}" aria-label="Choose ${slotName.toLowerCase()}">${options.map(({ x, i }) => {
+          const over = carriedWeight(p) - itemWeight(worn) + itemWeight(x.id) > carryCapacity(p);
+          return `<option value="${i}">${esc(ITEMS[x.id].name)} · weight ${itemWeight(x.id)}${over ? ' · too heavy' : ''}</option>`;
+        }).join('')}</select>
           <button class="ghost" type="button" data-arms="${slot}">${worn ? 'Swap' : 'Wear'}</button>` : ''}
         ${!away && worn ? `<button class="ghost" type="button" data-arms-off="${slot}">Take off</button>` : ''}
       </div>
@@ -179,6 +182,7 @@ function youHTML(t) {
       <div><h3>${esc(p.name)}</h3>
       <p class="hint">Power ${sheet.power} · Health ${d.hp} · Damage ${d.damage} · Dodge ${Math.round(d.dodge * 100)}% · Armor ${Math.round(d.reduction * 100)}%</p>
       <p class="hint">${away ? 'Out exploring.' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'You can explore on foot, anywhere, and never get hungry.'}</p></div></div>
+    ${loadHTML(p)}
     <ul class="gear-slots">${rows}</ul>
     <p class="hint">Weapons and armor are sold in the Shop and made in the Forge. They can't be changed while you're away.</p>`;
 }
@@ -207,7 +211,7 @@ function render() {
   box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {
     const index = +box.querySelector(`select[data-arms-slot="${btn.dataset.arms}"]`).value;
     const r = act('equipArms', { index });
-    message = r.ok ? '' : r.reason === 'away' ? 'You are away.' : 'That could not be worn.';
+    message = r.ok ? '' : r.reason === 'away' ? 'You are away.' : r.reason === 'too-heavy' ? 'Too heavy: that would be more than you can carry.' : 'That could not be worn.';
     render();
   }));
   box.querySelectorAll('[data-arms-off]').forEach(btn => btn.addEventListener('click', () => {
