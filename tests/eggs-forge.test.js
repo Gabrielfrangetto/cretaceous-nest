@@ -76,3 +76,11 @@ test('a new game starts by picking one of four starter babies, once', () => {
   const old = game(); delete old.starter; old.saveVersion = 8;
   assert.equal(migrate(old).starter, true);
 });
+
+test('each starter is led by a different stat: two meat eaters (STR, AGI), two plant eaters (RES, VIT)', async () => {
+  const { SPECIES_BASE } = await import('../js/config.js');
+  const top = t => Object.entries(SPECIES_BASE[t]).sort((a, b) => b[1] - a[1])[0][0];
+  assert.deepEqual(STARTERS.map(t => [t, DIET[t], top(t)]), [
+    ['dilo', 'meat', 'str'], ['compy', 'meat', 'agi'], ['scelido', 'leaf', 'res'], ['psitta', 'leaf', 'vit'],
+  ]);
+});

@@ -1,24 +1,36 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
 
 export const SPECIES = {
-  // starters: small, simple species a new player picks from (two meat eaters, two plant eaters)
+  // starters: small, simple species a new player picks from, each led by one stat: Dilophosaurus
+  // (strength) and Compsognathus (agility) eat meat, Scelidosaurus (resistance) and Psittacosaurus
+  // (vitality) eat plants
+  dilo: {
+    egg: 'Crested Egg', species: 'Dilophosaurus', build: 'theropod', mins: 3, rarity: 'Starter',
+    shell: '#e9dccb', mark: '#9a3f2c', pattern: 'speckle', body: '#b5603e', acc: '#e3b53a',
+    nick: 'Crest', fact: 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.',
+  },
+  scelido: {
+    egg: 'Knobbly Egg', species: 'Scelidosaurus', build: 'ceratopsian', mins: 3, rarity: 'Starter',
+    shell: '#d8d2bf', mark: '#5d6b4a', pattern: 'spots', body: '#7d8a5c', acc: '#c9b27a',
+    nick: 'Knobs', fact: 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.',
+  },
   compy: {
-    egg: 'Tiny Egg', species: 'Compsognathus', build: 'theropod', mins: 2, rarity: 'Starter',
+    egg: 'Tiny Egg', species: 'Compsognathus', build: 'theropod', mins: 3, rarity: 'Starter',
     shell: '#e6e1cf', mark: '#7d8a5a', pattern: 'speckle', body: '#8aa05a', acc: '#d7b847',
     nick: 'Pip', fact: 'Compsognathus was about the size of a chicken and hunted lizards and insects.',
   },
   coelo: {
-    egg: 'Banded Egg', species: 'Coelophysis', build: 'theropod', mins: 3, rarity: 'Starter',
+    egg: 'Banded Egg', species: 'Coelophysis', build: 'theropod', mins: 3, rarity: 'Common',
     shell: '#efd9c8', mark: '#a4553b', pattern: 'stripes', body: '#c27a52', acc: '#4a4640',
     nick: 'Dash', fact: 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.',
   },
   psitta: {
-    egg: 'Pebble Egg', species: 'Psittacosaurus', build: 'ceratopsian', mins: 2, rarity: 'Starter',
+    egg: 'Pebble Egg', species: 'Psittacosaurus', build: 'ceratopsian', mins: 3, rarity: 'Starter',
     shell: '#e3dcc4', mark: '#6d6a4a', pattern: 'spots', body: '#b59a5e', acc: '#7a5a33',
     nick: 'Beaky', fact: 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.',
   },
   hypsi: {
-    egg: 'Mossy Egg', species: 'Hypsilophodon', build: 'hadrosaur', mins: 3, rarity: 'Starter',
+    egg: 'Mossy Egg', species: 'Hypsilophodon', build: 'hadrosaur', mins: 3, rarity: 'Common',
     shell: '#d9e3c6', mark: '#4f7a4a', pattern: 'stripes', body: '#6f9b6a', acc: '#c9d38a',
     nick: 'Hop', fact: 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.',
   },
@@ -43,8 +55,8 @@ export const SPECIES = {
     nick: 'Rex', fact: 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.',
   },
 };
-export const ORDER = ['compy', 'coelo', 'psitta', 'hypsi', 'proto', 'hypa', 'raptor', 'rex'];
-export const STARTERS = ['compy', 'coelo', 'psitta', 'hypsi'];
+export const ORDER = ['dilo', 'compy', 'scelido', 'psitta', 'coelo', 'hypsi', 'proto', 'hypa', 'raptor', 'rex'];
+export const STARTERS = ['dilo', 'compy', 'scelido', 'psitta'];
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
 export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian' };
@@ -146,7 +158,7 @@ export const OUTFITS = {};
 export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 
 // Feeding
-export const DIET = { compy: 'meat', coelo: 'meat', psitta: 'leaf', hypsi: 'leaf', proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
+export const DIET = { dilo: 'meat', scelido: 'leaf', compy: 'meat', coelo: 'meat', psitta: 'leaf', hypsi: 'leaf', proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 
@@ -162,10 +174,10 @@ export const LOOT_PER_HEX = 0.25;            // each hex of distance past the fi
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
 // creature: the wild animal met there (CREATURES); eggs: the species whose eggs can be found there
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['compy', 'coelo', 'psitta', 'hypsi'], loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['raptor', 'coelo', 'hypsi'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['dilo', 'compy', 'scelido', 'psitta'], loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['raptor', 'coelo', 'hypsi', 'dilo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
   swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', eggs: ['hypa', 'psitta'], loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['proto', 'compy'], loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['proto', 'scelido', 'compy'], loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', eggs: ['rex', 'raptor'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
@@ -247,10 +259,10 @@ export const GUIDE = {
     tab: 'incubator', side: 'left', spot: '#stage',
     pages: [
       'Here they are: the four little dinosaurs every new keeper can start with. Two of them eat plants and two eat meat, and each one has a personality of its own.',
-      { focus: '[data-type="psitta"], [data-type="hypsi"]',
-        text: 'These two are our plant eaters, Psittacosaurus and Hypsilophodon. They love ferns and leaves, and most of them are gentle souls. Still, a scared plant eater can kick or nip, so always handle them with care!' },
-      { focus: '[data-type="compy"], [data-type="coelo"]',
-        text: 'And these two are the meat eaters, Compsognathus and Coelophysis. Nothing makes them happier than a good piece of meat. Some of them are real loners, so give them space and be careful: those little teeth are sharp!' },
+      { focus: '[data-type="scelido"], [data-type="psitta"]',
+        text: 'These two are our plant eaters. They love ferns and leaves, and most of them are gentle souls. Scelidosaurus wears bony armor on its back, and Psittacosaurus is as sturdy as they come. Still, a scared plant eater can kick or nip, so always handle them with care!' },
+      { focus: '[data-type="dilo"], [data-type="compy"]',
+        text: 'And these two are the meat eaters. Nothing makes them happier than a good piece of meat. Dilophosaurus hits the hardest, and little Compsognathus is the quickest of them all. Some of them are real loners, so give them space and be careful: those teeth are sharp!' },
       "All four are healthy and ready for a keeper. If you want to explore the world out there, choose one to help you: it's a wild, hostile place, and nobody should face it alone.",
     ],
     done: "I'll choose!",
@@ -267,8 +279,8 @@ export const STAGES = [
 
 // Rewards and prices (coins)
 export const FEED_COINS = 5;
-export const HATCH_COINS = { compy: 8, coelo: 8, psitta: 8, hypsi: 8, proto: 10, hypa: 25, raptor: 60, rex: 150 };
-export const HATCH_LOOT = { compy: 'shell', coelo: 'shell', psitta: 'shell', hypsi: 'shell', proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
+export const HATCH_COINS = { dilo: 8, scelido: 8, compy: 8, coelo: 8, psitta: 8, hypsi: 8, proto: 10, hypa: 25, raptor: 60, rex: 150 };
+export const HATCH_LOOT = { dilo: 'shell', scelido: 'shell', compy: 'shell', coelo: 'shell', psitta: 'shell', hypsi: 'shell', proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
 // food costs less than a meal pays, so feeding always comes out ahead
 export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
@@ -318,10 +330,12 @@ export const GENE_GRADES = [[90, 'S'], [75, 'A'], [55, 'B'], [35, 'C'], [0, 'D']
 
 // Each species' stats with perfect genes. Rarer species have a higher total.
 export const SPECIES_BASE = {
-  compy:  { str: 45, agi: 80, vit: 35, res: 30 },   // 190
-  coelo:  { str: 55, agi: 65, vit: 45, res: 35 },   // 200
-  psitta: { str: 35, agi: 40, vit: 60, res: 65 },   // 200
-  hypsi:  { str: 30, agi: 75, vit: 50, res: 40 },   // 195
+  dilo:    { str: 75, agi: 50, vit: 40, res: 35 },   // 200, strength
+  compy:   { str: 40, agi: 85, vit: 40, res: 35 },   // 200, agility
+  scelido: { str: 30, agi: 30, vit: 55, res: 85 },   // 200, resistance
+  psitta:  { str: 35, agi: 35, vit: 80, res: 50 },   // 200, vitality
+  coelo:   { str: 55, agi: 65, vit: 45, res: 35 },   // 200
+  hypsi:   { str: 30, agi: 75, vit: 50, res: 40 },   // 195
   proto:  { str: 50, agi: 40, vit: 60, res: 85 },   // 235
   hypa:   { str: 45, agi: 50, vit: 85, res: 65 },   // 245
   raptor: { str: 60, agi: 95, vit: 55, res: 50 },   // 260
@@ -336,6 +350,6 @@ export const DERIVED = { hpBase: 50, hpPerVit: 10, damagePerStr: 1.5, dodgeHalfA
 
 // Breeding: a male and a female of the same species lay an egg of that species. Each gene of the
 // baby lands between its parents' genes, plus a small random change, so good pairs make better babies.
-export const BREED_MINS = { compy: 4, coelo: 4, psitta: 4, hypsi: 4, proto: 5, hypa: 15, raptor: 30, rex: 90 };
+export const BREED_MINS = { dilo: 4, scelido: 4, compy: 4, coelo: 4, psitta: 4, hypsi: 4, proto: 5, hypa: 15, raptor: 30, rex: 90 };
 export const BREED_GENE_CHANGE = [-2, 5];
 export const EGG_TRAY_SIZE = 10;

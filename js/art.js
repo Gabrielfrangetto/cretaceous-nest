@@ -193,6 +193,8 @@ const BASE = [
   '.....#######....', '......##.##.....', '......#..#......', '......##.##.....',
 ];
 const EXTRA = {
+  dilo:    [[0,10],[0,12],[1,9],[1,11],[6,2],[7,3]],
+  scelido: [[4,8],[5,8],[5,10],[6,7],[6,9],[6,11],[7,6],[7,8],[7,10]],
   compy:  [[0,11],[1,9],[6,2],[7,3]],
   coelo:  [[0,10],[0,12],[1,9],[6,1],[6,2],[7,2]],
   psitta: [[0,9],[1,8],[2,8],[4,15]],
@@ -204,6 +206,8 @@ const EXTRA = {
 };
 // males only: extra feathers, horns, crests and stripes in a second, brighter color ('b')
 const MALE_EXTRA = {
+  dilo:    [[0,11],[0,13],[1,10],[5,8]],
+  scelido: [[4,10],[5,6],[5,12],[3,8]],
   compy:  [[0,12],[5,8],[6,3]],
   coelo:  [[0,11],[0,13],[5,2],[8,4]],
   psitta: [[0,8],[1,7],[5,1],[6,1]],
@@ -213,7 +217,7 @@ const MALE_EXTRA = {
   raptor: [[0,12],[0,10],[5,8],[5,2],[6,1],[6,13],[7,13]],
   rex:    [[0,11],[0,12],[6,9],[9,6],[1,9]],
 };
-const MALE_COLOR = { compy: '#e46a3a', coelo: '#e3c13a', psitta: '#d9503a', hypsi: '#3aa0c9', proto: '#f2cf45', hypa: '#d9503a', raptor: '#36b5a5', rex: '#f08a46' };
+const MALE_COLOR = { dilo: '#e2b33a', scelido: '#c9573a', compy: '#e46a3a', coelo: '#e3c13a', psitta: '#d9503a', hypsi: '#3aa0c9', proto: '#f2cf45', hypa: '#d9503a', raptor: '#36b5a5', rex: '#f08a46' };
 
 function babyGrid(type, sex) {
   const g = BASE.map(r => r.split(''));

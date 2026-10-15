@@ -25,7 +25,7 @@ export const ANCHORS = {
   },
 };
 // species without anchors of their own yet start from a similar body
-for (const [type, like] of [['compy', 'raptor'], ['coelo', 'raptor'], ['psitta', 'proto'], ['hypsi', 'hypa']]) {
+for (const [type, like] of [['dilo', 'raptor'], ['scelido', 'proto'], ['compy', 'raptor'], ['coelo', 'raptor'], ['psitta', 'proto'], ['hypsi', 'hypa']]) {
   if (!ANCHORS[type]) ANCHORS[type] = JSON.parse(JSON.stringify({ m: ANCHORS[like].m, f: ANCHORS[like].f }));
 }
 
