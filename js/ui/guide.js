@@ -13,6 +13,8 @@ import { setTab } from './tabs.js';
 const pop = document.getElementById('guidePop');
 const bubble = document.getElementById('guideBubble');
 const who = document.getElementById('guideChar');
+// the game fades behind the guide while she talks
+const shade = document.getElementById('guideShade');
 let showing = null, page = 0, timer = null;
 
 const playing = () => devMode() || inGame();
@@ -21,6 +23,7 @@ const unseen = id => S.tutorial && !S.tutorial.seen.includes(id);
 function close(finished) {
   const id = showing;
   pop.hidden = true;
+  shade.hidden = true;
   showing = null;
   if (!id) return;
   act('seeGuide', { id });
@@ -53,6 +56,7 @@ export function showGuide(id) {
   who.appendChild(guideArt(180));
   render();
   pop.hidden = false;
+  shade.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 }
 

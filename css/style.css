@@ -586,3 +586,7 @@ body.on-landing > .site-footer { display: none; }
   .guide-bubble { width: min(320px, calc(100vw - 32px)); margin-bottom: 0; }
   .guide-char svg { height: 140px !important; }
 }
+
+.guide-shade { position: fixed; inset: 0; z-index: 890; background: rgba(20, 24, 18, .55); backdrop-filter: blur(1.5px); animation: shade-in .35s ease-out both; }
+@keyframes shade-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .guide-shade { animation: none; } }
