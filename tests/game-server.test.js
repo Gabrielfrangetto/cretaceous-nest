@@ -8,6 +8,17 @@ import { HATCH_COINS, FEED_COINS } from '../js/config.js';
 
 const MIN = 60000;
 
+// eggs only come from expeditions and breeding, so the saved game gets a Protoceratops egg in its
+// tray first, then the incubator is started with it
+async function startProtoEgg(store, c) {
+  const s = freshState();
+  s.starter = true;
+  s.eggs = [{ id: 'e1', type: 'proto', genes: { str: 30, agi: 30, vit: 30, res: 30 }, gen: 1, parents: [], laidAt: 0 }];
+  store.rows.set('u1', { data: s, revision: 1 });
+  const res = await call(store, { action: 'startEgg', args: { eggId: 'e1' } }, c);
+  assert.equal(res.ok, true, res.reason);
+}
+
 // an in-memory stand-in for the saves table and the write_save database function
 function memoryStore() {
   const rows = new Map(), ledger = [];
@@ -59,7 +70,7 @@ test('claiming a guest save applies the limits, and a second claim does not over
 
 test("the server's clock decides when an egg hatches, not the browser's", async () => {
   const store = memoryStore(), c = clock(1000);
-  await call(store, { action: 'startEgg', args: { type: 'proto' } }, c);
+  await startProtoEgg(store, c);
   c.advance(30 * 1000);
   const early = await call(store, { action: 'hatch' }, c);
   assert.equal(early.ok, false);
@@ -85,7 +96,7 @@ test('a rejected action changes nothing and returns the real state', async () =>
 
 test('feeding is logged as food spent and coins earned', async () => {
   const store = memoryStore(), c = clock(0);
-  await call(store, { action: 'startEgg', args: { type: 'proto' } }, c);
+  await startProtoEgg(store, c);
   c.advance(MIN);
   const { result } = await call(store, { action: 'hatch' }, c);
   c.advance(10 * MIN);
@@ -96,7 +107,7 @@ test('feeding is logged as food spent and coins earned', async () => {
 
 test('taps on the egg arrive in batches and still stop at half the hatch time', async () => {
   const store = memoryStore(), c = clock(0);
-  await call(store, { action: 'startEgg', args: { type: 'proto' } }, c);
+  await startProtoEgg(store, c);
   const res = await call(store, { action: 'warmEgg', args: { taps: 500 } }, c);
   assert.equal(res.result.saved, 30);
   assert.equal(res.state.current.bonus, 30 * 1000);

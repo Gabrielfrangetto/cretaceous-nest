@@ -2,14 +2,13 @@
 // Like economy.js these only work on the state passed in, so the browser and the server share them.
 //
 // Hexes use axial coordinates (q, r) with the nest at 0,0, and are stored as "q,r" keys.
-// s.world = { seed, revealed: [key], visited: [key], trips, expeditions: [{ id, babyId, hex, trip, startedAt, returnAt }],
-//             offers: [{ id, creature, type, sex, genes, lair, dist, at }] }   (creatures waiting to be tamed)
+// s.world = { seed, revealed: [key], visited: [key], trips, expeditions: [{ id, babyId, hex, trip, startedAt, returnAt }] }
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
-  TAME_CHANCE, TAME_FOOD, TAME_OFFERS, TAME_GENES, DIET, STATS, SPECIES, STAGES,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS,
 } from './config.js';
-import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand, suggestName } from './economy.js';
+import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, creatureFighter, fight } from './combat.js';
 import { hashId } from './util.js';
 
@@ -86,7 +85,7 @@ export function threatAt(seed, h) {
 
 export function newWorld(seed) {
   const home = [0, 0];
-  return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [], offers: [] };
+  return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [] };
 }
 
 // a seed for saves made before the world existed: taken from the save itself, so the browser and
@@ -196,7 +195,7 @@ export function collectExpedition(s, id, now) {
   }
   const won = !battle || battle.win;
 
-  let coins = 0, discovered = false;
+  let coins = 0, discovered = false, foundEgg = null;
   if (won) {
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, roll(l));
     if (battle) {
@@ -208,14 +207,18 @@ export function collectExpedition(s, id, now) {
         const gear = Object.keys(ITEMS).filter(id => ITEMS[id].kind === 'gear' && ITEMS[id].price);
         give(gear[Math.floor(rand() * gear.length)], 1);
       }
-      // a beaten creature of one of our species may give up and follow the explorer home
-      const type = CREATURES[battle.creature].tame;
-      if (type && fightRand() < TAME_CHANCE(battle.lair)) {
-        const [lo, hi] = TAME_GENES(d, battle.lair);
-        const genes = Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(fightRand() * (hi - lo + 1))]));
-        battle.offer = { id: `o${exp.trip}`, creature: battle.creature, type, sex: fightRand() < 0.5 ? 'm' : 'f', genes, lair: battle.lair, dist: d, at: now };
-        w.offers = [...(w.offers || []), battle.offer].slice(-TAME_OFFERS);
-      }
+    }
+    // an egg of one of the biome's species, for the egg tray
+    if (rand() < EGG_CHANCE(d, !!(battle && battle.lair))) {
+      const kinds = BIOMES[biomeAt(w.seed, h)].eggs;
+      const [lo, hi] = EGG_GENES(d, !!(battle && battle.lair));
+      const egg = {
+        id: `egg-${w.seed}-${exp.trip}`, type: kinds[Math.floor(rand() * kinds.length)], gen: 1, parents: [], laidAt: now,
+        genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
+      };
+      s.eggs = s.eggs || [];
+      if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); foundEgg = egg; }
+      else foundEgg = { ...egg, lost: true };
     }
     discovered = !w.visited.includes(exp.hex);
     if (discovered) { coins += d * DISCOVERY_COINS_PER_HEX; w.visited.push(exp.hex); }
@@ -226,32 +229,7 @@ export function collectExpedition(s, id, now) {
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
   if (b) b.lastFed = now - hungerEvery(b);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length, battle };
-}
-
-// ---------- taming ----------
-// the creature joins the nest as an adult, paid for with meals of its diet
-export function tameOffer(s, offerId, now) {
-  const w = W(s);
-  const o = (w.offers || []).find(x => x.id === offerId);
-  if (!o) return { ok: false, reason: 'no-offer' };
-  const food = DIET[o.type];
-  if (countItem(s, food) < TAME_FOOD) return { ok: false, reason: 'no-food', food };
-  removeItem(s, food, TAME_FOOD);
-  w.offers = w.offers.filter(x => x.id !== offerId);
-  const baby = {
-    id: `tamed-${w.seed}-${o.id}`, type: o.type, sex: o.sex, name: suggestName(s, o.type), at: now, gen: 1, genes: { ...o.genes },
-    fed: STAGES[STAGES.length - 1].meals, lastFed: now, equip: {}, tamed: true,
-  };
-  s.hatched.unshift(baby);
-  return { ok: true, baby };
-}
-
-export function releaseOffer(s, offerId) {
-  const w = W(s);
-  if (!(w.offers || []).some(x => x.id === offerId)) return { ok: false, reason: 'no-offer' };
-  w.offers = w.offers.filter(x => x.id !== offerId);
-  return { ok: true };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length, battle, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it
@@ -266,18 +244,6 @@ export function cleanWorld(world, s) {
     revealed: keys([...home.revealed, ...keys(w.revealed)]),
     visited: keys([...home.visited, ...keys(w.visited)]),
     trips: Math.max(0, Math.floor(Number(w.trips) || 0)),
-    offers: (Array.isArray(w.offers) ? w.offers : [])
-      .filter(o => o && SPECIES[o.type] && CREATURES[o.creature] && CREATURES[o.creature].tame === o.type && o.genes)
-      .slice(-TAME_OFFERS)
-      .map(o => ({
-        id: String(o.id), creature: o.creature, type: o.type, sex: o.sex === 'm' ? 'm' : 'f', lair: !!o.lair,
-        dist: Math.max(1, Math.min(WORLD_RADIUS, Math.floor(Number(o.dist) || 1))), at: Number(o.at) || 0,
-        // never better than that creature could have had
-        genes: Object.fromEntries(STATS.map(({ id: st }) => {
-          const [lo, hi] = TAME_GENES(Math.max(1, Math.min(WORLD_RADIUS, Math.floor(Number(o.dist) || 1))), !!o.lair);
-          return [st, Math.max(lo, Math.min(hi, Math.floor(Number(o.genes[st]) || lo)))];
-        })),
-      })),
     expeditions: (Array.isArray(w.expeditions) ? w.expeditions : [])
       .filter(e => e && ids.has(e.babyId) && !seen.has(e.babyId) && seen.add(e.babyId) && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0)
       .slice(0, EXPEDITION_SLOTS)

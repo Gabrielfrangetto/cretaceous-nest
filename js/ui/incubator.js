@@ -1,7 +1,8 @@
-// Incubator tab: pick an egg, warm it, hatch it and name the baby.
-import { SPECIES, ORDER, SEX, ITEMS } from '../config.js';
+// Incubator tab: a new game's starter pick, then hatching the eggs you own (found on expeditions or
+// laid by breeding pairs): warm it, hatch it and name the baby.
+import { SPECIES, STARTERS, DIET, SEX, ITEMS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { eggProgress } from '../economy.js';
+import { eggProgress, starterBaby } from '../economy.js';
 import { act, hatch as hatchEgg } from '../actions.js';
 import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
@@ -25,26 +26,44 @@ function render() {
 }
 
 function renderChooser() {
-  stage.innerHTML = `
-    <div><h2>Pick an egg to hatch</h2>
-    <p class="sub">Every egg hides a species. The rarer the egg, the longer it takes to hatch.</p></div>
-    <div class="eggs">${ORDER.map(k => {
-      const sp = SPECIES[k];
-      return `<button class="egg-card" type="button" data-k="${k}">
-        ${eggSVG(sp)}<strong>${sp.egg}</strong><span>Hatches in ${minsLabel(sp.mins)}</span>
-        <span class="rarity">${sp.rarity}</span></button>`;
-    }).join('')}</div>
-    ${(S.eggs || []).length ? `<div><h2>Your eggs</h2>
-      <p class="sub">Laid by your breeding pairs. The baby inherits these genes.</p></div>
-      <div class="eggs">${S.eggs.map(e => {
-        const sp = SPECIES[e.type];
-        return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
-          ${eggSVG(sp)}<strong>${sp.species}</strong><span>Gen ${e.gen} · ${powerText(e)} · ${genesText(e.genes)}</span>
-          <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e, { compact: true })}</button>`;
-      }).join('')}</div>` : ''}`;
+  if (!S.starter) { renderStarters(); return; }
+  const eggs = S.eggs || [];
+  if (!eggs.length) {
+    stage.innerHTML = `<div><h2>No eggs yet</h2>
+      <p class="sub">Eggs are found on expeditions: send a dinosaur into the World and it may bring one home. Adult pairs can also lay eggs in the Nest.</p></div>
+      <div class="row"><button class="btn" type="button" id="goWorld">Go to the World</button></div>`;
+    document.getElementById('goWorld').addEventListener('click', () => setTab('world'));
+    return;
+  }
+  stage.innerHTML = `<div><h2>Pick an egg to hatch</h2>
+    <p class="sub">Found on expeditions or laid by your breeding pairs. The baby inherits the egg's genes.</p></div>
+    <div class="eggs">${eggs.map(e => {
+      const sp = SPECIES[e.type];
+      return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
+        ${eggSVG(sp)}<strong>${sp.species}</strong><span>${sp.rarity} · Gen ${e.gen} · ${genesText(e.genes)}</span>
+        <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e, { compact: true })}</button>`;
+    }).join('')}</div>`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {
-    const args = b.dataset.egg ? { eggId: b.dataset.egg } : { type: b.dataset.k };
-    if (act('startEgg', args).ok) render();
+    if (act('startEgg', { eggId: b.dataset.egg }).ok) render();
+  }));
+}
+
+// a brand-new game: pick the first baby from four small, simple species
+function renderStarters() {
+  stage.innerHTML = `<div><h2>Choose your first dinosaur</h2>
+    <p class="sub">Every keeper starts with one baby. Meat eaters are quick and strong; plant eaters are tough. More species hatch from eggs your explorers find.</p></div>
+    <div class="eggs starters">${STARTERS.map(type => {
+      const sp = SPECIES[type], b = starterBaby(S, type);
+      return `<button class="egg-card starter" type="button" data-type="${type}">
+        <span class="starter-art" data-art="${type}"></span>
+        <strong>${sp.species} ${SEX[b.sex].sym}</strong>
+        <span>${DIET[type] === 'meat' ? 'Meat eater' : 'Plant eater'} · ${genesText(b.genes)}</span>
+        ${statsHTML(b, { compact: true })}</button>`;
+    }).join('')}</div>`;
+  for (const type of STARTERS) stage.querySelector(`[data-art="${type}"]`).appendChild(babyArt(type, 5, starterBaby(S, type).sex));
+  stage.querySelectorAll('.egg-card.starter').forEach(btn => btn.addEventListener('click', () => {
+    const r = act('pickStarter', { type: btn.dataset.type });
+    if (r.ok) setTab('nest');
   }));
 }
 

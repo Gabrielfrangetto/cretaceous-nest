@@ -1,6 +1,27 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
 
 export const SPECIES = {
+  // starters: small, simple species a new player picks from (two meat eaters, two plant eaters)
+  compy: {
+    egg: 'Tiny Egg', species: 'Compsognathus', build: 'theropod', mins: 2, rarity: 'Starter',
+    shell: '#e6e1cf', mark: '#7d8a5a', pattern: 'speckle', body: '#8aa05a', acc: '#d7b847',
+    nick: 'Pip', fact: 'Compsognathus was about the size of a chicken and hunted lizards and insects.',
+  },
+  coelo: {
+    egg: 'Banded Egg', species: 'Coelophysis', build: 'theropod', mins: 3, rarity: 'Starter',
+    shell: '#efd9c8', mark: '#a4553b', pattern: 'stripes', body: '#c27a52', acc: '#4a4640',
+    nick: 'Dash', fact: 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.',
+  },
+  psitta: {
+    egg: 'Pebble Egg', species: 'Psittacosaurus', build: 'ceratopsian', mins: 2, rarity: 'Starter',
+    shell: '#e3dcc4', mark: '#6d6a4a', pattern: 'spots', body: '#b59a5e', acc: '#7a5a33',
+    nick: 'Beaky', fact: 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.',
+  },
+  hypsi: {
+    egg: 'Mossy Egg', species: 'Hypsilophodon', build: 'hadrosaur', mins: 3, rarity: 'Starter',
+    shell: '#d9e3c6', mark: '#4f7a4a', pattern: 'stripes', body: '#6f9b6a', acc: '#c9d38a',
+    nick: 'Hop', fact: 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.',
+  },
   proto: {
     egg: 'Spotted Egg', species: 'Protoceratops', build: 'ceratopsian', mins: 1, rarity: 'Common',
     shell: '#eadcbf', mark: '#8b6a44', pattern: 'spots', body: '#c79d63', acc: '#d9662f',
@@ -22,7 +43,8 @@ export const SPECIES = {
     nick: 'Rex', fact: 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.',
   },
 };
-export const ORDER = ['proto', 'hypa', 'raptor', 'rex'];
+export const ORDER = ['compy', 'coelo', 'psitta', 'hypsi', 'proto', 'hypa', 'raptor', 'rex'];
+export const STARTERS = ['compy', 'coelo', 'psitta', 'hypsi'];
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
 export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian' };
@@ -100,7 +122,7 @@ export const OUTFITS = {};
 export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 
 // Feeding
-export const DIET = { proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
+export const DIET = { compy: 'meat', coelo: 'meat', psitta: 'leaf', hypsi: 'leaf', proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 
@@ -114,13 +136,13 @@ export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes 
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
-// creature: the wild animal met there (CREATURES)
+// creature: the wild animal met there (CREATURES); eggs: the species whose eggs can be found there
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
-  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
-  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['compy', 'coelo', 'psitta', 'hypsi'], loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['raptor', 'coelo', 'hypsi'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', eggs: ['hypa', 'psitta'], loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2], ['herb', 1, 1, 0.2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['proto', 'compy'], loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', eggs: ['rex', 'raptor'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
 // Wild creatures. stats are at full strength; a creature met d hexes from the nest has
@@ -128,10 +150,10 @@ export const BIOMES = {
 // art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
 export const CREATURES = {
   compy_pack:   { name: 'Compsognathus pack', look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, tame: 'raptor', loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
   deinosuchus:  { name: 'Deinosuchus', look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
-  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, tame: 'proto', loot: [['bone', 2, 3]] },
-  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, tame: 'rex', loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
+  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
 };
 export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
 export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
@@ -145,15 +167,12 @@ export const INJURY_MINS = 20;               // after losing a fight
 export const BRUISE_MINS = 10;               // a win that left it under half health: up to this many minutes
 export const HEAL_MINS = 10;                 // each Healing Herb heals this much sooner
 
-// Taming: after beating a creature that is one of our species (tame), it may give up (TAME_CHANCE,
-// more in a lair) and wait at the nest to be tamed with food. It joins as an adult with wild genes,
-// better the farther it was found, best from an Alpha.
-export const TAME_CHANCE = lair => lair ? 0.6 : 0.35;
-export const TAME_FOOD = 5;                  // meals of its diet to tame it
-export const TAME_OFFERS = 3;                // creatures waiting at most; a newer one sends the oldest away
-export const TAME_GENES = (d, lair) => {     // [min, max] genes
-  const lo = 15 + d * 5 + (lair ? 10 : 0);
-  return [Math.min(80, lo), Math.min(95, lo + 30)];
+// Eggs: a trip that comes home (no fight, or a won fight) may find an egg of one of the biome's
+// species. It goes to the egg tray; its genes are better the farther from the nest, best in a lair.
+export const EGG_CHANCE = (d, lair) => lair ? 0.35 : 0.1 + 0.02 * d;
+export const EGG_GENES = (d, lair) => {      // [min, max] genes
+  const lo = 10 + d * 4 + (lair ? 10 : 0);
+  return [Math.min(75, lo), Math.min(95, lo + 35)];
 };
 
 // The Forge: equipment made from materials. needs: { item: count }.
@@ -176,8 +195,8 @@ export const STAGES = [
 
 // Rewards and prices (coins)
 export const FEED_COINS = 5;
-export const HATCH_COINS = { proto: 10, hypa: 25, raptor: 60, rex: 150 };
-export const HATCH_LOOT = { proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
+export const HATCH_COINS = { compy: 8, coelo: 8, psitta: 8, hypsi: 8, proto: 10, hypa: 25, raptor: 60, rex: 150 };
+export const HATCH_LOOT = { compy: 'shell', coelo: 'shell', psitta: 'shell', hypsi: 'shell', proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
 // food costs less than a meal pays, so feeding always comes out ahead
 export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
@@ -222,11 +241,15 @@ export const STATS = [
   { id: 'res', name: 'Resistance', short: 'RES' },
 ];
 export const GENES_MAX = 100;
-export const WILD_GENES = [10, 50];           // babies from the incubator's free eggs
+export const WILD_GENES = [10, 50];           // starter babies (and eggs found next to the nest)
 export const GENE_GRADES = [[90, 'S'], [75, 'A'], [55, 'B'], [35, 'C'], [0, 'D']];
 
 // Each species' stats with perfect genes. Rarer species have a higher total.
 export const SPECIES_BASE = {
+  compy:  { str: 45, agi: 80, vit: 35, res: 30 },   // 190
+  coelo:  { str: 55, agi: 65, vit: 45, res: 35 },   // 200
+  psitta: { str: 35, agi: 40, vit: 60, res: 65 },   // 200
+  hypsi:  { str: 30, agi: 75, vit: 50, res: 40 },   // 195
   proto:  { str: 50, agi: 40, vit: 60, res: 85 },   // 235
   hypa:   { str: 45, agi: 50, vit: 85, res: 65 },   // 245
   raptor: { str: 60, agi: 95, vit: 55, res: 50 },   // 260
@@ -241,6 +264,6 @@ export const DERIVED = { hpBase: 50, hpPerVit: 10, damagePerStr: 1.5, dodgeHalfA
 
 // Breeding: a male and a female of the same species lay an egg of that species. Each gene of the
 // baby lands between its parents' genes, plus a small random change, so good pairs make better babies.
-export const BREED_MINS = { proto: 5, hypa: 15, raptor: 30, rex: 90 };
+export const BREED_MINS = { compy: 4, coelo: 4, psitta: 4, hypsi: 4, proto: 5, hypa: 15, raptor: 30, rex: 90 };
 export const BREED_GENE_CHANGE = [-2, 5];
 export const EGG_TRAY_SIZE = 10;

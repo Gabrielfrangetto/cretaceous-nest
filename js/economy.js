@@ -3,10 +3,10 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
-import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby, tameOffer, releaseOffer } from './world.js';
+import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -332,6 +332,23 @@ export function unequipGear(s, babyId, slot) {
   return { ok: true, item: id };
 }
 
+// ---------- starter ----------
+// A new game starts with no dinosaur: the player picks one of the starter babies. Each choice's sex
+// and genes come from the save's world seed, so the browser and the server offer the same babies.
+const starterRand = (s, type) => seededRand(`starter:${(s.world && s.world.seed) || 1}:${type}`);
+export function starterBaby(s, type) {
+  const rand = starterRand(s, type);
+  return { id: `starter-${(s.world && s.world.seed) || 1}`, type, sex: rand() < 0.5 ? 'm' : 'f', genes: wildGenes(rand), gen: 1 };
+}
+export function pickStarter(s, type, now) {
+  if (s.starter) return { ok: false, reason: 'picked' };
+  if (!STARTERS.includes(type)) return { ok: false, reason: 'unknown-species' };
+  const baby = { ...starterBaby(s, type), name: suggestName(s, type), at: now, equip: {} };
+  s.hatched.unshift(baby);
+  s.starter = true;
+  return { ok: true, baby };
+}
+
 // ---------- forge ----------
 export const recipeFor = id => RECIPES.find(r => r.id === id) || null;
 export function craftItem(s, id) {
@@ -486,19 +503,17 @@ const slotIndex = (s, i) => Number.isInteger(i) && i >= 0 && i < s.invSize;
 const MAX_TAPS_PER_REQUEST = 600;
 
 export const ACTIONS = {
-  // { type } starts a free egg; { eggId } starts a bred egg from the tray
-  startEgg(s, { type, eggId }, now) {
+  // { eggId } puts an egg from the tray in the incubator; eggs come from expeditions and breeding only
+  startEgg(s, { eggId }, now) {
     if (s.current) return fail('busy');
-    if (eggId) {
-      const egg = (s.eggs || []).find(e => e.id === eggId);
-      if (!egg) return fail('unknown-egg');
-      s.eggs = s.eggs.filter(e => e.id !== eggId);
-      startEgg(s, egg.type, now, egg);
-      return { ok: true };
-    }
-    if (!SPECIES[type]) return fail('unknown-egg');
-    startEgg(s, type, now);
+    const egg = (s.eggs || []).find(e => e.id === eggId);
+    if (!egg) return fail('unknown-egg');
+    s.eggs = s.eggs.filter(e => e.id !== eggId);
+    startEgg(s, egg.type, now, egg);
     return { ok: true };
+  },
+  pickStarter(s, { type }, now) {
+    return pickStarter(s, type, now);
   },
   startBreeding(s, { maleId, femaleId }, now) {
     return startBreeding(s, maleId, femaleId, now);
@@ -560,12 +575,6 @@ export const ACTIONS = {
   },
   heal(s, { babyId }, now) {
     return healBaby(s, babyId, now);
-  },
-  tame(s, { id }, now) {
-    return tameOffer(s, id, now);
-  },
-  release(s, { id }) {
-    return releaseOffer(s, id);
   },
   craft(s, { id }) {
     return craftItem(s, id);

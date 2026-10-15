@@ -1,6 +1,6 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, pick a dinosaur, send it; when it comes back, collect what it found.
-import { BIOMES, ITEMS, SEX, SPECIES, CREATURES, DIET, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, TAME_FOOD } from '../config.js';
+import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem } from '../economy.js';
 import {
@@ -11,8 +11,7 @@ import { fighterOf, winChance, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { ITEM_ICONS, babyArt } from '../art.js';
-import { genesHTML, genesText } from './stats.js';
+import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 
@@ -97,30 +96,6 @@ const healHTML = () => {
     <span class="hint">${herbs ? `−${HEAL_MINS} min each` : 'Find them in meadows and forests, or buy them in the Shop'}</span></div>`;
 };
 
-// beaten creatures that followed an explorer home and wait to be tamed
-function offersHTML() {
-  const list = S.world.offers || [];
-  if (!list.length) return '';
-  return `<section class="panel-box"><h3>Waiting at the nest</h3>
-    <p class="hint">Beaten creatures that followed your explorers home. Tame one with ${TAME_FOOD} meals of its food and it joins your nest as an adult.</p>
-    <ul class="offers">${list.map(o => {
-      const food = DIET[o.type], have = countItem(S, food);
-      return `<li class="offer" data-offer="${esc(o.id)}">
-        <div class="offer-art"></div>
-        <div class="offer-body">
-          <strong>${esc(SPECIES[o.type].species)} ${SEX[o.sex].sym}</strong>
-          <span class="hint">${o.lair ? 'Alpha ' : ''}${esc(CREATURES[o.creature].name)} · ${genesText(o.genes)}</span>
-          ${genesHTML(o.genes)}
-          <div class="row">
-            <button class="btn small" type="button" data-tame="${esc(o.id)}" ${have >= TAME_FOOD ? '' : 'disabled'}>Tame (${TAME_FOOD} ${esc(ITEMS[food].plural)})</button>
-            <button class="ghost" type="button" data-release="${esc(o.id)}">Let it go</button>
-          </div>
-          ${have < TAME_FOOD ? `<span class="hint warn-text">You have ${have} ${esc(itemName(food, have))}.</span>` : ''}
-        </div>
-      </li>`;
-    }).join('')}</ul></section>`;
-}
-
 function lootHTML(key) {
   if (!isRevealed(S, key)) return '<p class="hint">Unexplored. Send a dinosaur to find out what is there.</p>';
   return `<ul class="loot">${lootTable(S, key).map(l => `<li><span class="mini">${ITEM_ICONS[l.id]}</span>${l.min === l.max ? l.min : l.min + '–' + l.max} ${esc(itemName(l.id, l.max))}${l.chance < 1 ? ` <span class="hint">(${Math.round(l.chance * 100)}% chance)</span>` : ''}</li>`).join('')}</ul>`;
@@ -177,7 +152,6 @@ function render() {
       <div class="world-map-wrap">${mapSVG(t)}</div>
       <div class="world-side">
         <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>
-        ${offersHTML()}
         <section class="panel-box"><h3>Expeditions <span class="hint">${S.world.expeditions.length} / ${EXPEDITION_SLOTS}</span></h3>
           <div id="tripsBox">${tripsHTML(t)}</div>
           ${message ? `<p class="hint" role="status">${message}</p>` : ''}</section>
@@ -190,20 +164,6 @@ function render() {
   });
   const ex = document.getElementById('explorer');
   if (ex) ex.addEventListener('change', e => { explorerId = e.target.value; render(); });
-  for (const o of S.world.offers || []) {
-    const spot = box.querySelector(`[data-offer="${CSS.escape(o.id)}"] .offer-art`);
-    if (spot) spot.appendChild(babyArt(o.type, 4, o.sex));
-  }
-  box.querySelectorAll('[data-tame]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('tame', { id: btn.dataset.tame });
-    message = r.ok ? `${esc(r.baby.name)} the ${esc(SPECIES[r.baby.type].species)} joined your nest!` : 'Not enough food to tame it.';
-    render();
-  }));
-  box.querySelectorAll('[data-release]').forEach(btn => btn.addEventListener('click', () => {
-    act('release', { id: btn.dataset.release });
-    message = 'It went back to the wild.';
-    render();
-  }));
   const heal = document.getElementById('healBtn');
   if (heal) heal.addEventListener('click', () => {
     const r = act('heal', { babyId: explorerId });
@@ -234,7 +194,8 @@ function bindTrips(box) {
     if (r.coins) got.push(`${r.coins} coins`);
     const mapped = r.revealed ? ` ${plural(r.revealed, 'new hex', 'new hexes')} on the map.` : '';
     const hurt = r.battle && r.battle.injuredMins ? ` ${who} is injured for ${r.battle.injuredMins} min.` : '';
-    const follow = r.battle && r.battle.offer ? ` The beaten ${esc(SPECIES[r.battle.offer.type].species)} followed ${who} home: tame it under "Waiting at the nest".` : '';
+    const follow = !r.egg ? '' : r.egg.lost ? ` ${who} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
+      : ` ${who} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
     message = r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${hurt}${mapped}`
       : `${who} is back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${hurt}${follow}${mapped}`;
