@@ -652,3 +652,4 @@ body.guide-room { padding-bottom: 70vh; }
 .fighter.frenzy .fighter-name strong { color: #c0392b; }
 .hit.mad { color: #c0392b; font-size: 16px; top: -6%; }
 .fighter.fled { opacity: .45; filter: grayscale(.6); }
+.pack-full { color: var(--accent, #b97a14); font-weight: 700; }

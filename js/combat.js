@@ -9,10 +9,11 @@
 import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
-import { deriveCombat, statSheet, seededRand } from './economy.js';
+import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
 
-export function fighterOf(baby) {
-  const sheet = statSheet(baby);
+// extra: stat mods on top of its equipment, for the fight only (a full pack's bonus)
+export function fighterOf(baby, extra = []) {
+  const sheet = statSheet(baby, extra.length ? [...gearMods(baby), ...extra] : undefined);
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }

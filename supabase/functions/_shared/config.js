@@ -98,7 +98,7 @@ export const BODY = {
   dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, role: 'attacker', fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
-  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
+  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, role: 'attacker', fear: 'medium' },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
@@ -297,7 +297,9 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. In a fight a pack hits with all its members
 // (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
 // and every blow it takes can bring down at most one member.
-export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
+export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8 };
+// a species with fullPack: a pack of it at its limit gives every member this much more of every stat
+// (Coelophysis: hundreds were found together at Ghost Ranch)
 
 // Rivals (BODY rival: Allosaurus): every one for itself. With two or more of a rival species in a
 // team, each of them may turn on another one when it attacks (RIVAL_CLASH a time). Then all of them

@@ -22,6 +22,14 @@ const PROBLEMS = {
 const free = (type, pack = null) => S.hatched.filter(b => b.type === type && stageOf(b).id !== 'baby' && (!packOf(S, b.id) || (pack && packOf(S, b.id) === pack)));
 const label = b => `${esc(b.name)} ${SEX[sexOf(b)].sym} <span class="hint">${stageOf(b).name}${isAway(S, b.id) ? ' · away' : ''}</span>`;
 
+// a species whose full pack fights better says so, and how far this pack is from it
+function fullNote(type, n) {
+  const sp = SPECIES[type];
+  if (!sp.fullPack) return '';
+  const full = n >= PACK_LIMITS[type];
+  return `<p class="hint ${full ? 'pack-full' : ''}">${full ? 'Full pack' : `${PACK_LIMITS[type] - n} more for a full pack`}: every member gets +${Math.round(sp.fullPack * 100)}% to every stat in a fight.</p>`;
+}
+
 function picks(list, chosen, group) {
   return `<ul class="pack-picks">${list.map(b => `<li><label><input type="checkbox" data-group="${esc(group)}" value="${esc(b.id)}" ${chosen.includes(b.id) ? 'checked' : ''}> ${label(b)}</label></li>`).join('')}</ul>`;
 }
@@ -39,6 +47,7 @@ function render() {
     return `<div class="pack-card">
       <div class="pack-title"><input type="text" maxlength="24" value="${esc(p.name)}" data-pack-name="${esc(p.id)}" aria-label="Pack name" ${away ? 'disabled' : ''}>
         <span class="hint">${p.members.length} / ${PACK_LIMITS[p.type]} ${esc(SPECIES[p.type].species)}${away ? ' · out exploring' : ''}</span></div>
+      ${fullNote(p.type, p.members.length)}
       ${away ? '' : `${picks(free(p.type, p), p.members, p.id)}
       <div class="row"><button class="ghost" type="button" data-pack-save="${esc(p.id)}">Save changes</button>
         <button class="ghost" type="button" data-pack-off="${esc(p.id)}">Break up the pack</button></div>`}
@@ -46,6 +55,7 @@ function render() {
   }).join('');
   const forms = types.map(t => `<div class="pack-card new">
       <div class="pack-title"><strong>New ${esc(SPECIES[t].species)} pack</strong> <span class="hint">up to ${PACK_LIMITS[t]}</span></div>
+      ${fullNote(t, 0)}
       ${picks(free(t), [], 'new-' + t)}
       <div class="row"><input type="text" maxlength="24" placeholder="${esc(SPECIES[t].species)} pack" data-new-name="${t}" aria-label="Name of the new pack">
         <button class="btn small" type="button" data-pack-form="${t}">Form pack</button></div>

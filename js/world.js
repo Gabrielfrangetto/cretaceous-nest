@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -241,11 +241,18 @@ export function startExpedition(s, team, key, now) {
   return { ok: true, expedition: exp };
 }
 
+// a pack at its species' limit, of a species with fullPack, gets more of every stat
+export function fullPackMods(type, n) {
+  const sp = type && SPECIES[type];
+  return sp && sp.fullPack && n >= PACK_LIMITS[type] ? STATS.map(({ id }) => ({ stat: id, type: 'increased', value: sp.fullPack })) : [];
+}
+
 // the fighting side of a team: a unit per dinosaur, the player, or pack
 export function teamUnits(s, units) {
   return units.map(u => {
-    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(fighterOf);
     const pack = u.kind === 'pack' && (s.packs || []).find(p => p.id === u.id);
+    const bonus = fullPackMods(pack ? pack.type : null, u.members.length);
+    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(b => fighterOf(b, bonus));
     return unitOf(u.kind === 'pack' ? (pack ? pack.name : 'Pack') : (fighters[0] || { name: '?' }).name, fighters, u.kind === 'pack');
   }).filter(u => u.members.length);
 }

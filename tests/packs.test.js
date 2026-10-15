@@ -214,3 +214,14 @@ test('only a won fight that went into a frenzy drops Allosaurus teeth and blood,
   assert.ok(two.allo_blood > 0 && three.frenzyWins > 0);
   assert.ok(three.allo_blood / three.frenzyWins > two.allo_blood / two.frenzyWins, JSON.stringify({ two, three }));
 });
+
+test('a full Coelophysis pack (the biggest of all) fights with more of every stat', async () => {
+  const { fullPackMods } = await import('../js/world.js');
+  assert.equal(PACK_LIMITS.coelo, Math.max(...Object.values(PACK_LIMITS)));
+  assert.deepEqual(fullPackMods('coelo', PACK_LIMITS.coelo - 1), []);
+  assert.equal(fullPackMods('coelo', PACK_LIMITS.coelo).length, 4);
+  assert.deepEqual(fullPackMods('compy', PACK_LIMITS.compy), []);
+  const b = dino('c', 'coelo');
+  const plain = fighterOf(b), full = fighterOf(b, fullPackMods('coelo', PACK_LIMITS.coelo));
+  assert.ok(full.hp > plain.hp && full.damage > plain.damage && full.agi > plain.agi);
+});
