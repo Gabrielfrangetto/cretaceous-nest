@@ -251,7 +251,7 @@ export const GUIDE = {
         text: 'These two are our plant eaters, Psittacosaurus and Hypsilophodon. They love ferns and leaves, and most of them are gentle souls. Still, a scared plant eater can kick or nip, so always handle them with care!' },
       { focus: '[data-type="compy"], [data-type="coelo"]',
         text: 'And these two are the meat eaters, Compsognathus and Coelophysis. Nothing makes them happier than a good piece of meat. Some of them are real loners, so give them space and be careful: those little teeth are sharp!' },
-      'The bars under each baby are its genes: the longer the bar, the stronger it will grow. Now pick the one you like best!',
+      "All four are healthy and ready for a keeper. If you want to explore the world out there, choose one to help you: it's a wild, hostile place, and nobody should face it alone.",
     ],
     done: "I'll choose!",
   },
