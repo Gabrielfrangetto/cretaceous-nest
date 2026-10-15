@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -311,9 +311,11 @@ export function collectExpedition(s, id, now) {
       const critical = left <= 0 && id !== PLAYER_ID;
       // a leg lamed by a bone-breaking bite comes home injured at least
       const lame = result.lamed.some(([a, b]) => a === i && b === j);
-      const mins = critical ? CRITICAL_MINS : !result.win || left <= 0 || lame ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
+      let mins = critical ? CRITICAL_MINS : !result.win || left <= 0 || lame ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
       if (!mins) return;
       const b = explorerOf(s, id);
+      // a tough one (Dilophosaurus) heals in half the time
+      if (b.type && SPECIES[b.type].tough) mins = Math.max(1, Math.round(mins * TOUGH.heal));
       b.injuredUntil = now + mins * 60000;
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });

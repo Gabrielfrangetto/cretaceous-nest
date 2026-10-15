@@ -142,6 +142,10 @@ export function playFight(battle, summary, who) {
       foeHp[blow.member] = blow.left;
       setHp(foeBox, blow.foeLeft, battle.foeMax);
       foeBox.querySelector('.pack-left').textContent = foeNote();
+    } else if (blow.immune) {
+      // clinging to the foe's body, out of its reach
+      lunge(foeBox);
+      pop(boxes[blow.to], 'Out of reach!', 'miss');
     } else if (blow.blocked) {
       // the frill took it
       lunge(foeBox);
@@ -163,6 +167,7 @@ export function playFight(battle, summary, who) {
         else if (blow.lame) pop(box, 'Leg broken!', 'mad');
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(box, 'Armor!', 'mad');
+        else if (blow.tough) pop(box, 'Still standing!', 'mad');
         else if (blow.part === 'belly') pop(box, 'Belly!', 'mad');
         if (blow.also) pop(box, `×${blow.also.length + 1}`, 'mad');
         showUnit(blow.to);
@@ -179,7 +184,7 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      const move = blow.slash ? 'Slash!' : blow.grab ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops

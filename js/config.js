@@ -91,6 +91,8 @@ const SIZE = {
 //   frill: a solid bony frill that shields its head (FRILL)
 //   armor: bony plates over most of the body, blow by blow (ARMOR)
 //   club: a tail club that can break a foe's shin (CLUB)
+//   grab: clings to a bigger foe's body to slash it (GRAB)
+//   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -101,7 +103,7 @@ const SIZE = {
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
   compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', fear: 'tiny' },
-  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, role: 'attacker', fear: 'large' },
+  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
   coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', fear: 'medium' },
@@ -375,6 +377,14 @@ export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['l
 // a tail club's counter or charge may break the foe's shin: lamed, as a Tyrannosaurus' bite lames a leg
 // (its relative Zuul is named crurivastator, "destroyer of shins"); and it lands damage times as hard
 export const CLUB = { lame: 0.35, damage: 1.2 };
+// Dilophosaurus' grasping hands: a blow that lands on a bigger foe without body armor may let it cling
+// on (chance). Clinging, nothing can reach it until its next turn, when it slashes, leaving a wound
+// that bleeds bleed of the foe's health a turn for the rest of the fight.
+export const GRAB = { chance: 0.3, bleed: 0.005 };
+// Dilophosaurus is tough (one known skeleton healed from eight injuries): once a fight, a blow that
+// would bring it down, from something no bigger than itself, leaves it standing at 1; and all its
+// injuries heal in heal of the time.
+export const TOUGH = { heal: 0.5 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
 // head head of the time (headPack against a pack, which gets at it from the sides). While the frill
 // holds, a blow on the head does the dinosaur no harm: it costs the frill a point (crushed points for a
