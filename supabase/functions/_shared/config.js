@@ -78,18 +78,42 @@ const SIZE = {
   spino: 'huge', rex: 'huge', argent: 'huge',
 };
 
-// Jaws and hide, fixed for a species whatever its genes:
-//   bite: the hardest one blow can land, however strong it is or whatever it carries. Only the
-//         Compsognathus is held back by it: its little jaws stay weak even with perfect genes.
-//   hide: armor that takes this much off every blow it takes (after damage reduction). A
-//         Tyrannosaurus' hide stops even the best Compsognathus bite, so no pack of them can hurt one.
-// Both follow body size; armored species get extra hide.
+// Weapons and hide, fixed for a species whatever its genes, from how the real animal fought:
+//   weapon: what it fights with, as the Dinopedia will say
+//   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
+//           animals with little teeth or a beak stay weak even with perfect genes.
+//   hide:   armor that takes this much off every blow it takes (after damage reduction).
+// So some can never hurt others: a Tyrannosaurus' hide (25) stops any bite up to about 33, which
+// is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
+// Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
+export const BODY = {
+  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0 },
+  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2 },
+  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10 },
+  psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3 },
+  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0 },
+  hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 18, hide: 0 },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6 },
+  galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2 },
+  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6 },
+  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8 },
+  raptor:  { weapon: 'Sickle claw on each foot', bite: 40, hide: 0 },
+  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18 },
+  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10 },
+  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8 },
+  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20 },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35 },
+  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12 },
+  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18 },
+  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25 },
+  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30 },
+};
+// creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
+// with thinner hide (see creatureFighter)
 export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300 };
 export const HIDE = { tiny: 0, small: 0, medium: 5, large: 12, huge: 25 };
-export const ARMOR_HIDE = 8;
 export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, {
-  ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k],
-  bite: BITE[SIZE[k]], hide: HIDE[SIZE[k]] + (sp.build === 'armored' ? ARMOR_HIDE : 0),
+  ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
 }]));
 export const ORDER = Object.keys(SPECIES_LIST);
 export const STARTERS = ['dilo', 'compy', 'scelido', 'psitta'];
@@ -255,11 +279,11 @@ export const BIOMES = {
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
 // art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
 export const CREATURES = {
-  compy_pack:   { name: 'Compsognathus pack', size: 'small', hide: 0, look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', size: 'medium', hide: 0, look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
-  deinosuchus:  { name: 'Deinosuchus', size: 'large', hide: 8, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
-  angry_protos: { name: 'Angry Protoceratops herd', size: 'medium', hide: 5, look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
-  old_tyrant:   { name: 'Old Tyrant', size: 'huge', hide: 25, look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+  compy_pack:   { name: 'Compsognathus pack', size: 'small', bite: 60, hide: 0, look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
+  wild_raptor:  { name: 'Wild Raptor', size: 'medium', bite: 45, hide: 0, look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  deinosuchus:  { name: 'Deinosuchus', size: 'large', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+  angry_protos: { name: 'Angry Protoceratops herd', size: 'medium', bite: 70, hide: 6, look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
+  old_tyrant:   { name: 'Old Tyrant', size: 'huge', bite: 260, hide: 25, look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
 };
 export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
 export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"

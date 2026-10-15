@@ -7,7 +7,7 @@
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
 import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS,
-  SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE } from './config.js';
+  SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 import { deriveCombat, statSheet, seededRand } from './economy.js';
 
 export function fighterOf(baby) {
@@ -38,7 +38,9 @@ export function creatureFighter(id, dist, lair = false) {
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size: c.size, bite: BITE[c.size], hide: c.hide ?? HIDE[c.size] };
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size: c.size, bite: c.bite ?? BITE[c.size],
+    // younger ones near the nest have thinner hide, full grown at the edge of the map
+    hide: Math.round((c.hide ?? HIDE[c.size]) * Math.min(1, level / CREATURE_LEVEL(WORLD_RADIUS))) };
 }
 
 // log: [{ by: 'a' | 'b', miss } | { by, dmg, left }], left being the target's health after the blow
