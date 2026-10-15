@@ -1,6 +1,8 @@
-// The sign-in screen. Every game needs an account, so this covers the game until the player is signed
-// in and their save has loaded: sign in by email (code or link) or Google, pick which progress to keep
-// when an old browser game meets an account save, or retry when the server can't be reached.
+// What comes before the game. Every game needs an account, so until the player is signed in and their
+// save has loaded the game stays hidden:
+//   - signed out: the landing page (index.html #landing, ui/landing.js), whose Play buttons open the
+//     sign-in window (email code or link, Google when enabled);
+//   - signing in, loading, a failed load, or picking which progress to keep: a simple card (#gate).
 import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudState, onCloudChange, inGame, resolveChoice, loadAccount,
@@ -9,9 +11,12 @@ import {
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
 
+const landing = document.getElementById('landing');
 const gate = document.getElementById('gate');
 const body = document.getElementById('gateBody');
 const game = document.getElementById('game');
+const signIn = document.getElementById('signInDialog');
+const signInBody = document.getElementById('signInBody');
 let sentTo = '';           // email a sign-in link was sent to
 let typedEmail = '';       // kept so an error does not wipe what the player typed
 let message = '', messageIsError = false;
@@ -31,26 +36,47 @@ function friendly(err, fallback) {
   return text || fallback;
 }
 
-function show(open) {
-  gate.hidden = !open;
-  game.hidden = open;
+// 'game' | 'landing' | 'gate'
+function modeOf(st) {
+  if (devMode() || inGame()) return 'game';
+  // the landing page also shows while the session is checked, since most visitors are signed out
+  if (!st.user && ['starting', 'signed-out', 'unavailable', 'error'].includes(st.status)) return 'landing';
+  return 'gate';
+}
+
+function show(mode) {
+  landing.hidden = mode !== 'landing';
+  gate.hidden = mode !== 'gate';
+  game.hidden = mode !== 'game';
+  if (mode !== 'landing' && signIn.open) signIn.close();
+  document.body.classList.toggle('on-landing', mode === 'landing');
+}
+
+// the landing page's Play buttons
+export function openSignIn() {
+  render(true);
+  if (!signIn.open) signIn.showModal();
+  const field = signInBody.querySelector('input');
+  if (field) field.focus();
 }
 
 function render(force = false) {
-  if (devMode()) { show(false); return; }
   const st = cloudState();
-  if (inGame()) { show(false); return; }
-  show(true);
+  const mode = modeOf(st);
+  show(mode);
+  if (mode === 'game') return;
   // redrawn only when what it shows changes, so typing is never interrupted
-  const key = [st.status, !!st.user, !!st.choice, sentTo, message].join('|');
+  const key = [mode, st.status, !!st.user, !!st.choice, sentTo, message].join('|');
   if (key === shownKey && !force) return;
   shownKey = key;
   const note = message ? `<p class="account-msg ${messageIsError ? 'error' : ''}" role="status">${esc(message)}</p>` : '';
-  const head = `${EGG}<h1 id="gateTitle">Cretaceous Nest</h1>
+  // the sign-in window sits on the landing page, which already shows the title
+  const target = mode === 'landing' ? signInBody : body;
+  const head = mode === 'landing' ? EGG : `${EGG}<h1 id="gateTitle">Cretaceous Nest</h1>
     <p class="sub">Hatch dinosaurs, raise them, and explore the wild land around your nest.</p>`;
 
   if (st.status === 'unavailable' || (st.status === 'error' && !st.user)) {
-    body.innerHTML = `${head}<p class="hint">The game can't reach its server right now. Check your connection and try again.</p>
+    target.innerHTML = `${head}<p class="hint">The game can't reach its server right now. Check your connection and try again.</p>
       <div class="row"><button class="btn" type="button" id="gateRetry">Try again</button></div>`;
     document.getElementById('gateRetry').addEventListener('click', () => location.reload());
     return;
@@ -80,8 +106,8 @@ function render(force = false) {
   }
 
   // signed out
-  body.innerHTML = sentTo ? `${head}
-    <h2>Check your email</h2>
+  target.innerHTML = sentTo ? `${head}
+    <h2 id="signInTitle">Check your email</h2>
     <p>We sent a sign-in email to <strong>${esc(sentTo)}</strong>.</p>
     <form id="codeForm" class="account-form">
       <div class="field"><label for="signInCode">Type the code from the email</label>
@@ -92,7 +118,7 @@ function render(force = false) {
     <p class="hint">No email after a few minutes? Check your spam folder.</p>
     <div class="row"><button class="ghost" type="button" id="again">Send again or use a different email</button></div>
     ${note}` : `${head}
-    <h2>Sign in to play</h2>
+    <h2 id="signInTitle">Sign in to play</h2>
     <p class="hint">A free account keeps your nest safe on our server, so you can play on any device and never lose progress. New here? Signing in creates your account.</p>
     <form id="signInForm" class="account-form">
       <div class="field"><label for="signInEmail">Email</label>
@@ -129,6 +155,9 @@ function render(force = false) {
 }
 
 export function initGate() {
+  document.getElementById('signInClose').addEventListener('click', () => signIn.close());
+  // a click on the dimmed backdrop closes the window too
+  signIn.addEventListener('click', e => { if (e.target === signIn) signIn.close(); });
   onCloudChange(() => {
     if (cloudState().user) { sentTo = ''; message = ''; }
     render();

@@ -18,13 +18,93 @@ addEventListener('error', e => {
 addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('nest-reloaded'), 10000));
 </script>
 <!-- assets:start -->
-<link rel="stylesheet" href="./css/style.css?v=189e752545">
-<script type="importmap">{ "imports": { "./js/actions.js": "./js/actions.js?v=79b70dcfc1", "./js/alarm.js": "./js/alarm.js?v=b19eb6fe5c", "./js/art.js": "./js/art.js?v=9483b98aa2", "./js/clock.js": "./js/clock.js?v=98108f9b2e", "./js/cloud-config.js": "./js/cloud-config.js?v=28e7772b10", "./js/cloud.js": "./js/cloud.js?v=60da263318", "./js/combat.js": "./js/combat.js?v=91e6079cea", "./js/config.js": "./js/config.js?v=1fdc61104c", "./js/economy.js": "./js/economy.js?v=9e1ece85cd", "./js/game-server.js": "./js/game-server.js?v=b3f270680e", "./js/gear-art.js": "./js/gear-art.js?v=585c424112", "./js/main.js": "./js/main.js?v=62d6ea23c5", "./js/reminder.js": "./js/reminder.js?v=51a9cff03b", "./js/state.js": "./js/state.js?v=56c5c64b20", "./js/sync.js": "./js/sync.js?v=60ef245429", "./js/ui/account.js": "./js/ui/account.js?v=f0937bffca", "./js/ui/baby-info.js": "./js/ui/baby-info.js?v=44445093e0", "./js/ui/breeding.js": "./js/ui/breeding.js?v=7ea25133d4", "./js/ui/fight.js": "./js/ui/fight.js?v=e6e0d5a841", "./js/ui/forge.js": "./js/ui/forge.js?v=01490eed25", "./js/ui/gate.js": "./js/ui/gate.js?v=5d97fff006", "./js/ui/header.js": "./js/ui/header.js?v=3e4ab08c5f", "./js/ui/incubator.js": "./js/ui/incubator.js?v=aaee346d0a", "./js/ui/inventory.js": "./js/ui/inventory.js?v=4e204be665", "./js/ui/nest.js": "./js/ui/nest.js?v=adaa0b5d14", "./js/ui/rewards.js": "./js/ui/rewards.js?v=9e6f30152e", "./js/ui/shop.js": "./js/ui/shop.js?v=267fcbf49c", "./js/ui/stats.js": "./js/ui/stats.js?v=1def319df1", "./js/ui/tabs.js": "./js/ui/tabs.js?v=2246f64f70", "./js/ui/water.js": "./js/ui/water.js?v=d4ed6125be", "./js/ui/world.js": "./js/ui/world.js?v=d89d41a7e6", "./js/util.js": "./js/util.js?v=92a0a6794c", "./js/world.js": "./js/world.js?v=9696d2b014", "./tools/anchors.js": "./tools/anchors.js?v=14db47c2d0" } }</script>
-<script type="module" src="./js/main.js?v=62d6ea23c5"></script>
+<link rel="stylesheet" href="./css/style.css?v=997cc903b7">
+<script type="importmap">{ "imports": { "./js/actions.js": "./js/actions.js?v=79b70dcfc1", "./js/alarm.js": "./js/alarm.js?v=b19eb6fe5c", "./js/art.js": "./js/art.js?v=9483b98aa2", "./js/clock.js": "./js/clock.js?v=98108f9b2e", "./js/cloud-config.js": "./js/cloud-config.js?v=28e7772b10", "./js/cloud.js": "./js/cloud.js?v=60da263318", "./js/combat.js": "./js/combat.js?v=91e6079cea", "./js/config.js": "./js/config.js?v=1fdc61104c", "./js/economy.js": "./js/economy.js?v=9e1ece85cd", "./js/game-server.js": "./js/game-server.js?v=b3f270680e", "./js/gear-art.js": "./js/gear-art.js?v=585c424112", "./js/main.js": "./js/main.js?v=c3144ded2c", "./js/reminder.js": "./js/reminder.js?v=51a9cff03b", "./js/state.js": "./js/state.js?v=56c5c64b20", "./js/sync.js": "./js/sync.js?v=60ef245429", "./js/ui/account.js": "./js/ui/account.js?v=f0937bffca", "./js/ui/baby-info.js": "./js/ui/baby-info.js?v=44445093e0", "./js/ui/breeding.js": "./js/ui/breeding.js?v=7ea25133d4", "./js/ui/fight.js": "./js/ui/fight.js?v=e6e0d5a841", "./js/ui/forge.js": "./js/ui/forge.js?v=01490eed25", "./js/ui/gate.js": "./js/ui/gate.js?v=37490a8cd1", "./js/ui/header.js": "./js/ui/header.js?v=3e4ab08c5f", "./js/ui/incubator.js": "./js/ui/incubator.js?v=aaee346d0a", "./js/ui/inventory.js": "./js/ui/inventory.js?v=4e204be665", "./js/ui/landing.js": "./js/ui/landing.js?v=2cc0d48fe1", "./js/ui/nest.js": "./js/ui/nest.js?v=adaa0b5d14", "./js/ui/rewards.js": "./js/ui/rewards.js?v=9e6f30152e", "./js/ui/shop.js": "./js/ui/shop.js?v=267fcbf49c", "./js/ui/stats.js": "./js/ui/stats.js?v=1def319df1", "./js/ui/tabs.js": "./js/ui/tabs.js?v=2246f64f70", "./js/ui/water.js": "./js/ui/water.js?v=d4ed6125be", "./js/ui/world.js": "./js/ui/world.js?v=6f5c9401bf", "./js/util.js": "./js/util.js?v=92a0a6794c", "./js/world.js": "./js/world.js?v=9696d2b014", "./tools/anchors.js": "./tools/anchors.js?v=14db47c2d0" } }</script>
+<script type="module" src="./js/main.js?v=c3144ded2c"></script>
 <!-- assets:end -->
 </head>
 <body>
-<section class="gate" id="gate" aria-labelledby="gateTitle">
+<div class="landing" id="landing" hidden>
+  <header class="land-nav">
+    <a class="land-logo" href="#top">Cretaceous Nest</a>
+    <nav aria-label="Sections">
+      <a href="#hatch">Hatch</a><a href="#raise">Raise</a><a href="#explore">Explore</a><a href="#fight">Fight</a><a href="#breed">Breed</a>
+    </nav>
+    <button class="btn small" type="button" data-play>Play</button>
+  </header>
+
+  <section class="land-sec hero" id="top">
+    <div class="land-text reveal">
+      <p class="eyebrow">A free dinosaur game in your browser</p>
+      <h1>Cretaceous Nest</h1>
+      <p class="land-lead">Hatch dinosaurs, raise them from tiny babies to towering adults, and lead them into the wild land around your nest.</p>
+      <div class="row"><button class="btn" type="button" data-play>Play free</button><a class="ghost land-more" href="#hatch">See how it works</a></div>
+    </div>
+    <div class="land-art reveal" data-art="hero"></div>
+  </section>
+
+  <section class="land-sec" id="hatch">
+    <div class="land-text reveal">
+      <p class="eyebrow">1 · Hatch</p>
+      <h2>Your first dinosaur is waiting</h2>
+      <p>Pick one of four starter babies, two meat eaters and two plant eaters. Every egg after that is found out in the world or laid by your own dinosaurs, and every one hides different genes.</p>
+    </div>
+    <div class="land-art reveal" data-art="hatch"></div>
+  </section>
+
+  <section class="land-sec" id="raise">
+    <div class="land-text reveal">
+      <p class="eyebrow">2 · Raise</p>
+      <h2>Feed them and watch them grow</h2>
+      <p>Babies get hungry on their own clock, even while the page is closed. Ten meals make a juvenile, thirty make an adult strong enough to wear equipment.</p>
+    </div>
+    <div class="land-art reveal" data-art="raise"></div>
+  </section>
+
+  <section class="land-sec" id="explore">
+    <div class="land-text reveal">
+      <p class="eyebrow">3 · Explore</p>
+      <h2>Lift the fog, one hex at a time</h2>
+      <p>Every nest sits in its own map of meadows, forests, swamps, badlands and volcanoes. Explore it yourself or send your dinosaurs: the farther they go, the more they bring back.</p>
+    </div>
+    <div class="land-art reveal" data-art="explore"></div>
+  </section>
+
+  <section class="land-sec" id="fight">
+    <div class="land-text reveal">
+      <p class="eyebrow">4 · Fight and forge</p>
+      <h2>Beat the wild, forge your gear</h2>
+      <p>Raptors stalk the forests and old tyrants guard the volcano. Win to bring home bones, feathers, obsidian and rare eggs, then forge weapons and armor no shop sells.</p>
+    </div>
+    <div class="land-art reveal" data-art="fight"></div>
+  </section>
+
+  <section class="land-sec" id="breed">
+    <div class="land-text reveal">
+      <p class="eyebrow">5 · Breed</p>
+      <h2>Breed the next legend</h2>
+      <p>Pair an adult male and female of the same species. Their egg inherits their genes, a little better or worse, so every generation can be stronger than the last.</p>
+    </div>
+    <div class="land-art reveal" data-art="breed"></div>
+  </section>
+
+  <section class="land-sec land-final">
+    <div class="land-text reveal">
+      <h2>Your nest is waiting</h2>
+      <p>Free to play, never pay-to-win. A free account keeps your nest safe so you can play on any device.</p>
+      <div class="row"><button class="btn" type="button" data-play>Start playing</button></div>
+    </div>
+  </section>
+
+  <footer class="site-footer"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></footer>
+</div>
+
+<dialog id="signInDialog" class="account-dialog signin-dialog" aria-labelledby="signInTitle">
+  <button class="close" id="signInClose" type="button" aria-label="Close">×</button>
+  <div class="gate-card plain" id="signInBody"></div>
+</dialog>
+
+<section class="gate" id="gate" aria-labelledby="gateTitle" hidden>
   <div class="gate-card" id="gateBody"><p class="hint gate-wait">Loading…</p></div>
 </section>
 

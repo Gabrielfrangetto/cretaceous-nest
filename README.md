@@ -54,7 +54,8 @@ js/main.js          starts the game
 js/config.js        content and balance: species, items, timers, prices, rewards
 js/economy.js       game rules as pure functions (no DOM, no storage)
 js/state.js         save format, versioned migrations, the in-memory game, dev-mode save
-js/ui/gate.js       sign-in screen shown before the game
+js/ui/gate.js       what shows before the game: landing page or sign-in card, and the sign-in window
+js/ui/landing.js    landing page art and the slide-in on scroll
 js/sync.js          which save wins when a player signs in
 js/cloud.js         Supabase sign-in and cloud saves (off until js/cloud-config.js is filled in)
 js/art.js           eggs, nest, item icons and baby sprites

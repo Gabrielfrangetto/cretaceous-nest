@@ -7,6 +7,7 @@ import { initShop } from './ui/shop.js';
 import { initTabs } from './ui/tabs.js';
 import { initAccount } from './ui/account.js';
 import { initGate } from './ui/gate.js';
+import { initLanding } from './ui/landing.js';
 import { initCloud } from './cloud.js';
 import { initWater } from './ui/water.js';
 import { initRewards } from './ui/rewards.js';
@@ -31,5 +32,6 @@ initForge();
 initTabs();   // after the modules above, so every tab's handlers are registered before the first tab opens
 initAccount();
 initWater();
+initLanding();
 initGate();
 if (!devMode()) initCloud();

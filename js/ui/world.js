@@ -34,6 +34,18 @@ const GLYPH = {
 };
 const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
 
+// a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
+export function sampleMapSVG(seed, seen = 3) {
+  const cells = ALL_HEXES.filter(h => hexDist(h) <= seen + 1).map(h => {
+    const c = center(h), d = hexDist(h), biome = biomeAt(seed, h);
+    const fog = d > seen;
+    return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
+      <polygon points="${corners([0, 0], 0.96)}" ${fog ? '' : `style="fill:${BIOMES[biome].color}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : GLYPH[biome]}</g>`;
+  }).join('');
+  const r = SIZE * SQ3 * (seen + 1.6);
+  return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;
+}
+
 const PROBLEMS = {
   'too-young': 'Babies stay in the nest. Feed it until it is a juvenile.',
   'too-far': `Juveniles only explore up to ${JUVENILE_RANGE} hexes from the nest. Adults go anywhere.`,
