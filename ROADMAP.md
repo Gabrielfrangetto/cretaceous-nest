@@ -95,7 +95,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 
 ## Activities (species roles)
 
-Each species will be good at an activity beyond its stats (ROLES in config.js). The two starters cover
+Each species will be good at an activity beyond its stats (ROLES in config.js). The four starters cover
 the activities the game has, a meat eater and a plant eater each: Dilophosaurus and Protoceratops fight,
 Compsognathus and Hypsilophodon explore (scout: faster trips, fewer
 fights, more eggs). The rest belong to species found as eggs:
