@@ -4,9 +4,11 @@
 // Hexes use axial coordinates (q, r) with the nest at 0,0, and are stored as "q,r" keys.
 // s.world = { seed, revealed: [key], visited: [key], trips, expeditions: [{ id, babyId, hex, trip, startedAt, returnAt }] }
 import {
-  BIOMES, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
 } from './config.js';
-import { addItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
+import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
+import { fighterOf, creatureFighter, fight } from './combat.js';
 import { hashId } from './util.js';
 
 // ---------- hex geometry ----------
@@ -71,6 +73,15 @@ function biomeMap(seed) {
 }
 export const biomeAt = (seed, h) => biomeMap(seed).get(hexKey(...h)) || 'meadow';
 
+// lairs: a few hexes 3+ away where the biome's creature always waits, stronger
+export const isLair = (seed, h) => hexDist(h) >= LAIR_MIN_DIST && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
+// what waits in a hex: the creature, how likely a fight is, and whether it is a lair
+export function threatAt(seed, h) {
+  const lair = isLair(seed, h);
+  const id = BIOMES[biomeAt(seed, h)].creature;
+  return { id, lair, chance: lair ? 1 : ENCOUNTER_CHANCE(hexDist(h)), foe: creatureFighter(id, hexDist(h), lair) };
+}
+
 export function newWorld(seed) {
   const home = [0, 0];
   return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [] };
@@ -91,6 +102,19 @@ export function canReach(s, key) {
 }
 // minutes for a trip there and back
 export const tripMins = key => hexDist(parseKey(key)) * TRIP_MINS_PER_HEX;
+
+// injured dinosaurs heal with time; a Healing Herb speeds it up
+export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
+export function healBaby(s, babyId, now) {
+  const b = s.hatched.find(x => x.id === babyId);
+  if (!b) return { ok: false, reason: 'missing' };
+  if (!injuredLeft(b, now)) return { ok: false, reason: 'not-injured' };
+  if (countItem(s, 'herb') < 1) return { ok: false, reason: 'no-herb' };
+  removeItem(s, 'herb', 1);
+  b.injuredUntil -= HEAL_MINS * 60000;
+  if (b.injuredUntil <= now) delete b.injuredUntil;
+  return { ok: true, left: injuredLeft(b, now) };
+}
 
 export const expeditionOf = (s, babyId) => W(s).expeditions.find(e => e.babyId === babyId) || null;
 export const isAway = (s, babyId) => !!expeditionOf(s, babyId);
@@ -116,6 +140,7 @@ export function exploreProblem(s, babyId, key, now) {
   if (stage === 'juvenile' && hexDist(h) > JUVENILE_RANGE) return 'too-far';
   if (isAway(s, babyId)) return 'away';
   if (s.breeding && (s.breeding.maleId === babyId || s.breeding.femaleId === babyId)) return 'breeding';
+  if (injuredLeft(b, now)) return 'injured';
   if (isHungry(b, now)) return 'hungry';
   if (W(s).expeditions.length >= EXPEDITION_SLOTS) return 'no-slot';
   return null;
@@ -147,25 +172,50 @@ export function collectExpedition(s, id, now) {
   const exp = w.expeditions.find(e => e.id === id);
   if (!exp) return { ok: false, reason: 'no-expedition' };
   if (now < exp.returnAt) return { ok: false, reason: 'not-back' };
-  const h = parseKey(exp.hex);
+  const h = parseKey(exp.hex), d = hexDist(h);
+  const b = s.hatched.find(x => x.id === exp.babyId);
+  // the trip number seeds everything, so the browser and the server roll the same trip
   const rand = seededRand(`trip:${w.seed}:${exp.trip}`);
+  const fightRand = seededRand(`fight:${w.seed}:${exp.trip}`);
   const loot = [];
-  for (const { id: item, min, max, chance } of lootTable(s, exp.hex)) {
-    if (rand() >= chance) continue;
-    const n = min + Math.floor(rand() * (max - min + 1));
-    const lost = addItem(s, item, n);
-    loot.push({ id: item, n, lost });
+  const give = (item, n) => { const lost = addItem(s, item, n); loot.push({ id: item, n, lost }); };
+  const roll = ({ min, max }) => min + Math.floor(rand() * (max - min + 1));
+
+  // a creature may be waiting; losing means coming home hurt with nothing
+  let battle = null;
+  const threat = threatAt(w.seed, h);
+  if (b && fightRand() < threat.chance) {
+    const me = fighterOf(b), foe = threat.foe;
+    const result = fight(me, foe, fightRand);
+    const left = result.hpA / result.maxA;
+    const injuredMins = !result.win ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
+    battle = { creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power }, me: { name: me.name, power: me.power }, ...result, injuredMins };
+    if (injuredMins) b.injuredUntil = now + injuredMins * 60000;
   }
-  const discovered = !w.visited.includes(exp.hex);
-  const coins = discovered ? hexDist(h) * DISCOVERY_COINS_PER_HEX : 0;
-  if (coins) earn(s, coins);
-  if (discovered) w.visited.push(exp.hex);
+  const won = !battle || battle.win;
+
+  let coins = 0, discovered = false;
+  if (won) {
+    for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, roll(l));
+    if (battle) {
+      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      for (const [item, min, max] of CREATURES[battle.creature].loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
+      coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
+      if (rand() < GEAR_DROP(d, battle.lair)) {
+        const gear = Object.keys(ITEMS).filter(id => ITEMS[id].kind === 'gear');
+        give(gear[Math.floor(rand() * gear.length)], 1);
+      }
+    }
+    discovered = !w.visited.includes(exp.hex);
+    if (discovered) { coins += d * DISCOVERY_COINS_PER_HEX; w.visited.push(exp.hex); }
+    if (coins) earn(s, coins);
+  }
+  // even a beaten explorer saw the land
   const newly = [exp.hex, ...neighbors(h).map(n => hexKey(...n))].filter(k => !w.revealed.includes(k));
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
-  const b = s.hatched.find(x => x.id === exp.babyId);
   if (b) b.lastFed = now - hungerEvery(b);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length, battle };
 }
 
 // keeps a loaded world inside the rules whatever produced it

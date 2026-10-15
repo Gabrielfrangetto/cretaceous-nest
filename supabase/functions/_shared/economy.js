@@ -6,7 +6,7 @@ import {
   OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
-import { isAway, startExpedition, recallExpedition, collectExpedition } from './world.js';
+import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -306,6 +306,8 @@ export function equipGear(s, babyId, index) {
   const baby = s.hatched.find(b => b.id === babyId);
   if (!baby) return { ok: false, reason: 'missing' };
   if (!isAdult(baby)) return { ok: false, reason: 'not-adult' };
+  // its fights are worked out with what it wore when it set off
+  if (isAway(s, babyId)) return { ok: false, reason: 'away' };
   if (!Number.isInteger(index) || index < 0 || index >= s.invSize) return { ok: false, reason: 'bad-slot' };
   const item = s.inv[index];
   if (!item || !isGear(item.id)) return { ok: false, reason: 'not-gear' };
@@ -322,6 +324,7 @@ export function unequipGear(s, babyId, slot) {
   const baby = s.hatched.find(b => b.id === babyId);
   const id = baby && baby.equip && baby.equip[slot];
   if (!id) return { ok: false, reason: 'empty' };
+  if (isAway(s, babyId)) return { ok: false, reason: 'away' };
   if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
   addItem(s, id, 1);
   const { [slot]: gone, ...rest } = baby.equip;
@@ -542,6 +545,9 @@ export const ACTIONS = {
   },
   collectTrip(s, { id }, now) {
     return collectExpedition(s, id, now);
+  },
+  heal(s, { babyId }, now) {
+    return healBaby(s, babyId, now);
   },
   move(s, { a, b }) {
     if (!slotIndex(s, a) || !slotIndex(s, b)) return fail('bad-slot');

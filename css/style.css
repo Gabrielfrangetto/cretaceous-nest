@@ -444,3 +444,41 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .trips { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .trip-row { display: grid; gap: 6px; }
 .trip-row .row { justify-content: space-between; }
+
+.threat { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.threat p { margin: 0; }
+.threat.is-lair { border-color: var(--heart); }
+.danger { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: #fff; }
+.danger-easy { background: #4f8a3a; }
+.danger-fair { background: #a07a16; }
+.danger-hard { background: #c0612b; }
+.danger-deadly { background: #a1303a; }
+
+/* fight replay */
+.fight-dialog { width: min(640px, calc(100vw - 32px)); }
+#fightBody { display: grid; gap: 14px; }
+#fightBody h2 { margin: 0; }
+.arena { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; padding: 14px; border-radius: 14px; background: linear-gradient(var(--sky) 55%, var(--grass) 55%); border: 1px solid var(--line); min-height: 230px; }
+.fighter { display: grid; gap: 6px; min-width: 0; }
+.fighter-name { font-size: 14px; overflow-wrap: anywhere; }
+.fighter-b .fighter-name, .fighter-b .hp span { text-align: right; }
+.fighter-art { position: relative; display: grid; place-items: end center; min-height: 140px; }
+.fighter-art img, .fighter-art canvas, .fighter-art .dino-art { max-width: 100%; height: auto; }
+.fighter-b .fighter-art > :first-child { transform: scaleX(-1); }
+.hp { position: relative; height: 16px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.hp i { position: absolute; inset: 0 auto 0 0; background: #4f8a3a; transition: width .35s ease-out; }
+.fighter-b .hp i { background: var(--heart); }
+.hp span { position: relative; display: block; padding: 0 8px; font-size: 11px; font-weight: 700; line-height: 16px; color: var(--ink); }
+.fighter.lunge .fighter-art { animation: lunge-a .3s ease-out; }
+.fighter-b.lunge .fighter-art { animation: lunge-b .3s ease-out; }
+.fighter.struck .fighter-art > :first-child { animation: struck .3s ease-out; }
+.fighter.down .fighter-art { opacity: .35; filter: grayscale(1); transition: opacity .6s, filter .6s; }
+.hit { position: absolute; top: 10%; left: 50%; translate: -50% 0; font: 700 20px var(--display); pointer-events: none; animation: rise .9s ease-out forwards; }
+.hit.dmg { color: var(--heart); }
+.hit.miss { color: var(--muted); font-size: 16px; }
+.fight-result { margin: 0; }
+.fight-result .win { color: #4f8a3a; font-size: 18px; }
+.fight-result .loss { color: var(--heart); font-size: 18px; }
+@keyframes lunge-a { 50% { transform: translateX(18px); } }
+@keyframes lunge-b { 50% { transform: translateX(-18px); } }
+@keyframes struck { 25% { translate: -5px 0; } 75% { translate: 5px 0; } }

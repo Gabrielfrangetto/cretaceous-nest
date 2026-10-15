@@ -50,6 +50,7 @@ export const ITEMS = {
   clay:         { name: 'Clay', plural: 'clay', desc: 'Soft river clay from the swamps.' },
   bone:         { name: 'Old bone', plural: 'old bones', desc: 'Sun-bleached bones found in the badlands.' },
   obsidian:     { name: 'Obsidian', plural: 'obsidian', desc: 'Sharp volcanic glass from the slopes of the volcano.' },
+  herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
   // mods use the stat engine's stages: flat, increased (0.10 = +10%), more (1.10 = ×1.10).
@@ -102,13 +103,36 @@ export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes 
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
+// creature: the wild animal met there (CREATURES)
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', loot: [['leaf', 2, 4]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15]] },
-  swamp:    { name: 'Swamp', color: '#6f8f7a', loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
-  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2], ['herb', 1, 1, 0.2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
+
+// Wild creatures. stats are at full strength; a creature met d hexes from the nest has
+// CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
+// art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
+export const CREATURES = {
+  compy_pack:   { name: 'Compsognathus pack', look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
+  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  deinosuchus:  { name: 'Deinosuchus', look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
+  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+};
+export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
+export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
+export const LAIR_MIN_DIST = 3;
+export const LAIR_LEVEL = 1.25;
+export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
+export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins
+export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
+export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
+export const INJURY_MINS = 20;               // after losing a fight
+export const BRUISE_MINS = 10;               // a win that left it under half health: up to this many minutes
+export const HEAL_MINS = 10;                 // each Healing Herb heals this much sooner
 
 // Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
 // scale draws juveniles (and adults without an adult sprite yet) larger than babies.
@@ -123,7 +147,7 @@ export const FEED_COINS = 5;
 export const HATCH_COINS = { proto: 10, hypa: 25, raptor: 60, rex: 150 };
 export const HATCH_LOOT = { proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
 // food costs less than a meal pays, so feeding always comes out ahead
-export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }];
+export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 
 // Daily reward. The game day starts at midnight in this UTC offset (Brasília, which has no daylight

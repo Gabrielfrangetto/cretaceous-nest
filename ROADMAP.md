@@ -65,14 +65,14 @@ Signed-in players can no longer change their own coins or items: the server deci
 - [x] Equipment: items in slots (head, neck, body, back) with fixed bonuses, bought with coins; only adults wear it (pieces for babies and juveniles may come later)
 - [x] Equipment drawn over the sprite (layers, anchors per sprite, anchor editor); [ ] hand-drawn art for each piece
 - [ ] Equipment rarities (Normal, Magic, Rare, Legendary) with rolled bonuses, and where items drop
-- [ ] Combat system using the derived stats
+- [x] Combat system using the derived stats (expedition fights; see World map)
 
 ### World map (open world, idle first)
 
 Plan: a hex map under fog explored by idle expeditions (now), later small walkable areas inside special hexes (caves, boss lairs).
 
 - [x] Step 1: hex map per player (seeded), five biomes, fog, expeditions by real time (juveniles near, adults anywhere, 2 at once), loot by biome and distance, discovery coins, explorers come home hungry
-- [ ] Step 2: wild creatures per biome and auto-combat with the derived stats
+- [x] Step 2: wild creatures per biome (stronger farther out), lairs with Alpha creatures, auto-combat replayed when a trip is collected, danger shown before sending, injuries that heal with time or Healing Herbs, gear drops
 - [ ] Step 3: taming wild dinosaurs; crafting equipment from amber, shells, feathers, clay, bone and obsidian
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes

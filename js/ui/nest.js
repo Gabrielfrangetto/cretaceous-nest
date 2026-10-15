@@ -3,7 +3,7 @@ import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
-import { expeditionOf } from '../world.js';
+import { expeditionOf, injuredLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { plural, fmt } from '../util.js';
@@ -80,8 +80,9 @@ function checkHunger() {
     }
     const fed = document.querySelector(`.fed[data-id="${b.id}"]`);
     if (fed) {
+      const hurt = injuredLeft(b, now);
       fed.textContent = trip ? (now >= trip.returnAt ? 'Back from exploring! See the World tab' : 'Exploring · back in ' + fmt(trip.returnAt - now))
-        : hungry ? 'Hungry!' : 'Ate ' + plural(b.fed || 0, 'time', 'times');
+        : hungry ? 'Hungry!' : hurt ? 'Injured · heals in ' + fmt(hurt) : 'Ate ' + plural(b.fed || 0, 'time', 'times');
       fed.classList.toggle('hungry', hungry);
     }
   }

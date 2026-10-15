@@ -1,11 +1,14 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, pick a dinosaur, send it; when it comes back, collect what it found.
-import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX } from '../config.js';
+import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, stageOf, isHungry } from '../economy.js';
+import { sexOf, stageOf, isHungry, countItem } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, tripMins, lootTable, exploreProblem, expeditionOf,
+  threatAt, isLair, injuredLeft,
 } from '../world.js';
+import { fighterOf, winChance, dangerOf } from '../combat.js';
+import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { ITEM_ICONS } from '../art.js';
@@ -39,7 +42,9 @@ const PROBLEMS = {
   'no-slot': `Only ${EXPEDITION_SLOTS} dinosaurs can explore at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
+  injured: 'Injured. It heals with time, or sooner with a Healing Herb.',
 };
+const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
 let selected = null, explorerId = null, message = '', tick = null;
 const name = b => `${b.name} ${SEX[sexOf(b)].sym}`;
@@ -61,8 +66,8 @@ function mapSVG(t) {
     const biome = seen ? biomeAt(w.seed, h) : null;
     const home = hexDist(h) === 0;
     const cls = ['hex', seen ? 'seen' : 'fog', frontier ? 'frontier' : '', key === selected ? 'sel' : ''].filter(Boolean).join(' ');
-    const label = home ? 'Your nest' : seen ? `${BIOMES[biome].name}, ${hexDist(h)} from the nest` : frontier ? `Unexplored, ${hexDist(h)} from the nest` : 'Deep fog';
-    const glyph = home ? NEST : seen ? GLYPH[biome] : frontier ? '<text class="q" y="5">?</text>' : '';
+    const label = home ? 'Your nest' : seen ? `${BIOMES[biome].name}${isLair(w.seed, h) ? ' lair' : ''}, ${hexDist(h)} from the nest` : frontier ? `Unexplored, ${hexDist(h)} from the nest` : 'Deep fog';
+    const glyph = home ? NEST : seen ? GLYPH[biome] + (isLair(w.seed, h) ? LAIR : '') : frontier ? '<text class="q" y="5">?</text>' : '';
     const exp = away.get(key);
     const marker = exp ? `<g class="trip ${t >= exp.returnAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc((byId(exp.babyId) || { name: '?' }).name[0] || '?')}</text></g>` : '';
     const focusable = seen || frontier;
@@ -71,6 +76,25 @@ function mapSVG(t) {
   }).join('');
   return `<svg class="world-map" viewBox="${box.map(v => v.toFixed(1)).join(' ')}" role="group" aria-label="World map">${cells}</svg>`;
 }
+
+// what waits there and how a fight would likely go for the chosen explorer
+function threatHTML(h, ex) {
+  if (!isRevealed(S, hexKey(...h))) return '<p class="hint">Unknown dangers.</p>';
+  const th = threatAt(S.world.seed, h);
+  const odds = ex ? winChance(fighterOf(ex), th.foe) : null;
+  const danger = odds == null ? '' : dangerOf(odds);
+  return `<div class="threat ${th.lair ? 'is-lair' : ''}">
+    <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.foe.power}</span></p>
+    <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * 100)}% chance to meet it.`}</p>
+    ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${esc(ex.name)} wins about ${Math.round(odds * 100)}% of the time (Power ${fighterOf(ex).power})</span></p>`}
+  </div>`;
+}
+
+const healHTML = () => {
+  const herbs = countItem(S, 'herb');
+  return `<div class="row"><button class="ghost" type="button" id="healBtn" ${herbs ? '' : 'disabled'}>Use a Healing Herb (${herbs})</button>
+    <span class="hint">${herbs ? `−${HEAL_MINS} min each` : 'Find them in meadows and forests, or buy them in the Shop'}</span></div>`;
+};
 
 function lootHTML(key) {
   if (!isRevealed(S, key)) return '<p class="hint">Unexplored. Send a dinosaur to find out what is there.</p>';
@@ -89,13 +113,16 @@ function sideHTML(t) {
   const cands = S.hatched.filter(b => stageOf(b).id !== 'baby');
   if (!explorerId || !cands.some(b => b.id === explorerId)) explorerId = (cands.find(b => !exploreProblem(S, b.id, selected, t)) || cands.find(b => !expeditionOf(S, b.id)) || cands[0] || {}).id || null;
   const problem = explorerId ? exploreProblem(S, explorerId, selected, t) : null;
+  const ex = explorerId && byId(explorerId);
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
     <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${tripMins(selected)} min there and back${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
+    ${threatHTML(h, ex)}
     ${cands.length ? `<div class="field"><label for="explorer">Explorer</label>
-      <select id="explorer">${cands.map(b => `<option value="${esc(b.id)}" ${b.id === explorerId ? 'selected' : ''}>${esc(name(b))} · ${esc(SPECIES[b.type].species)} · ${stageOf(b).name}${expeditionOf(S, b.id) ? ' · away' : isHungry(b, t) ? ' · hungry' : ''}</option>`).join('')}</select></div>
+      <select id="explorer">${cands.map(b => `<option value="${esc(b.id)}" ${b.id === explorerId ? 'selected' : ''}>${esc(name(b))} · ${esc(SPECIES[b.type].species)} · ${stageOf(b).name}${expeditionOf(S, b.id) ? ' · away' : injuredLeft(b, t) ? ' · injured' : isHungry(b, t) ? ' · hungry' : ''}</option>`).join('')}</select></div>
       <div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>
-      ${problem && PROBLEMS[problem] ? `<p class="hint warn-text">${PROBLEMS[problem]}</p>` : ''}`
+      ${problem && PROBLEMS[problem] ? `<p class="hint warn-text">${PROBLEMS[problem]}${problem === 'injured' ? ` Heals in ${fmt(injuredLeft(ex, t))}.` : ''}</p>` : ''}
+      ${problem === 'injured' ? healHTML() : ''}`
     : `<p class="hint warn-text">No dinosaur can explore yet. Babies grow into juveniles after ${STAGES[1].meals} meals.</p>`}`;
 }
 
@@ -137,6 +164,12 @@ function render() {
   });
   const ex = document.getElementById('explorer');
   if (ex) ex.addEventListener('change', e => { explorerId = e.target.value; render(); });
+  const heal = document.getElementById('healBtn');
+  if (heal) heal.addEventListener('click', () => {
+    const r = act('heal', { babyId: explorerId });
+    message = r.ok ? (r.left ? `Feeling better. Heals in ${fmt(r.left)}.` : 'Fully healed!') : 'No Healing Herbs.';
+    render();
+  });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
     const r = act('explore', { babyId: explorerId, hex: selected });
@@ -156,10 +189,16 @@ function bindTrips(box) {
     const r = act('collectTrip', { id: btn.dataset.collect });
     if (!r.ok) { message = 'Not back yet.'; render(); return; }
     const b = byId(r.babyId);
+    const who = esc(b ? b.name : 'Your explorer');
     const got = r.loot.map(l => `${l.n} ${itemName(l.id, l.n)}${l.lost ? ` (${l.lost} lost, inventory full)` : ''}`);
-    if (r.coins) got.push(`${r.coins} coins for the discovery`);
-    message = `${esc(b ? b.name : 'Your explorer')} is back from the ${esc(BIOMES[r.biome].name)} with ${esc(got.join(', ') || 'nothing')}.${r.revealed ? ` ${plural(r.revealed, 'new hex', 'new hexes')} on the map.` : ''}`;
+    if (r.coins) got.push(`${r.coins} coins`);
+    const mapped = r.revealed ? ` ${plural(r.revealed, 'new hex', 'new hexes')} on the map.` : '';
+    const hurt = r.battle && r.battle.injuredMins ? ` ${who} is injured for ${r.battle.injuredMins} min.` : '';
+    message = r.battle && !r.battle.win
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${hurt}${mapped}`
+      : `${who} is back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${hurt}${mapped}`;
     render();
+    if (r.battle && b) playFight(b, r.battle, message);
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {
     act('recall', { id: btn.dataset.recall });
