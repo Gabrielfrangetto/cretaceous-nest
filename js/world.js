@@ -314,8 +314,8 @@ export function collectExpedition(s, id, now) {
       let mins = critical ? CRITICAL_MINS : !result.win || left <= 0 || lame ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
       if (!mins) return;
       const b = explorerOf(s, id);
-      // a tough one (Dilophosaurus) heals in half the time
-      if (b.type && SPECIES[b.type].tough) mins = Math.max(1, Math.round(mins * TOUGH.heal));
+      // a tough one (Dilophosaurus) heals in half the time, a critical injury aside
+      if (!critical && b.type && SPECIES[b.type].tough) mins = Math.max(1, Math.round(mins * TOUGH.heal));
       b.injuredUntil = now + mins * 60000;
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });

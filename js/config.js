@@ -382,8 +382,8 @@ export const CLUB = { lame: 0.35, damage: 1.2 };
 // that bleeds bleed of the foe's health a turn for the rest of the fight.
 export const GRAB = { chance: 0.3, bleed: 0.005 };
 // Dilophosaurus is tough (one known skeleton healed from eight injuries): once a fight, a blow that
-// would bring it down, from something no bigger than itself, leaves it standing at 1; and all its
-// injuries heal in heal of the time.
+// would bring it down, from something no bigger than itself, leaves it standing at 1; and its
+// injuries heal in heal of the time (not a critical one, which takes as long as anyone's).
 export const TOUGH = { heal: 0.5 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
 // head head of the time (headPack against a pack, which gets at it from the sides). While the frill
