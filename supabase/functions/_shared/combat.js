@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, power: sheet.power, ...body };
 }
@@ -178,6 +178,9 @@ function withRoles(u, swamp) {
 //   { by: 'bleed', member, dmg, left, foeLeft }: a wounded foe bleeding at the start of its turn.
 //   A Dilophosaurus' blow that clings on adds grab; its next one is a slash (slash: true); the foe's
 //   blows on it meanwhile are { immune: true }; a deadly blow it shrugs off adds tough.
+//   A Velociraptor's blow that latches on adds latch ('cling' | 'pin'); then each of its turns is
+//   { by, member, dmg, left, foeLeft, latched } until { by: 'foe', to, member, shake: true, mode };
+//   a foe whose every member is pinned loses its turn: { by: 'foe', pinned: true }.
 //   Armor adds part and armored to the foe's blow; a blow on armored plates on the back is followed by
 //   { by, member, dmg, left, foeLeft, thorns: true }; a club that breaks a shin adds lame and club.
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
@@ -207,6 +210,13 @@ export function teamFight(units, foe, rand, opts = {}) {
   // deadly blow this fight
   const clinging = new Map();
   const toughUsed = new Set();
+  // Velociraptors latched on to the foe: unit -> { m: the foe's member, holder: its own member,
+  // mode: 'cling' | 'pin' }, and how many claw wounds each foe member bleeds from
+  const latches = new Map();
+  const clawWounds = foe.members.map(() => 0);
+  const pinned = m => [...latches.values()].some(l => l.m === m && l.mode === 'pin');
+  // a unit whose blows go through hide and armor (a claw in the neck)
+  const piercing = u => ({ ...u, members: u.members.map(m => ({ ...m, crush: 1 })) });
   if (!escaped) {
     // the order is set by agility at the start; the team goes first on a tie
     const order = [...fighting.map(i => ({ who: i, agi: unitPower(units[i]).agi })), { who: 'foe', agi: unitPower(foe).agi - 0.001 }]
@@ -220,10 +230,14 @@ export function teamFight(units, foe, rand, opts = {}) {
     const strike = (who, roll, boost, extra = {}) => {
       const alive = standing(foeHp);
       const member = extra.slash ? extra.member : alive[Math.floor(rand() * alive.length)];
-      if (!extra.slash && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
+      // a pinned foe can't dodge
+      if (!extra.slash && !pinned(member) && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
       // a tail club swung back lands harder than a bite
       const club = units[who].members[0].club && (extra.counter || extra.charge) ? CLUB.damage : 1;
-      const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost * club);
+      // a sickle claw driven into the neck from below goes through any armor
+      const clawed = units[who].members.some(m => m.claw);
+      const neck = clawed && rand() < CLAW.neck;
+      const dmg = rounded(unitHit(neck ? piercing(units[who]) : units[who], hp[who], foe.members[member], roll) * boost * club);
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
       let bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
       // a tail club swung back (a counter or a charge) may break the foe's shin
@@ -238,6 +252,14 @@ export function teamFight(units, foe, rand, opts = {}) {
         clinging.set(who, member);
         grab = { grab: true };
       }
+      // a sickle claw may latch on: clinging to a bigger foe, pinning one its size or smaller
+      if (dmg > 0 && clawed && !latches.has(who) && foeHp[member] > 0 && !prey.plated && rand() < LATCH.chance) {
+        const ready = standing(hp[who]), holder = ready[Math.floor(rand() * ready.length)];
+        const mode = sizeRank(prey.size) > sizeRank(units[who].members[holder].size) ? 'cling' : 'pin';
+        latches.set(who, { m: member, holder, mode });
+        grab = { ...grab, latch: mode };
+      }
+      if (neck) bone = { ...bone, part: 'neck' };
       const also = sweep(units[who], foe, foeHp, member, m => rounded(unitHit(units[who], hp[who], foe.members[m], roll) * boost));
       log.push({ by: who, member, dmg, left: foeHp[member], ...bone, ...grab, ...(also.length ? { also } : {}), foeLeft: foeLeft(), ...extra });
       return member;
@@ -294,6 +316,17 @@ export function teamFight(units, foe, rand, opts = {}) {
             log.push({ by: 'bleed', member: m, dmg, left: foeHp[m], foeLeft: foeLeft() });
           }
           if (foeLeft() <= 0) break;
+          // it tries to shake off the claws latched on to it: agility to throw off a clinging one,
+          // strength to get up from under one pinning it
+          for (const [j, l] of latches) {
+            const holder = units[j].members[l.holder], prey = foe.members[l.m];
+            if (foeHp[l.m] <= 0 || hp[j][l.holder] <= 0) { latches.delete(j); continue; }
+            const p = l.mode === 'cling' ? prey.agi / (prey.agi + holder.agi) : prey.damage / (prey.damage + holder.damage);
+            if (rand() < p * LATCH.shake) { latches.delete(j); log.push({ by: 'foe', to: j, member: l.holder, shake: true, mode: l.mode }); }
+          }
+          // pinned members can't strike; if none is free, it loses its turn
+          const atkHp = foeHp.map((h, m) => pinned(m) ? 0 : h);
+          if (!standing(atkHp).length) { log.push({ by: 'foe', pinned: true }); continue; }
           // it goes for defenders more and noncombatants less
           const targets = fighting.filter(i => standing(hp[i]).length);
           const weights = targets.map(i => ROLE_TARGET[roleOf(units[i])]);
@@ -302,7 +335,8 @@ export function teamFight(units, foe, rand, opts = {}) {
           const alive = standing(hp[to]);
           const member = alive[Math.floor(rand() * alive.length)];
           // clinging to the foe's body, out of its reach
-          if (clinging.has(to)) { log.push({ by: 'foe', to, member, dmg: 0, left: hp[to][member], immune: true }); continue; }
+          const clung = latches.get(to);
+          if (clinging.has(to) || (clung && clung.mode === 'cling' && clung.holder === member)) { log.push({ by: 'foe', to, member, dmg: 0, left: hp[to][member], immune: true }); continue; }
           if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
           // a defender caught out of its guard by its own charge takes more
           const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
@@ -331,7 +365,7 @@ export function teamFight(units, foe, rand, opts = {}) {
             armored = (ARMOR.parts.find(([, w]) => (x -= w) < 0) || ARMOR.parts[0])[0];
             cut = ARMOR.armored.includes(armored) ? 1 - ARMOR.cut : armored === 'belly' ? ARMOR.belly : 1;
           }
-          const raw = unitHit(foe, foeHp, units[to].members[member], roll) * open * head;
+          const raw = unitHit(foe, atkHp, units[to].members[member], roll) * open * head;
           const dmg = rounded(raw * cut);
           hp[to][member] = Math.max(0, hp[to][member] - dmg);
           const bone = dmg > 0 && !onHead ? breakBones(foe, units[to], hp[to], member, to, armored) : onHead ? { part: 'head' } : armored ? { part: armored } : {};
@@ -343,7 +377,7 @@ export function teamFight(units, foe, rand, opts = {}) {
             toughUsed.add(key);
             bone.tough = true;
           }
-          const also = sweep(foe, units[to], hp[to], member, m => rounded(unitHit(foe, foeHp, units[to].members[m], roll) * open));
+          const also = sweep(foe, units[to], hp[to], member, m => rounded(unitHit(foe, atkHp, units[to].members[m], roll) * open));
           log.push({ by: 'foe', to, member, dmg, left: hp[to][member], ...bone, ...(also.length ? { also } : {}) });
           // the plates on its back hurt whatever bit them
           if (armored === 'back' && raw > 0 && foeLeft() > 0) {
@@ -367,6 +401,17 @@ export function teamFight(units, foe, rand, opts = {}) {
             if (cut >= 0 && foeHp[cut] > 0) bleeding[cut] += GRAB.bleed;
             continue;
           }
+        }
+        // latched on: it drives the claw in, through hide and armor, and the wound bleeds more
+        const latch = latches.get(who);
+        if (latch && (foeHp[latch.m] <= 0 || hp[who][latch.holder] <= 0)) latches.delete(who);
+        else if (latch) {
+          const dmg = rounded(hitOf({ ...units[who].members[latch.holder], crush: 1 }, foe.members[latch.m], 0.75 + rand() * 0.5));
+          foeHp[latch.m] = Math.max(0, foeHp[latch.m] - dmg);
+          if (foeHp[latch.m] > 0 && clawWounds[latch.m] < LATCH.maxStacks) { clawWounds[latch.m]++; bleeding[latch.m] += LATCH.bleed; }
+          log.push({ by: who, member: latch.m, dmg, left: foeHp[latch.m], foeLeft: foeLeft(), latched: latch.mode });
+          // the rest of a pack keeps attacking
+          if (!units[who].pack || standing(hp[who]).length < 2 || foeLeft() <= 0) continue;
         }
         const role = roleOf(units[who]);
         // a noncombatant never goes for the foe on its own

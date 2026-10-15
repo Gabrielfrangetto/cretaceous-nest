@@ -296,3 +296,25 @@ test('a Dilophosaurus clings to bigger unarmored foes to slash them, and shrugs 
   assert.ok(tough > 0);
   assert.ok(SPECIES.dilo.tough && TOUGH.heal < 1 && GRAB.chance > 0);
 });
+
+test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pinning smaller ones, until shaken off", () => {
+  const raptor = () => unitOf('r', [{ ...fighterOf(dino('r', 50, 'raptor')), fear: undefined }]);
+  const modes = new Set();
+  let claws = 0, shakes = 0, immune = 0, pinnedTurns = 0, necks = 0;
+  for (const foe of [wildFighter('dilo', 5), wildFighter('compy', 5)]) for (let i = 0; i < 40; i++) {
+    const r = teamFight([raptor()], foe, seededRand('v' + i));
+    let latched = null;
+    for (const e of r.log) {
+      if (e.by === 0 && e.latch) { modes.add(e.latch); latched = e.latch; }
+      if (e.by === 0 && e.latched) { claws++; assert.equal(e.latched, latched); }
+      if (e.by === 0 && e.part === 'neck') necks++;
+      if (e.by === 'foe' && e.shake) { shakes++; latched = null; }
+      if (e.by === 'foe' && e.pinned) { pinnedTurns++; assert.equal(latched, 'pin'); }
+      if (e.by === 'foe' && e.immune) { immune++; assert.equal(latched, 'cling'); }
+    }
+  }
+  assert.deepEqual([...modes].sort(), ['cling', 'pin']);
+  assert.ok(claws && shakes && immune && pinnedTurns && necks, JSON.stringify({ claws, shakes, immune, pinnedTurns, necks }));
+  // never on an armored body
+  for (let i = 0; i < 20; i++) assert.ok(!teamFight([raptor()], { ...wildFighter('proto', 5), plated: true }, seededRand('b' + i)).log.some(e => e.latch));
+});

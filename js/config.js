@@ -93,6 +93,7 @@ const SIZE = {
 //   club: a tail club that can break a foe's shin (CLUB)
 //   grab: clings to a bigger foe's body to slash it (GRAB)
 //   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
+//   claw: a sickle claw that latches on and goes for the neck (LATCH, CLAW)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -112,7 +113,7 @@ export const BODY = {
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
+  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
@@ -385,6 +386,15 @@ export const GRAB = { chance: 0.3, bleed: 0.005 };
 // would bring it down, from something no bigger than itself, leaves it standing at 1; and its
 // injuries heal in heal of the time (not a critical one, which takes as long as anyone's).
 export const TOUGH = { heal: 0.5 };
+// Velociraptor's sickle claw. A blow that lands on a foe with no armor on its body may latch on
+// (chance): on a bigger foe it clings to it, out of its reach; a foe its size or smaller it pins to
+// the ground, and a pinned foe can neither strike nor dodge. Latched, every turn it drives the claw in:
+// a piercing blow (through hide and armor) and a wound that bleeds bleed more of the foe's health a
+// turn (up to maxStacks wounds), until the foe shakes it off: each of the foe's turns, a chance of
+// shake times agility against agility (clinging) or strength against strength (pinned).
+export const LATCH = { chance: 0.2, bleed: 0.005, maxStacks: 5, shake: 1.3 };
+// it drives the claw in from below, so a share of its blows land on the neck, through any armor
+export const CLAW = { neck: 0.3 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
 // head head of the time (headPack against a pack, which gets at it from the sides). While the frill
 // holds, a blow on the head does the dinosaur no harm: it costs the frill a point (crushed points for a
