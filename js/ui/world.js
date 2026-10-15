@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, explorerOf, memberProblem, teamFrom, teamUnits,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamWinChance, dangerOf } from '../combat.js';
@@ -102,11 +102,11 @@ function unitLabel(u) {
 function unitProblem(u, t) {
   for (const id of membersOf(u)) {
     const problem = memberProblem(S, id, selected, t);
-    if (problem) return { id, problem };
+    if (problem) return { id, problem, label: problem === 'injured' && isCritical(byId(id), t) ? 'critical' : problem };
   }
   return null;
 }
-const SHORT = { away: 'away', injured: 'injured', hungry: 'hungry', breeding: 'nesting', 'too-far': 'too far for a juvenile', 'too-young': 'too young' };
+const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', hungry: 'hungry', breeding: 'nesting', 'too-far': 'too far for a juvenile', 'too-young': 'too young' };
 
 function mapSVG(t) {
   const w = S.world;
@@ -149,7 +149,12 @@ function threatHTML(h, units, scout) {
   </div>`;
 }
 
-const healHTML = () => {
+const healHTML = (b, t) => {
+  if (isCritical(b, t)) {
+    const kits = countItem(S, 'transfusion');
+    return `<div class="row"><button class="ghost" type="button" id="transfuseBtn" ${kits ? '' : 'disabled'}>Give a Blood Transfusion (${kits})</button>
+      <span class="hint">${kits ? 'Heals it on the spot' : 'Herbs can\'t help a critical injury. Forge a transfusion from Allosaurus blood'}</span></div>`;
+  }
   const herbs = countItem(S, 'herb');
   return `<div class="row"><button class="ghost" type="button" id="healBtn" ${herbs ? '' : 'disabled'}>Use a Healing Herb (${herbs})</button>
     <span class="hint">${herbs ? `−${HEAL_MINS} min each` : 'Find them in meadows and forests, or buy them in the Shop'}</span></div>`;
@@ -191,11 +196,13 @@ function sideHTML(t) {
   const left = choices.filter(c => !team.some(u => unitKey(u) === unitKey(c)));
   const rows = team.map((u, i) => {
     const p = unitProblem(u, t);
-    return `<li class="team-unit"><span><strong>${esc(unitName(u))}</strong> <span class="hint">${esc(unitLabel(u).split(' · ').slice(1).join(' · '))}</span>${p ? ` <span class="hint warn-text">· ${esc(SHORT[p.problem] || p.problem)}</span>` : ''}</span>
+    return `<li class="team-unit"><span><strong>${esc(unitName(u))}</strong> <span class="hint">${esc(unitLabel(u).split(' · ').slice(1).join(' · '))}</span>${p ? ` <span class="hint warn-text">· ${esc(SHORT[p.label] || p.problem)}</span>` : ''}</span>
       <button class="ghost" type="button" data-unit-off="${i}" aria-label="Take ${esc(unitName(u))} out of the team">×</button></li>`;
   }).join('');
+  const critical = problem === 'injured' && blocker && isCritical(byId(blocker.id), t);
   const why = problem && PROBLEMS[problem]
-    ? (blocker && blocker.problem === problem && team.flatMap(membersOf).length > 1 ? `${esc(blocker.id === PLAYER_ID ? 'You' : byId(blocker.id).name)}: ` : '') + PROBLEMS[problem]
+    ? (blocker && blocker.problem === problem && team.flatMap(membersOf).length > 1 ? `${esc(blocker.id === PLAYER_ID ? 'You' : byId(blocker.id).name)}: ` : '')
+      + (critical ? 'Critically injured: it went down in a fight. Herbs won\'t help; a Blood Transfusion heals it at once.' : PROBLEMS[problem])
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
@@ -206,13 +213,13 @@ function sideHTML(t) {
       ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
       ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
         const p = unitProblem(u, t);
-        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.problem] || p.problem)}` : ''}</option>`;
+        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.label] || p.problem)}` : ''}</option>`;
       }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
     </div>
     ${rivalsHTML(team.flatMap(membersOf))}
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
-    ${problem === 'injured' ? healHTML() : ''}
+    ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
 }
 
@@ -305,6 +312,14 @@ function render() {
     team.splice(+btn.dataset.unitOff, 1);
     render();
   }));
+  const kit = document.getElementById('transfuseBtn');
+  if (kit) kit.addEventListener('click', () => {
+    const hurt = team.map(u => unitProblem(u, now())).find(p => p && p.problem === 'injured');
+    if (!hurt) return;
+    const r = act('transfuse', { babyId: hurt.id });
+    message = r.ok ? `${esc(byId(hurt.id).name)} is back on its feet!` : 'No Blood Transfusion.';
+    render();
+  });
   const heal = document.getElementById('healBtn');
   if (heal) heal.addEventListener('click', () => {
     const hurt = team.map(u => unitProblem(u, now())).find(p => p && p.problem === 'injured');
@@ -342,14 +357,16 @@ function bindTrips(box) {
     const hurt = !injured.length ? ''
       : injured.length === 1 ? ` ${esc(hurtName(injured[0].id))} ${injured[0].id === PLAYER_ID ? 'are' : 'is'} injured for ${injured[0].mins} min.`
       : ` ${injured.length} of the team are injured, for up to ${Math.max(...injured.map(x => x.mins))} min.`;
+    const down = injured.filter(x => x.critical).map(x => hurtName(x.id));
+    const critical = !down.length ? '' : ` ${esc(listNames(down))} went down and ${down.length > 1 ? 'are' : 'is'} critically injured: herbs won't help, a Blood Transfusion will.`;
     const finder = r.team.length === 1 && r.team[0].kind !== 'pack' ? who : 'The team';
     const follow = !r.egg ? '' : r.egg.lost ? ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
       : ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
     const mad = r.battle && r.battle.frenzy.length
       ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy.` : '';
     message = r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${mad}${hurt}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${mad}${hurt}${follow}${mapped}`;
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${mad}${hurt}${critical}${mapped}`
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle) playFight(r.battle, message, byId);
   }));

@@ -4,7 +4,7 @@ import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from 
 import { freshState } from '../js/state.js';
 import { fight, fighterOf, creatureFighter, winChance, dangerOf } from '../js/combat.js';
 import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem } from '../js/world.js';
-import { CREATURES, BIOMES, INJURY_MINS, HEAL_MINS, LAIR_MIN_DIST } from '../js/config.js';
+import { CREATURES, BIOMES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -64,7 +64,7 @@ test('beating a creature brings its loot and coins on top of the hex', () => {
   assert.equal(injuredLeft(s.hatched[0], T0 + tripMins(key) * 60000) >= 0, true);
 });
 
-test('losing brings nothing, still maps the land, and leaves the dinosaur injured', () => {
+test('losing brings nothing, still maps the land, and leaves the dinosaur injured (critically, as it went down)', () => {
   const s = game(dino('runt', 1, 'proto'));
   const key = lairs(42).at(-1);
   const coins = s.coins;
@@ -75,7 +75,7 @@ test('losing brings nothing, still maps the land, and leaves the dinosaur injure
   assert.equal(r.coins, 0);
   assert.equal(s.coins, coins);
   assert.equal(s.world.visited.includes(key), false);
-  assert.equal(injuredLeft(s.hatched[0], back), INJURY_MINS * 60000);
+  assert.equal(injuredLeft(s.hatched[0], back), CRITICAL_MINS * 60000);
   s.hatched[0].lastFed = back;
   assert.equal(exploreProblem(s, 'runt', '1,0', back), 'injured');
 });
@@ -102,4 +102,27 @@ test('equipment cannot change while the dinosaur is away', () => {
   applyAction(s, 'explore', { babyId: 'a', hex: '1,0' }, T0);
   const slot = s.inv.findIndex(x => x && x.id === 'leather_vest');
   assert.equal(equipGear(s, 'a', slot).reason, 'away');
+});
+
+test('a dinosaur brought down is critically injured: herbs do not help, a Blood Transfusion does', async () => {
+  const { CRITICAL_MINS } = await import('../js/config.js');
+  const { isCritical } = await import('../js/world.js');
+  const s = game(dino('runt', 1, 'proto'));
+  const key = lairs(42).at(-1);
+  const back = T0 + tripMins(key) * 60000;
+  const r = trip(s, 'runt', key);
+  assert.equal(r.battle.win, false);
+  const b = s.hatched[0];
+  assert.equal(isCritical(b, back), true);
+  assert.equal(injuredLeft(b, back), CRITICAL_MINS * 60000);
+  assert.ok(r.battle.injured[0].critical);
+  addItem(s, 'herb', 3);
+  assert.equal(applyAction(s, 'heal', { babyId: 'runt' }, back).reason, 'critical');
+  assert.equal(applyAction(s, 'transfuse', { babyId: 'runt' }, back).reason, 'no-transfusion');
+  addItem(s, 'allo_blood', 2);
+  assert.equal(applyAction(s, 'craft', { id: 'transfusion' }).ok, true);
+  assert.equal(applyAction(s, 'transfuse', { babyId: 'runt' }, back).ok, true);
+  assert.equal(injuredLeft(b, back), 0);
+  assert.equal(isCritical(b, back), false);
+  assert.equal(countItem(s, 'transfusion'), 0);
 });

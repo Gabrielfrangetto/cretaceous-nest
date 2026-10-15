@@ -165,7 +165,8 @@ export const ITEMS = {
   obsidian:     { name: 'Obsidian', plural: 'obsidian', desc: 'Sharp volcanic glass from the slopes of the volcano.' },
   // only from an Allosaurus frenzy (FRENZY_DROPS)
   allo_tooth:   { name: 'Serrated Allosaurus Tooth', plural: 'serrated Allosaurus teeth', desc: 'Lost in a frenzy, when Allosaurus turned on each other. Serrated like a steak knife: they shed and regrew teeth all their lives.' },
-  allo_blood:   { name: 'Allosaurus Blood', plural: 'Allosaurus blood', desc: 'Spilled when Allosaurus turned on each other in a frenzy. Still warm.' },
+  allo_blood:   { name: 'Allosaurus Blood', plural: 'Allosaurus blood', desc: 'Spilled when Allosaurus turned on each other in a frenzy. Used in the Forge for blood transfusions.' },
+  transfusion:  { name: 'Blood Transfusion', plural: 'blood transfusions', desc: 'Allosaurus blood and healing herbs. Heals a critically injured dinosaur on the spot.' },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -336,6 +337,9 @@ export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight
 export const BRUISE_MINS = 10;               // a win that left it under half health: up to this many minutes
 export const HEAL_MINS = 10;                 // each Healing Herb heals this much sooner
+// a dinosaur brought down in a fight is critically injured: much longer, and herbs don't help it.
+// A Blood Transfusion (forged from Allosaurus blood) heals it on the spot. Not for the player.
+export const CRITICAL_MINS = 60;
 
 // Eggs: a trip that comes home (no fight, or a won fight) may find an egg of one of the biome's
 // species. It goes to the egg tray; its genes are better the farther from the nest, best in a lair.
@@ -359,6 +363,7 @@ export const RECIPES = [
   { id: 'obsidian_fang', needs: { obsidian: 6, bone: 3 } },
   { id: 'amber_charm', needs: { amber: 3, shell: 3 } },
   { id: 'golden_crown', needs: { golden_shell: 3, amber: 2, obsidian: 2 } },
+  { id: 'transfusion', needs: { allo_blood: 2, herb: 2 } },
 ];
 
 // The player's explorer: explores alone like a dinosaur (any distance), never gets hungry, can be

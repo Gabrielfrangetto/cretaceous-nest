@@ -133,7 +133,7 @@ function sanitize(s) {
     ...b,
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
-    ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil) } : { injuredUntil: undefined }),
+    ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined } : { injuredUntil: undefined, critical: undefined }),
     // only real equipment, each in its own slot
     equip: Object.fromEntries(GEAR_SLOTS.map(({ id }) => [id, b.equip && b.equip[id]]).filter(([slot, item]) => isGear(item) && ITEMS[item].slot === slot)),
   }));

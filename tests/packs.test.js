@@ -73,7 +73,7 @@ test('a team comes home together: everyone hungry, the downed ones injured', () 
   assert.equal(c.ok, true);
   if (c.battle) {
     assert.equal(c.battle.team.length, 1);
-    if (!c.battle.win) for (const b of s.hatched) assert.equal(injuredLeft(b, back), INJURY_MINS * 60000);
+    if (!c.battle.win) for (const b of s.hatched) assert.ok(injuredLeft(b, back) >= INJURY_MINS * 60000);
   }
   for (const b of s.hatched) assert.ok(b.lastFed < back);
   assert.equal(s.world.expeditions.length, 0);

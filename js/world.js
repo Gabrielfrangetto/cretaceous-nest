@@ -7,7 +7,7 @@
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
-  LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
+  LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
@@ -132,10 +132,23 @@ export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, me
 
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
+// brought down in a fight: herbs don't help, a Blood Transfusion does
+export const isCritical = (b, now) => !!(b && b.critical) && injuredLeft(b, now) > 0;
+export function transfuse(s, babyId, now) {
+  const b = s.hatched.find(x => x.id === babyId);
+  if (!b) return { ok: false, reason: 'missing' };
+  if (!isCritical(b, now)) return { ok: false, reason: 'not-critical' };
+  if (countItem(s, 'transfusion') < 1) return { ok: false, reason: 'no-transfusion' };
+  removeItem(s, 'transfusion', 1);
+  delete b.injuredUntil;
+  delete b.critical;
+  return { ok: true };
+}
 export function healBaby(s, babyId, now) {
   const b = explorerOf(s, babyId);
   if (!b) return { ok: false, reason: 'missing' };
   if (!injuredLeft(b, now)) return { ok: false, reason: 'not-injured' };
+  if (isCritical(b, now)) return { ok: false, reason: 'critical' };
   if (countItem(s, 'herb') < 1) return { ok: false, reason: 'no-herb' };
   removeItem(s, 'herb', 1);
   b.injuredUntil -= HEAL_MINS * 60000;
@@ -261,13 +274,18 @@ export function collectExpedition(s, id, now) {
   if (units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1)) {
     const team = teamUnits(s, units), foe = threat.foe;
     const result = teamFight(team, foe, fightRand);
-    // whoever went down is injured; the rest are bruised by how much health they lost, and everyone
-    // is injured when the team loses
+    // a dinosaur that went down is critically injured (the player just injured); the rest are
+    // bruised by how much health they lost, and everyone is injured when the team loses
     const injured = [];
     units.forEach((u, i) => u.members.forEach((id, j) => {
       const left = result.hp[i][j] / team[i].members[j].hp;
-      const mins = !result.win || left <= 0 ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
-      if (mins) { explorerOf(s, id).injuredUntil = now + mins * 60000; injured.push({ id, mins }); }
+      const critical = left <= 0 && id !== PLAYER_ID;
+      const mins = critical ? CRITICAL_MINS : !result.win || left <= 0 ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
+      if (!mins) return;
+      const b = explorerOf(s, id);
+      b.injuredUntil = now + mins * 60000;
+      if (critical) b.critical = true; else delete b.critical;
+      injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }));
     battle = {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power, hp: foe.hp },

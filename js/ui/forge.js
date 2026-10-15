@@ -15,7 +15,7 @@ function render() {
   if (!box) return;
   box.innerHTML = `
     <div><h2 id="forgeTitle">Forge</h2>
-    <p class="hint">Turn the materials your explorers bring home into weapons and armor for you, and equipment for your adult dinosaurs, that the Shop doesn't sell.</p></div>
+    <p class="hint">Turn the materials your explorers bring home into weapons and armor for you, equipment for your adult dinosaurs, and remedies, that the Shop doesn't sell.</p></div>
     <ul class="gear-list">${RECIPES.map(r => {
       const it = ITEMS[r.id];
       const parts = Object.entries(r.needs).map(([id, n]) => ({ id, n, have: countItem(S, id) }));
@@ -24,8 +24,8 @@ function render() {
         <span class="gear-icon big">${ITEM_ICONS[r.id]}</span>
         <div class="gear-body">
           <strong>${esc(it.name)}</strong>
-          <span class="hint">${it.kind === 'arms' ? 'For you' : 'For dinosaurs'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · weight ${it.weight} · ${esc(it.desc)}</span>
-          ${modsHTML(it.mods)}
+          <span class="hint">${it.slot ? `${it.kind === 'arms' ? 'For you' : 'For dinosaurs'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · weight ${it.weight} · ` : ''}${esc(it.desc)}</span>
+          ${it.mods ? modsHTML(it.mods) : ''}
           <ul class="needs">${parts.map(p => `<li class="${p.have >= p.n ? 'got' : 'short'}"><span class="mini">${ITEM_ICONS[p.id]}</span>${p.have}/${p.n} ${esc(p.n === 1 ? ITEMS[p.id].name : ITEMS[p.id].plural)}</li>`).join('')}</ul>
         </div>
         <div class="gear-buy">

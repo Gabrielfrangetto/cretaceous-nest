@@ -3,7 +3,7 @@ import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor } from '../economy.js';
 import { act } from '../actions.js';
-import { expeditionOf, injuredLeft } from '../world.js';
+import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { plural, fmt } from '../util.js';
@@ -82,7 +82,7 @@ function checkHunger() {
     if (fed) {
       const hurt = injuredLeft(b, now);
       fed.textContent = trip ? (now >= trip.returnAt ? 'Back from exploring! See the World tab' : 'Exploring · back in ' + fmt(trip.returnAt - now))
-        : hungry ? 'Hungry!' : hurt ? 'Injured · heals in ' + fmt(hurt) : 'Ate ' + plural(b.fed || 0, 'time', 'times');
+        : hungry ? 'Hungry!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt) : 'Ate ' + plural(b.fed || 0, 'time', 'times');
       fed.classList.toggle('hungry', hungry);
     }
   }
