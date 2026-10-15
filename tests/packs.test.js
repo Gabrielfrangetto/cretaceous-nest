@@ -189,3 +189,28 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
   for (const team of [[pair()[0]], [unitOf('r1', [fighterOf(dino('r1', 'raptor'))]), unitOf('r2', [fighterOf(dino('r2', 'raptor'))])]])
     assert.equal(teamFight(team, foe, seededRand('calm')).log.some(e => e.ally !== undefined), false);
 });
+
+test('only a won fight that went into a frenzy drops Allosaurus teeth and blood, more with more Allosaurus', () => {
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) === 3 && threatAt(42, parseKey(k)).lair);
+  const haul = n => {
+    const ids = Array.from({ length: n }, (_, i) => 'a' + i);
+    const s = game(...ids.map(id => dino(id, 'allo', 80)));
+    const got = { allo_tooth: 0, allo_blood: 0, frenzyWins: 0 };
+    for (let i = 0; i < 150; i++) {
+      s.world.expeditions = [];
+      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; });
+      const r = applyAction(s, 'explore', { team: ids.map(id => ({ kind: 'dino', id })), hex: key }, T0);
+      assert.equal(r.ok, true, r.reason);
+      const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+      const drops = c.loot.filter(l => l.id in got);
+      if (!c.battle || !c.battle.win || !c.battle.frenzy.length) assert.deepEqual(drops, []);
+      else got.frenzyWins++;
+      for (const l of drops) got[l.id] += l.n;
+    }
+    return got;
+  };
+  const one = haul(1), two = haul(2), three = haul(3);
+  assert.equal(one.allo_tooth + one.allo_blood, 0);
+  assert.ok(two.allo_blood > 0 && three.frenzyWins > 0);
+  assert.ok(three.allo_blood / three.frenzyWins > two.allo_blood / two.frenzyWins, JSON.stringify({ two, three }));
+});

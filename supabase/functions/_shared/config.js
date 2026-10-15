@@ -163,6 +163,9 @@ export const ITEMS = {
   clay:         { name: 'Clay', plural: 'clay', desc: 'Soft river clay from the swamps.' },
   bone:         { name: 'Old bone', plural: 'old bones', desc: 'Sun-bleached bones found in the badlands.' },
   obsidian:     { name: 'Obsidian', plural: 'obsidian', desc: 'Sharp volcanic glass from the slopes of the volcano.' },
+  // only from an Allosaurus frenzy (FRENZY_DROPS)
+  allo_tooth:   { name: 'Serrated Allosaurus Tooth', plural: 'serrated Allosaurus teeth', desc: 'Lost in a frenzy, when Allosaurus turned on each other. Serrated like a steak knife: they shed and regrew teeth all their lives.' },
+  allo_blood:   { name: 'Allosaurus Blood', plural: 'Allosaurus blood', desc: 'Spilled when Allosaurus turned on each other in a frenzy. Still warm.' },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -280,10 +283,15 @@ export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
 // go into a frenzy for the rest of the fight and hit FRENZY_DAMAGE times as hard, each striking the
 // foe or another frenzied one, picked at random. The last one standing stays in its frenzy and
 // strikes the foe or anyone left in the team. A frenzy wins less often and hurts more of the team,
-// but a kill made in one brings FRENZY_LOOT times the creature's loot and coins. High risk, high reward.
+// but a won fight that went into one can drop what no other fight gives (FRENZY_DROPS), more of it
+// and more often the more Allosaurus took part. High risk, high reward.
 export const RIVAL_CLASH = 0.025;
 export const FRENZY_DAMAGE = 2;
-export const FRENZY_LOOT = 3;
+// each drop for a team with n of them (n ≥ 2): chance(n), and how many (from min(n) to max(n))
+export const FRENZY_DROPS = [
+  { id: 'allo_tooth', chance: n => Math.min(0.9, 0.2 * (n - 1)), min: () => 1, max: n => n - 1 },
+  { id: 'allo_blood', chance: n => Math.min(1, 0.5 * (n - 1)), min: n => n - 1, max: n => 2 * (n - 1) },
+];
 export const PACK_MIN = 2;
 export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
 export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first

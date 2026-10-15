@@ -8,7 +8,7 @@
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_LOOT,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, creatureFighter, teamFight, unitOf } from './combat.js';
@@ -273,6 +273,8 @@ export function collectExpedition(s, id, now) {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power, hp: foe.hp },
       team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0) })),
       ...result, injured,
+      // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
+      frenzyCount: exp.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length,
     };
   }
   const won = !battle || battle.win;
@@ -281,11 +283,14 @@ export function collectExpedition(s, id, now) {
   if (won) {
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, roll(l));
     if (battle) {
-      // a kill made in a frenzy brings more
-      const mad = battle.frenzy.length ? FRENZY_LOOT : 1;
-      const mult = (1 + (d - 1) * LOOT_PER_HEX) * mad;
+      const mult = 1 + (d - 1) * LOOT_PER_HEX;
       for (const [item, min, max] of CREATURES[battle.creature].loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
-      coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1) * mad;
+      coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
+      // a fight that went into a frenzy drops what nothing else gives, more with more of them in it
+      if (battle.frenzy.length) {
+        const n = battle.frenzyCount;
+        for (const drop of FRENZY_DROPS) if (rand() < drop.chance(n)) give(drop.id, roll({ min: drop.min(n), max: drop.max(n) }));
+      }
       // equipment that drops is the kind sold in the Shop; forged pieces only come from the Forge
       if (rand() < GEAR_DROP(d, battle.lair)) {
         const gear = Object.keys(ITEMS).filter(id => ITEMS[id].kind === 'gear' && ITEMS[id].price);
