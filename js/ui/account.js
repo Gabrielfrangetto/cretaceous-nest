@@ -1,129 +1,40 @@
-// Account button in the header, the sign-in / account panel, and the save status line.
-import { GOOGLE_SIGN_IN } from '../cloud-config.js';
-import {
-  cloudEnabled, cloudState, onCloudChange, resolveChoice,
-  sendSignInLink, verifySignInCode, signInWithGoogle, signOut, saveDisplayName, deleteAccount,
-} from '../cloud.js';
+// Account button in the header, the account panel (name, sign out, delete) and the save status line.
+// Signing in happens on the sign-in screen (ui/gate.js) before the game shows.
+import { cloudState, onCloudChange, signOut, saveDisplayName, deleteAccount } from '../cloud.js';
+import { devMode } from '../state.js';
 import { esc } from '../util.js';
 
 const STATUS_TEXT = {
-  local: 'Progress saved in this browser',
-  unavailable: 'Accounts are unavailable right now. Progress is saved in this browser',
-  loading: 'Loading your account…',
-  choose: 'Choose which progress to keep',
-  pending: 'Saving…',
+  loading: 'Loading your nest…',
   saving: 'Saving…',
   saved: 'Saved to your account',
-  error: "Couldn't reach your account. Progress is kept in this browser",
+  error: "Couldn't reach the server. Retrying…",
 };
 
 const dialog = document.getElementById('accountDialog');
 const body = document.getElementById('accountBody');
-let sentTo = '';           // email a sign-in link was sent to
-let typedEmail = '';       // kept so an error does not wipe what the player typed
 let message = '', messageIsError = false;
 let confirmDelete = false, deleteTimer = null;
 
 function say(text, isError = false) { message = text; messageIsError = isError; render(); }
 
-// network failures come back as raw browser messages such as 'Failed to fetch'
-function friendly(err, fallback) {
-  const text = err && err.message || '';
-  if (!text || /fetch|network|load failed/i.test(text)) return "Couldn't reach the sign-in service. Check your connection and try again.";
-  if (/rate limit|too many/i.test(text)) return 'Too many sign-in emails were sent. Wait a few minutes and try again.';
-  if (/expired|invalid/i.test(text)) return 'That code is wrong or expired. Check the latest email, or send a new one.';
-  return text || fallback;
-}
-
 function renderStatus() {
-  const { user, status } = cloudState();
-  document.getElementById('syncStatus').textContent = STATUS_TEXT[status] || STATUS_TEXT.local;
-  document.getElementById('accountBtn').textContent = user ? 'Account' : 'Sign in';
+  const { status } = cloudState();
+  document.getElementById('syncStatus').textContent = devMode() ? 'Dev mode: saved in this browser only' : STATUS_TEXT[status] || '';
 }
 
 // the panel is redrawn only when what it shows changes, so typing in it is never interrupted by a save
 let panelKey = '';
-const keyOf = ({ ready, user, profile, status, choice }) =>
-  [ready, user?.id, profile?.display_name, !!choice, status === 'unavailable'].join('|');
+const keyOf = ({ user, profile }) => [user?.id, profile?.display_name].join('|');
 
 function render() {
   renderStatus();
   const state = cloudState();
   panelKey = keyOf(state);
-  const { ready, user, profile, status, choice } = state;
-
+  const { user, profile } = state;
   const note = message ? `<p class="account-msg ${messageIsError ? 'error' : ''}" role="status">${esc(message)}</p>` : '';
   const legal = '<p class="hint legal"><a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of use</a></p>';
-
-  if (!ready) {
-    body.innerHTML = `<h2 id="accountTitle">Accounts</h2><p class="hint">${status === 'unavailable'
-      ? 'Accounts could not load. Check your connection and reload the page. Your progress is still saved in this browser.'
-      : 'Loading…'}</p>`;
-    return;
-  }
-
-  if (choice) {
-    body.innerHTML = `
-      <h2 id="accountTitle">Which progress do you want to keep?</h2>
-      <p class="hint">Your account already has a saved game, and this browser has a game played without signing in.</p>
-      <div class="choice">
-        <button class="choice-card" type="button" id="keepCloud"><strong>Your account</strong><span>${esc(choice.remote)}</span></button>
-        <button class="choice-card" type="button" id="keepLocal"><strong>This browser</strong><span>${esc(choice.local)}</span></button>
-      </div>
-      <p class="hint">The other one is replaced. To keep a copy first, close this panel and use “Back up or move your progress” at the bottom of the page.</p>`;
-    document.getElementById('keepCloud').addEventListener('click', () => resolveChoice(true));
-    document.getElementById('keepLocal').addEventListener('click', () => resolveChoice(false));
-    return;
-  }
-
-  if (!user) {
-    body.innerHTML = sentTo ? `
-      <h2 id="accountTitle">Check your email</h2>
-      <p>We sent a sign-in email to <strong>${esc(sentTo)}</strong>.</p>
-      <form id="codeForm" class="account-form">
-        <div class="field"><label for="signInCode">Type the code from the email to sign in on this browser</label>
-        <input type="text" id="signInCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required placeholder="123456" class="code-input"></div>
-        <div class="row"><button class="btn" type="submit">Sign in</button></div>
-      </form>
-      <p class="hint">Or open the link in the email. The link signs you in on the browser where you open it, so on a phone it signs in the phone.</p>
-      <p class="hint">No email after a few minutes? Check your spam folder.</p>
-      <div class="row"><button class="ghost" type="button" id="again">Send again or use a different email</button></div>
-      ${note}` : `
-      <h2 id="accountTitle">Save your progress</h2>
-      <p class="hint">A free account keeps your nest safe and lets you play on any device. The game you have in this browser moves to your account.</p>
-      <form id="signInForm" class="account-form">
-        <div class="field"><label for="signInEmail">Email</label>
-        <input type="email" id="signInEmail" autocomplete="email" required placeholder="you@example.com" value="${esc(typedEmail)}"></div>
-        <div class="row"><button class="btn" type="submit">Email me a sign-in link</button></div>
-      </form>
-      ${GOOGLE_SIGN_IN ? '<div class="row"><button class="ghost google" type="button" id="googleBtn">Continue with Google</button></div>' : ''}
-      ${note}${legal}`;
-    if (sentTo) {
-      document.getElementById('again').addEventListener('click', () => { sentTo = ''; message = ''; render(); });
-      document.getElementById('codeForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const button = e.submitter || e.target.querySelector('button');
-        button.disabled = true;
-        try { await verifySignInCode(sentTo, document.getElementById('signInCode').value); message = ''; }
-        catch (err) { button.disabled = false; say(friendly(err, 'Could not sign in with that code.'), true); }
-      });
-      return;
-    }
-    document.getElementById('signInForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const email = document.getElementById('signInEmail').value.trim();
-      typedEmail = email;
-      const button = e.submitter || e.target.querySelector('button');
-      button.disabled = true;
-      try { await sendSignInLink(email); sentTo = email; message = ''; render(); }
-      catch (err) { button.disabled = false; say(friendly(err, 'Could not send the link. Try again in a minute.'), true); }
-    });
-    const google = document.getElementById('googleBtn');
-    if (google) google.addEventListener('click', async () => {
-      try { await signInWithGoogle(); } catch (err) { say(friendly(err, 'Google sign-in failed. Try again.'), true); }
-    });
-    return;
-  }
+  if (!user) { body.innerHTML = ''; return; }
 
   body.innerHTML = `
     <h2 id="accountTitle">Your account</h2>
@@ -137,7 +48,7 @@ function render() {
       <button class="ghost" type="button" id="signOutBtn">Sign out</button>
       <button class="ghost ${confirmDelete ? 'warn' : ''}" type="button" id="deleteBtn">${confirmDelete ? 'Tap again to delete your account and progress for good' : 'Delete account'}</button>
     </div>
-    <p class="hint">Signing out leaves your progress in your account and starts a new game in this browser.</p>
+    <p class="hint">Your progress stays in your account when you sign out.</p>
     ${note}${legal}`;
   document.getElementById('nameForm2').addEventListener('submit', async e => {
     e.preventDefault();
@@ -163,14 +74,12 @@ function render() {
 
 export function initAccount() {
   const btn = document.getElementById('accountBtn');
-  if (!cloudEnabled) { btn.hidden = true; render(); return; }
-  btn.hidden = false;
+  btn.hidden = devMode();
   btn.addEventListener('click', () => { message = ''; render(); dialog.showModal(); });
   document.getElementById('accountClose').addEventListener('click', () => dialog.close());
-  // after a sign-in the panel must stay open for the player to pick a save
   onCloudChange(() => {
-    if (cloudState().status === 'choose' && !dialog.open) dialog.showModal();
-    if (cloudState().user) sentTo = '';
+    // signing out brings the sign-in screen back; the panel closes with it
+    if (!cloudState().user && dialog.open) dialog.close();
     if (keyOf(cloudState()) !== panelKey) render(); else renderStatus();
   });
   render();

@@ -1,10 +1,10 @@
-// Accounts and the server-side game. When js/cloud-config.js is empty this module stays off and the
-// game keeps its save in the browser only.
+// Accounts and the server-side game. Every game needs an account: until the player is signed in and
+// their save has loaded, the sign-in screen (ui/gate.js) covers the game.
 //
-// Signed-in players never write their save directly: every action goes to the `game` Edge Function,
-// which applies the same rules (js/economy.js) with the server's clock and stores the result.
+// Players never write their save directly: every action goes to the `game` Edge Function, which
+// applies the same rules (js/economy.js) with the server's clock and stores the result.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './cloud-config.js';
-import { S, replaceState, adoptState, migrate, freshState } from './state.js';
+import { S, replaceState, adoptState, migrate, freshState, legacySave, clearLegacySave } from './state.js';
 import { chooseSave, summarize } from './sync.js';
 import { setServerTime } from './clock.js';
 
@@ -15,22 +15,25 @@ export const cloudEnabled = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 let client = null;
 let user = null;
 let profile = null;
-// local | loading | choose | saving | saved | error | unavailable
-let status = 'local';
-let choice = null;          // { local, remote, remoteSave } while the player picks a save
+// starting | signed-out | loading | choose | saving | saved | error | unavailable
+let status = 'starting';
+let loaded = false;         // the signed-in player's save has arrived from the server
+let choice = null;          // { local, remote, remoteSave, localSave } while the player picks a save
 
 const listeners = new Set();
 export const onCloudChange = fn => listeners.add(fn);
 const emit = () => { for (const fn of listeners) fn(); };
 const setStatus = s => { status = s; emit(); };
 
-export const cloudState = () => ({ enabled: cloudEnabled, ready: !!client, user, profile, status, choice });
+export const cloudState = () => ({ enabled: cloudEnabled, ready: !!client, user, profile, status, choice, loaded });
+// the game can be shown: signed in, save loaded, nothing left to choose
+export const inGame = () => !!(user && loaded && !choice);
 
 // true when actions should go to the server
 export const accountActive = () => !!(client && user && !choice && status !== 'loading');
 
 export async function initCloud() {
-  if (!cloudEnabled) return;
+  if (!cloudEnabled) { setStatus('unavailable'); return; }
   try {
     const { createClient } = await import(SDK_URL);
     // implicit flow: the emailed link signs the player in on whatever browser opens it, which matters
@@ -67,18 +70,27 @@ async function handleSession(session) {
   const next = session?.user || null;
   if ((next?.id || null) === (user?.id || null)) {
     if (next) user = next;    // token refresh: same player
+    if (!next && status === 'starting') { setStatus('signed-out'); return; }   // nobody signed in on this browser
     emit();
     return;
   }
   if (!next) {
-    // signed out: the account's progress stays on the server and this browser starts a guest game
-    user = null; profile = null; choice = null;
+    // signed out: the progress stays on the server and the sign-in screen comes back
+    user = null; profile = null; choice = null; loaded = false;
     pending.length = 0;
     replaceState(freshState(), 'cloud');
-    setStatus('local');
+    setStatus('signed-out');
     return;
   }
   user = next;
+  loaded = false;
+  setStatus('loading');
+  await loadAccount();
+}
+
+// loads the signed-in player's save; also the retry after a failed load
+export async function loadAccount() {
+  if (!user) return;
   setStatus('loading');
   let res;
   try {
@@ -89,25 +101,32 @@ async function handleSession(session) {
     return;
   }
   const remote = res.state ? migrate(res.state) : null;
-  const decision = chooseSave(S, remote, user.id);
+  // a game played in this browser before accounts were required moves into the account once
+  const local = legacySave() || freshState();
+  const decision = chooseSave(local, remote, user.id);
   if (decision === 'ask') {
-    choice = { local: summarize(S), remote: summarize(remote), remoteSave: remote };
+    choice = { local: summarize(local), remote: summarize(remote), remoteSave: remote, localSave: local };
     setStatus('choose');
     return;
   }
-  apply(decision, remote);
+  apply(decision, remote, local);
 }
 
-async function apply(decision, remote) {
+async function apply(decision, remote, local) {
   if (decision === 'use-remote') {
     adopt(remote, true);
+    clearLegacySave();
+    loaded = true;
     setStatus('saved');
     return;
   }
   setStatus('saving');
   try {
-    const res = await callGame('claim', decision === 'start-fresh' ? { fresh: true } : { save: S, replace: !!remote });
+    const fresh = decision === 'start-fresh' || !local.hatched.length && !local.current && !local.coins;
+    const res = await callGame('claim', fresh ? { fresh: true } : { save: local, replace: !!remote });
     adopt(res.state, true);
+    clearLegacySave();
+    loaded = true;
     setStatus('saved');
   } catch (e) {
     setStatus('error');
@@ -117,9 +136,9 @@ async function apply(decision, remote) {
 // the player picked a save after signing in with progress on both sides
 export function resolveChoice(useCloud) {
   if (!choice) return;
-  const remote = choice.remoteSave;
+  const { remoteSave, localSave } = choice;
   choice = null;
-  apply(useCloud ? 'use-remote' : 'claim', remote);
+  apply(useCloud ? 'use-remote' : 'claim', remoteSave, localSave);
 }
 
 // ---------- action queue ----------

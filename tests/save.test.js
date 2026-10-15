@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrate, exportCode, parseCode, freshState, SAVE_VERSION } from '../js/state.js';
+import { migrate, freshState, SAVE_VERSION } from '../js/state.js';
 import { countItem } from '../js/economy.js';
 import { SLOTS } from '../js/config.js';
 
@@ -43,19 +43,4 @@ test('unknown items, species and impossible numbers are cleaned up', () => {
   assert.equal(clean.inv[1].n, 99);
   assert.equal(clean.coins, 0);
   assert.equal(clean.hatched.length, 0);
-});
-
-test('a save code round-trips, names with accents included', () => {
-  const s = freshState();
-  s.coins = 123;
-  s.hatched.push({ id: 'b1', type: 'rex', sex: 'f', name: 'Pipoca Ñandú 🦖', at: 99 });
-  const back = parseCode(exportCode(s));
-  assert.equal(back.coins, 123);
-  assert.equal(back.hatched[0].name, 'Pipoca Ñandú 🦖');
-});
-
-test('a damaged code gives a clear error', () => {
-  const code = exportCode(freshState());
-  assert.throws(() => parseCode(code.slice(0, 40)), /incomplete or damaged/);
-  assert.throws(() => parseCode('hello'), /not a Cretaceous Nest save/);
 });

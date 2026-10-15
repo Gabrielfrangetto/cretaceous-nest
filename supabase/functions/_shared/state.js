@@ -1,5 +1,6 @@
-// The player's save: loading, versioned migrations, local persistence, export/import codes,
-// and a tiny change feed the UI modules subscribe to.
+// The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
+// the UI modules subscribe to. The real save lives on the server (every game needs an account); the
+// browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
 import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, seedFor, cleanWorld } from './world.js';
@@ -7,7 +8,7 @@ import { newWorld, seedFor, cleanWorld } from './world.js';
 export const SAVE_VERSION = 10;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
-const CODE_PREFIX = 'CNEST1:';
+const DEV_KEY = 'cretaceous-nest:dev';
 
 export function freshState() {
   const s = {
@@ -161,27 +162,6 @@ export function migrate(raw) {
   return sanitize(s);
 }
 
-// ---------- export / import ----------
-export function exportCode(s) {
-  const bytes = new TextEncoder().encode(JSON.stringify(s));
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return CODE_PREFIX + btoa(bin);
-}
-
-export function parseCode(code) {
-  const body = String(code).trim().replace(/\s+/g, '');
-  if (!body.startsWith(CODE_PREFIX)) throw new Error('This code is not a Cretaceous Nest save. Copy the whole code, starting with ' + CODE_PREFIX);
-  let raw;
-  try {
-    const bin = atob(body.slice(CODE_PREFIX.length));
-    raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
-  } catch (e) {
-    throw new Error('This code is incomplete or damaged. Copy it again and paste the whole thing.');
-  }
-  return migrate(raw);
-}
-
 // ---------- live state ----------
 export let S = freshState();
 const listeners = new Set();
@@ -193,14 +173,33 @@ function notify(kind, source) { for (const fn of listeners) fn(kind, source); }
 
 function storage() { try { return globalThis.localStorage || null; } catch (e) { return null; } }
 
+// Local dev mode (localhost with ?dev): the game runs without an account and keeps its save in this
+// browser, so it can be tried and tested without the server. Never on the real site.
+let dev = false;
+export const devMode = () => dev;
+export function enableDevMode() { dev = true; }
+
 export function persist() {
-  try { storage()?.setItem(KEY, JSON.stringify(S)); } catch (e) { /* private mode or storage full */ }
+  if (!dev) return;
+  try { storage()?.setItem(DEV_KEY, JSON.stringify(S)); } catch (e) { /* private mode or storage full */ }
 }
 
 export function load() {
-  let raw = null;
-  try { const st = storage(); raw = JSON.parse(st?.getItem(KEY) || st?.getItem(LEGACY_KEY) || 'null'); } catch (e) {}
-  try { S = raw ? migrate(raw) : freshState(); } catch (e) { S = freshState(); }
+  S = freshState();
+  if (!dev) return;
+  try { const raw = JSON.parse(storage()?.getItem(DEV_KEY) || 'null'); if (raw) S = migrate(raw); } catch (e) {}
+}
+
+// a game played in this browser before accounts were required, to move into the account once
+export function legacySave() {
+  try {
+    const st = storage();
+    const raw = JSON.parse(st?.getItem(KEY) || st?.getItem(LEGACY_KEY) || 'null');
+    return raw ? migrate(raw) : null;
+  } catch (e) { return null; }
+}
+export function clearLegacySave() {
+  try { const st = storage(); st?.removeItem(KEY); st?.removeItem(LEGACY_KEY); } catch (e) {}
 }
 
 // call after every action that changed S

@@ -14,7 +14,7 @@ An idle browser game. Pick a dinosaur egg and wait for it to hatch (time keeps r
 - Stats (Strength, Agility, Vitality, Resistance) from each species' base scaled by the baby's genes, with combat numbers (health, damage, dodge, damage reduction)
 - Breeding: a male and a female of the same species lay an egg, and the baby inherits their genes
 - Daily reward with a 7-day streak, and achievements that pay coins (checked by the server for signed-in players)
-- Save codes to back up progress or move it to another browser
+- Every game needs a free account: a sign-in screen comes first and progress lives on the server only
 - Optional free accounts with cloud saves (Supabase), see `docs/supabase-setup.md`
 
 ## Run locally
@@ -25,7 +25,7 @@ Requires Node 20 or newer. The game uses JavaScript modules, which browsers bloc
 node scripts/serve.js
 ```
 
-Then open http://localhost:5173. Progress is saved in that browser (localStorage).
+Then open http://localhost:5173. The game asks you to sign in (it needs the Supabase project). To try it without an account, open http://localhost:5173/?dev: dev mode keeps the save in that browser and only works on localhost.
 
 `npm start` does the same thing.
 
@@ -53,7 +53,8 @@ css/style.css       styles, with light and dark themes
 js/main.js          starts the game
 js/config.js        content and balance: species, items, timers, prices, rewards
 js/economy.js       game rules as pure functions (no DOM, no storage)
-js/state.js         save format, versioned migrations, local save, save codes
+js/state.js         save format, versioned migrations, the in-memory game, dev-mode save
+js/ui/gate.js       sign-in screen shown before the game
 js/sync.js          which save wins when a player signs in
 js/cloud.js         Supabase sign-in and cloud saves (off until js/cloud-config.js is filled in)
 js/art.js           eggs, nest, item icons and baby sprites
@@ -109,4 +110,4 @@ npx supabase functions deploy game --project-ref mhilrzspnbncfaixkzqc --no-verif
 
 ## Changing the save format
 
-Bump `SAVE_VERSION` in `js/state.js` and add a step to `MIGRATIONS` that turns the previous version into the new one. Old saves and save codes are upgraded when they load.
+Bump `SAVE_VERSION` in `js/state.js` and add a step to `MIGRATIONS` that turns the previous version into the new one. Old saves are upgraded when they load.
