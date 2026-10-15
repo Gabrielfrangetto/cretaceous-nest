@@ -143,6 +143,37 @@ export function playerArt(equip = {}, height = 120) {
   return wrap.firstElementChild;
 }
 
+// ---------- the guide ----------
+// Professor Ivy Fern, the paleontologist who teaches the game. Drawn in code (a placeholder until real
+// art), facing left so she looks at her speech bubble. height is in pixels.
+export function guideArt(height = 180) {
+  const skin = '#e9b892', hair = '#8a4b2a', khaki = '#c9b07a', dark = '#2a2420';
+  const wrap = document.createElement('span');
+  wrap.innerHTML = `<svg class="guide-art" viewBox="0 0 120 170" style="height:${Math.round(height)}px;width:auto" role="img" aria-label="Professor Ivy Fern">
+    <path d="M78 40 C96 46 98 70 88 84 C84 70 82 58 76 50Z" fill="${hair}"/>
+    <rect x="44" y="124" width="11" height="34" rx="4" fill="#6b5a3a"/><rect x="60" y="124" width="11" height="34" rx="4" fill="#5c4c30"/>
+    <path d="M40 156 h18 v9 h-21 Z M57 156 h18 v9 h-21 Z" fill="#5a3d24" stroke="${dark}" stroke-width="1.5"/>
+    <path d="M36 82 Q38 68 58 68 Q78 68 80 82 L84 128 H32 Z" fill="${khaki}" stroke="${dark}" stroke-width="2"/>
+    <path d="M58 70 L58 126" stroke="${dark}" stroke-width="1.2" opacity=".35"/>
+    <rect x="62" y="86" width="12" height="10" rx="2" fill="none" stroke="${dark}" stroke-width="1.4" opacity=".5"/>
+    <path d="M46 70 Q58 82 70 70 L66 64 Q58 72 50 64Z" fill="#4f8a3a" stroke="${dark}" stroke-width="1.5"/>
+    <path d="M38 84 Q28 100 34 110" stroke="${skin}" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <g transform="rotate(-12 30 106)"><rect x="18" y="96" width="22" height="26" rx="2" fill="#a0442c" stroke="${dark}" stroke-width="1.6"/><path d="M22 102 h14 M22 107 h14 M22 112 h10" stroke="#f3ead2" stroke-width="1.4"/></g>
+    <circle cx="56" cy="44" r="21" fill="${skin}" stroke="${dark}" stroke-width="2"/>
+    <path d="M36 42 C36 26 48 20 60 21 C72 22 78 30 77 42 C70 36 60 34 52 30 C46 36 40 40 36 42Z" fill="${hair}"/>
+    <circle cx="45" cy="45" r="5.5" fill="#fff" fill-opacity=".35" stroke="${dark}" stroke-width="1.8"/>
+    <circle cx="59" cy="45" r="5.5" fill="#fff" fill-opacity=".35" stroke="${dark}" stroke-width="1.8"/>
+    <path d="M50.5 45 h3 M64.5 44 L72 42" stroke="${dark}" stroke-width="1.8"/>
+    <circle cx="45" cy="45.5" r="1.8" fill="${dark}"/><circle cx="59" cy="45.5" r="1.8" fill="${dark}"/>
+    <path d="M45 56 Q51 60 57 55" stroke="#9a4a32" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="40" cy="52" r="3" fill="#e98a7a" opacity=".45"/>
+    <path d="M28 30 Q56 22 86 30 L82 33 Q56 27 32 33Z" fill="#a8905a" stroke="${dark}" stroke-width="1.8"/>
+    <path d="M38 31 C38 16 46 10 57 10 C68 10 75 16 75 31Z" fill="${khaki}" stroke="${dark}" stroke-width="2"/>
+    <path d="M38 27 H75" stroke="#7a5a33" stroke-width="3"/>
+  </svg>`;
+  return wrap.firstElementChild;
+}
+
 // ---------- babies ----------
 // image paths are resolved from this file, not from the page, so pages in other folders
 // (tools/anchors.html) find the same pictures

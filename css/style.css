@@ -572,3 +572,17 @@ body.on-landing > .site-footer { display: none; }
 .art-heart { display: grid; justify-items: center; gap: 4px; font-size: 28px; color: var(--heart); }
 .art-heart svg { width: 46px; }
 .signin-dialog .gate-card.plain { border: 0; box-shadow: none; padding: 0; background: none; }
+
+/* the guide (Professor Ivy Fern): the water reminder's corner pop-up, a little wider */
+.guide-bubble { width: min(320px, calc(100vw - 170px)); margin-bottom: 120px; gap: 10px; }
+.guide-msg { font-size: 16px; line-height: 1.5; }
+.guide-row { align-items: center; justify-content: flex-end; }
+.guide-dots { display: inline-flex; gap: 5px; margin-right: auto; }
+.guide-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.guide-dots i.on { background: var(--accent); }
+.guide-char { flex: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); }
+.guide-char svg { display: block; }
+@media (max-width: 560px) {
+  .guide-bubble { width: min(320px, calc(100vw - 32px)); margin-bottom: 0; }
+  .guide-char svg { height: 140px !important; }
+}

@@ -227,6 +227,19 @@ export const PLAYER_SLOTS = [
   { id: 'feet', name: 'Feet' },
 ];
 
+// The guide: Professor Ivy Fern pops up to teach the game, one tip at a time. Each tip is shown once
+// per account (s.tutorial.seen). pages are what she says, one bubble each; the last button does `go`.
+export const GUIDE = {
+  welcome: {
+    pages: [
+      "Oh, hello! I'm Professor Ivy Fern. I study the dinosaurs of the Cretaceous, and you've just arrived at your very own nest.",
+      "Here you'll hatch dinosaurs, raise them, and explore the wild land around us. But every keeper starts the same way: with one baby to look after.",
+    ],
+    done: "Show me!",
+    go: 'incubator',
+  },
+};
+
 // Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
 // scale draws juveniles (and adults without an adult sprite yet) larger than babies.
 export const STAGES = [

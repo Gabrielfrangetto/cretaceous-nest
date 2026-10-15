@@ -56,6 +56,7 @@ js/economy.js       game rules as pure functions (no DOM, no storage)
 js/state.js         save format, versioned migrations, the in-memory game, dev-mode save
 js/ui/gate.js       what shows before the game: landing page or sign-in card, and the sign-in window
 js/ui/landing.js    landing page art and the slide-in on scroll
+js/ui/guide.js      Professor Ivy Fern, the tutorial guide (tips in GUIDE, js/config.js)
 js/sync.js          which save wins when a player signs in
 js/cloud.js         Supabase sign-in and cloud saves (off until js/cloud-config.js is filled in)
 js/art.js           eggs, nest, item icons and baby sprites

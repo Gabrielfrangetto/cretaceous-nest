@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, GUIDE, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
@@ -620,6 +620,13 @@ export const ACTIONS = {
   },
   unequipArms(s, { slot }) {
     return unequipArms(s, slot);
+  },
+  // the player read a tip from the guide; it is not shown again
+  seeGuide(s, { id }) {
+    if (!GUIDE[id]) return fail('unknown-tip');
+    if (s.tutorial.seen.includes(id)) return fail('seen');
+    s.tutorial.seen.push(id);
+    return { ok: true };
   },
   renamePlayer(s, { name }) {
     const clean = String(name ?? '').trim().slice(0, 24);

@@ -1,11 +1,11 @@
 // The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
-import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS } from './config.js';
+import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, seedFor, cleanWorld } from './world.js';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const DEV_KEY = 'cretaceous-nest:dev';
@@ -17,6 +17,7 @@ export function freshState() {
     eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
     starter: false,   // the starter baby is not picked yet
     player: newPlayer(),
+    tutorial: { seen: [] },   // the guide's tips already shown
     // a new map for every new game
     world: newWorld(Math.floor(Math.random() * 2147483646) + 1),
   };
@@ -96,6 +97,11 @@ const MIGRATIONS = {
     s.player = newPlayer();
     return s;
   },
+  // v10: before the guide; games already under way skip the welcome
+  10: s => {
+    s.tutorial = { seen: s.starter ? ['welcome'] : [] };
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -139,6 +145,7 @@ function sanitize(s) {
   });
   if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
   s.player = cleanPlayer(s.player);
+  s.tutorial = { seen: [...new Set((s.tutorial && Array.isArray(s.tutorial.seen) ? s.tutorial.seen : []).filter(id => GUIDE[id]))] };
   s.world = cleanWorld(s.world, s);
   s.starter = s.starter === true || s.hatched.length > 0;
   s.updatedAt = Number(s.updatedAt) || 0;
