@@ -107,6 +107,7 @@ export function playFight(battle, summary, who) {
       lunge(foeBox);
       const box = boxes[blow.to];
       if (blow.miss) pop(box, 'Miss', 'miss');
+      else if (!blow.dmg) pop(box, 'No effect', 'miss');
       else {
         pop(box, '−' + blow.dmg, 'dmg');
         strike(box);
@@ -116,6 +117,8 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
+      // a bite its hide stops
+      else if (!blow.dmg) pop(foeBox, 'No effect', 'miss');
       else {
         pop(foeBox, '−' + blow.dmg, 'dmg');
         strike(foeBox);

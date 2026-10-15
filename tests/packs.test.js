@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
-import { fighterOf, creatureFighter, teamFight, teamWinChance, unitOf, sizeEdge } from '../js/combat.js';
+import { fighterOf, creatureFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
 import { ALL_HEXES, hexKey, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft } from '../js/world.js';
 import { packOf } from '../js/packs.js';
-import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS } from '../js/config.js';
+import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -94,12 +94,17 @@ test('team fights replay the same and a pack loses at most one member per blow',
   }
 });
 
-test('a Tyrannosaurus beats a Compsognathus, but a big trained pack can bring one down', () => {
-  const rex = fighterOf(dino('rex', 'rex', 50));
-  assert.ok(sizeEdge(rex, fighterOf(dino('c', 'compy'))) > 1);
-  assert.equal(teamWinChance([solo('compy', 90)], rex), 0);
-  assert.ok(teamWinChance([pack('compy', 3, 90)], rex) < 0.05);
-  assert.ok(teamWinChance([pack('compy', 10, 90)], rex) > 0.8);
+test('no pack of Compsognathus can hurt a Tyrannosaurus: its hide stops even a perfect bite', () => {
+  const worstRex = fighterOf(dino('rex', 'rex', 0));
+  const perfect = fighterOf({ ...dino('c', 'compy', 100), equip: {} });
+  assert.ok(perfect.damage * 1.25 > SPECIES.compy.bite);       // the jaws hold it back, not its strength
+  assert.equal(hitOf(perfect, worstRex, 1.25), 0);
+  assert.equal(teamWinChance([pack('compy', 10, 100)], worstRex), 0);
+  const r = teamFight([pack('compy', 10, 100)], worstRex, seededRand('bite'));
+  for (const e of r.log) if (e.by === 0 && !e.miss) assert.equal(e.dmg, 0);
+  // a pack of raptors still does: they are big enough to bite through
+  assert.ok(hitOf(fighterOf(dino('r', 'raptor', 50)), worstRex, 1) > 0);
+  assert.ok(sizeEdge(worstRex, perfect) > 1);
 });
 
 test('older saves turn a one-explorer trip into a team of one', () => {

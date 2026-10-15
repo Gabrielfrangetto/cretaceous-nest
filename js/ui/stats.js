@@ -1,6 +1,6 @@
 // Stat and gene displays: bars on cards and eggs, the full sheet in the baby window, and the
 // step-by-step calculation behind each stat.
-import { STATS, GENES_MAX, LOAD_FREE } from '../config.js';
+import { STATS, GENES_MAX, LOAD_FREE, SPECIES } from '../config.js';
 import { statSheet, geneGrade, genesPercent, carriedWeight, carryCapacity, loadFactor } from '../economy.js';
 
 const BAR_SCALE = 100;   // stats can pass 100 with equipment; the bar just fills up
@@ -44,11 +44,15 @@ export function loadHTML(b) {
 // combat numbers worked out from the stats
 export function derivedHTML(thing) {
   const d = statSheet(thing).derived;
+  // jaws and hide belong to the species (the player has neither)
+  const sp = SPECIES[thing.type];
   return `<dl class="derived">
     <div><dt>Health</dt><dd>${d.hp}</dd></div>
     <div><dt>Damage</dt><dd>${d.damage}</dd></div>
     <div><dt>Dodge</dt><dd>${pct(d.dodge)}</dd></div>
     <div><dt>Damage reduction</dt><dd>${pct(d.reduction)}</dd></div>
+    ${sp ? `<div title="The hardest one blow can land, whatever its genes or equipment"><dt>Strongest bite</dt><dd>${sp.bite}</dd></div>
+    <div title="Taken off every blow it takes, after damage reduction"><dt>Hide</dt><dd>${sp.hide}</dd></div>` : ''}
   </dl>`;
 }
 
