@@ -68,6 +68,9 @@ function check() {
 }
 
 export function initGuide() {
+  // TEMPORARY: the header's Tutorial button replays the welcome while the tutorial is being built
+  const replay = document.getElementById('guideReplay');
+  if (replay) replay.addEventListener('click', () => showGuide('welcome'));
   subscribe(check);
   setInterval(check, 1500);
   check();
