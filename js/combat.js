@@ -8,6 +8,7 @@
 // does nothing.
 import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
+const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, seededRand } from './economy.js';
 
 export function fighterOf(baby) {
@@ -26,10 +27,9 @@ export function hitOf(att, def, roll) {
 const rounded = hit => hit > 0 ? Math.max(1, Math.round(hit)) : 0;
 
 // how much harder (or softer) a blow lands for the size difference
-// (sizes next to each other are an even match)
 export function sizeEdge(att, def) {
   const steps = SIZE_ORDER.indexOf(att.size || 'small') - SIZE_ORDER.indexOf(def.size || 'small');
-  return Math.pow(1 + SIZE_EDGE, Math.sign(steps) * Math.max(0, Math.abs(steps) - 2));
+  return Math.pow(1 + SIZE_EDGE, Math.sign(steps) * Math.abs(steps));
 }
 
 // a creature at a distance from the nest, stronger in a lair
@@ -38,8 +38,9 @@ export function creatureFighter(id, dist, lair = false) {
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size: c.size, bite: c.bite ?? BITE[c.size],
-    // younger ones near the nest have thinner hide, full grown at the edge of the map
+  // younger ones near the nest are a size smaller, with thinner hide; full grown at the edge of the map
+  const size = dist <= YOUNG_DIST && !lair ? SIZE_ORDER[Math.max(0, SIZE_ORDER.indexOf(c.size) - 1)] : c.size;
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size, bite: c.bite ?? BITE[c.size],
     hide: Math.round((c.hide ?? HIDE[c.size]) * Math.min(1, level / CREATURE_LEVEL(WORLD_RADIUS))) };
 }
 

@@ -69,13 +69,16 @@ export const RARITIES = {
   Legendary: { mins: 60, coins: 150, breed: 90, minDist: 5, weight: 1, lairOnly: true },
 };
 
-// body size: sets how much equipment a species can carry (CARRY)
+// body size, from the real animal's weight: tiny under 10 kg, small 10–100 kg, medium 100 kg–1 t,
+// large 1–5 t, huge 5–20 t, colossal above. Sets how much equipment it can carry (CARRY) and how
+// hard blows land between very different sizes (SIZE_EDGE).
 const SIZE = {
-  compy: 'tiny',
-  dilo: 'small', scelido: 'small', psitta: 'small', coelo: 'small', hypsi: 'small',
-  proto: 'medium', galli: 'medium', hypa: 'medium', pachy: 'medium', raptor: 'medium',
-  stego: 'large', bary: 'large', para: 'large', trike: 'large', ankylo: 'large', allo: 'large',
-  spino: 'huge', rex: 'huge', argent: 'huge',
+  compy: 'tiny',                                                   // 0.5–3 kg
+  psitta: 'small', coelo: 'small', hypsi: 'small', raptor: 'small', // 15–30 kg
+  proto: 'medium', scelido: 'medium', dilo: 'medium', galli: 'medium', pachy: 'medium', // 180–450 kg
+  bary: 'large', allo: 'large', para: 'large', hypa: 'large', stego: 'large',             // 1.7–5 t
+  ankylo: 'huge', trike: 'huge', spino: 'huge', rex: 'huge',     // 6–9 t
+  argent: 'colossal',                                              // 50–75 t
 };
 
 // Weapons and hide, fixed for a species whatever its genes, from how the real animal fought:
@@ -97,7 +100,7 @@ export const BODY = {
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2 },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6 },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8 },
-  raptor:  { weapon: 'Sickle claw on each foot', bite: 40, hide: 0 },
+  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0 },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18 },
   bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10 },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8 },
@@ -110,8 +113,8 @@ export const BODY = {
 };
 // creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
 // with thinner hide (see creatureFighter)
-export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300 };
-export const HIDE = { tiny: 0, small: 0, medium: 5, large: 12, huge: 25 };
+export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300, colossal: 300 };
+export const HIDE = { tiny: 0, small: 0, medium: 5, large: 12, huge: 25, colossal: 30 };
 export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, {
   ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
 }]));
@@ -220,7 +223,7 @@ export const ITEMS = {
 // capacity: its size's CARRY plus a little for its strength from genes (CARRY_PER_STR per point).
 // Nothing past capacity can be worn, and a load over LOAD_FREE of capacity costs agility, up to
 // LOAD_AGI_LOSS at a full load: small, quick species are best kept light.
-export const CARRY = { tiny: 4, small: 10, medium: 18, large: 30, huge: 45 };
+export const CARRY = { tiny: 4, small: 10, medium: 18, large: 30, huge: 45, colossal: 70 };
 export const CARRY_PER_STR = 0.1;
 export const PLAYER_CARRY = 20;
 export const LOAD_FREE = 0.5;
@@ -270,7 +273,9 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. In a fight a pack hits with all its members
 // (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
 // and every blow it takes can bring down at most one member.
-export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
+// (Allosaurus: dozens were found together at Cleveland-Lloyd; whether they hunted as a team is
+// debated, so only small groups)
+export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8, allo: 3 };
 export const PACK_MIN = 2;
 export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
 export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first
@@ -293,21 +298,22 @@ export const BIOMES = {
 // art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
 export const CREATURES = {
   compy_pack:   { name: 'Compsognathus pack', size: 'small', bite: 60, hide: 0, look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', size: 'medium', bite: 45, hide: 0, look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
-  deinosuchus:  { name: 'Deinosuchus', size: 'large', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+  wild_raptor:  { name: 'Wild Raptor', size: 'small', bite: 45, hide: 0, look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  deinosuchus:  { name: 'Deinosuchus', size: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
   angry_protos: { name: 'Angry Protoceratops herd', size: 'medium', bite: 70, hide: 6, look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
   old_tyrant:   { name: 'Old Tyrant', size: 'huge', bite: 260, hide: 25, look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
 };
-export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
+// (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
+export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge
 export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
 export const LAIR_MIN_DIST = 3;
 export const LAIR_LEVEL = 1.25;
 export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // size in a fight: each size step bigger than the target hits this much harder, each step smaller
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
-export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge'];
-export const SIZE_EDGE = 0.8;
-export const PLAYER_SIZE = 'medium';
+export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
+export const SIZE_EDGE = 0.3;
+export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
@@ -445,8 +451,9 @@ export const GENE_GRADES = [[90, 'S'], [75, 'A'], [55, 'B'], [35, 'C'], [0, 'D']
 
 // Each species' stats with perfect genes. Rarer species have a higher total.
 export const SPECIES_BASE = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.base]));
-// genes scale the base from GENE_FLOOR (genes 0) up to 100% (genes 100): base × (0.5 + genes / 200)
-export const GENE_FLOOR = 0.5;
+// genes scale the base from GENE_FLOOR (genes 0) up to 100% (genes 100): base × (0.7 + 0.3 × genes / 100).
+// Like real animals of one species, the best is only about 40% stronger than the weakest.
+export const GENE_FLOOR = 0.7;
 
 // Combat stats worked out from the final stats. Dodge and damage reduction have diminishing
 // returns: they reach 50% when the stat equals the "half at" value and never reach 100%.

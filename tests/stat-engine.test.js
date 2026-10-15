@@ -8,10 +8,10 @@ const genes = n => ({ str: n, agi: n, vit: n, res: n });
 const rex = g => ({ type: 'rex', genes: typeof g === 'number' ? genes(g) : g });
 const B = SPECIES_BASE.rex;   // the numbers below follow the Tyrannosaurus' base stats
 
-test('genes scale the species base from 50% to 100%', () => {
+test('genes scale the species base from 70% to 100%, as real animals of one species differ', () => {
   assert.deepEqual(statSheet(rex(100)).stats, SPECIES_BASE.rex);
-  assert.equal(statSheet(rex(50)).stats.str, Math.round(B.str * 0.75));
-  assert.equal(statSheet(rex(1)).stats.str, Math.round(B.str * 0.505));
+  assert.equal(statSheet(rex(50)).stats.str, Math.round(B.str * 0.85));
+  assert.equal(statSheet(rex(0)).stats.str, Math.round(B.str * 0.7));
 });
 
 test('the species shapes the stats more than the genes do', () => {
@@ -33,9 +33,9 @@ test('equipment stacks flat, then increased (added together), then more (multipl
     { stat: 'str', type: 'more', value: 1.10 },       // Rage Charm
   ];
   const sheet = statSheet(b, mods);
-  assert.equal(sheet.stats.str, Math.round((B.str * 0.9 + 5) * 1.10 * 1.10));
-  assert.equal(sheet.stats.agi, Math.round(B.agi * 0.9 * 0.75));
-  assert.equal(sheet.stats.res, Math.round(B.res * 0.75 + 30));
+  assert.equal(sheet.stats.str, Math.round((B.str * 0.94 + 5) * 1.10 * 1.10));
+  assert.equal(sheet.stats.agi, Math.round(B.agi * 0.94 * 0.75));
+  assert.equal(sheet.stats.res, Math.round(B.res * 0.85 + 30));
 });
 
 test('increased bonuses add up, more bonuses multiply', () => {

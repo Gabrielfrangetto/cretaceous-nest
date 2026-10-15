@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { fighterOf, creatureFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
-import { ALL_HEXES, hexKey, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey } from '../js/world.js';
+import { ALL_HEXES, hexKey, hexDist, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey } from '../js/world.js';
 import { packOf } from '../js/packs.js';
 import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES, SCOUT } from '../js/config.js';
 
@@ -102,8 +102,9 @@ test('no pack of Compsognathus can hurt a Tyrannosaurus: its hide stops even a p
   assert.equal(teamWinChance([pack('compy', 10, 100)], worstRex), 0);
   const r = teamFight([pack('compy', 10, 100)], worstRex, seededRand('bite'));
   for (const e of r.log) if (e.by === 0 && !e.miss) assert.equal(e.dmg, 0);
-  // a pack of raptors still does: they are big enough to bite through
-  assert.ok(hitOf(fighterOf(dino('r', 'raptor', 50)), worstRex, 1) > 0);
+  // nor can a turkey-sized Velociraptor; an Allosaurus bites through
+  assert.equal(hitOf(fighterOf(dino('r', 'raptor', 100)), worstRex, 1.25), 0);
+  assert.ok(hitOf(fighterOf(dino('a', 'allo', 50)), worstRex, 1) > 0);
   assert.ok(sizeEdge(worstRex, perfect) > 1);
 });
 
@@ -121,7 +122,11 @@ test('older saves turn a one-explorer trip into a team of one', () => {
 });
 
 test('a Compsognathus scouts for its team: shorter trips, fewer fights, more eggs', () => {
-  const key = '4,0';
+  // a hex 3 away where a small creature waits, so the fighter wins and can find eggs
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
+    const t = threatAt(42, parseKey(k));
+    return hexDist(parseKey(k)) === 3 && !t.lair && ['compy_pack', 'wild_raptor'].includes(t.id);
+  });
   const trips = (team, g) => {
     const s = game(dino('d1', 'dilo', g), dino('c1', 'compy', g));
     let fights = 0, eggs = 0, mins = 0;
@@ -141,6 +146,6 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
   const without = trips(['d1'], 100), led = trips(['d1', 'c1'], 100);
   assert.equal(without.mins, tripMins(key));
   assert.equal(led.mins, tripMins(key) * SCOUT.trip);
-  assert.ok(threatAt(42, parseKey(key)).lair || led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
+  assert.ok(led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
   assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });
