@@ -5,7 +5,9 @@ import {
   countItem, startEgg, hatchEgg, feedBaby, hungerEvery, applyAction,
 } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
-import { DAILY_REWARDS, ACHIEVEMENTS } from '../js/config.js';
+import { DAILY_REWARDS, ACHIEVEMENTS, SPECIES, HATCH_COINS, FEED_COINS } from '../js/config.js';
+
+const PROTO = SPECIES.proto.mins * 60000;   // how long a Protoceratops egg takes
 
 const HOUR = 3600000, DAY = 24 * HOUR;
 // 2026-10-14 10:00 in Brasília (UTC-3)
@@ -60,7 +62,7 @@ test('achievements unlock from progress and pay once', () => {
   const s = freshState();
   assert.equal(claimAchievement(s, 'first_hatch', MORNING).reason, 'not-done');
   startEgg(s, 'proto', 0);
-  hatchEgg(s, 60000);
+  hatchEgg(s, PROTO);
   const before = s.coins;
   const r = claimAchievement(s, 'first_hatch', MORNING);
   assert.equal(r.ok, true);
@@ -71,20 +73,20 @@ test('achievements unlock from progress and pay once', () => {
 
 test('meals, pairs and coins earned are counted for achievements', () => {
   const s = freshState();
-  startEgg(s, 'proto', 0); hatchEgg(s, 60000, () => 0.1);   // male
-  startEgg(s, 'proto', 0); hatchEgg(s, 60000, () => 0.9);   // female
+  startEgg(s, 'proto', 0); hatchEgg(s, PROTO, () => 0.1);   // male
+  startEgg(s, 'proto', 0); hatchEgg(s, PROTO, () => 0.9);   // female
   const baby = s.hatched[0];
   feedBaby(s, baby.id, baby.at + hungerEvery(baby));
   const list = Object.fromEntries(achievementList(s).map(a => [a.id, a]));
   assert.equal(list.pair.done, true);
   assert.equal(list.meals_25.progress, 1);
-  assert.equal(list.coins_1000.progress, 10 + 10 + 5);
+  assert.equal(list.coins_1000.progress, HATCH_COINS.proto * 2 + FEED_COINS);
 });
 
 test('the Rewards badge counts the daily reward and finished achievements', () => {
   const s = freshState();
   assert.equal(claimableCount(s, MORNING), 1);
-  startEgg(s, 'proto', 0); hatchEgg(s, 60000);
+  startEgg(s, 'proto', 0); hatchEgg(s, PROTO);
   assert.equal(claimableCount(s, MORNING), 2);
   applyAction(s, 'claimDaily', {}, MORNING);
   applyAction(s, 'claimAchievement', { id: 'first_hatch' }, MORNING);

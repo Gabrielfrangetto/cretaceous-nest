@@ -53,7 +53,7 @@ test('one item per slot, and bonuses from different slots stack', () => {
   assert.deepEqual(s.hatched[0].equip, { head: 'bone_helmet', neck: 'spiked_collar', body: 'heavy_armor', back: 'swift_cape' });
   assert.equal(gearMods(s.hatched[0]).length, 3 + 1 + 2 + 1);
   // agility: -5% (helmet) -25% (armor) +15% (cape) add up to -15%
-  assert.equal(statSheet(s.hatched[0]).stats.agi, Math.round(40 * 0.85));
+  assert.equal(statSheet(s.hatched[0]).stats.agi, Math.round(SPECIES_BASE.rex.agi * 0.85));
 });
 
 test('taking equipment off needs room in the bag', () => {

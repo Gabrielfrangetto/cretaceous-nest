@@ -6,7 +6,7 @@
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, creatureFighter, fight } from './combat.js';
@@ -73,6 +73,20 @@ function biomeMap(seed) {
   return out;
 }
 export const biomeAt = (seed, h) => biomeMap(seed).get(hexKey(...h)) || 'meadow';
+
+// The eggs a hex can give: its biome's species whose rarity is allowed that far from the nest (a lair
+// counts 2 hexes farther, and legendaries are only found in lairs), each with its rarity's weight.
+export function eggKinds(biome, d, lair) {
+  return BIOMES[biome].eggs
+    .map(type => ({ type, r: RARITIES[SPECIES[type].rarity] }))
+    .filter(({ r }) => d + (lair ? 2 : 0) >= r.minDist && (!r.lairOnly || lair))
+    .map(({ type, r }) => ({ type, weight: r.weight }));
+}
+function pickWeighted(list, rand) {
+  let x = rand() * list.reduce((t, k) => t + k.weight, 0);
+  for (const k of list) { x -= k.weight; if (x < 0) return k.type; }
+  return list[list.length - 1].type;
+}
 
 // lairs: a few hexes 3+ away where the biome's creature always waits, stronger
 export const isLair = (seed, h) => hexDist(h) >= LAIR_MIN_DIST && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
@@ -213,11 +227,12 @@ export function collectExpedition(s, id, now) {
       }
     }
     // an egg of one of the biome's species, for the egg tray
-    if (rand() < EGG_CHANCE(d, !!(battle && battle.lair))) {
-      const kinds = BIOMES[biomeAt(w.seed, h)].eggs;
-      const [lo, hi] = EGG_GENES(d, !!(battle && battle.lair));
+    const lair = !!(battle && battle.lair);
+    const kinds = eggKinds(biomeAt(w.seed, h), d, lair);
+    if (kinds.length && rand() < EGG_CHANCE(d, lair)) {
+      const [lo, hi] = EGG_GENES(d, lair);
       const egg = {
-        id: `egg-${w.seed}-${exp.trip}`, type: kinds[Math.floor(rand() * kinds.length)], gen: 1, parents: [], laidAt: now,
+        id: `egg-${w.seed}-${exp.trip}`, type: pickWeighted(kinds, rand), gen: 1, parents: [], laidAt: now,
         genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
       };
       s.eggs = s.eggs || [];

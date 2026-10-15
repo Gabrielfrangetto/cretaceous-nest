@@ -1,7 +1,7 @@
 // Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
 import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage } from '../economy.js';
+import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, injuredLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
@@ -11,8 +11,8 @@ import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
 
-const ASK = { leaf: 'Wants leaves', meat: 'Wants meat' };
-const RAN_OUT = { leaf: 'Out of leaves!', meat: 'Out of meat!' };
+// every food a dinosaur can eat, in the order the stock line lists them
+const FOODS = ['leaf', 'meat', 'insect', 'fish', 'raw_egg'];
 
 const scene = document.getElementById('scene');
 const walkers = new Map();
@@ -86,18 +86,21 @@ function checkHunger() {
       fed.classList.toggle('hungry', hungry);
     }
   }
-  // hungry babies say so when the food they need has run out
-  const stock = { leaf: countItem(S, 'leaf'), meat: countItem(S, 'meat') };
+  // hungry babies ask for the food they would eat now, or say none of their foods is left
   for (const w of walkers.values()) {
     if (!w.hungry) continue;
     const b = findBaby(w.id); if (!b) continue;
-    const food = DIET[b.type];
-    const label = stock[food] ? ASK[food] : RAN_OUT[food];
-    const t = w.bubble.querySelector('span');
-    if (t.textContent !== label) t.textContent = label;
+    const meal = mealFor(S, b.type);
+    const key = meal || 'none';
+    if (w.askFor === key) continue;
+    w.askFor = key;
+    w.bubble.innerHTML = ITEM_ICONS[meal || DIET[b.type][0]] + `<span>${meal ? 'Wants ' + ITEMS[meal].plural : 'Out of food!'}</span>`;
   }
   const fs = document.getElementById('foodStock');
-  const fsText = `In your inventory: ${plural(stock.leaf, 'leaf', 'leaves')} and ${stock.meat} meat. Each meal uses 1.`;
+  const have = FOODS.map(id => [id, countItem(S, id)]).filter(([, n]) => n);
+  const fsText = have.length
+    ? `Food in your inventory: ${have.map(([id, n]) => `${n} ${n === 1 ? ITEMS[id].name.toLowerCase() : ITEMS[id].plural}`).join(', ')}. Each meal uses 1 of a food the baby eats.`
+    : 'No food in your inventory. Buy some in the Shop, or bring it back from the World.';
   if (fs.textContent !== fsText) fs.textContent = fsText;
   const pill = document.getElementById('hungryPill');
   pill.hidden = hungryCount === 0;
@@ -128,8 +131,7 @@ function syncWalkers() {
     el.type = 'button'; el.className = 'walker';
     const bubble = document.createElement('span');
     bubble.className = 'bubble'; bubble.hidden = true;
-    const food = DIET[b.type];
-    bubble.innerHTML = ITEM_ICONS[food] + '<span>' + ASK[food] + '</span>';
+    bubble.innerHTML = ITEM_ICONS[DIET[b.type][0]] + '<span>Hungry</span>';
     const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
@@ -163,6 +165,7 @@ function feed(w) {
   const result = act('feed', { id: w.id });
   if (result.ok) {
     w.hop = 0.45;
+    w.askFor = null;
     popText(w, 'heart', '♥ +' + result.coins);
     if (result.grewTo) {
       const b = S.hatched.find(x => x.id === w.id);
@@ -170,7 +173,8 @@ function feed(w) {
       if (b && st) setTimeout(() => popText(w, 'grew', `${b.name} grew into ${st.id === 'adult' ? 'an adult' : 'a juvenile'}!`), 500);
     }
   } else if (result.reason === 'no-food') {
-    popText(w, 'say', 'No ' + ITEMS[result.food].plural + ' in your inventory');
+    const b = S.hatched.find(x => x.id === w.id);
+    popText(w, 'say', 'It eats ' + DIET[b.type].map(id => ITEMS[id].plural).join(' or '));
   } else if (result.reason === 'full') {
     w.hop = 0.45;
     popText(w, 'say', "I'm full");

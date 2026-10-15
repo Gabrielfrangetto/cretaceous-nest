@@ -76,6 +76,9 @@ export const ITEM_ICONS = {
   bone: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 9.8 L9.8 4.5" stroke="#efe6cf" stroke-width="2.6" stroke-linecap="round"/><g fill="#efe6cf" stroke="#9b8b66" stroke-width=".8"><circle cx="3.2" cy="10.4" r="1.7"/><circle cx="5.6" cy="12.8" r="1.7"/><circle cx="10.4" cy="3.2" r="1.7"/><circle cx="12.8" cy="5.6" r="1.7"/></g><path d="M4.5 9.8 L9.8 4.5" stroke="#efe6cf" stroke-width="2.2" stroke-linecap="round"/></svg>',
   herb: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 15 V6" stroke="#4d7a32" stroke-width="1.4" stroke-linecap="round"/><path d="M8 9 C4 9 2.5 6.5 3 4 C6 4 8 6 8 9Z M8 7 C12 7 13.5 4.5 13 2 C10 2 8 4 8 7Z M8 12 C11.5 12 13 10 12.5 8 C10 8 8 9.5 8 12Z" fill="#7cbf5a" stroke="#3f6b2a" stroke-width=".7"/><circle cx="12" cy="13" r="2" fill="#e05a7a"/><path d="M11 13 h2 M12 12 v2" stroke="#fff" stroke-width=".8"/></svg>',
   obsidian: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 L13 6.5 L10.5 14.5 L4 13 L2.5 6Z" fill="#2c2733" stroke="#120f16" stroke-width="1"/><path d="M8 1.5 L7 8 L13 6.5 M7 8 L4 13 M7 8 L10.5 14.5" stroke="#5c5370" stroke-width=".8" fill="none"/><path d="M5 5.5 L6.6 4" stroke="#a49bbd" stroke-width=".9" stroke-linecap="round"/></svg>',
+  insect: '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="9" rx="3.2" ry="4.5" fill="#5a4a2a" stroke="#2a2010" stroke-width=".8"/><circle cx="8" cy="4" r="2" fill="#3a2e1a"/><path d="M5 7 L2 5 M5 9.5 L1.8 9.5 M5 12 L2.4 14 M11 7 L14 5 M11 9.5 L14.2 9.5 M11 12 L13.6 14 M7.2 2.6 L6 1 M8.8 2.6 L10 1" stroke="#2a2010" stroke-width=".9" stroke-linecap="round"/><path d="M8 5.5 V13" stroke="#8a7a4a" stroke-width=".6"/></svg>',
+  fish: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8 C4 4 9 3.5 12 8 C9 12.5 4 12 2 8Z" fill="#7aa8c4" stroke="#3a6a84" stroke-width=".9"/><path d="M12 8 L15 5 L15 11Z" fill="#7aa8c4" stroke="#3a6a84" stroke-width=".9"/><circle cx="5" cy="7.3" r=".9" fill="#1b2a33"/><path d="M7.5 6 Q8.5 8 7.5 10" stroke="#3a6a84" stroke-width=".7" fill="none"/></svg>',
+  raw_egg: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 C11 1.8 13 6.5 13 9.4 C13 12.6 10.8 14.4 8 14.4 C5.2 14.4 3 12.6 3 9.4 C3 6.5 5 1.8 8 1.8Z" fill="#f3ead2" stroke="#a89878" stroke-width=".9"/><ellipse cx="6.4" cy="6" rx="1.2" ry="2" fill="#fff" opacity=".6"/></svg>',
 };
 
 // equipment icons (placeholders until the hand-drawn art arrives)
@@ -193,6 +196,16 @@ const BASE = [
   '.....#######....', '......##.##.....', '......#..#......', '......##.##.....',
 ];
 const EXTRA = {
+  argent: [[0,12],[0,13],[1,12],[2,12],[3,11],[6,1],[7,1],[8,2]],
+  spino: [[3,6],[3,7],[3,8],[4,5],[4,6],[4,7],[4,8],[4,9],[2,14],[2,15]],
+  allo: [[0,11],[0,13],[1,10],[6,2],[7,3]],
+  ankylo: [[5,7],[5,9],[5,11],[6,8],[6,10],[7,4],[7,3]],
+  trike: [[1,15],[2,15],[0,12],[1,13],[4,8],[5,8]],
+  para: [[0,6],[0,7],[0,8],[0,9],[1,8],[1,9]],
+  bary: [[2,14],[2,15],[3,15],[6,2],[7,2]],
+  stego: [[4,8],[4,10],[5,7],[5,9],[5,11],[6,6],[6,8],[6,10]],
+  pachy: [[0,10],[0,11],[0,12],[0,13],[1,10],[1,13]],
+  galli: [[0,11],[1,9],[6,2],[7,2]],
   dilo:    [[0,10],[0,12],[1,9],[1,11],[6,2],[7,3]],
   scelido: [[4,8],[5,8],[5,10],[6,7],[6,9],[6,11],[7,6],[7,8],[7,10]],
   compy:  [[0,11],[1,9],[6,2],[7,3]],
@@ -206,6 +219,16 @@ const EXTRA = {
 };
 // males only: extra feathers, horns, crests and stripes in a second, brighter color ('b')
 const MALE_EXTRA = {
+  argent: [[0,14],[5,8],[9,9]],
+  spino: [[2,6],[2,7],[3,5],[3,9]],
+  allo: [[0,12],[5,8],[8,4]],
+  ankylo: [[4,8],[4,10],[6,2]],
+  trike: [[0,13],[0,14],[3,8]],
+  para: [[0,5],[1,7],[7,8]],
+  bary: [[0,11],[0,12],[5,8]],
+  stego: [[3,8],[3,10],[4,6],[4,12]],
+  pachy: [[0,9],[0,14],[1,9],[5,8]],
+  galli: [[0,12],[5,8],[6,1]],
   dilo:    [[0,11],[0,13],[1,10],[5,8]],
   scelido: [[4,10],[5,6],[5,12],[3,8]],
   compy:  [[0,12],[5,8],[6,3]],
@@ -217,7 +240,7 @@ const MALE_EXTRA = {
   raptor: [[0,12],[0,10],[5,8],[5,2],[6,1],[6,13],[7,13]],
   rex:    [[0,11],[0,12],[6,9],[9,6],[1,9]],
 };
-const MALE_COLOR = { dilo: '#e2b33a', scelido: '#c9573a', compy: '#e46a3a', coelo: '#e3c13a', psitta: '#d9503a', hypsi: '#3aa0c9', proto: '#f2cf45', hypa: '#d9503a', raptor: '#36b5a5', rex: '#f08a46' };
+const MALE_COLOR = { argent: '#c9b98a', spino: '#d96a3a', allo: '#e8c06a', ankylo: '#c9a96a', trike: '#d9a03a', para: '#e8d27a', bary: '#3aa0a0', stego: '#e0662a', pachy: '#e3c9a0', galli: '#e07a3a', dilo: '#e2b33a', scelido: '#c9573a', compy: '#e46a3a', coelo: '#e3c13a', psitta: '#d9503a', hypsi: '#3aa0c9', proto: '#f2cf45', hypa: '#d9503a', raptor: '#36b5a5', rex: '#f08a46' };
 
 function babyGrid(type, sex) {
   const g = BASE.map(r => r.split(''));

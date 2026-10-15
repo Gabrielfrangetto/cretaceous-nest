@@ -4,9 +4,10 @@ import { readFileSync } from 'node:fs';
 import { handleGame, changeBetween } from '../js/game-server.js';
 import { freshState } from '../js/state.js';
 import { countItem } from '../js/economy.js';
-import { HATCH_COINS, FEED_COINS } from '../js/config.js';
+import { HATCH_COINS, FEED_COINS, SPECIES } from '../js/config.js';
 
 const MIN = 60000;
+const PROTO = SPECIES.proto.mins * MIN;   // how long a Protoceratops egg takes
 
 // eggs only come from expeditions and breeding, so the saved game gets a Protoceratops egg in its
 // tray first, then the incubator is started with it
@@ -71,7 +72,7 @@ test('claiming a guest save applies the limits, and a second claim does not over
 test("the server's clock decides when an egg hatches, not the browser's", async () => {
   const store = memoryStore(), c = clock(1000);
   await startProtoEgg(store, c);
-  c.advance(30 * 1000);
+  c.advance(PROTO - 30 * 1000);
   const early = await call(store, { action: 'hatch' }, c);
   assert.equal(early.ok, false);
   assert.equal(early.reason, 'not-ready');
@@ -97,7 +98,7 @@ test('a rejected action changes nothing and returns the real state', async () =>
 test('feeding is logged as food spent and coins earned', async () => {
   const store = memoryStore(), c = clock(0);
   await startProtoEgg(store, c);
-  c.advance(MIN);
+  c.advance(PROTO);
   const { result } = await call(store, { action: 'hatch' }, c);
   c.advance(10 * MIN);
   const fed = await call(store, { action: 'feed', args: { id: result.baby.id } }, c);
@@ -109,8 +110,8 @@ test('taps on the egg arrive in batches and still stop at half the hatch time', 
   const store = memoryStore(), c = clock(0);
   await startProtoEgg(store, c);
   const res = await call(store, { action: 'warmEgg', args: { taps: 500 } }, c);
-  assert.equal(res.result.saved, 30);
-  assert.equal(res.state.current.bonus, 30 * 1000);
+  assert.equal(res.result.saved, PROTO / 2 / 1000);
+  assert.equal(res.state.current.bonus, PROTO / 2);
 });
 
 test('unknown actions and bad slot numbers are refused', async () => {

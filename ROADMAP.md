@@ -77,7 +77,10 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Player character: explores alone (any distance, never hungry, can be injured) with its own stats and five slots of weapons and armor, sold in the Shop and made in the Forge; drawn in code for now
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes
-- [ ] More species and rarities, seasonal eggs
+- [x] 20 species in six rarities (Starter, Common, Uncommon, Rare, Epic, Legendary) with base stats by rarity; eggs by biome, rarity and distance (legendaries only in lairs)
+- [x] Diets per species, favourite first, with new foods: insects, fish, unfertilized eggs (Gallimimus is an omnivore, Baryonyx and Spinosaurus eat fish)
+- [ ] Seasonal eggs
+- [ ] Personality traits and rare colours (ideas for later)
 - [x] Daily login reward (7-day streak) and achievements
 - [ ] Collection book (dinopedia with real facts)
 - [ ] Sound effects and music with a mute toggle

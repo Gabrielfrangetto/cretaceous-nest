@@ -1,65 +1,80 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
 
-export const SPECIES = {
-  // starters: small, simple species a new player picks from, each led by one stat: Dilophosaurus
-  // (strength) and Compsognathus (agility) eat meat, Scelidosaurus (resistance) and Psittacosaurus
-  // (vitality) eat plants
-  dilo: {
-    egg: 'Crested Egg', species: 'Dilophosaurus', build: 'theropod', mins: 3, rarity: 'Starter',
-    shell: '#e9dccb', mark: '#9a3f2c', pattern: 'speckle', body: '#b5603e', acc: '#e3b53a',
-    nick: 'Crest', fact: 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.',
-  },
-  scelido: {
-    egg: 'Knobbly Egg', species: 'Scelidosaurus', build: 'ceratopsian', mins: 3, rarity: 'Starter',
-    shell: '#d8d2bf', mark: '#5d6b4a', pattern: 'spots', body: '#7d8a5c', acc: '#c9b27a',
-    nick: 'Knobs', fact: 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.',
-  },
-  compy: {
-    egg: 'Tiny Egg', species: 'Compsognathus', build: 'theropod', mins: 3, rarity: 'Starter',
-    shell: '#e6e1cf', mark: '#7d8a5a', pattern: 'speckle', body: '#8aa05a', acc: '#d7b847',
-    nick: 'Pip', fact: 'Compsognathus was about the size of a chicken and hunted lizards and insects.',
-  },
-  coelo: {
-    egg: 'Banded Egg', species: 'Coelophysis', build: 'theropod', mins: 3, rarity: 'Common',
-    shell: '#efd9c8', mark: '#a4553b', pattern: 'stripes', body: '#c27a52', acc: '#4a4640',
-    nick: 'Dash', fact: 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.',
-  },
-  psitta: {
-    egg: 'Pebble Egg', species: 'Psittacosaurus', build: 'ceratopsian', mins: 3, rarity: 'Starter',
-    shell: '#e3dcc4', mark: '#6d6a4a', pattern: 'spots', body: '#b59a5e', acc: '#7a5a33',
-    nick: 'Beaky', fact: 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.',
-  },
-  hypsi: {
-    egg: 'Mossy Egg', species: 'Hypsilophodon', build: 'hadrosaur', mins: 3, rarity: 'Common',
-    shell: '#d9e3c6', mark: '#4f7a4a', pattern: 'stripes', body: '#6f9b6a', acc: '#c9d38a',
-    nick: 'Hop', fact: 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.',
-  },
-  proto: {
-    egg: 'Spotted Egg', species: 'Protoceratops', build: 'ceratopsian', mins: 1, rarity: 'Common',
-    shell: '#eadcbf', mark: '#8b6a44', pattern: 'spots', body: '#c79d63', acc: '#d9662f',
-    nick: 'Popcorn', fact: 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.',
-  },
-  hypa: {
-    egg: 'Striped Egg', species: 'Hypacrosaurus', build: 'hadrosaur', mins: 5, rarity: 'Uncommon',
-    shell: '#d6e2cc', mark: '#5c7b4f', pattern: 'stripes', body: '#78a463', acc: '#d8bd3e',
-    nick: 'Sprout', fact: 'Teeth from Hypacrosaurus embryos suggest almost 6 months inside the egg.',
-  },
-  raptor: {
-    egg: 'Speckled Egg', species: 'Velociraptor', build: 'theropod', mins: 15, rarity: 'Rare',
-    shell: '#cfd6e4', mark: '#46557a', pattern: 'speckle', body: '#6a7ca8', acc: '#e3ae45',
-    nick: 'Sparky', fact: 'An adult Velociraptor was about 2 m long including the tail, and its body was covered in feathers.',
-  },
-  rex: {
-    egg: 'Golden Egg', species: 'Tyrannosaurus', build: 'theropod', mins: 60, rarity: 'Legendary',
-    shell: '#f0cd68', mark: '#b48114', pattern: 'gold', body: '#a35b40', acc: '#f0cd68',
-    nick: 'Rex', fact: 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.',
-  },
+// Every species, grouped by rarity. One row each:
+//   species name, build (body shape for equipment art), rarity, diet (foods it eats, favourite first),
+//   base stats at perfect genes, egg look (shell, mark, pattern), baby colours (body, acc), nickname, fact.
+// Each baby's real stats are its species' base scaled by its own genes (see SPECIES_BASE below), so
+// no two of a species are the same. Rarer species have a higher total: Starter and Common 200,
+// Uncommon 230, Rare 260, Epic 285, Legendary 310.
+const S_ = (species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact) =>
+  ({ species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact });
+const SPECIES_LIST = {
+  // starters: each led by one stat; a new player picks one
+  dilo:    S_('Dilophosaurus', 'theropod', 'Starter', ['meat'], { str: 75, agi: 50, vit: 40, res: 35 },
+             'Crested Egg', '#e9dccb', '#9a3f2c', 'speckle', '#b5603e', '#e3b53a', 'Crest', 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.'),
+  compy:   S_('Compsognathus', 'theropod', 'Starter', ['meat', 'insect'], { str: 40, agi: 85, vit: 40, res: 35 },
+             'Tiny Egg', '#e6e1cf', '#7d8a5a', 'speckle', '#8aa05a', '#d7b847', 'Pip', 'Compsognathus was about the size of a chicken and hunted lizards and insects.'),
+  scelido: S_('Scelidosaurus', 'armored', 'Starter', ['leaf'], { str: 30, agi: 30, vit: 55, res: 85 },
+             'Knobbly Egg', '#d8d2bf', '#5d6b4a', 'spots', '#7d8a5c', '#c9b27a', 'Knobs', 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.'),
+  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Starter', ['leaf'], { str: 35, agi: 35, vit: 80, res: 50 },
+             'Pebble Egg', '#e3dcc4', '#6d6a4a', 'spots', '#b59a5e', '#7a5a33', 'Beaky', 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.'),
+  // common
+  coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
+             'Banded Egg', '#efd9c8', '#a4553b', 'stripes', '#c27a52', '#4a4640', 'Dash', 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.'),
+  hypsi:   S_('Hypsilophodon', 'hadrosaur', 'Common', ['leaf'], { str: 30, agi: 75, vit: 50, res: 45 },
+             'Mossy Egg', '#d9e3c6', '#4f7a4a', 'stripes', '#6f9b6a', '#c9d38a', 'Hop', 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.'),
+  // uncommon
+  proto:   S_('Protoceratops', 'ceratopsian', 'Uncommon', ['leaf'], { str: 55, agi: 40, vit: 55, res: 80 },
+             'Spotted Egg', '#eadcbf', '#8b6a44', 'spots', '#c79d63', '#d9662f', 'Popcorn', 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.'),
+  galli:   S_('Gallimimus', 'theropod', 'Uncommon', ['leaf', 'insect', 'raw_egg', 'meat'], { str: 40, agi: 95, vit: 50, res: 45 },
+             'Speedy Egg', '#ece4d2', '#8a7a5a', 'speckle', '#c8a56a', '#6f5a3a', 'Zippy', 'Gallimimus was built like an ostrich and may have run at more than 40 km/h. It ate almost anything.'),
+  hypa:    S_('Hypacrosaurus', 'hadrosaur', 'Uncommon', ['leaf'], { str: 45, agi: 50, vit: 85, res: 50 },
+             'Striped Egg', '#d6e2cc', '#5c7b4f', 'stripes', '#78a463', '#d8bd3e', 'Sprout', 'Teeth from Hypacrosaurus embryos suggest almost 6 months inside the egg.'),
+  pachy:   S_('Pachycephalosaurus', 'hadrosaur', 'Uncommon', ['leaf'], { str: 80, agi: 50, vit: 55, res: 45 },
+             'Domed Egg', '#e4d8c4', '#7a5a8a', 'spots', '#9a7fae', '#e3c9a0', 'Bonk', 'Pachycephalosaurus had a skull dome up to 25 cm thick, perhaps for head-butting rivals.'),
+  // rare
+  raptor:  S_('Velociraptor', 'theropod', 'Rare', ['meat'], { str: 65, agi: 100, vit: 50, res: 45 },
+             'Speckled Egg', '#cfd6e4', '#46557a', 'speckle', '#6a7ca8', '#e3ae45', 'Sparky', 'An adult Velociraptor was about 2 m long including the tail, and its body was covered in feathers.'),
+  stego:   S_('Stegosaurus', 'armored', 'Rare', ['leaf'], { str: 70, agi: 30, vit: 65, res: 95 },
+             'Plated Egg', '#dfe0c8', '#8a5a3a', 'stripes', '#7e9a6a', '#d0663a', 'Spike', 'Stegosaurus swung a tail tipped with four long spikes, and its brain was about the size of a walnut.'),
+  bary:    S_('Baryonyx', 'theropod', 'Rare', ['fish', 'meat'], { str: 90, agi: 55, vit: 65, res: 50 },
+             'River Egg', '#d4e0de', '#3f6a6a', 'speckle', '#6a8a7a', '#c9b06a', 'Hook', 'Baryonyx had a huge hooked claw on each thumb and a long snout for catching fish.'),
+  para:    S_('Parasaurolophus', 'hadrosaur', 'Rare', ['leaf'], { str: 50, agi: 55, vit: 100, res: 55 },
+             'Horned Egg', '#e6dccb', '#a0553a', 'stripes', '#c97a4a', '#e8d27a', 'Toot', 'Parasaurolophus had a long hollow head crest that may have worked like a trumpet.'),
+  // epic
+  trike:   S_('Triceratops', 'ceratopsian', 'Epic', ['leaf'], { str: 90, agi: 35, vit: 70, res: 90 },
+             'Shield Egg', '#e2d6bd', '#6a4a2a', 'spots', '#8a6a4a', '#d9c08a', 'Trixie', 'Triceratops had three horns and a bony frill, and lived alongside Tyrannosaurus.'),
+  ankylo:  S_('Ankylosaurus', 'armored', 'Epic', ['leaf'], { str: 65, agi: 25, vit: 75, res: 120 },
+             'Studded Egg', '#d6d0bc', '#5a4a3a', 'spots', '#8a7a5a', '#c9a96a', 'Tank', 'Ankylosaurus was covered in bony armor and swung a heavy club at the end of its tail.'),
+  allo:    S_('Allosaurus', 'theropod', 'Epic', ['meat'], { str: 100, agi: 80, vit: 60, res: 45 },
+             'Ridged Egg', '#e8d6c4', '#8a3a2a', 'stripes', '#a85a3a', '#e8c06a', 'Fang', 'Allosaurus was the top hunter of the Late Jurassic, with dozens of serrated teeth.'),
+  // legendary: their eggs are only found in lairs far from the nest
+  spino:   S_('Spinosaurus', 'theropod', 'Legendary', ['fish', 'meat'], { str: 105, agi: 50, vit: 95, res: 60 },
+             'Sail Egg', '#d6e2e6', '#2f5a7a', 'speckle', '#5a7a9a', '#d96a3a', 'Sail', 'Spinosaurus had a tall sail on its back and spent much of its life in rivers, hunting fish.'),
+  rex:     S_('Tyrannosaurus', 'theropod', 'Legendary', ['meat'], { str: 110, agi: 45, vit: 90, res: 65 },
+             'Golden Egg', '#f0cd68', '#b48114', 'gold', '#a35b40', '#f0cd68', 'Rex', 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.'),
+  argent:  S_('Argentinosaurus', 'sauropod', 'Legendary', ['leaf'], { str: 75, agi: 25, vit: 140, res: 70 },
+             'Giant Egg', '#e8e2d2', '#7a6a4a', 'spots', '#9a8a6a', '#c9b98a', 'Titan', 'Argentinosaurus may have weighed as much as ten elephants, yet hatched from an egg the size of a melon.'),
 };
-export const ORDER = ['dilo', 'compy', 'scelido', 'psitta', 'coelo', 'hypsi', 'proto', 'hypa', 'raptor', 'rex'];
+
+// what each rarity means: hatch time (minutes), coins for hatching, breeding time, and where its
+// eggs turn up: from minDist hexes away (a lair counts 2 hexes farther), lairOnly for legendaries;
+// weight is how often it is picked against the other eggs of the same biome
+export const RARITIES = {
+  Starter:   { mins: 3,  coins: 8,   breed: 4,  minDist: 1, weight: 5 },
+  Common:    { mins: 3,  coins: 10,  breed: 5,  minDist: 1, weight: 5 },
+  Uncommon:  { mins: 8,  coins: 25,  breed: 15, minDist: 3, weight: 3 },
+  Rare:      { mins: 20, coins: 60,  breed: 30, minDist: 5, weight: 2 },
+  Epic:      { mins: 40, coins: 100, breed: 60, minDist: 6, weight: 1.2 },
+  Legendary: { mins: 60, coins: 150, breed: 90, minDist: 5, weight: 1, lairOnly: true },
+};
+
+export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, { ...sp, mins: RARITIES[sp.rarity].mins }]));
+export const ORDER = Object.keys(SPECIES_LIST);
 export const STARTERS = ['dilo', 'compy', 'scelido', 'psitta'];
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
-export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian' };
+export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian', armored: 'Armored', sauropod: 'Sauropod' };
 
 export const SEX = { m: { word: 'Male', sym: '♂' }, f: { word: 'Female', sym: '♀' } };
 
@@ -74,8 +89,11 @@ export const ROW = 10;
 export const MAX_STACK = 99;
 
 export const ITEMS = {
-  leaf:         { name: 'Leaf', plural: 'leaves', desc: 'Food for Protoceratops and Hypacrosaurus. Each meal uses 1 leaf.' },
-  meat:         { name: 'Meat', plural: 'meat', desc: 'Food for Velociraptor and Tyrannosaurus. Each meal uses 1 meat.' },
+  leaf:         { name: 'Leaf', plural: 'leaves', desc: 'Food for plant eaters. Each meal uses 1 leaf.' },
+  meat:         { name: 'Meat', plural: 'meat', desc: 'Food for meat eaters. Each meal uses 1 meat.' },
+  insect:       { name: 'Insects', plural: 'insects', food: true, desc: 'A crunchy handful. Small hunters and omnivores like them. Each meal uses 1.' },
+  fish:         { name: 'Fish', plural: 'fish', food: true, desc: 'Fresh from the swamp. Fish eaters like Baryonyx and Spinosaurus love it. Each meal uses 1.' },
+  raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, desc: 'An egg that will never hatch. Omnivores like Gallimimus eat it. Each meal uses 1.' },
   shell:        { name: 'Eggshell', plural: 'eggshells', desc: 'Left over from an egg that hatched in the nest.' },
   golden_shell: { name: 'Golden eggshell', plural: 'golden eggshells', desc: 'A piece of the rare Golden Egg, where the Tyrannosaurus hatches from.' },
   amber:        { name: 'Amber', plural: 'amber', desc: 'Fossilized tree resin. Some pieces hold insects from the Cretaceous.' },
@@ -158,7 +176,8 @@ export const OUTFITS = {};
 export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 
 // Feeding
-export const DIET = { dilo: 'meat', scelido: 'leaf', compy: 'meat', coelo: 'meat', psitta: 'leaf', hypsi: 'leaf', proto: 'leaf', hypa: 'leaf', raptor: 'meat', rex: 'meat' };
+// what each species eats, favourite first; a meal uses the first of these in the inventory
+export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 
@@ -173,12 +192,13 @@ export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins pe
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
 // creature: the wild animal met there (CREATURES); eggs: the species whose eggs can be found there
+// (which of them turn up depends on rarity and distance, see RARITIES)
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['dilo', 'compy', 'scelido', 'psitta'], loot: [['leaf', 2, 4], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['raptor', 'coelo', 'hypsi', 'dilo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
-  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', eggs: ['hypa', 'psitta'], loot: [['meat', 1, 3], ['clay', 1, 3], ['leaf', 1, 2], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['proto', 'scelido', 'compy'], loot: [['bone', 1, 3], ['meat', 1, 2], ['amber', 1, 1, 0.1]] },
-  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', eggs: ['rex', 'raptor'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
 // Wild creatures. stats are at full strength; a creature met d hexes from the nest has
@@ -279,10 +299,13 @@ export const STAGES = [
 
 // Rewards and prices (coins)
 export const FEED_COINS = 5;
-export const HATCH_COINS = { dilo: 8, scelido: 8, compy: 8, coelo: 8, psitta: 8, hypsi: 8, proto: 10, hypa: 25, raptor: 60, rex: 150 };
-export const HATCH_LOOT = { dilo: 'shell', scelido: 'shell', compy: 'shell', coelo: 'shell', psitta: 'shell', hypsi: 'shell', proto: 'shell', hypa: 'shell', raptor: 'shell', rex: 'golden_shell' };
+export const HATCH_COINS = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, RARITIES[sp.rarity].coins]));
+export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.rarity === 'Legendary' ? 'golden_shell' : 'shell']));
 // food costs less than a meal pays, so feeding always comes out ahead
-export const FOOD_PACKS = [{ id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }];
+export const FOOD_PACKS = [
+  { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
+  { id: 'fish', qty: 5, price: 15 }, { id: 'raw_egg', qty: 3, price: 12 }, { id: 'herb', qty: 3, price: 20 },
+];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 
 // Daily reward. The game day starts at midnight in this UTC offset (Brasília, which has no daylight
@@ -329,18 +352,7 @@ export const WILD_GENES = [10, 50];           // starter babies (and eggs found 
 export const GENE_GRADES = [[90, 'S'], [75, 'A'], [55, 'B'], [35, 'C'], [0, 'D']];
 
 // Each species' stats with perfect genes. Rarer species have a higher total.
-export const SPECIES_BASE = {
-  dilo:    { str: 75, agi: 50, vit: 40, res: 35 },   // 200, strength
-  compy:   { str: 40, agi: 85, vit: 40, res: 35 },   // 200, agility
-  scelido: { str: 30, agi: 30, vit: 55, res: 85 },   // 200, resistance
-  psitta:  { str: 35, agi: 35, vit: 80, res: 50 },   // 200, vitality
-  coelo:   { str: 55, agi: 65, vit: 45, res: 35 },   // 200
-  hypsi:   { str: 30, agi: 75, vit: 50, res: 40 },   // 195
-  proto:  { str: 50, agi: 40, vit: 60, res: 85 },   // 235
-  hypa:   { str: 45, agi: 50, vit: 85, res: 65 },   // 245
-  raptor: { str: 60, agi: 95, vit: 55, res: 50 },   // 260
-  rex:    { str: 90, agi: 40, vit: 85, res: 75 },   // 290
-};
+export const SPECIES_BASE = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.base]));
 // genes scale the base from GENE_FLOOR (genes 0) up to 100% (genes 100): base × (0.5 + genes / 200)
 export const GENE_FLOOR = 0.5;
 
@@ -350,6 +362,6 @@ export const DERIVED = { hpBase: 50, hpPerVit: 10, damagePerStr: 1.5, dodgeHalfA
 
 // Breeding: a male and a female of the same species lay an egg of that species. Each gene of the
 // baby lands between its parents' genes, plus a small random change, so good pairs make better babies.
-export const BREED_MINS = { dilo: 4, scelido: 4, compy: 4, coelo: 4, psitta: 4, hypsi: 4, proto: 5, hypa: 15, raptor: 30, rex: 90 };
+export const BREED_MINS = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, RARITIES[sp.rarity].breed]));
 export const BREED_GENE_CHANGE = [-2, 5];
 export const EGG_TRAY_SIZE = 10;

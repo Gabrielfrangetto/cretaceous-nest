@@ -6,11 +6,12 @@ import { SPECIES_BASE } from '../js/config.js';
 
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
 const rex = g => ({ type: 'rex', genes: typeof g === 'number' ? genes(g) : g });
+const B = SPECIES_BASE.rex;   // the numbers below follow the Tyrannosaurus' base stats
 
 test('genes scale the species base from 50% to 100%', () => {
   assert.deepEqual(statSheet(rex(100)).stats, SPECIES_BASE.rex);
-  assert.equal(statSheet(rex(50)).stats.str, Math.round(90 * 0.75));
-  assert.equal(statSheet(rex(1)).stats.str, Math.round(90 * 0.505));
+  assert.equal(statSheet(rex(50)).stats.str, Math.round(B.str * 0.75));
+  assert.equal(statSheet(rex(1)).stats.str, Math.round(B.str * 0.505));
 });
 
 test('the species shapes the stats more than the genes do', () => {
@@ -32,15 +33,15 @@ test('equipment stacks flat, then increased (added together), then more (multipl
     { stat: 'str', type: 'more', value: 1.10 },       // Rage Charm
   ];
   const sheet = statSheet(b, mods);
-  assert.equal(sheet.stats.str, 104);   // (90 × 0.9 + 5) × 1.10 × 1.10 = 104.06
-  assert.equal(sheet.stats.agi, 27);    // 40 × 0.9 × 0.75
-  assert.equal(sheet.stats.res, Math.round(75 * 0.75 + 30));
+  assert.equal(sheet.stats.str, Math.round((B.str * 0.9 + 5) * 1.10 * 1.10));
+  assert.equal(sheet.stats.agi, Math.round(B.agi * 0.9 * 0.75));
+  assert.equal(sheet.stats.res, Math.round(B.res * 0.75 + 30));
 });
 
 test('increased bonuses add up, more bonuses multiply', () => {
   const two = (type, value) => [{ stat: 'str', type, value }, { stat: 'str', type, value }];
-  assert.equal(statSheet(rex(100), two('increased', 0.10)).stats.str, Math.round(90 * 1.20));
-  assert.equal(statSheet(rex(100), two('more', 1.10)).stats.str, Math.round(90 * 1.21));
+  assert.equal(statSheet(rex(100), two('increased', 0.10)).stats.str, Math.round(B.str * 1.20));
+  assert.equal(statSheet(rex(100), two('more', 1.10)).stats.str, Math.round(B.str * 1.21));
 });
 
 test('a stat never drops below 1, even with huge penalties', () => {
@@ -63,7 +64,7 @@ test('gene grades and the overall percentage', () => {
 
 test('power is the sum of the final stats', () => {
   const sheet = statSheet(rex(100));
-  assert.equal(sheet.power, 90 + 40 + 85 + 75);
+  assert.equal(sheet.power, B.str + B.agi + B.vit + B.res);
 });
 
 test('a version 4 save turns its stats into genes, taking off the old species bonus', () => {

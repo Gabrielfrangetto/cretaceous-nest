@@ -250,13 +250,23 @@ export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id)
 export const hungerEvery = b => (HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000;
 export const isHungry = (b, now) => now - (b.lastFed || b.at) >= hungerEvery(b);
 
+// the meal a species would eat now: its favourite food that is in the inventory, or null
+export const mealFor = (s, type) => DIET[type].find(food => countItem(s, food) > 0) || null;
+// "Meat eater", "Plant eater", "Omnivore" or "Fish eater", from what it eats
+export function dietLabel(type) {
+  const d = DIET[type];
+  if (d[0] === 'fish') return 'Fish eater';
+  if (d.includes('leaf') && d.includes('meat')) return 'Omnivore';
+  return d.includes('meat') ? 'Meat eater' : 'Plant eater';
+}
+
 export function feedBaby(s, id, now) {
   const b = s.hatched.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'missing' };
   if (isAway(s, id)) return { ok: false, reason: 'away' };
   if (!isHungry(b, now)) return { ok: false, reason: 'full' };
-  const food = DIET[b.type];
-  if (countItem(s, food) < 1) return { ok: false, reason: 'no-food', food };
+  const food = mealFor(s, b.type);
+  if (!food) return { ok: false, reason: 'no-food', food: DIET[b.type][0] };
   removeItem(s, food, 1);
   const before = stageOf(b);
   b.lastFed = now;

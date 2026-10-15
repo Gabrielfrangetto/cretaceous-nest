@@ -5,9 +5,11 @@ import {
   startEgg, eggProgress, warmEgg, hatchEgg, feedBaby, hungerEvery, buyRow, buyPack, rowPrice,
 } from '../js/economy.js';
 import { freshState } from '../js/state.js';
-import { ITEMS, SLOTS, MAX_STACK, FEED_COINS, HATCH_COINS } from '../js/config.js';
+import { ITEMS, SLOTS, MAX_STACK, FEED_COINS, HATCH_COINS, SPECIES } from '../js/config.js';
 
 const MIN = 60000;
+// hatch times follow the config: a Protoceratops egg takes SPECIES.proto.mins minutes
+const PROTO = SPECIES.proto.mins * MIN;
 
 function emptyState(invSize = 10) {
   const s = freshState();
@@ -81,7 +83,7 @@ test('an egg hatches only when its time is up, and pays coins and a shell', () =
   const s = freshState();
   startEgg(s, 'proto', 0);
   assert.equal(hatchEgg(s, 30 * 1000), null);
-  const r = hatchEgg(s, MIN, () => 0.1);
+  const r = hatchEgg(s, PROTO, () => 0.1);
   assert.equal(r.baby.type, 'proto');
   assert.equal(r.baby.sex, 'm');
   assert.equal(r.baby.name, 'Popcorn');
@@ -92,7 +94,7 @@ test('an egg hatches only when its time is up, and pays coins and a shell', () =
 
 test('the second baby of a species gets a numbered name', () => {
   const s = freshState();
-  for (let i = 0; i < 2; i++) { startEgg(s, 'hypa', 0); hatchEgg(s, 5 * MIN); }
+  for (let i = 0; i < 2; i++) { startEgg(s, 'hypa', 0); hatchEgg(s, SPECIES.hypa.mins * MIN); }
   assert.deepEqual(s.hatched.map(b => b.name), ['Sprout 2', 'Sprout']);
 });
 
@@ -101,14 +103,14 @@ test('warming can cut at most half of the hatch time', () => {
   startEgg(s, 'proto', 0);
   let saved = 0;
   while (warmEgg(s)) saved++;
-  assert.equal(saved, 30);
-  assert.equal(eggProgress(s.current, 30 * 1000).frac, 1);
+  assert.equal(saved, PROTO / 2 / 1000);
+  assert.equal(eggProgress(s.current, PROTO / 2).frac, 1);
 });
 
 test('feeding needs a hungry baby and the right food', () => {
   const s = freshState();
   startEgg(s, 'rex', 0);
-  const { baby } = hatchEgg(s, 60 * MIN);
+  const { baby } = hatchEgg(s, SPECIES.rex.mins * MIN);
   const hungryAt = baby.at + hungerEvery(baby);
 
   assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'full');

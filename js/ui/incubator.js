@@ -2,7 +2,7 @@
 // laid by breeding pairs): warm it, hatch it and name the baby.
 import { SPECIES, STARTERS, DIET, SEX, ITEMS } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { eggProgress, starterBaby } from '../economy.js';
+import { eggProgress, starterBaby, dietLabel } from '../economy.js';
 import { act, hatch as hatchEgg } from '../actions.js';
 import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
@@ -57,7 +57,7 @@ function renderStarters() {
       return `<button class="egg-card starter" type="button" data-type="${type}">
         <span class="starter-art" data-art="${type}"></span>
         <strong>${sp.species} ${SEX[b.sex].sym}</strong>
-        <span>${DIET[type] === 'meat' ? 'Meat eater' : 'Plant eater'} · ${genesText(b.genes)}</span>
+        <span>${dietLabel(type)} · ${genesText(b.genes)}</span>
         ${statsHTML(b, { compact: true })}</button>`;
     }).join('')}</div>`;
   for (const type of STARTERS) stage.querySelector(`[data-art="${type}"]`).appendChild(babyArt(type, 5, starterBaby(S, type).sex));

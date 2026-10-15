@@ -1,5 +1,5 @@
 // Shop tab: backpack upgrades and food packs.
-import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS, GEAR_SLOTS, PLAYER_SLOTS } from '../config.js';
+import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, RARITIES, GEAR_SLOTS, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { rowPrice, countItem, roomFor } from '../economy.js';
 import { act } from '../actions.js';
@@ -74,8 +74,8 @@ function render() {
     <div class="earn">
       <h3>How to earn coins</h3>
       <ul>
-        <li>Feed a hungry baby: +${FEED_COINS} (uses 1 leaf or 1 meat from your inventory)</li>
-        <li>Hatch an egg: +${HATCH_COINS.proto} (Common), +${HATCH_COINS.hypa} (Uncommon), +${HATCH_COINS.raptor} (Rare), +${HATCH_COINS.rex} (Legendary)</li>
+        <li>Feed a hungry baby: +${FEED_COINS} (uses 1 of a food it eats from your inventory)</li>
+        <li>Hatch an egg: ${Object.entries(RARITIES).filter(([name]) => name !== 'Starter').map(([name, r]) => `+${r.coins} (${name})`).join(', ')}</li>
       </ul>
     </div>`;
   box.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => {

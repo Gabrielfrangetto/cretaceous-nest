@@ -24,9 +24,10 @@ export const ANCHORS = {
     f: { head: { x: 0.62, y: 0.1, w: 0.3, r: 0 }, neck: { x: 0.52, y: 0.43, w: 0.28, r: 0 }, body: { x: 0.48, y: 0.63, w: 0.42, r: 0 }, back: { x: 0.35, y: 0.5, w: 0.42, r: -10 } },
   },
 };
-// species without anchors of their own yet start from a similar body
-for (const [type, like] of [['dilo', 'raptor'], ['scelido', 'proto'], ['compy', 'raptor'], ['coelo', 'raptor'], ['psitta', 'proto'], ['hypsi', 'hypa']]) {
-  if (!ANCHORS[type]) ANCHORS[type] = JSON.parse(JSON.stringify({ m: ANCHORS[like].m, f: ANCHORS[like].f }));
+// species without anchors of their own yet start from a species with a similar body
+const LIKE_BUILD = { theropod: 'raptor', hadrosaur: 'hypa', ceratopsian: 'proto', armored: 'proto', sauropod: 'hypa' };
+for (const [type, sp] of Object.entries(SPECIES)) {
+  if (!ANCHORS[type]) ANCHORS[type] = JSON.parse(JSON.stringify(ANCHORS[LIKE_BUILD[sp.build] || 'proto']));
 }
 
 

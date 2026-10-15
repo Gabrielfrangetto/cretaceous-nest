@@ -61,7 +61,7 @@ test('a new game starts by picking one of four starter babies, once', () => {
   const s = game();
   assert.equal(s.starter, false);
   assert.equal(STARTERS.length, 4);
-  assert.deepEqual(STARTERS.map(t => DIET[t]).sort(), ['leaf', 'leaf', 'meat', 'meat']);
+  assert.deepEqual(STARTERS.map(t => DIET[t][0]).sort(), ['leaf', 'leaf', 'meat', 'meat']);
   assert.equal(applyAction(s, 'pickStarter', { type: 'rex' }, T0).reason, 'unknown-species');
   const r = applyAction(s, 'pickStarter', { type: 'psitta' }, T0);
   assert.equal(r.ok, true);
@@ -80,7 +80,46 @@ test('a new game starts by picking one of four starter babies, once', () => {
 test('each starter is led by a different stat: two meat eaters (STR, AGI), two plant eaters (RES, VIT)', async () => {
   const { SPECIES_BASE } = await import('../js/config.js');
   const top = t => Object.entries(SPECIES_BASE[t]).sort((a, b) => b[1] - a[1])[0][0];
-  assert.deepEqual(STARTERS.map(t => [t, DIET[t], top(t)]), [
+  assert.deepEqual(STARTERS.map(t => [t, DIET[t][0], top(t)]), [
     ['dilo', 'meat', 'str'], ['compy', 'meat', 'agi'], ['scelido', 'leaf', 'res'], ['psitta', 'leaf', 'vit'],
   ]);
+});
+
+test('rarer species have higher base totals, and every species has a diet and eggs somewhere', async () => {
+  const { SPECIES, SPECIES_BASE, RARITIES } = await import('../js/config.js');
+  const TOTAL = { Starter: 200, Common: 200, Uncommon: 230, Rare: 260, Epic: 285, Legendary: 310 };
+  assert.equal(Object.keys(SPECIES).length, 20);
+  for (const [k, sp] of Object.entries(SPECIES)) {
+    assert.equal(Object.values(SPECIES_BASE[k]).reduce((a, b) => a + b, 0), TOTAL[sp.rarity], k);
+    assert.ok(RARITIES[sp.rarity] && DIET[k].length && DIET[k].every(f => ITEMS[f]), k);
+    assert.ok(Object.values(BIOMES).some(b => b.eggs.includes(k)), k + ' has eggs somewhere');
+  }
+});
+
+test('eggs near the nest are common; rare ones need distance; legendaries only lairs', async () => {
+  const { eggKinds } = await import('../js/world.js');
+  const { SPECIES } = await import('../js/config.js');
+  const rarities = (b, d, lair) => [...new Set(eggKinds(b, d, lair).map(k => SPECIES[k.type].rarity))].sort();
+  assert.deepEqual(rarities('meadow', 1, false), ['Starter']);
+  assert.deepEqual(rarities('forest', 2, false), ['Common']);
+  assert.ok(rarities('forest', 5, false).includes('Rare'));
+  assert.ok(!rarities('volcano', 7, false).includes('Legendary'));
+  assert.ok(rarities('volcano', 5, true).includes('Legendary'));
+});
+
+test('a meal uses the favourite food in the inventory; omnivores eat almost anything', async () => {
+  const { mealFor, dietLabel, addItem, removeItem, countItem } = await import('../js/economy.js');
+  const s = game();
+  removeItem(s, 'leaf', countItem(s, 'leaf'));
+  removeItem(s, 'meat', countItem(s, 'meat'));
+  assert.equal(mealFor(s, 'galli'), null);
+  addItem(s, 'raw_egg', 1);
+  assert.equal(mealFor(s, 'galli'), 'raw_egg');
+  addItem(s, 'leaf', 1);
+  assert.equal(mealFor(s, 'galli'), 'leaf');
+  addItem(s, 'meat', 1);
+  assert.equal(mealFor(s, 'bary'), 'meat');
+  addItem(s, 'fish', 1);
+  assert.equal(mealFor(s, 'bary'), 'fish');
+  assert.deepEqual(['dilo', 'psitta', 'galli', 'bary'].map(dietLabel), ['Meat eater', 'Plant eater', 'Omnivore', 'Fish eater']);
 });

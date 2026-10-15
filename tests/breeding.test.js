@@ -6,7 +6,7 @@ import {
 } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
-import { STATS, GENES_MAX, WILD_GENES, BREED_MINS, EGG_TRAY_SIZE } from '../js/config.js';
+import { STATS, GENES_MAX, WILD_GENES, BREED_MINS, EGG_TRAY_SIZE, SPECIES } from '../js/config.js';
 
 const MIN = 60000;
 const ids = STATS.map(s => s.id);
@@ -68,7 +68,7 @@ test('a pair lays an egg of its species after the breeding time, and it hatches 
 
   assert.equal(applyAction(s, 'startEgg', { eggId: r.egg.id }, 0).ok, true);
   assert.equal(s.eggs.length, 0);
-  const { baby: kid } = hatchEgg(s, 5 * MIN);
+  const { baby: kid } = hatchEgg(s, SPECIES.hypa.mins * MIN);
   assert.deepEqual(kid.genes, r.egg.genes);
   assert.equal(kid.gen, 4);
   assert.deepEqual(kid.parents, ['m1', 'f1']);
@@ -85,7 +85,7 @@ test('the egg tray holds at most 10 eggs', () => {
 test('free eggs still hatch with rolled genes', () => {
   const s = freshState();
   startEgg(s, 'raptor', 0);
-  const { baby: b } = hatchEgg(s, 15 * MIN);
+  const { baby: b } = hatchEgg(s, SPECIES.raptor.mins * MIN);
   assert.equal(b.gen, 1);
   assert.ok(ids.every(id => b.genes[id] >= 1 && b.genes[id] <= GENES_MAX));
 });
