@@ -199,8 +199,8 @@ test('a Tyrannosaurus bite crushes through armor and breaks bones: legs get lame
   for (let i = 0; i < 40; i++) for (const e of teamFight([unitOf('t', [fighterOf(dino('t', 50, 'trike'))])], rex, seededRand('t' + i)).log) assert.ok(!e.kill);
   assert.ok(SPECIES.trike.size !== BONE_BREAKER.neckMax);
   // anything small dies from the first bite that lands
-  for (const t of ['compy', 'raptor', 'hypsi']) {
-    // (with its fear lifted, or it would just run)
+  // (attackers with their fear lifted: a noncombatant or a frightened one would just run)
+  for (const t of ['coelo', 'raptor']) {
     const r = teamFight([unitOf(t, [{ ...fighterOf(dino(t, 50, t)), fear: undefined }])], rex, seededRand('one' + t));
     const first = r.log.find(e => e.by === 'foe' && !e.miss);
     assert.ok(first, t);
