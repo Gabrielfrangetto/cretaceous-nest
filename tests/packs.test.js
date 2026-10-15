@@ -225,3 +225,19 @@ test('a full Coelophysis pack (the biggest of all) fights with more of every sta
   const plain = fighterOf(b), full = fighterOf(b, fullPackMods('coelo', PACK_LIMITS.coelo));
   assert.ok(full.hp > plain.hp && full.damage > plain.damage && full.agi > plain.agi);
 });
+
+test('only so many fit around a foe, a much bigger foe catches several at once, and bigger bodies have more health', async () => {
+  const { unitHit, bodyHp } = await import('../js/combat.js');
+  const { REACH_SLOTS, SIZE_HP } = await import('../js/config.js');
+  // 15 or 3 Coelophysis on a small foe hit the same: only REACH_SLOTS.small fit around it
+  const small = wildFighter('hypsi', 5);
+  const coelos = n => unitOf('p', Array.from({ length: n }, (_, i) => fighterOf(dino('c' + i, 'coelo'))), true);
+  const hp = n => Array(n).fill(1);
+  assert.equal(unitHit(coelos(15), hp(15), small, 1), unitHit(coelos(REACH_SLOTS.small), hp(REACH_SLOTS.small), small, 1));
+  assert.ok(unitHit(coelos(3), hp(3), small, 1) > unitHit(coelos(2), hp(2), small, 1));
+  // a Tyrannosaurus blow on a pack of compys catches more than one
+  const r = teamFight([coelos(6)], wildFighter('rex', 6), seededRand('stomp'));
+  assert.ok(r.fled.length || r.log.some(e => e.by === 'foe' && e.also && e.also.length));
+  assert.ok(SIZE_HP.huge > SIZE_HP.medium && SIZE_HP.medium > SIZE_HP.small);
+  assert.equal(bodyHp(500, 'medium'), 500);
+});

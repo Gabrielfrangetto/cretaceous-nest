@@ -85,6 +85,7 @@ const SIZE = {
 //   role:   how it fights (see ROLE_TARGET): attacker, defender or noncombatant
 //   charge: a defender's chance a turn to charge instead of holding its ground
 //   fisher: at home in the water (FISHER)
+//   fragile: a share of the health its body would have (Coelophysis: hollow, bird-like bones)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -98,7 +99,7 @@ export const BODY = {
   dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, role: 'attacker', fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
-  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, role: 'attacker', fear: 'medium' },
+  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', fear: 'medium' },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
@@ -317,7 +318,9 @@ export const FRENZY_DROPS = [
 ];
 export const PACK_MIN = 2;
 export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
-export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first
+export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first that can reach
+// how many can get at a foe at once, by its size: the rest wait their turn (and step in when one falls)
+export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
 export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes away; adults anywhere
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
@@ -360,6 +363,8 @@ export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
 export const SIZE_EDGE = 0.3;
+// health grows with the body: a size's share of the health its stats give (medium as it is)
+export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)

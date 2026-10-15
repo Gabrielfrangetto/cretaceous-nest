@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,8 +18,11 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher };
-  return { name: baby.name, ...sheet.derived, agi: sheet.stats.agi, power: sheet.power, ...body };
+  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, power: sheet.power, ...body };
 }
+
+// health for the size of the body (SIZE_HP)
+export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
 
 // what one blow does before rounding, roll being the ±25% (0.75 to 1.25): 0 when the hide stops it
 export function hitOf(att, def, roll) {
@@ -44,9 +47,10 @@ export function wildFighter(type, dist, lair = false) {
   const sp = SPECIES[type];
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = wildStats(sp.base, level);
+  const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
-    name: sp.species, ...deriveCombat(stats), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size: youngSize(sp.size, dist, lair), bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher,
+    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
+    size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher,
   };
 }
 
@@ -69,7 +73,8 @@ export function creatureFighter(id, dist, lair = false) {
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size: youngSize(c.size, dist, lair),
+  const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, power, level, size,
     bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker' };
 }
 
@@ -141,10 +146,12 @@ export function unitPower(u, hp = u.members.map(m => m.hp)) {
 
 // one blow of a unit: every standing member bites (each held back by its own jaws and the foe's
 // hide), the hardest bite counts in full and every other one a share, plus the pack's teamwork
+// Only as many as can get at the foe at once strike (REACH_SLOTS, by the foe's size); the best of
+// them lead.
 export function unitHit(u, hp, foe, roll) {
   const up = u.members.filter((_, i) => hp[i] > 0);
-  const extra = u.pack ? up.length - 1 : 0;
-  const hits = up.map(m => hitOf(m, foe, roll)).sort((a, b) => b - a);
+  const hits = up.map(m => hitOf(m, foe, roll)).sort((a, b) => b - a).slice(0, REACH_SLOTS[foe.size] || 4);
+  const extra = u.pack ? hits.length - 1 : 0;
   return hits.reduce((t, d, i) => t + d * (i ? PACK_REACH : 1), 0) * (1 + PACK_BONUS * extra);
 }
 export const unitHp = u => u.members.reduce((t, m) => t + m.hp, 0);
@@ -191,7 +198,16 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return; }
       const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost);
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
-      log.push({ by: who, member, dmg, left: foeHp[member], foeLeft: foeLeft(), ...extra });
+      const also = sweep(units[who], foe, foeHp, member, m => rounded(unitHit(units[who], hp[who], foe.members[m], roll) * boost));
+      log.push({ by: who, member, dmg, left: foeHp[member], ...(also.length ? { also } : {}), foeLeft: foeLeft(), ...extra });
+    };
+    // A blow from something much bigger than a pack's members catches more of them at once (a stomp,
+    // a swipe of the tail): one more for every size step past the first. hit(m) is its damage on m.
+    const sweep = (att, target, thp, first, hit) => {
+      if (!target.pack) return [];
+      const more = sizeRank(biggest(att)) - sizeRank(target.members[first].size) - 1;
+      const others = standing(thp).filter(m => m !== first).slice(0, Math.max(0, more));
+      return others.map(m => { const dmg = hit(m); thp[m] = Math.max(0, thp[m] - dmg); return { member: m, dmg, left: thp[m] }; });
     };
     // defenders out of their guard after a charge
     const exposed = new Set();
@@ -219,9 +235,11 @@ export function teamFight(units, foe, rand, opts = {}) {
           if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
           // a defender caught out of its guard by its own charge takes more
           const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
-          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], 0.75 + rand() * 0.5) * open);
+          const roll = 0.75 + rand() * 0.5;
+          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], roll) * open);
           hp[to][member] = Math.max(0, hp[to][member] - dmg);
-          log.push({ by: 'foe', to, member, dmg, left: hp[to][member] });
+          const also = sweep(foe, units[to], hp[to], member, m => rounded(unitHit(foe, foeHp, units[to].members[m], roll) * open));
+          log.push({ by: 'foe', to, member, dmg, left: hp[to][member], ...(also.length ? { also } : {}) });
           afterAttack(to);
           continue;
         }

@@ -137,6 +137,9 @@ export function playFight(battle, summary, who) {
         pop(box, '−' + blow.dmg, 'dmg');
         strike(box);
         hp[blow.to][blow.member] = blow.left;
+        // a stomp or a swipe that caught more of a pack
+        for (const x of blow.also || []) hp[blow.to][x.member] = x.left;
+        if (blow.also) pop(box, `×${blow.also.length + 1}`, 'mad');
         showUnit(blow.to);
       }
     } else if (blow.ally !== undefined) {
@@ -160,6 +163,7 @@ export function playFight(battle, summary, who) {
         pop(foeBox, '−' + blow.dmg, 'dmg');
         strike(foeBox);
         foeHp[blow.member] = blow.left;
+        for (const x of blow.also || []) foeHp[x.member] = x.left;
         setHp(foeBox, blow.foeLeft, battle.foeMax);
         foeBox.querySelector('.pack-left').textContent = foeNote();
       }
