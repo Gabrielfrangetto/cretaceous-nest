@@ -1,8 +1,8 @@
 // The fight replay shown when an explorer comes back from a battle: both fighters face each other,
 // and the blows the rules already decided play out one by one with health bars and damage numbers.
-import { CREATURES, SEX } from '../config.js';
+import { CREATURES, SEX, PLAYER_ID } from '../config.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
-import { dressedArt, babyArt } from '../art.js';
+import { dressedArt, babyArt, playerArt } from '../art.js';
 import { esc } from '../util.js';
 
 const STEP_MS = 520;
@@ -23,11 +23,12 @@ export function playFight(baby, battle, summary) {
   const body = document.getElementById('fightBody');
   clearTimeout(timer);
   const c = CREATURES[battle.creature];
-  const mine = dressedArt(baby.type, 6, sexOf(baby), wornGear(baby), baby.outfit, stageOf(baby).id);
+  const me = baby.id === PLAYER_ID;
+  const mine = me ? playerArt(baby.equip, 130) : dressedArt(baby.type, 6, sexOf(baby), wornGear(baby), baby.outfit, stageOf(baby).id);
   const theirs = babyArt(c.look, battle.lair ? 9 : 7.5, 'm');
   theirs.style.filter = c.tint;
   theirs.classList.add('foe-art');
-  body.innerHTML = `<h2 id="fightTitle">${esc(baby.name)} ${SEX[sexOf(baby)].sym} vs ${esc(battle.foe.name)}</h2>
+  body.innerHTML = `<h2 id="fightTitle">${esc(baby.name)}${me ? '' : ' ' + SEX[sexOf(baby)].sym} vs ${esc(battle.foe.name)}</h2>
     <div class="arena"></div>
     <p class="fight-result hint" role="status" aria-live="polite">Fighting…</p>
     <div class="row"><button class="ghost" type="button" id="fightSkip">Skip</button><button class="btn" type="button" id="fightClose" hidden>Close</button></div>`;

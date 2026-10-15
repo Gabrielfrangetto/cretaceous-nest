@@ -1,5 +1,5 @@
 // The Forge, under the inventory: equipment made from the materials explorers bring home.
-import { ITEMS, RECIPES, GEAR_SLOTS } from '../config.js';
+import { ITEMS, RECIPES, GEAR_SLOTS, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { countItem, roomFor } from '../economy.js';
 import { act } from '../actions.js';
@@ -15,7 +15,7 @@ function render() {
   if (!box) return;
   box.innerHTML = `
     <div><h2 id="forgeTitle">Forge</h2>
-    <p class="hint">Turn the materials your explorers bring home into equipment you can't buy in the Shop. Only adults wear equipment.</p></div>
+    <p class="hint">Turn the materials your explorers bring home into weapons and armor for you, and equipment for your adult dinosaurs, that the Shop doesn't sell.</p></div>
     <ul class="gear-list">${RECIPES.map(r => {
       const it = ITEMS[r.id];
       const parts = Object.entries(r.needs).map(([id, n]) => ({ id, n, have: countItem(S, id) }));
@@ -24,7 +24,7 @@ function render() {
         <span class="gear-icon big">${ITEM_ICONS[r.id]}</span>
         <div class="gear-body">
           <strong>${esc(it.name)}</strong>
-          <span class="hint">${GEAR_SLOTS.find(g => g.id === it.slot).name} · ${esc(it.desc)}</span>
+          <span class="hint">${it.kind === 'arms' ? 'For you' : 'For dinosaurs'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · ${esc(it.desc)}</span>
           ${modsHTML(it.mods)}
           <ul class="needs">${parts.map(p => `<li class="${p.have >= p.n ? 'got' : 'short'}"><span class="mini">${ITEM_ICONS[p.id]}</span>${p.have}/${p.n} ${esc(p.n === 1 ? ITEMS[p.id].name : ITEMS[p.id].plural)}</li>`).join('')}</ul>
         </div>

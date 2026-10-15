@@ -92,6 +92,30 @@ export const ITEMS = {
                    desc: 'Catches the wind on every step.', mods: [{ stat: 'agi', type: 'increased', value: 0.15 }] },
   turtle_shell:  { name: 'Turtle Shell', plural: 'turtle shells', kind: 'gear', slot: 'back', stack: 1, price: 200,
                    desc: 'Borrowed from an ancient turtle.', mods: [{ stat: 'res', type: 'increased', value: 0.20 }, { stat: 'agi', type: 'increased', value: -0.10 }] },
+  // the player's own weapons and armor (kind 'arms', a slot from PLAYER_SLOTS); color tints the drawing
+  wooden_club:   { name: 'Wooden Club', plural: 'wooden clubs', kind: 'arms', slot: 'weapon', stack: 1, price: 60, color: '#8a5a32',
+                   desc: 'A heavy branch. Better than bare hands.', mods: [{ stat: 'str', type: 'flat', value: 8 }] },
+  hide_cap:      { name: 'Hide Cap', plural: 'hide caps', kind: 'arms', slot: 'head', stack: 1, price: 50, color: '#a77b4f',
+                   desc: 'Keeps the sun and the small bites off.', mods: [{ stat: 'res', type: 'flat', value: 5 }] },
+  hide_tunic:    { name: 'Hide Tunic', plural: 'hide tunics', kind: 'arms', slot: 'body', stack: 1, price: 80, color: '#9c6b3f',
+                   desc: 'Tough leather, sewn with sinew.', mods: [{ stat: 'res', type: 'flat', value: 8 }, { stat: 'vit', type: 'flat', value: 4 }] },
+  wooden_shield: { name: 'Wooden Shield', plural: 'wooden shields', kind: 'arms', slot: 'shield', stack: 1, price: 70, color: '#9a6a3a',
+                   desc: 'Planks lashed together.', mods: [{ stat: 'res', type: 'flat', value: 7 }, { stat: 'agi', type: 'increased', value: -0.04 }] },
+  sandals:       { name: 'Sandals', plural: 'sandals', kind: 'arms', slot: 'feet', stack: 1, price: 40, color: '#7a5a3a',
+                   desc: 'Light and quiet on the forest floor.', mods: [{ stat: 'agi', type: 'increased', value: 0.06 }] },
+  bone_sword:    { name: 'Bone Sword', plural: 'bone swords', kind: 'arms', slot: 'weapon', stack: 1, color: '#efe6cf',
+                   desc: 'A long bone ground to an edge.', mods: [{ stat: 'str', type: 'flat', value: 12 }, { stat: 'str', type: 'increased', value: 0.08 }] },
+  obsidian_blade:{ name: 'Obsidian Blade', plural: 'obsidian blades', kind: 'arms', slot: 'weapon', stack: 1, color: '#2c2733',
+                   desc: 'Volcanic glass, sharper than anything.', mods: [{ stat: 'str', type: 'flat', value: 16 }, { stat: 'str', type: 'increased', value: 0.15 }] },
+  bone_shield:   { name: 'Bone Shield', plural: 'bone shields', kind: 'arms', slot: 'shield', stack: 1, color: '#e6dcc0',
+                   desc: 'Ribs and hide, light but strong.', mods: [{ stat: 'res', type: 'flat', value: 14 }] },
+  clay_armor:    { name: 'Clay Armor', plural: 'clay armors', kind: 'arms', slot: 'body', stack: 1, color: '#b5694a',
+                   desc: 'Fired plates over a hide tunic.', mods: [{ stat: 'res', type: 'flat', value: 20 }, { stat: 'vit', type: 'flat', value: 8 }, { stat: 'agi', type: 'increased', value: -0.06 }] },
+  feather_boots: { name: 'Feather Boots', plural: 'feather boots', kind: 'arms', slot: 'feet', stack: 1, color: '#6a9fb5',
+                   desc: 'Run like a raptor.', mods: [{ stat: 'agi', type: 'increased', value: 0.16 }] },
+  obsidian_helm: { name: 'Obsidian Helm', plural: 'obsidian helms', kind: 'arms', slot: 'head', stack: 1, color: '#3a3342',
+                   desc: 'Glass-studded and fearsome.', mods: [{ stat: 'res', type: 'flat', value: 10 }, { stat: 'str', type: 'flat', value: 4 }] },
+
   // forged only (no price): made in the Forge from materials found on expeditions
   obsidian_fang: { name: 'Obsidian Fang', plural: 'obsidian fangs', kind: 'gear', slot: 'neck', stack: 1,
                    desc: 'A shard of volcanic glass on a cord.', mods: [{ stat: 'str', type: 'increased', value: 0.15 }, { stat: 'str', type: 'flat', value: 4 }] },
@@ -177,12 +201,30 @@ export const EGG_GENES = (d, lair) => {      // [min, max] genes
 
 // The Forge: equipment made from materials. needs: { item: count }.
 export const RECIPES = [
+  { id: 'bone_sword', needs: { bone: 8, feather: 2 } },
+  { id: 'bone_shield', needs: { bone: 6, clay: 2 } },
+  { id: 'clay_armor', needs: { clay: 10, bone: 3 } },
+  { id: 'feather_boots', needs: { feather: 8, clay: 1 } },
+  { id: 'obsidian_helm', needs: { obsidian: 5, bone: 2 } },
+  { id: 'obsidian_blade', needs: { obsidian: 8, bone: 4, amber: 1 } },
   { id: 'bone_helmet', needs: { bone: 6, shell: 2 } },
   { id: 'clay_plate', needs: { clay: 8, bone: 2 } },
   { id: 'feather_cloak', needs: { feather: 10, clay: 2 } },
   { id: 'obsidian_fang', needs: { obsidian: 6, bone: 3 } },
   { id: 'amber_charm', needs: { amber: 3, shell: 3 } },
   { id: 'golden_crown', needs: { golden_shell: 3, amber: 2, obsidian: 2 } },
+];
+
+// The player's explorer: explores alone like a dinosaur (any distance), never gets hungry, can be
+// injured, and wears its own weapons and armor.
+export const PLAYER_ID = 'player';
+export const PLAYER_BASE = { str: 40, agi: 45, vit: 45, res: 35 };   // 165
+export const PLAYER_SLOTS = [
+  { id: 'weapon', name: 'Weapon' },
+  { id: 'shield', name: 'Shield' },
+  { id: 'head', name: 'Head' },
+  { id: 'body', name: 'Body' },
+  { id: 'feet', name: 'Feet' },
 ];
 
 // Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.

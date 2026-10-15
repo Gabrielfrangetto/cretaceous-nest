@@ -74,7 +74,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Step 1: hex map per player (seeded), five biomes, fog, expeditions by real time (juveniles near, adults anywhere, 2 at once), loot by biome and distance, discovery coins, explorers come home hungry
 - [x] Step 2: wild creatures per biome (stronger farther out), lairs with Alpha creatures, auto-combat replayed when a trip is collected, danger shown before sending, injuries that heal with time or Healing Herbs, gear drops
 - [x] Step 3: eggs are found on expeditions (by biome, better genes farther out and in lairs) and laid by adult pairs; the incubator has no free eggs; new games pick one of four starter babies (Compsognathus, Coelophysis, Psittacosaurus, Hypsilophodon); the Forge turns amber, shells, feathers, clay, bone and obsidian into equipment the Shop does not sell
-- [ ] Player character: explores alone with its own stats, weapons and armor
+- [x] Player character: explores alone (any distance, never hungry, can be injured) with its own stats and five slots of weapons and armor, sold in the Shop and made in the Forge; drawn in code for now
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes
 - [ ] More species and rarities, seasonal eggs

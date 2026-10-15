@@ -1,5 +1,5 @@
 // Shop tab: backpack upgrades and food packs.
-import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS, GEAR_SLOTS } from '../config.js';
+import { ITEMS, SLOTS, ROW, FOOD_PACKS, FEED_COINS, HATCH_COINS, GEAR_SLOTS, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { rowPrice, countItem, roomFor } from '../economy.js';
 import { act } from '../actions.js';
@@ -9,6 +9,24 @@ import { modsHTML } from './stats.js';
 import { currentTab, onTabChange } from './tabs.js';
 
 let message = '';
+
+// the priced pieces of one kind: 'gear' for dinosaurs, 'arms' for the player
+const gearCards = kind => Object.entries(ITEMS).filter(([, it]) => it.kind === kind && it.price).map(([id, it]) => {
+        const fits = roomFor(S, id) >= 1, ok = fits && S.coins >= it.price;
+        const slot = (kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name;
+        return `<li class="gear-card">
+          <span class="gear-icon big">${ITEM_ICONS[id]}</span>
+          <div class="gear-body">
+            <strong>${esc(it.name)}</strong>
+            <span class="hint">${slot} · ${esc(it.desc)}</span>
+            ${modsHTML(it.mods)}
+          </div>
+          <div class="gear-buy">
+            <button class="btn small" type="button" data-gear="${id}" ${ok ? '' : 'disabled'}>${it.price} coins</button>
+            ${!fits ? '<span class="hint">No room</span>' : S.coins < it.price ? `<span class="hint">${it.price - S.coins} more</span>` : ''}
+          </div>
+        </li>`;
+      }).join('');
 
 function render() {
   const box = document.getElementById('shopBox');
@@ -46,23 +64,12 @@ function render() {
     }).join('')}
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}
     <section class="gear-shop">
-      <div><h3>Equipment</h3><p class="hint">Bought with coins you earn in the game. Equip it from a baby’s window in the Nest.</p></div>
-      <ul class="gear-list">${Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear' && it.price).map(([id, it]) => {
-        const fits = roomFor(S, id) >= 1, ok = fits && S.coins >= it.price;
-        const slot = GEAR_SLOTS.find(g => g.id === it.slot).name;
-        return `<li class="gear-card">
-          <span class="gear-icon big">${ITEM_ICONS[id]}</span>
-          <div class="gear-body">
-            <strong>${esc(it.name)}</strong>
-            <span class="hint">${slot} · ${esc(it.desc)}</span>
-            ${modsHTML(it.mods)}
-          </div>
-          <div class="gear-buy">
-            <button class="btn small" type="button" data-gear="${id}" ${ok ? '' : 'disabled'}>${it.price} coins</button>
-            ${!fits ? '<span class="hint">No room</span>' : S.coins < it.price ? `<span class="hint">${it.price - S.coins} more</span>` : ''}
-          </div>
-        </li>`;
-      }).join('')}</ul>
+      <div><h3>Weapons and armor</h3><p class="hint">For your own explorer. Wear them from the World tab.</p></div>
+      <ul class="gear-list">${gearCards('arms')}</ul>
+    </section>
+    <section class="gear-shop">
+      <div><h3>Dinosaur equipment</h3><p class="hint">Bought with coins you earn in the game. Only adults wear it: equip it from a dinosaur's window in the Nest.</p></div>
+      <ul class="gear-list">${gearCards('gear')}</ul>
     </section>
     <div class="earn">
       <h3>How to earn coins</h3>

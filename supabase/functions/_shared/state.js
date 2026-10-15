@@ -1,10 +1,10 @@
 // The player's save: loading, versioned migrations, local persistence, export/import codes,
 // and a tiny change feed the UI modules subscribe to.
 import { SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS } from './config.js';
-import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits } from './economy.js';
+import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, seedFor, cleanWorld } from './world.js';
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const CODE_PREFIX = 'CNEST1:';
@@ -15,6 +15,7 @@ export function freshState() {
     daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
     eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
     starter: false,   // the starter baby is not picked yet
+    player: newPlayer(),
     // a new map for every new game
     world: newWorld(Math.floor(Math.random() * 2147483646) + 1),
   };
@@ -89,6 +90,11 @@ const MIGRATIONS = {
     s.starter = true;
     return s;
   },
+  // v9: before the player's own explorer
+  9: s => {
+    s.player = newPlayer();
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -131,6 +137,7 @@ function sanitize(s) {
     return rest;
   });
   if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
+  s.player = cleanPlayer(s.player);
   s.world = cleanWorld(s.world, s);
   s.starter = s.starter === true || s.hatched.length > 0;
   s.updatedAt = Number(s.updatedAt) || 0;

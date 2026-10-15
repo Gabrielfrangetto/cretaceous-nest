@@ -493,3 +493,8 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 
 .starter-art { display: grid; place-items: end center; min-height: 80px; }
 .egg-card.starter { gap: 6px; }
+
+.you-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+.you-head h3 { margin: 0; }
+.you-head p { margin: 2px 0 0; }
+.you-art { display: grid; place-items: end center; min-width: 80px; }

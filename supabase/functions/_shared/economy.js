@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
@@ -68,8 +68,9 @@ export function nextStage(b) {
 // Only adults wear equipment; pieces a younger baby still wears (from before this rule) can be
 // taken off but give no bonus and are not drawn.
 export const isAdult = b => !!b && stageOf(b).id === 'adult';
-// what a baby actually wears: its equipment if it is an adult, otherwise nothing
-export const wornGear = baby => (isAdult(baby) && baby.equip) || {};
+export const isPlayer = b => !!b && b.id === PLAYER_ID;
+// what a baby actually wears: its equipment if it is an adult, otherwise nothing (the player always wears theirs)
+export const wornGear = baby => ((isPlayer(baby) || isAdult(baby)) && baby.equip) || {};
 
 // the bonuses from everything a baby wears
 export function gearMods(baby) {
@@ -84,11 +85,13 @@ export function gearMods(baby) {
 //   5. rounded, never below 1
 // mods: [{ stat, type: 'flat' | 'increased' | 'more', value }], with increased as a fraction (0.10 = +10%)
 // and more as a multiplier (1.10). Equipment will supply them.
+// The player has no species or genes: their base stats count as perfect genes.
 export function statSheet(baby, mods = gearMods(baby)) {
-  const base = SPECIES_BASE[baby.type];
+  const me = isPlayer(baby);
+  const base = me ? PLAYER_BASE : SPECIES_BASE[baby.type];
   const stats = {}, steps = {};
   for (const { id } of STATS) {
-    const genes = baby.genes[id];
+    const genes = me ? GENES_MAX : baby.genes[id];
     const factor = GENE_FLOOR + (1 - GENE_FLOOR) * genes / GENES_MAX;
     const fromGenes = base[id] * factor;
     const mine = mods.filter(m => m.stat === id);
@@ -291,8 +294,9 @@ export function buyPack(s, k) {
 // ---------- equipment ----------
 export const isGear = id => !!(ITEMS[id] && ITEMS[id].kind === 'gear');
 
+// dinosaur equipment or the player's weapons and armor; forged pieces have no price and are not sold
 export function buyGear(s, id) {
-  if (!isGear(id)) return { ok: false, reason: 'unknown-item' };
+  if (!(isGear(id) || isArms(id)) || !ITEMS[id].price) return { ok: false, reason: 'unknown-item' };
   if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
   if (s.coins < ITEMS[id].price) return { ok: false, reason: 'coins' };
   s.coins -= ITEMS[id].price;
@@ -359,6 +363,44 @@ export function craftItem(s, id) {
   for (const [item, n] of Object.entries(r.needs)) removeItem(s, item, n);
   addItem(s, id, 1);
   return { ok: true, item: id };
+}
+
+// ---------- the player's weapons and armor ----------
+export const isArms = id => !!(ITEMS[id] && ITEMS[id].kind === 'arms');
+export const newPlayer = () => ({ id: PLAYER_ID, name: 'You', equip: {} });
+
+// puts the piece in inventory slot `index` on the player; whatever was worn there goes back to that slot
+export function equipArms(s, index) {
+  if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
+  if (!Number.isInteger(index) || index < 0 || index >= s.invSize) return { ok: false, reason: 'bad-slot' };
+  const item = s.inv[index];
+  if (!item || !isArms(item.id)) return { ok: false, reason: 'not-arms' };
+  const slot = ITEMS[item.id].slot, p = s.player;
+  const old = p.equip[slot];
+  item.n -= 1;
+  if (!item.n) s.inv[index] = null;
+  if (old) { if (!s.inv[index]) s.inv[index] = { id: old, n: 1 }; else addItem(s, old, 1); }
+  p.equip = { ...p.equip, [slot]: item.id };
+  return { ok: true, slot, item: item.id, removed: old || null };
+}
+
+export function unequipArms(s, slot) {
+  const p = s.player, id = p.equip[slot];
+  if (!id) return { ok: false, reason: 'empty' };
+  if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
+  if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
+  addItem(s, id, 1);
+  const { [slot]: gone, ...rest } = p.equip;
+  p.equip = rest;
+  return { ok: true, item: id };
+}
+
+// keeps a loaded player inside the rules
+export function cleanPlayer(p) {
+  const src = p && typeof p === 'object' ? p : newPlayer();
+  const name = String(src.name ?? '').trim().slice(0, 24) || 'You';
+  const equip = Object.fromEntries(PLAYER_SLOTS.map(({ id }) => [id, src.equip && src.equip[id]]).filter(([slot, item]) => isArms(item) && ITEMS[item].slot === slot));
+  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}) };
 }
 
 // ---------- outfits ----------
@@ -572,6 +614,18 @@ export const ACTIONS = {
   },
   collectTrip(s, { id }, now) {
     return collectExpedition(s, id, now);
+  },
+  equipArms(s, { index }) {
+    return equipArms(s, index);
+  },
+  unequipArms(s, { slot }) {
+    return unequipArms(s, slot);
+  },
+  renamePlayer(s, { name }) {
+    const clean = String(name ?? '').trim().slice(0, 24);
+    if (!clean) return fail('empty-name');
+    s.player.name = clean;
+    return { ok: true };
   },
   heal(s, { babyId }, now) {
     return healBaby(s, babyId, now);

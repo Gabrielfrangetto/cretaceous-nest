@@ -6,7 +6,7 @@
 import {
   BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, creatureFighter, fight } from './combat.js';
@@ -93,6 +93,8 @@ export function newWorld(seed) {
 export const seedFor = s => hashId('world:' + ((s.hatched || []).map(b => b && b.id).join('|') || s.updatedAt || 'nest')) || 1;
 
 // ---------- what the player can see and reach ----------
+// an explorer: one of the dinosaurs, or the player's own explorer
+export const explorerOf = (s, id) => id === PLAYER_ID ? s.player : s.hatched.find(x => x.id === id);
 const W = s => s.world;
 export const isRevealed = (s, key) => W(s).revealed.includes(key);
 // hexes an expedition can go to: revealed ones and the fog right next to them (not the nest itself)
@@ -107,7 +109,7 @@ export const tripMins = key => hexDist(parseKey(key)) * TRIP_MINS_PER_HEX;
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
 export function healBaby(s, babyId, now) {
-  const b = s.hatched.find(x => x.id === babyId);
+  const b = explorerOf(s, babyId);
   if (!b) return { ok: false, reason: 'missing' };
   if (!injuredLeft(b, now)) return { ok: false, reason: 'not-injured' };
   if (countItem(s, 'herb') < 1) return { ok: false, reason: 'no-herb' };
@@ -130,19 +132,21 @@ export function lootTable(s, key) {
 
 // why this baby can't go to this hex now, or null when it can
 export function exploreProblem(s, babyId, key, now) {
-  const b = s.hatched.find(x => x.id === babyId);
+  const b = explorerOf(s, babyId);
   if (!b) return 'missing';
   const h = parseKey(key);
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
   if (!canReach(s, key)) return 'unreachable';
-  const stage = stageOf(b).id;
+  // the player goes anywhere and never gets hungry
+  const me = babyId === PLAYER_ID;
+  const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
   if (stage === 'juvenile' && hexDist(h) > JUVENILE_RANGE) return 'too-far';
   if (isAway(s, babyId)) return 'away';
   if (s.breeding && (s.breeding.maleId === babyId || s.breeding.femaleId === babyId)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
-  if (isHungry(b, now)) return 'hungry';
+  if (!me && isHungry(b, now)) return 'hungry';
   if (W(s).expeditions.length >= EXPEDITION_SLOTS) return 'no-slot';
   return null;
 }
@@ -174,7 +178,7 @@ export function collectExpedition(s, id, now) {
   if (!exp) return { ok: false, reason: 'no-expedition' };
   if (now < exp.returnAt) return { ok: false, reason: 'not-back' };
   const h = parseKey(exp.hex), d = hexDist(h);
-  const b = s.hatched.find(x => x.id === exp.babyId);
+  const b = explorerOf(s, exp.babyId);
   // the trip number seeds everything, so the browser and the server roll the same trip
   const rand = seededRand(`trip:${w.seed}:${exp.trip}`);
   const fightRand = seededRand(`fight:${w.seed}:${exp.trip}`);
@@ -228,7 +232,7 @@ export function collectExpedition(s, id, now) {
   const newly = [exp.hex, ...neighbors(h).map(n => hexKey(...n))].filter(k => !w.revealed.includes(k));
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
-  if (b) b.lastFed = now - hungerEvery(b);
+  if (b && b.id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length, battle, egg: foundEgg };
 }
 
@@ -237,7 +241,7 @@ export function cleanWorld(world, s) {
   const w = world && typeof world === 'object' ? world : newWorld(seedFor(s));
   const keys = list => [...new Set((Array.isArray(list) ? list : []).filter(k => inWorld(parseKey(k))))];
   const home = newWorld(1);
-  const ids = new Set(s.hatched.map(b => b.id));
+  const ids = new Set([PLAYER_ID, ...s.hatched.map(b => b.id)]);
   const seen = new Set();
   return {
     seed: Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s),

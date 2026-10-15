@@ -1,5 +1,5 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES } from './config.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
@@ -93,9 +93,55 @@ Object.assign(ITEM_ICONS, {
   clay_plate: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3 H13 L14 8.5 L8 15 L2 8.5Z" fill="#b5694a" stroke="#7a3f28"/><path d="M4.5 5.5 H11.5 M3.8 8.5 H12.2" stroke="#d99273" stroke-width="1"/><circle cx="8" cy="11" r="1.2" fill="#7a3f28"/></svg>',
   amber_charm: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2.5 Q8 8 14 2.5" stroke="#6b4a2e" stroke-width="1.2" fill="none"/><path d="M8 6.5 L12 10 L10 14.5 L6 14.5 L4 10Z" fill="#e39a2c" stroke="#a5620f"/><ellipse cx="8" cy="11" rx="1.3" ry=".9" fill="#6b3f0c"/></svg>',
   golden_crown: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12 L2.5 5 L5.5 8 L8 3.5 L10.5 8 L13.5 5 L14 12Z" fill="#f0cd68" stroke="#b48114"/><rect x="2" y="11.5" width="12" height="2.5" rx=".8" fill="#e0b443" stroke="#b48114" stroke-width=".8"/><circle cx="8" cy="9.5" r="1.2" fill="#d2493f"/></svg>',
+  wooden_club: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14 L10 5" stroke="#8a5a32" stroke-width="2.4" stroke-linecap="round"/><ellipse cx="11" cy="4.5" rx="3" ry="3.5" fill="#8a5a32" stroke="#5a3a1e" transform="rotate(40 11 4.5)"/></svg>',
+  hide_cap: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11 C2.5 5.5 5 3 8 3 C11 3 13.5 5.5 13.5 11Z" fill="#a77b4f" stroke="#6b4a2e"/><path d="M2 11 H14" stroke="#6b4a2e" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  hide_tunic: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2 L8 4 L11 2 L14 5 L12 7 V14 H4 V7 L2 5Z" fill="#9c6b3f" stroke="#5e3d20"/><path d="M6 9 H10" stroke="#5e3d20"/></svg>',
+  wooden_shield: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="#9a6a3a" stroke="#5e3d20"/><path d="M5 3.5 V12.5 M8 2 V14 M11 3.5 V12.5" stroke="#6e4a26" stroke-width=".9"/><circle cx="8" cy="8" r="1.6" fill="#c9c2b0" stroke="#5e3d20" stroke-width=".7"/></svg>',
+  sandals: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12 H8 L9 10 H5 L4 8 H2Z M9 13 H15 L15 11 H11 L10 9 H9Z" fill="#7a5a3a" stroke="#4a3420" stroke-width=".7"/></svg>',
+  bone_sword: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 L13 3 L14 2 L13.5 4 L5 13Z" fill="#efe6cf" stroke="#9b8b66" stroke-width=".8"/><path d="M3 10 L6 13 M2.5 13.5 L4.5 11.5" stroke="#6b4a2e" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  obsidian_blade: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 12 L12 2 L13.5 3.5 L5 13Z" fill="#2c2733" stroke="#120f16" stroke-width=".8"/><path d="M11 4 L6 10" stroke="#8c82a8" stroke-width=".7"/><path d="M3 10 L6 13 M2.5 13.5 L4.5 11.5" stroke="#6b4a2e" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  bone_shield: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 L14 4 V8 C14 11.5 11 13.8 8 14.8 C5 13.8 2 11.5 2 8 V4Z" fill="#e6dcc0" stroke="#9b8b66"/><path d="M5 5.5 H11 M4.5 8 H11.5 M5.5 10.5 H10.5" stroke="#b8aa86" stroke-width="1"/></svg>',
+  clay_armor: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 2 L8 4 L11 2 L14 5 L12 7 V14 H4 V7 L2 5Z" fill="#b5694a" stroke="#7a3f28"/><path d="M4.5 8 H11.5 M4.5 10.8 H11.5" stroke="#d99273"/></svg>',
+  feather_boots: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3 H7 V10 L12 11 V14 H3Z" fill="#6a9fb5" stroke="#3d6475"/><path d="M7 4 L10 1.5 M7 6 L10.5 4" stroke="#9cc8d8" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  obsidian_helm: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11 C2.5 5.5 5 2.5 8 2.5 C11 2.5 13.5 5.5 13.5 11Z" fill="#3a3342" stroke="#120f16"/><path d="M8 2.5 L9.5 0.8 M5 4 L5.5 1.8 M11 4 L10.5 1.8" stroke="#2c2733" stroke-width="1.4" stroke-linecap="round"/><path d="M2 11 H14" stroke="#120f16" stroke-width="1.6"/></svg>',
 });
 
 export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 C11 4 21 4 21 10" stroke="#6d4e2a" stroke-width="2.6" fill="none"/><rect x="5" y="9" width="22" height="20" rx="6" fill="#9c7240"/><rect x="9.5" y="17" width="13" height="9" rx="2.5" fill="#c49a5c"/><rect x="14" y="15.5" width="4" height="3.4" rx="1" fill="#6d4e2a"/></svg>';
+
+// ---------- the player ----------
+// The player's explorer, drawn in code (a placeholder until real art): a small figure facing right,
+// dressed in whatever it wears. height is in pixels.
+const tint = (equip, slot, fallback) => (equip[slot] && ITEMS[equip[slot]] && ITEMS[equip[slot]].color) || fallback;
+export function playerArt(equip = {}, height = 120) {
+  const skin = '#e3b48a', hair = '#4a3324';
+  const shirt = tint(equip, 'body', '#d8c8a2'), shoes = tint(equip, 'feet', skin);
+  const weapon = equip.weapon && ITEMS[equip.weapon];
+  const blade = weapon ? weapon.color : null;
+  const weaponSVG = !weapon ? ''
+    : equip.weapon === 'wooden_club'
+      ? `<path d="M70 82 L86 46" stroke="${blade}" stroke-width="6" stroke-linecap="round"/><ellipse cx="87" cy="42" rx="7" ry="9" fill="${blade}" stroke="#5a3a1e" stroke-width="1.5" transform="rotate(25 87 42)"/>`
+      : `<path d="M71 80 L92 34 L95 30 L94 36 L74 82Z" fill="${blade}" stroke="#2a2420" stroke-width="1.4" stroke-linejoin="round"/><path d="M66 76 L78 82" stroke="#6b4a2e" stroke-width="4" stroke-linecap="round"/>`;
+  const shield = equip.shield ? `<g transform="translate(22 72)"><ellipse rx="15" ry="18" fill="${tint(equip, 'shield', '#9a6a3a')}" stroke="#4a3420" stroke-width="2"/><circle r="4" fill="#c9c2b0" stroke="#4a3420" stroke-width="1.2"/></g>` : '';
+  const helm = equip.head ? `<path d="M34 34 C34 14 46 8 56 8 C68 8 78 16 78 34 Z" fill="${tint(equip, 'head', '#a77b4f')}" stroke="#2a2420" stroke-width="2"/><path d="M32 34 H80" stroke="#2a2420" stroke-width="3" stroke-linecap="round"/>` : '';
+  const svg = `<svg class="player-art" viewBox="0 0 100 140" style="height:${Math.round(height)}px;width:auto" role="img" aria-label="Your explorer">
+    <path d="M44 84 L36 100" stroke="${skin}" stroke-width="8" stroke-linecap="round"/>
+    ${shield}
+    <rect x="40" y="100" width="9" height="26" rx="3" fill="#6b4a2e"/><rect x="54" y="100" width="9" height="26" rx="3" fill="#5a3d24"/>
+    <path d="M36 126 h16 v8 h-18 Z M51 126 h16 v8 h-18 Z" fill="${shoes}" stroke="#2a2420" stroke-width="1.5"/>
+    <path d="M34 62 Q36 52 52 52 Q68 52 70 62 L72 104 H32 Z" fill="${shirt}" stroke="#2a2420" stroke-width="2"/>
+    <path d="M32 98 H72" stroke="#2a2420" stroke-width="1.5" opacity=".4"/>
+    <circle cx="56" cy="34" r="20" fill="${skin}" stroke="#2a2420" stroke-width="2"/>
+    <path d="M36 32 C36 16 48 12 58 12 C70 12 76 20 76 28 C68 24 58 26 52 22 C48 28 42 30 36 32Z" fill="${hair}"/>
+    <circle cx="66" cy="36" r="2.6" fill="#1b1a17"/><path d="M62 46 Q67 48 71 44" stroke="#7a4a32" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${helm}
+    ${weaponSVG}
+    <path d="M62 64 Q70 72 70 80" stroke="${skin}" stroke-width="8" stroke-linecap="round" fill="none"/>
+  </svg>`;
+  const wrap = document.createElement('span');
+  wrap.className = 'player-wrap';
+  wrap.innerHTML = svg;
+  return wrap.firstElementChild;
+}
 
 // ---------- babies ----------
 // image paths are resolved from this file, not from the page, so pages in other folders
