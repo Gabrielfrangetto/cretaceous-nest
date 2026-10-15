@@ -89,6 +89,7 @@ export function playFight(battle, summary, who) {
   const finish = () => {
     clearTimeout(timer);
     battle.hp.forEach((list, i) => { hp[i] = [...list]; showUnit(i); });
+    for (const i of battle.frenzy || []) boxes[i].classList.add('frenzy');
     setHp(foeBox, battle.foeHp, battle.foeMax);
     if (battle.win) foeBox.classList.add('down');
     else boxes.forEach(b => b.classList.add('down'));
@@ -114,6 +115,15 @@ export function playFight(battle, summary, who) {
         hp[blow.to][blow.member] = blow.left;
         showUnit(blow.to);
       }
+    } else if (blow.ally !== undefined) {
+      // a rival biting one of its own team, or a frenzied one lashing out
+      lunge(boxes[blow.by]);
+      const box = boxes[blow.ally];
+      if (blow.clash) for (const i of [blow.by, blow.ally]) { boxes[i].classList.add('frenzy'); pop(boxes[i], 'Frenzy!', 'mad'); }
+      pop(box, '−' + blow.dmg, 'dmg');
+      strike(box);
+      hp[blow.ally][blow.member] = blow.left;
+      showUnit(blow.ally);
     } else {
       lunge(boxes[blow.by]);
       if (blow.miss) pop(foeBox, 'Miss', 'miss');

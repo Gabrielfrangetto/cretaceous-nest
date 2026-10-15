@@ -106,8 +106,7 @@ export const BODY = {
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8 },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20 },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35 },
-  // rival: each other one of its species in the team takes this share off its damage
-  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: 0.25 },
+  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true },
   spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18 },
   rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25 },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30 },
@@ -275,6 +274,17 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
 // and every blow it takes can bring down at most one member.
 export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
+
+// Rivals (BODY rival: Allosaurus): every one for itself. With two or more of a rival species in a
+// team, each of them may turn on another one when it attacks (RIVAL_CLASH a time). Both then go into
+// a frenzy for the rest of the fight: they hit FRENZY_DAMAGE times as hard, but now and then
+// (FRENZY_WILD a time) at whoever is closest, foe or friend. A frenzy wins less often and hurts
+// more of the team, but a kill made in one brings FRENZY_LOOT times the creature's loot and coins.
+// High risk, high reward.
+export const RIVAL_CLASH = 0.025;
+export const FRENZY_DAMAGE = 2;
+export const FRENZY_WILD = 0.2;
+export const FRENZY_LOOT = 2;
 export const PACK_MIN = 2;
 export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
 export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first

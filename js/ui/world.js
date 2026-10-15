@@ -1,6 +1,6 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, put a team together, send it; when it comes back, collect what it found.
-import { SCOUT, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
+import { SCOUT, FRENZY_DAMAGE, FRENZY_LOOT, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -160,12 +160,12 @@ function lootHTML(key) {
   return `<ul class="loot">${lootTable(S, key).map(l => `<li><span class="mini">${ITEM_ICONS[l.id]}</span>${l.min === l.max ? l.min : l.min + '–' + l.max} ${esc(itemName(l.id, l.max))}${l.chance < 1 ? ` <span class="hint">(${Math.round(l.chance * 100)}% chance)</span>` : ''}</li>`).join('')}</ul>`;
 }
 
-// species that fight each other for the kill (BODY rival) warn when there is more than one
+// species that may turn on each other (BODY rival) warn when there is more than one
 function rivalsHTML(members) {
   const types = members.map(id => id !== PLAYER_ID && byId(id)).filter(Boolean).map(b => b.type);
   return [...new Set(types)].filter(t => SPECIES[t].rival && types.filter(x => x === t).length > 1).map(t => {
     const n = types.filter(x => x === t).length;
-    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. They get in each other's way over the kill, so each does ${Math.round(Math.min(0.75, SPECIES[t].rival * (n - 1)) * 100)}% less damage.</p>`;
+    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. In a fight they may turn on each other and go into a frenzy: ${Math.round((FRENZY_DAMAGE - 1) * 100)}% more damage, but they bite whoever is closest, friend or foe. Win in a frenzy and the kill brings ${FRENZY_LOOT}× the loot.</p>`;
   }).join('');
 }
 
@@ -345,9 +345,11 @@ function bindTrips(box) {
     const finder = r.team.length === 1 && r.team[0].kind !== 'pack' ? who : 'The team';
     const follow = !r.egg ? '' : r.egg.lost ? ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
       : ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
+    const mad = r.battle && r.battle.frenzy.length
+      ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy${r.battle.win ? `, tearing the kill apart (${FRENZY_LOOT}× loot)` : ''}.` : '';
     message = r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${hurt}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${hurt}${follow}${mapped}`;
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${mad}${hurt}${mapped}`
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${mad}${hurt}${follow}${mapped}`;
     render();
     if (r.battle) playFight(r.battle, message, byId);
   }));

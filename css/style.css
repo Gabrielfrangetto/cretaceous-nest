@@ -648,3 +648,6 @@ body.guide-room { padding-bottom: 70vh; }
 
 .starter-role { font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--accent, #b97a14); }
 .starter-role-text { font-size: 13px; color: var(--muted); max-width: 28ch; }
+.fighter.frenzy .fighter-art > :first-child { filter: drop-shadow(0 0 6px #d4402f) saturate(1.4); }
+.fighter.frenzy .fighter-name strong { color: #c0392b; }
+.hit.mad { color: #c0392b; font-size: 16px; top: -6%; }
