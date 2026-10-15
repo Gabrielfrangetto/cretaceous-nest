@@ -1,8 +1,9 @@
 // Detail window for one baby, opened from its card in "Your babies": stats, combat numbers,
 // equipment (equip and take off) and family.
-import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES } from '../config.js';
+import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
+import { frillOf } from '../world.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
@@ -15,6 +16,19 @@ const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric
 let openId = null, message = '';
 
 const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.', 'not-adult': 'Only adults can wear equipment.', 'too-heavy': 'Too heavy: that would be more than it can carry.' };
+
+// a Triceratops' frill: its own health, mended a point at a time with Healing Herbs
+function frillHTML(b) {
+  const f = frillOf(b);
+  if (f === null) return '';
+  const herbs = countItem(S, 'herb');
+  return `<div class="frill">
+    <div class="frill-head"><strong>Frill</strong> <span class="hint">${f} / ${FRILL.hp}${f === 0 ? ' · broken' : ''}</span></div>
+    <span class="frill-bar" aria-hidden="true">${Array.from({ length: FRILL.hp }, (_, i) => `<i class="${i < f ? 'on' : ''}"></i>`).join('')}</span>
+    <p class="hint">Blows on its head hit the frill instead, and it gores back with its horns. A broken frill lets head blows through. It doesn't grow back by itself.</p>
+    ${f < FRILL.hp ? `<div class="row"><button class="ghost" type="button" id="mendFrill" ${herbs ? '' : 'disabled'}>Mend with a Healing Herb (${herbs})</button><span class="hint">+1 each</span></div>` : ''}
+  </div>`;
+}
 
 function parentsText(b) {
   if (!b.parents || !b.parents.length) return 'Hatched from a free egg';
@@ -96,6 +110,7 @@ function render() {
     ${message ? `<p class="hint warn-text" role="status">${esc(message)}</p>` : ''}
     <h3>In combat</h3>
     ${derivedHTML(b)}
+    ${frillHTML(b)}
     <details class="how">
       <summary>How these numbers are worked out</summary>
       ${breakdownHTML(b)}
@@ -121,6 +136,12 @@ function render() {
     render();
   }));
   document.getElementById('gearShop').addEventListener('click', () => { dialog.close(); setTab('shop'); });
+  const mend = document.getElementById('mendFrill');
+  if (mend) mend.addEventListener('click', () => {
+    const r = act('mendFrill', { babyId: b.id });
+    message = r.ok ? '' : r.reason === 'away' ? 'It is out exploring.' : 'No Healing Herbs.';
+    render();
+  });
   const wear = document.getElementById('outfitBtn');
   if (wear) wear.addEventListener('click', () => {
     const r = act('setOutfit', { babyId: b.id, outfitId: document.getElementById('outfitSel').value || null });

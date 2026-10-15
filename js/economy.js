@@ -6,7 +6,7 @@ import {
   OUTFITS, RECIPES, STARTERS, GUIDE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
-import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby, transfuse } from './world.js';
+import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby, transfuse, mendFrill } from './world.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 
 // running totals the achievements read; older saves get them from their migration
@@ -685,6 +685,9 @@ export const ACTIONS = {
   },
   transfuse(s, { babyId }, now) {
     return transfuse(s, babyId, now);
+  },
+  mendFrill(s, { babyId }) {
+    return mendFrill(s, babyId);
   },
   craft(s, { id }) {
     return craftItem(s, id);

@@ -1,7 +1,7 @@
 // The fight replay shown when a team comes back from a battle: the team stands on the left, one card
 // per dinosaur, the player or pack, the creature on the right, and the blows the rules already decided
 // play out one by one with health bars and damage numbers.
-import { CREATURES, SPECIES, SEX, PLAYER_ID } from '../config.js';
+import { CREATURES, SPECIES, SEX, PLAYER_ID, FRILL } from '../config.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
 import { dressedArt, babyArt, playerArt } from '../art.js';
 import { esc } from '../util.js';
@@ -79,6 +79,13 @@ export function playFight(battle, summary, who) {
   const fled = new Set(battle.fled || []);
   const packNote = i => fled.has(i) ? 'Ran off' : team[i].kind === 'pack' ? `${standing(i)} / ${hp[i].length} standing` : '';
   const boxes = team.map((u, i) => fighterBox('a', u.name, u.power, unitArt(u, who, team.length), sum(u.hp), packNote(i)));
+  // a Triceratops' frill shows as its own little bar under its health
+  const frillBar = (i, f) => {
+    let bar = boxes[i].querySelector('.frill-bar');
+    if (!bar) { bar = document.createElement('span'); bar.className = 'frill-bar'; bar.title = 'Frill'; boxes[i].querySelector('.hp').after(bar); }
+    bar.innerHTML = Array.from({ length: FRILL.hp }, (_, k) => `<i class="${k < f ? 'on' : ''}"></i>`).join('');
+  };
+  team.forEach((u, i) => { if (u.frill && u.frill[0] !== null) frillBar(i, u.frill[0]); });
   // those who ran before the fight are shown faded
   boxes.forEach((b, i) => b.classList.toggle('fled', fled.has(i)));
   side.append(...boxes);
@@ -111,6 +118,7 @@ export function playFight(battle, summary, who) {
   const finish = () => {
     clearTimeout(timer);
     battle.hp.forEach((list, i) => { hp[i] = [...list]; showUnit(i); });
+    (battle.frill || []).forEach((list, i) => { if (list && list[0] !== null) frillBar(i, list[0]); });
     for (const i of battle.frenzy || []) boxes[i].classList.add('frenzy');
     setHp(foeBox, battle.foeHp, battle.foeMax);
     battle.foeHps.forEach((h, k) => { foeHp[k] = h; });
@@ -128,7 +136,18 @@ export function playFight(battle, summary, who) {
   const step = () => {
     if (i >= battle.log.length) { finish(); return; }
     const blow = battle.log[i++];
-    if (blow.by === 'foe') {
+    if (blow.by === 'bleed') {
+      // a gored foe bleeding
+      pop(foeBox, '−' + blow.dmg + ' bleeding', 'dmg');
+      foeHp[blow.member] = blow.left;
+      setHp(foeBox, blow.foeLeft, battle.foeMax);
+      foeBox.querySelector('.pack-left').textContent = foeNote();
+    } else if (blow.blocked) {
+      // the frill took it
+      lunge(foeBox);
+      pop(boxes[blow.to], 'Blocked by the frill!', 'miss');
+      frillBar(blow.to, blow.frill);
+    } else if (blow.by === 'foe') {
       lunge(foeBox);
       const box = boxes[blow.to];
       if (blow.miss) pop(box, 'Miss', 'miss');
@@ -157,7 +176,7 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      const move = blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops

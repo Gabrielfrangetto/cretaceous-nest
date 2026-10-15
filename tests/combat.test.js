@@ -208,3 +208,36 @@ test('a Tyrannosaurus bite crushes through armor and breaks bones: legs get lame
     assert.equal(first.left, 0);
   }
 });
+
+test("a Triceratops' frill takes head blows and gores back; it stays damaged until mended with herbs", async () => {
+  const { FRILL } = await import('../js/config.js');
+  const { frillOf } = await import('../js/world.js');
+  const rex = wildFighter('rex', 6);
+  let blocked = 0, gores = 0, bleeds = 0;
+  for (let i = 0; i < 30; i++) {
+    const trike = unitOf('t', [fighterOf(dino('t', 50, 'trike'))]);
+    const r = teamFight([trike], rex, seededRand('f' + i));
+    let frill = FRILL.hp;
+    for (const e of r.log) {
+      if (e.blocked) { blocked++; assert.equal(e.dmg, 0); assert.equal(e.frill, Math.max(0, frill - FRILL.crushed)); frill = e.frill; }
+      if (e.gore) gores++;
+      if (e.by === 'bleed') bleeds++;
+    }
+    assert.equal(r.frill[0][0], frill);
+  }
+  assert.ok(blocked && gores && bleeds, `${blocked} blocked, ${gores} gores, ${bleeds} bleeds`);
+  // a broken frill blocks nothing
+  const broken = teamFight([unitOf('t', [fighterOf({ ...dino('t', 50, 'trike'), frill: 0 })])], rex, seededRand('f0'));
+  assert.ok(!broken.log.some(e => e.blocked));
+  // the frill comes home damaged, and a Healing Herb mends a point of it
+  const s = game(dino('t', 50, 'trike'));
+  s.hatched[0].frill = 2;
+  assert.equal(frillOf(s.hatched[0]), 2);
+  assert.equal(applyAction(s, 'mendFrill', { babyId: 't' }).reason, 'no-herb');
+  addItem(s, 'herb', 5);
+  assert.equal(applyAction(s, 'mendFrill', { babyId: 't' }).frill, 3);
+  applyAction(s, 'mendFrill', { babyId: 't' }); applyAction(s, 'mendFrill', { babyId: 't' });
+  assert.equal(frillOf(s.hatched[0]), FRILL.hp);
+  assert.equal(applyAction(s, 'mendFrill', { babyId: 't' }).reason, 'whole');
+  assert.equal(countItem(s, 'herb'), 2);
+});

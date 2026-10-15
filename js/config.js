@@ -88,6 +88,7 @@ const SIZE = {
 //   fragile: a share of the health its body would have (Coelophysis: hollow, bird-like bones)
 //   crush: the share of the target's hide and damage reduction its bite goes through
 //   boneBreaker: its bites land on a body part (BONE_BREAKER)
+//   frill: a solid bony frill that shields its head (FRILL)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -111,7 +112,7 @@ export const BODY = {
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
-  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, role: 'defender', charge: 0.35, fear: 'colossal' },
+  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', charge: 0.15, fear: 'colossal' },
   allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
   spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', fear: 'huge' },
@@ -365,6 +366,13 @@ export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
 export const SIZE_EDGE = 0.3;
+// Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
+// head head of the time (headPack against a pack, which gets at it from the sides). While the frill
+// holds, a blow on the head does the dinosaur no harm: it costs the frill a point (crushed points for a
+// crushing bite) and the Triceratops gores back with its horns, leaving the foe bleeding bleed of its
+// health a turn per wound, up to maxBleed wounds, for the rest of the fight. A broken frill (0) lets
+// half a head blow through. The frill does not grow back by itself: a Healing Herb mends a point.
+export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.75, bleed: 0.003, maxBleed: 5 };
 // Where a bone-breaking bite lands (Tyrannosaurus: it crushed and swallowed bone). A leg may be
 // lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.

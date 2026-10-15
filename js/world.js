@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -163,6 +163,20 @@ export function healBaby(s, babyId, now) {
   return { ok: true, left: injuredLeft(b, now) };
 }
 
+// a Triceratops' frill (FRILL.hp when whole); a Healing Herb mends a point of it
+export const frillOf = b => SPECIES[b.type] && SPECIES[b.type].frill ? Math.max(0, Math.min(FRILL.hp, b.frill ?? FRILL.hp)) : null;
+export function mendFrill(s, babyId) {
+  const b = s.hatched.find(x => x.id === babyId);
+  if (!b || frillOf(b) === null) return { ok: false, reason: 'no-frill' };
+  if (frillOf(b) >= FRILL.hp) return { ok: false, reason: 'whole' };
+  if (isAway(s, babyId)) return { ok: false, reason: 'away' };
+  if (countItem(s, 'herb') < 1) return { ok: false, reason: 'no-herb' };
+  removeItem(s, 'herb', 1);
+  b.frill = frillOf(b) + 1;
+  if (b.frill >= FRILL.hp) delete b.frill;
+  return { ok: true, frill: frillOf(b) };
+}
+
 export const expeditionOf = (s, id) => W(s).expeditions.find(e => e.members.includes(id)) || null;
 export const isAway = (s, id) => !!expeditionOf(s, id);
 
@@ -304,9 +318,15 @@ export function collectExpedition(s, id, now) {
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }));
+    // a frill keeps the damage it took until it is mended
+    units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
+      const f = result.frill[i] && result.frill[i][j];
+      if (f !== null && f !== undefined) explorerOf(s, id).frill = f;
+    }));
     battle = {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
-      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0) })),
+      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0),
+        ...(t.members.some(m => m.frill !== undefined) ? { frill: t.members.map(m => m.frill ?? null) } : {}) })),
       ...result, injured,
       // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
       frenzyCount: exp.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length,
