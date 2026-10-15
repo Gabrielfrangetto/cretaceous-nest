@@ -23,5 +23,5 @@ test('games already under way skip the welcome; loaded tips are cleaned', () => 
 });
 
 test('every tip has something to say', () => {
-  for (const tip of Object.values(GUIDE)) assert.ok(tip.pages.length > 0 && tip.pages.every(p => p.length > 10));
+  for (const tip of Object.values(GUIDE)) assert.ok(tip.pages.length > 0 && tip.pages.every(p => (typeof p === 'string' ? p : p.text).length > 10));
 });

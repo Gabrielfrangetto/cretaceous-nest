@@ -229,7 +229,8 @@ export const PLAYER_SLOTS = [
 
 // The guide: Professor Ivy Fern pops up to teach the game, one tip at a time, in this order. Each tip
 // is shown once per account (s.tutorial.seen).
-//   pages: what she says, one bubble each     done: the last button's label
+//   pages: what she says, one bubble each; a page can be { text, focus } to single out some parts of
+//          the lit-up area (a CSS selector) while the rest of it dims   done: the last button's label
 //   tab: the tab opened while she talks        side: 'left' puts her on the left of the screen
 //   spot: a part of the page lit up above the faded game while she talks about it
 //   next: the tip that follows straight after this one
@@ -245,10 +246,12 @@ export const GUIDE = {
   starters: {
     tab: 'incubator', side: 'left', spot: '#stage',
     pages: [
-      'These are the four starter babies. Each one is a little different, so take a good look before you choose.',
-      'Compsognathus and Coelophysis eat meat. They are quick and bite hard, but they can\'t take many hits.',
-      'Psittacosaurus and Hypsilophodon eat plants. Psittacosaurus is the toughest of the four, and Hypsilophodon is a fast little runner.',
-      'The bars are their genes: the longer the bar, the stronger that baby will grow. Pick the one you like best!',
+      'Here they are: the four little dinosaurs every new keeper can start with. Two of them eat plants and two eat meat, and each one has a personality of its own.',
+      { focus: '[data-type="psitta"], [data-type="hypsi"]',
+        text: 'These two are our plant eaters, Psittacosaurus and Hypsilophodon. They love ferns and leaves, and most of them are gentle souls. Still, a scared plant eater can kick or nip, so always handle them with care!' },
+      { focus: '[data-type="compy"], [data-type="coelo"]',
+        text: 'And these two are the meat eaters, Compsognathus and Coelophysis. Nothing makes them happier than a good piece of meat. Some of them are real loners, so give them space and be careful: those little teeth are sharp!' },
+      'The bars under each baby are its genes: the longer the bar, the stronger it will grow. Now pick the one you like best!',
     ],
     done: "I'll choose!",
   },

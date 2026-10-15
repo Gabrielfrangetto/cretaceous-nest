@@ -604,3 +604,8 @@ body.on-landing > .site-footer { display: none; }
 
 .guide-spot { scroll-margin-top: 12px; }
 body.guide-room { padding-bottom: 70vh; }
+
+/* inside the lit-up area, the parts she is talking about stand out and the rest dims */
+.guide-dim { opacity: .28; filter: grayscale(.6); transition: opacity .3s, filter .3s; }
+.guide-focus { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-4px); transition: transform .3s; }
+@media (prefers-reduced-motion: reduce) { .guide-focus { transform: none; } }

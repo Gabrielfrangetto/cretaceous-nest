@@ -43,6 +43,7 @@ function close(finished) {
   const id = showing;
   pop.hidden = true;
   shade.hidden = true;
+  focusOn(null);
   spotlight(null);
   showing = null;
   if (!id) return;
@@ -53,13 +54,24 @@ function close(finished) {
   else replaying = false;
 }
 
+// a page is a string, or { text, focus } to single out part of the lit-up area
+const pageText = p => typeof p === 'string' ? p : p.text;
+function focusOn(selector) {
+  for (const x of document.querySelectorAll('.guide-focus, .guide-dim')) x.classList.remove('guide-focus', 'guide-dim');
+  if (!lit || !selector) return;
+  const chosen = new Set(lit.querySelectorAll(selector));
+  // every sibling group the chosen ones belong to dims, apart from the chosen
+  for (const el of chosen) for (const sib of el.parentElement.children) sib.classList.add(chosen.has(sib) ? 'guide-focus' : 'guide-dim');
+}
+
 function render() {
   const tip = GUIDE[showing];
   const last = page === tip.pages.length - 1;
+  focusOn(typeof tip.pages[page] === 'string' ? null : tip.pages[page].focus);
   bubble.innerHTML = `
     <button class="close" type="button" data-guide="skip" aria-label="Close">×</button>
     <p class="water-name">Professor Ivy Fern</p>
-    <p class="guide-msg">${esc(tip.pages[page])}</p>
+    <p class="guide-msg">${esc(pageText(tip.pages[page]))}</p>
     <div class="row guide-row">
       <span class="guide-dots" aria-hidden="true">${tip.pages.map((_, i) => `<i class="${i === page ? 'on' : ''}"></i>`).join('')}</span>
       ${page ? '<button class="ghost" type="button" data-guide="back">Back</button>' : ''}
