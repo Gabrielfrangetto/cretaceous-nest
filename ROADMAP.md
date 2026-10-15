@@ -96,11 +96,12 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 ## Activities (species roles)
 
 Each species will be good at an activity beyond its stats (ROLES in config.js). The two starters cover
-the activities the game has: Dilophosaurus fights, Compsognathus explores (scout: faster trips, fewer
+the activities the game has, a meat eater and a plant eater each: Dilophosaurus and Protoceratops fight,
+Compsognathus and Hypsilophodon explore (scout: faster trips, fewer
 fights, more eggs). The rest belong to species found as eggs:
 
-- [x] Fighting — Dilophosaurus (starter)
-- [x] Exploring — Compsognathus (starter)
+- [x] Fighting — Dilophosaurus and Protoceratops (starters)
+- [x] Exploring — Compsognathus and Hypsilophodon (starters)
 - [ ] Foraging: more leaves, herbs, insects and amber (Psittacosaurus, hadrosaurs)
 - [ ] Hunting and fishing: brings food home (Baryonyx and Spinosaurus fish, Coelophysis hunts)
 - [ ] Carrying: the whole team carries more (Argentinosaurus, Parasaurolophus)

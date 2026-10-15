@@ -57,11 +57,11 @@ test('the incubator only hatches eggs you have', () => {
   assert.equal(s.current, null);
 });
 
-test('a new game starts by picking one of two starter babies, a fighter or an explorer, once', () => {
+test('a new game starts by picking one of four starter babies, a fighter or an explorer of each diet, once', () => {
   const s = game();
   assert.equal(s.starter, false);
-  assert.deepEqual(STARTERS, ['dilo', 'compy']);
-  assert.deepEqual(STARTERS.map(t => ROLES[t].role), ['Fighter', 'Explorer']);
+  assert.deepEqual(STARTERS, ['dilo', 'proto', 'compy', 'hypsi']);
+  assert.deepEqual(STARTERS.map(t => [ROLES[t].role, DIET[t][0]]), [['Fighter', 'meat'], ['Fighter', 'leaf'], ['Explorer', 'meat'], ['Explorer', 'leaf']]);
   assert.equal(applyAction(s, 'pickStarter', { type: 'psitta' }, T0).reason, 'unknown-species');
   assert.equal(applyAction(s, 'pickStarter', { type: 'rex' }, T0).reason, 'unknown-species');
   const r = applyAction(s, 'pickStarter', { type: 'dilo' }, T0);
@@ -78,11 +78,11 @@ test('a new game starts by picking one of two starter babies, a fighter or an ex
   assert.equal(migrate(old).starter, true);
 });
 
-test('the fighter starter is led by strength, the explorer by agility', async () => {
+test('the fighter starters are led by strength, the explorers by agility', async () => {
   const { SPECIES_BASE } = await import('../js/config.js');
   const top = t => Object.entries(SPECIES_BASE[t]).sort((a, b) => b[1] - a[1])[0][0];
   assert.deepEqual(STARTERS.map(t => [t, DIET[t][0], top(t)]), [
-    ['dilo', 'meat', 'str'], ['compy', 'meat', 'agi'],
+    ['dilo', 'meat', 'str'], ['proto', 'leaf', 'str'], ['compy', 'meat', 'agi'], ['hypsi', 'leaf', 'agi'],
   ]);
 });
 
@@ -102,7 +102,7 @@ test('eggs near the nest are common; rare ones need distance; legendaries only l
   const { SPECIES } = await import('../js/config.js');
   const rarities = (b, d, lair) => [...new Set(eggKinds(b, d, lair).map(k => SPECIES[k.type].rarity))].sort();
   assert.deepEqual(rarities('meadow', 1, false), ['Common', 'Starter']);
-  assert.deepEqual(rarities('forest', 2, false), ['Common']);
+  assert.deepEqual(rarities('forest', 2, false), ['Common', 'Starter']);
   assert.ok(rarities('forest', 5, false).includes('Rare'));
   assert.ok(!rarities('volcano', 7, false).includes('Legendary'));
   assert.ok(rarities('volcano', 5, true).includes('Legendary'));

@@ -13,7 +13,7 @@ Worst case for the defender: the attacker has perfect genes and lands its hardes
 | Psittacosaurus | Parrot-like beak | 30 | 3 |
 | Coelophysis | Slim jaws full of small teeth | 32 | 0 |
 | Hypsilophodon | Small beak; it runs rather than fights | 18 | 0 |
-| Protoceratops | Hooked beak and a bony frill | 50 | 6 |
+| Protoceratops | Hooked beak and a bony frill | 65 | 6 |
 | Gallimimus | Toothless beak and kicks | 20 | 2 |
 | Hypacrosaurus | Tail and kicks | 50 | 6 |
 | Pachycephalosaurus | Thick bony dome for ramming | 125 | 8 |
@@ -36,8 +36,8 @@ Worst case for the defender: the attacker has perfect genes and lands its hardes
 - **Psittacosaurus**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus.
 - **Coelophysis**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Triceratops, Spinosaurus.
 - **Hypsilophodon**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
-- **Protoceratops**: can't hurt Ankylosaurus; only scratches Tyrannosaurus, Argentinosaurus.
-- **Gallimimus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
+- **Protoceratops**: can hurt every species; only scratches Ankylosaurus, Argentinosaurus.
+- **Gallimimus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
 - **Hypacrosaurus**: can't hurt Ankylosaurus; only scratches Tyrannosaurus, Argentinosaurus.
 - **Pachycephalosaurus**: can hurt every species.
 - **Velociraptor**: can't hurt Ankylosaurus, Argentinosaurus; only scratches Stegosaurus, Triceratops, Spinosaurus, Tyrannosaurus.
@@ -63,8 +63,8 @@ Rows attack, columns defend. ✓ wounds, ~ only scratches (under 3% of its healt
 | **psitta** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | · | · |
 | **coelo** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | · | ✓ | ~ | · | · |
 | **hypsi** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
-| **proto** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · | ✓ | ✓ | ~ | ~ |
-| **galli** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
+| **proto** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ |
+| **galli** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
 | **hypa** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · | ✓ | ✓ | ~ | ~ |
 | **pachy** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **raptor** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | · | ✓ | ~ | ~ | · |

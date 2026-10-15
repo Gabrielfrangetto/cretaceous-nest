@@ -21,10 +21,10 @@ const SPECIES_LIST = {
   // common
   coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
              'Banded Egg', '#efd9c8', '#a4553b', 'stripes', '#c27a52', '#4a4640', 'Dash', 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.'),
-  hypsi:   S_('Hypsilophodon', 'hadrosaur', 'Common', ['leaf'], { str: 30, agi: 75, vit: 50, res: 45 },
+  hypsi:   S_('Hypsilophodon', 'hadrosaur', 'Starter', ['leaf'], { str: 30, agi: 75, vit: 50, res: 45 },
              'Mossy Egg', '#d9e3c6', '#4f7a4a', 'stripes', '#6f9b6a', '#c9d38a', 'Hop', 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.'),
   // uncommon
-  proto:   S_('Protoceratops', 'ceratopsian', 'Uncommon', ['leaf'], { str: 55, agi: 40, vit: 55, res: 80 },
+  proto:   S_('Protoceratops', 'ceratopsian', 'Starter', ['leaf'], { str: 65, agi: 35, vit: 45, res: 55 },
              'Spotted Egg', '#eadcbf', '#8b6a44', 'spots', '#c79d63', '#d9662f', 'Popcorn', 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.'),
   galli:   S_('Gallimimus', 'theropod', 'Uncommon', ['leaf', 'insect', 'raw_egg', 'meat'], { str: 40, agi: 95, vit: 50, res: 45 },
              'Speedy Egg', '#ece4d2', '#8a7a5a', 'speckle', '#c8a56a', '#6f5a3a', 'Zippy', 'Gallimimus was built like an ostrich and may have run at more than 40 km/h. It ate almost anything.'),
@@ -93,7 +93,7 @@ export const BODY = {
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3 },
   coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0 },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 18, hide: 0 },
-  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6 },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 65, hide: 6 },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2 },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6 },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8 },
@@ -116,14 +116,17 @@ export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, 
   ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
 }]));
 export const ORDER = Object.keys(SPECIES_LIST);
-export const STARTERS = ['dilo', 'compy'];
+export const STARTERS = ['dilo', 'proto', 'compy', 'hypsi'];
 
 // What a species is best at outside its stats. Every activity will have species that are good at it
 // (fighting, exploring, foraging, hunting and fishing, carrying, nest care, guarding, scouting,
-// digging); for now the two starters: one for each activity the game has so far.
+// digging); for now the starters: a fighter and an explorer, a meat eater and a plant eater each,
+// for the two activities the game has so far.
 export const ROLES = {
   dilo: { role: 'Fighter', text: 'The best fighter of the small dinosaurs: strong jaws and clawed hands.' },
+  proto: { role: 'Fighter', text: 'A plant eater that fights back: a hooked beak and a bony frill. One was found locked in battle with a Velociraptor.' },
   compy: { role: 'Explorer', ability: 'scout', text: 'Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs.' },
+  hypsi: { role: 'Explorer', ability: 'scout', text: 'A swift, watchful runner. It would rather flee than fight, but a team it leads travels faster, keeps clear of danger and finds more eggs.' },
 };
 // a team with a scout in it
 export const SCOUT = { trip: 0.75, encounter: 0.5, egg: 1.5 };
@@ -367,11 +370,11 @@ export const GUIDE = {
   starters: {
     tab: 'incubator', side: 'left', spot: '#stage',
     pages: [
-      'Here they are: the two little dinosaurs every new keeper can start with. Both eat meat, and each one is good at something different.',
-      { focus: '[data-type="dilo"]',
-        text: "Dilophosaurus is a fighter. It hits the hardest of all the small dinosaurs, so it's the one to have beside you when something wild jumps out of the ferns." },
-      { focus: '[data-type="compy"]',
-        text: "Little Compsognathus is an explorer. It's far too small to fight anything big, but it has a wonderful nose: with it in your team you travel faster, slip past danger and find more eggs." },
+      'Here they are: the four little dinosaurs every new keeper can start with. Two of them are fighters and two are explorers, and in each pair one eats meat and the other eats plants.',
+      { focus: '[data-type="dilo"], [data-type="proto"]',
+        text: "These two are fighters, the ones to have beside you when something wild jumps out of the ferns. Dilophosaurus hunts with strong jaws. Protoceratops eats plants, but don't let that fool you: we found one locked in battle with a Velociraptor!" },
+      { focus: '[data-type="compy"], [data-type="hypsi"]',
+        text: "And these two are explorers. They're too small to fight anything big, but with one in your team you travel faster, slip past danger and find more eggs. Compsognathus follows its nose; Hypsilophodon is one of the quickest runners around." },
       "Whichever you choose, the world out there is wild and hostile, and nobody should face it alone. Later you'll find eggs of many more species, each good at something of its own.",
     ],
     done: "I'll choose!",
