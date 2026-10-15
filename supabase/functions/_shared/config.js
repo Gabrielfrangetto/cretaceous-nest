@@ -372,7 +372,7 @@ export const SIZE_EDGE = 0.3;
 // crushing bite) and the Triceratops gores back with its horns, leaving the foe bleeding bleed of its
 // health a turn per wound, up to maxBleed wounds, for the rest of the fight. A broken frill (0) lets
 // half a head blow through. The frill does not grow back by itself: a Healing Herb mends a point.
-export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.75, bleed: 0.01, maxBleed: 5 };
+export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.75, bleed: 0.007, maxBleed: 5 };
 // Where a bone-breaking bite lands (Tyrannosaurus: it crushed and swallowed bone). A leg may be
 // lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
