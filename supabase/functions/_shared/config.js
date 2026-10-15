@@ -70,6 +70,17 @@ export const ITEMS = {
                    desc: 'Catches the wind on every step.', mods: [{ stat: 'agi', type: 'increased', value: 0.15 }] },
   turtle_shell:  { name: 'Turtle Shell', plural: 'turtle shells', kind: 'gear', slot: 'back', stack: 1, price: 200,
                    desc: 'Borrowed from an ancient turtle.', mods: [{ stat: 'res', type: 'increased', value: 0.20 }, { stat: 'agi', type: 'increased', value: -0.10 }] },
+  // forged only (no price): made in the Forge from materials found on expeditions
+  obsidian_fang: { name: 'Obsidian Fang', plural: 'obsidian fangs', kind: 'gear', slot: 'neck', stack: 1,
+                   desc: 'A shard of volcanic glass on a cord.', mods: [{ stat: 'str', type: 'increased', value: 0.15 }, { stat: 'str', type: 'flat', value: 4 }] },
+  feather_cloak: { name: 'Feather Cloak', plural: 'feather cloaks', kind: 'gear', slot: 'back', stack: 1,
+                   desc: 'Woven from forest feathers.', mods: [{ stat: 'agi', type: 'increased', value: 0.2 }, { stat: 'res', type: 'flat', value: 3 }] },
+  clay_plate:    { name: 'Clay Plate', plural: 'clay plates', kind: 'gear', slot: 'body', stack: 1,
+                   desc: 'Fired swamp clay, hard as stone.', mods: [{ stat: 'res', type: 'flat', value: 18 }, { stat: 'vit', type: 'flat', value: 6 }] },
+  amber_charm:   { name: 'Amber Charm', plural: 'amber charms', kind: 'gear', slot: 'neck', stack: 1,
+                   desc: 'Warm to the touch. A little of everything.', mods: ['str', 'agi', 'vit', 'res'].map(stat => ({ stat, type: 'flat', value: 5 })) },
+  golden_crown:  { name: 'Golden Crown', plural: 'golden crowns', kind: 'gear', slot: 'head', stack: 1,
+                   desc: 'Made from the shell of a Golden Egg.', mods: [{ stat: 'str', type: 'increased', value: 0.08 }, { stat: 'vit', type: 'increased', value: 0.08 }, { stat: 'res', type: 'more', value: 1.05 }] },
 };
 export const GEAR_SLOTS = [
   { id: 'head', name: 'Head' },
@@ -117,10 +128,10 @@ export const BIOMES = {
 // art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
 export const CREATURES = {
   compy_pack:   { name: 'Compsognathus pack', look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, tame: 'raptor', loot: [['feather', 2, 3], ['meat', 1, 2]] },
   deinosuchus:  { name: 'Deinosuchus', look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
-  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
-  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, tame: 'proto', loot: [['bone', 2, 3]] },
+  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, tame: 'rex', loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
 };
 export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
 export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
@@ -133,6 +144,27 @@ export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight
 export const BRUISE_MINS = 10;               // a win that left it under half health: up to this many minutes
 export const HEAL_MINS = 10;                 // each Healing Herb heals this much sooner
+
+// Taming: after beating a creature that is one of our species (tame), it may give up (TAME_CHANCE,
+// more in a lair) and wait at the nest to be tamed with food. It joins as an adult with wild genes,
+// better the farther it was found, best from an Alpha.
+export const TAME_CHANCE = lair => lair ? 0.6 : 0.35;
+export const TAME_FOOD = 5;                  // meals of its diet to tame it
+export const TAME_OFFERS = 3;                // creatures waiting at most; a newer one sends the oldest away
+export const TAME_GENES = (d, lair) => {     // [min, max] genes
+  const lo = 15 + d * 5 + (lair ? 10 : 0);
+  return [Math.min(80, lo), Math.min(95, lo + 30)];
+};
+
+// The Forge: equipment made from materials. needs: { item: count }.
+export const RECIPES = [
+  { id: 'bone_helmet', needs: { bone: 6, shell: 2 } },
+  { id: 'clay_plate', needs: { clay: 8, bone: 2 } },
+  { id: 'feather_cloak', needs: { feather: 10, clay: 2 } },
+  { id: 'obsidian_fang', needs: { obsidian: 6, bone: 3 } },
+  { id: 'amber_charm', needs: { amber: 3, shell: 3 } },
+  { id: 'golden_crown', needs: { golden_shell: 3, amber: 2, obsidian: 2 } },
+];
 
 // Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
 // scale draws juveniles (and adults without an adult sprite yet) larger than babies.

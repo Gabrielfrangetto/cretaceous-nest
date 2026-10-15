@@ -47,7 +47,7 @@ function render() {
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}
     <section class="gear-shop">
       <div><h3>Equipment</h3><p class="hint">Bought with coins you earn in the game. Equip it from a baby’s window in the Nest.</p></div>
-      <ul class="gear-list">${Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear').map(([id, it]) => {
+      <ul class="gear-list">${Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear' && it.price).map(([id, it]) => {
         const fits = roomFor(S, id) >= 1, ok = fits && S.coins >= it.price;
         const slot = GEAR_SLOTS.find(g => g.id === it.slot).name;
         return `<li class="gear-card">

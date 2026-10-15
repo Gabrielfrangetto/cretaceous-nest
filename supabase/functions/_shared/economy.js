@@ -3,10 +3,10 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
-import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
+import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby, tameOffer, releaseOffer } from './world.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -332,6 +332,18 @@ export function unequipGear(s, babyId, slot) {
   return { ok: true, item: id };
 }
 
+// ---------- forge ----------
+export const recipeFor = id => RECIPES.find(r => r.id === id) || null;
+export function craftItem(s, id) {
+  const r = recipeFor(id);
+  if (!r) return { ok: false, reason: 'unknown-recipe' };
+  for (const [item, n] of Object.entries(r.needs)) if (countItem(s, item) < n) return { ok: false, reason: 'materials', item };
+  if (roomFor(s, id) < 1) return { ok: false, reason: 'room' };
+  for (const [item, n] of Object.entries(r.needs)) removeItem(s, item, n);
+  addItem(s, id, 1);
+  return { ok: true, item: id };
+}
+
 // ---------- outfits ----------
 // an outfit fits a baby of its species; null puts the baby back in its own look
 export const outfitFits = (id, baby) => !!(OUTFITS[id] && OUTFITS[id].species === baby.type);
@@ -548,6 +560,15 @@ export const ACTIONS = {
   },
   heal(s, { babyId }, now) {
     return healBaby(s, babyId, now);
+  },
+  tame(s, { id }, now) {
+    return tameOffer(s, id, now);
+  },
+  release(s, { id }) {
+    return releaseOffer(s, id);
+  },
+  craft(s, { id }) {
+    return craftItem(s, id);
   },
   move(s, { a, b }) {
     if (!slotIndex(s, a) || !slotIndex(s, b)) return fail('bad-slot');

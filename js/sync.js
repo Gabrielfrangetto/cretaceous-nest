@@ -71,7 +71,7 @@ export function capGuestSave(s, now) {
   s.eggs = (s.eggs || []).map(e => ({ ...e, genes: capGenes(e.genes), gen: 1 }));
   s.breeding = null;
   // trips in progress can't be checked, so the explorers come home empty-handed
-  if (s.world) s.world.expeditions = [];
+  if (s.world) { s.world.expeditions = []; s.world.offers = []; }
 
   // outfits will be earned or bought, which a browser save can't prove, so they stay out of accounts
   s.wardrobe = [];

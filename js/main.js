@@ -13,6 +13,7 @@ import { initRewards } from './ui/rewards.js';
 import { initBreeding } from './ui/breeding.js';
 import { initBabyInfo } from './ui/baby-info.js';
 import { initWorld } from './ui/world.js';
+import { initForge } from './ui/forge.js';
 
 load();
 initHeader();
@@ -25,6 +26,7 @@ initRewards();
 initBreeding();
 initBabyInfo();
 initWorld();
+initForge();
 initTabs();   // after the modules above, so every tab's handlers are registered before the first tab opens
 initAccount();
 initWater();

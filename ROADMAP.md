@@ -73,7 +73,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 
 - [x] Step 1: hex map per player (seeded), five biomes, fog, expeditions by real time (juveniles near, adults anywhere, 2 at once), loot by biome and distance, discovery coins, explorers come home hungry
 - [x] Step 2: wild creatures per biome (stronger farther out), lairs with Alpha creatures, auto-combat replayed when a trip is collected, danger shown before sending, injuries that heal with time or Healing Herbs, gear drops
-- [ ] Step 3: taming wild dinosaurs; crafting equipment from amber, shells, feathers, clay, bone and obsidian
+- [x] Step 3: taming beaten creatures of our species (join as adults with distance-based wild genes, paid with food); the Forge turns amber, shells, feathers, clay, bone and obsidian into equipment the Shop does not sell
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes
 - [ ] More species and rarities, seasonal eggs

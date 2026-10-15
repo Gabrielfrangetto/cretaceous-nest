@@ -482,3 +482,16 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 @keyframes lunge-a { 50% { transform: translateX(18px); } }
 @keyframes lunge-b { 50% { transform: translateX(-18px); } }
 @keyframes struck { 25% { translate: -5px 0; } 75% { translate: 5px 0; } }
+
+.offers { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.offer { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: start; }
+.offer-art { display: grid; place-items: center; }
+.offer-art img, .offer-art canvas { max-width: 100%; height: auto; }
+.offer-body { display: grid; gap: 4px; min-width: 0; }
+
+.forge { display: grid; gap: 12px; margin-top: 18px; }
+.forge h2 { margin: 0; }
+.needs { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
+.needs li { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.needs .got { color: var(--ink); }
+.needs .short { color: var(--muted); }
