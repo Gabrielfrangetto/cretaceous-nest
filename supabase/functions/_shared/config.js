@@ -368,7 +368,8 @@ export const SIZE_EDGE = 0.3;
 // Where a bone-breaking bite lands (Tyrannosaurus: it crushed and swallowed bone). A leg may be
 // lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
-export const BONE_BREAKER = { parts: [['body', 0.65], ['leg', 0.27], ['neck', 0.08]], lame: 0.35, lameCut: 0.5, neckMax: 'large' };
+// Anything no bigger than oneBite (up to about 100 kg) dies from any bite that lands.
+export const BONE_BREAKER = { parts: [['body', 0.65], ['leg', 0.27], ['neck', 0.08]], lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
 // health grows with the body: a size's share of the health its stats give (medium as it is)
 export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg

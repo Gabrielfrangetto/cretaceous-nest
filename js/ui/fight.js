@@ -140,7 +140,7 @@ export function playFight(battle, summary, who) {
         // a stomp or a swipe that caught more of a pack
         for (const x of blow.also || []) hp[blow.to][x.member] = x.left;
         // a bone-breaking bite: a lamed leg or a neck
-        if (blow.kill) pop(box, 'Neck bite!', 'mad');
+        if (blow.kill) pop(box, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(box, 'Leg broken!', 'mad');
         if (blow.also) pop(box, `×${blow.also.length + 1}`, 'mad');
         showUnit(blow.to);
@@ -167,7 +167,7 @@ export function playFight(battle, summary, who) {
         strike(foeBox);
         foeHp[blow.member] = blow.left;
         for (const x of blow.also || []) foeHp[x.member] = x.left;
-        if (blow.kill) pop(foeBox, 'Neck bite!', 'mad');
+        if (blow.kill) pop(foeBox, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(foeBox, 'Leg broken!', 'mad');
         setHp(foeBox, blow.foeLeft, battle.foeMax);
         foeBox.querySelector('.pack-left').textContent = foeNote();

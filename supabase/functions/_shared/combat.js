@@ -221,6 +221,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     // Returns what it did, for the log.
     const breakBones = (att, target, thp, m, who) => {
       if (!att.members[0].boneBreaker || thp[m] <= 0) return {};
+      // something this small does not survive the jaws closing on it
+      if (sizeRank(target.members[m].size) <= sizeRank(BONE_BREAKER.oneBite)) { thp[m] = 0; return { part: 'whole', kill: true }; }
       let x = rand();
       const part = (BONE_BREAKER.parts.find(([, w]) => (x -= w) < 0) || BONE_BREAKER.parts[0])[0];
       const hit = target.members[m];
