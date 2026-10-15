@@ -149,3 +149,17 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
   assert.ok(led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
   assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });
+
+test('Allosaurus hunt alone: no packs, and two in one team get in each other\'s way', () => {
+  const s = game(dino('a1', 'allo'), dino('a2', 'allo'));
+  assert.equal(applyAction(s, 'formPack', { type: 'allo', members: ['a1', 'a2'] }).reason, 'not-pack-species');
+  const one = fighterOf(dino('a1', 'allo')), two = fighterOf(dino('a2', 'allo'));
+  const foe = creatureFighter('old_tyrant', 7);
+  const r = teamFight([unitOf('a1', [one]), unitOf('a2', [two])], foe, seededRand('rivals'));
+  const solo = teamFight([unitOf('a1', [one])], foe, seededRand('rivals'));
+  const firstHit = log => log.find(e => e.by === 0 && !e.miss);
+  assert.ok(firstHit(r.log).dmg < firstHit(solo.log).dmg);
+  // other species are not affected
+  const raptors = teamFight([unitOf('r1', [fighterOf(dino('r1', 'raptor'))]), unitOf('r2', [fighterOf(dino('r2', 'raptor'))])], foe, seededRand('x'));
+  assert.ok(raptors.log.length);
+});

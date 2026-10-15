@@ -106,7 +106,8 @@ export const BODY = {
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8 },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20 },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35 },
-  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12 },
+  // rival: each other one of its species in the team takes this share off its damage
+  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: 0.25 },
   spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18 },
   rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25 },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30 },
@@ -273,9 +274,7 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. In a fight a pack hits with all its members
 // (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
 // and every blow it takes can bring down at most one member.
-// (Allosaurus: dozens were found together at Cleveland-Lloyd; whether they hunted as a team is
-// debated, so only small groups)
-export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8, allo: 3 };
+export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
 export const PACK_MIN = 2;
 export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
 export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first

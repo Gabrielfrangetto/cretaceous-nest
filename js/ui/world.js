@@ -160,6 +160,15 @@ function lootHTML(key) {
   return `<ul class="loot">${lootTable(S, key).map(l => `<li><span class="mini">${ITEM_ICONS[l.id]}</span>${l.min === l.max ? l.min : l.min + '–' + l.max} ${esc(itemName(l.id, l.max))}${l.chance < 1 ? ` <span class="hint">(${Math.round(l.chance * 100)}% chance)</span>` : ''}</li>`).join('')}</ul>`;
 }
 
+// species that fight each other for the kill (BODY rival) warn when there is more than one
+function rivalsHTML(members) {
+  const types = members.map(id => id !== PLAYER_ID && byId(id)).filter(Boolean).map(b => b.type);
+  return [...new Set(types)].filter(t => SPECIES[t].rival && types.filter(x => x === t).length > 1).map(t => {
+    const n = types.filter(x => x === t).length;
+    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. They get in each other's way over the kill, so each does ${Math.round(Math.min(0.75, SPECIES[t].rival * (n - 1)) * 100)}% less damage.</p>`;
+  }).join('');
+}
+
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
     <p class="hint">Tap a hex next to the fog (marked ?) to explore it. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes take longer and bring back more, sometimes an egg. Dinosaurs come home hungry.</p>`;
@@ -200,6 +209,7 @@ function sideHTML(t) {
         return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.problem] || p.problem)}` : ''}</option>`;
       }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
     </div>
+    ${rivalsHTML(team.flatMap(membersOf))}
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' ? healHTML() : ''}

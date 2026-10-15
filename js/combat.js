@@ -15,7 +15,7 @@ export function fighterOf(baby) {
   const sheet = statSheet(baby);
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
-  const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0 } : { size: sp.size, bite: sp.bite, hide: sp.hide };
+  const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0 } : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: sp.rival || 0 };
   return { name: baby.name, ...sheet.derived, agi: sheet.stats.agi, power: sheet.power, ...body };
 }
 
@@ -100,12 +100,25 @@ export function unitHit(u, hp, foe, roll) {
   const hits = up.map(m => hitOf(m, foe, roll)).sort((a, b) => b - a);
   return hits.reduce((t, d, i) => t + d * (i ? PACK_REACH : 1), 0) * (1 + PACK_BONUS * extra);
 }
+// Rivals (Allosaurus): each other one of the same species in the team takes a share off its
+// damage, never below a quarter. Every one for itself: they get in each other's way over the kill.
+export const rivalCut = (members, m) => {
+  if (!m.rival) return 1;
+  const others = members.filter(x => x !== m && x.type === m.type).length;
+  return Math.max(0.25, 1 - m.rival * others);
+};
+function withRivals(units) {
+  const all = units.flatMap(u => u.members);
+  if (!all.some(m => m.rival)) return units;
+  return units.map(u => ({ ...u, members: u.members.map(m => m.rival ? { ...m, damage: m.damage * rivalCut(all, m) } : m) }));
+}
 export const unitHp = u => u.members.reduce((t, m) => t + m.hp, 0);
 
 // log: [{ by: unit index, miss } | { by, dmg, left }] for the team's blows, left being the creature's
 // health; [{ by: 'foe', to, member, miss } | { by: 'foe', to, member, dmg, left }] for the creature's,
 // left being the struck member's health. hp: every member's health at the end, per unit.
 export function teamFight(units, foe, rand) {
+  units = withRivals(units);
   const hp = units.map(u => u.members.map(m => m.hp));
   let foeHp = foe.hp;
   // the order is set by agility at the start; the team goes first on a tie
