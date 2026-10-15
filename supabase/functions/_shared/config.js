@@ -214,7 +214,17 @@ export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 // takes and how much it brings back.
 export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
-export const EXPEDITION_SLOTS = 2;           // dinosaurs exploring at the same time
+export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
+export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
+
+// Packs: species that hunted or lived in groups can be formed into a pack, which takes one place in a
+// team however many it holds, up to the species' limit. In a fight a pack hits with all its members
+// (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
+// and every blow it takes can bring down at most one member.
+export const PACK_LIMITS = { compy: 10, coelo: 12, raptor: 4, galli: 8 };
+export const PACK_MIN = 2;
+export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
+export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first
 export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes away; adults anywhere
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
@@ -233,17 +243,22 @@ export const BIOMES = {
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
 // art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
 export const CREATURES = {
-  compy_pack:   { name: 'Compsognathus pack', look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
-  deinosuchus:  { name: 'Deinosuchus', look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
-  angry_protos: { name: 'Angry Protoceratops herd', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
-  old_tyrant:   { name: 'Old Tyrant', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+  compy_pack:   { name: 'Compsognathus pack', size: 'small', look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
+  wild_raptor:  { name: 'Wild Raptor', size: 'medium', look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+  deinosuchus:  { name: 'Deinosuchus', size: 'large', look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+  angry_protos: { name: 'Angry Protoceratops herd', size: 'medium', look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
+  old_tyrant:   { name: 'Old Tyrant', size: 'huge', look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
 };
 export const CREATURE_LEVEL = d => 0.3 + 0.07 * d;  // 0.37 next to the nest, 0.79 at the edge
 export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
 export const LAIR_MIN_DIST = 3;
 export const LAIR_LEVEL = 1.25;
 export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
+// size in a fight: each size step bigger than the target hits this much harder, each step smaller
+// this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
+export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge'];
+export const SIZE_EDGE = 0.8;
+export const PLAYER_SIZE = 'medium';
 export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;

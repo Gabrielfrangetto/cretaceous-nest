@@ -476,6 +476,20 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .hit { position: absolute; top: 10%; left: 50%; translate: -50% 0; font: 700 20px var(--display); pointer-events: none; animation: rise .9s ease-out forwards; }
 .hit.dmg { color: var(--heart); }
 .hit.miss { color: var(--muted); font-size: 16px; }
+.team-side { display: grid; gap: 10px; min-width: 0; }
+.team-side.crowd { grid-template-columns: 1fr 1fr; }
+.team-side.crowd .fighter-art { min-height: 80px; }
+.team-side.crowd .fighter-name { font-size: 12px; }
+.pack-left { display: block; }
+.pack-left:empty { display: none; }
+@media (max-width: 520px) {
+  .arena { grid-template-columns: 1fr; }
+  .arena .fighter-b .fighter-art { min-height: 110px; }
+}
+.pack-art { display: flex; align-items: flex-end; justify-content: center; }
+.pack-art > * + * { margin-left: -12px; }
+.pack-art > * { min-width: 0; }
+.pack-art > :not(:last-child) { opacity: .85; }
 .fight-result { margin: 0; }
 .fight-result .win { color: #4f8a3a; font-size: 18px; }
 .fight-result .loss { color: var(--heart); font-size: 18px; }
@@ -617,3 +631,17 @@ body.guide-room { padding-bottom: 70vh; }
 .load-bar i.heavy { background: var(--accent); }
 .load-bar b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--muted); opacity: .6; }
 @media (max-width: 480px) { .load { grid-template-columns: 1fr auto; } .load-bar { grid-column: 1 / -1; grid-row: 2; } }
+
+/* packs (Nest) and teams (World) */
+.packs { margin-top: 18px; }
+.pack-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 10px; background: var(--panel); display: grid; gap: 8px; }
+.pack-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pack-title input { font: inherit; font-weight: 700; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); max-width: 100%; }
+.pack-picks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
+.pack-picks label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.pack-card .row input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); flex: 1 1 140px; min-width: 0; }
+.team-list { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+.team-unit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.team-unit > span { min-width: 0; overflow-wrap: anywhere; }
+.team-add select { flex: 1 1 160px; min-width: 0; }
+.field .label { display: block; font-weight: 700; margin-bottom: 4px; }

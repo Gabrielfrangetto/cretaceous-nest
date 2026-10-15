@@ -7,6 +7,7 @@ import {
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, healBaby } from './world.js';
+import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -638,8 +639,9 @@ export const ACTIONS = {
   feed(s, { id }, now) {
     return feedBaby(s, id, now);
   },
-  explore(s, { babyId, hex }, now) {
-    return startExpedition(s, babyId, hex, now);
+  // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
+  explore(s, { team, babyId, hex }, now) {
+    return startExpedition(s, team || babyId, hex, now);
   },
   recall(s, { id }) {
     return recallExpedition(s, id);
@@ -665,6 +667,18 @@ export const ACTIONS = {
     if (!clean) return fail('empty-name');
     s.player.name = clean;
     return { ok: true };
+  },
+  formPack(s, args) {
+    return formPack(s, args);
+  },
+  setPackMembers(s, args) {
+    return setPackMembers(s, args);
+  },
+  renamePack(s, args) {
+    return renamePack(s, args);
+  },
+  disbandPack(s, args) {
+    return disbandPack(s, args);
   },
   heal(s, { babyId }, now) {
     return healBaby(s, babyId, now);

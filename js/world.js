@@ -2,14 +2,16 @@
 // Like economy.js these only work on the state passed in, so the browser and the server share them.
 //
 // Hexes use axial coordinates (q, r) with the nest at 0,0, and are stored as "q,r" keys.
-// s.world = { seed, revealed: [key], visited: [key], trips, expeditions: [{ id, babyId, hex, trip, startedAt, returnAt }] }
+// s.world = { seed, revealed: [key], visited: [key], trips, expeditions: [{ id, team, members, hex, trip, startedAt, returnAt }] }
+// An expedition's team is up to TEAM_SLOTS units, each { kind: 'dino' | 'player' | 'pack', id, members: [id] }
+// (a pack's members as they were when it set out); members lists everyone out on it.
 import {
-  BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
-import { fighterOf, creatureFighter, fight } from './combat.js';
+import { fighterOf, creatureFighter, teamFight, unitOf } from './combat.js';
 import { hashId } from './util.js';
 
 // ---------- hex geometry ----------
@@ -133,8 +135,8 @@ export function healBaby(s, babyId, now) {
   return { ok: true, left: injuredLeft(b, now) };
 }
 
-export const expeditionOf = (s, babyId) => W(s).expeditions.find(e => e.babyId === babyId) || null;
-export const isAway = (s, babyId) => !!expeditionOf(s, babyId);
+export const expeditionOf = (s, id) => W(s).expeditions.find(e => e.members.includes(id)) || null;
+export const isAway = (s, id) => !!expeditionOf(s, id);
 
 // the items a hex can give, with quantities already scaled by its distance
 export function lootTable(s, key) {
@@ -144,36 +146,80 @@ export function lootTable(s, key) {
     ({ id, min: Math.max(1, Math.round(min * mult)), max: Math.max(1, Math.round(max * mult)), chance }));
 }
 
-// why this baby can't go to this hex now, or null when it can
-export function exploreProblem(s, babyId, key, now) {
-  const b = explorerOf(s, babyId);
+// why this explorer can't go to this hex now, or null when it can
+export function memberProblem(s, id, key, now) {
+  const b = explorerOf(s, id);
   if (!b) return 'missing';
+  // the player goes anywhere and never gets hungry
+  const me = id === PLAYER_ID;
+  const stage = me ? 'adult' : stageOf(b).id;
+  if (stage === 'baby') return 'too-young';
+  if (stage === 'juvenile' && hexDist(parseKey(key)) > JUVENILE_RANGE) return 'too-far';
+  if (isAway(s, id)) return 'away';
+  if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
+  if (injuredLeft(b, now)) return 'injured';
+  if (!me && isHungry(b, now)) return 'hungry';
+  return null;
+}
+
+// a team as asked for ([{ kind, id }], or one explorer's id as before teams) with every unit's members
+export function teamFrom(s, team) {
+  if (typeof team === 'string') team = [{ kind: team === PLAYER_ID ? 'player' : 'dino', id: team }];
+  if (!Array.isArray(team)) return null;
+  return team.map(u => {
+    if (!u || typeof u !== 'object') return null;
+    if (u.kind === 'player') return { kind: 'player', id: PLAYER_ID, members: [PLAYER_ID] };
+    if (u.kind === 'dino') return s.hatched.some(b => b.id === u.id) ? { kind: 'dino', id: u.id, members: [u.id] } : null;
+    if (u.kind === 'pack') {
+      const p = (s.packs || []).find(x => x.id === u.id);
+      return p ? { kind: 'pack', id: p.id, members: [...p.members] } : null;
+    }
+    return null;
+  });
+}
+
+// why this team can't go to this hex now, or null when it can
+export function exploreProblem(s, team, key, now) {
+  const units = teamFrom(s, team);
+  if (!units || !units.length) return 'no-team';
+  if (units.includes(null)) return 'missing';
+  if (units.length > TEAM_SLOTS) return 'team-full';
   const h = parseKey(key);
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
   if (!canReach(s, key)) return 'unreachable';
-  // the player goes anywhere and never gets hungry
-  const me = babyId === PLAYER_ID;
-  const stage = me ? 'adult' : stageOf(b).id;
-  if (stage === 'baby') return 'too-young';
-  if (stage === 'juvenile' && hexDist(h) > JUVENILE_RANGE) return 'too-far';
-  if (isAway(s, babyId)) return 'away';
-  if (s.breeding && (s.breeding.maleId === babyId || s.breeding.femaleId === babyId)) return 'breeding';
-  if (injuredLeft(b, now)) return 'injured';
-  if (!me && isHungry(b, now)) return 'hungry';
+  const members = units.flatMap(u => u.members);
+  if (new Set(members).size !== members.length) return 'twice';
+  for (const id of members) {
+    const problem = memberProblem(s, id, key, now);
+    if (problem) return problem;
+  }
   if (W(s).expeditions.length >= EXPEDITION_SLOTS) return 'no-slot';
   return null;
 }
 
-export function startExpedition(s, babyId, key, now) {
-  const problem = exploreProblem(s, babyId, key, now);
+export function startExpedition(s, team, key, now) {
+  const problem = exploreProblem(s, team, key, now);
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
+  const units = teamFrom(s, team);
   w.trips += 1;
   // the trip number seeds the loot, so the browser and the server roll the same things
-  const exp = { id: `t${w.trips}`, babyId, hex: key, trip: w.trips, startedAt: now, returnAt: now + tripMins(key) * 60000 };
+  const exp = {
+    id: `t${w.trips}`, team: units, members: units.flatMap(u => u.members),
+    hex: key, trip: w.trips, startedAt: now, returnAt: now + tripMins(key) * 60000,
+  };
   w.expeditions.push(exp);
   return { ok: true, expedition: exp };
+}
+
+// the fighting side of a team: a unit per dinosaur, the player, or pack
+export function teamUnits(s, units) {
+  return units.map(u => {
+    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(fighterOf);
+    const pack = u.kind === 'pack' && (s.packs || []).find(p => p.id === u.id);
+    return unitOf(u.kind === 'pack' ? (pack ? pack.name : 'Pack') : (fighters[0] || { name: '?' }).name, fighters, u.kind === 'pack');
+  }).filter(u => u.members.length);
 }
 
 // calls the dinosaur back early: no loot, no new map, but it is free again right away
@@ -192,7 +238,7 @@ export function collectExpedition(s, id, now) {
   if (!exp) return { ok: false, reason: 'no-expedition' };
   if (now < exp.returnAt) return { ok: false, reason: 'not-back' };
   const h = parseKey(exp.hex), d = hexDist(h);
-  const b = explorerOf(s, exp.babyId);
+  const units = exp.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(s, id)) })).filter(u => u.members.length);
   // the trip number seeds everything, so the browser and the server roll the same trip
   const rand = seededRand(`trip:${w.seed}:${exp.trip}`);
   const fightRand = seededRand(`fight:${w.seed}:${exp.trip}`);
@@ -203,13 +249,22 @@ export function collectExpedition(s, id, now) {
   // a creature may be waiting; losing means coming home hurt with nothing
   let battle = null;
   const threat = threatAt(w.seed, h);
-  if (b && fightRand() < threat.chance) {
-    const me = fighterOf(b), foe = threat.foe;
-    const result = fight(me, foe, fightRand);
-    const left = result.hpA / result.maxA;
-    const injuredMins = !result.win ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
-    battle = { creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power }, me: { name: me.name, power: me.power }, ...result, injuredMins };
-    if (injuredMins) b.injuredUntil = now + injuredMins * 60000;
+  if (units.length && fightRand() < threat.chance) {
+    const team = teamUnits(s, units), foe = threat.foe;
+    const result = teamFight(team, foe, fightRand);
+    // whoever went down is injured; the rest are bruised by how much health they lost, and everyone
+    // is injured when the team loses
+    const injured = [];
+    units.forEach((u, i) => u.members.forEach((id, j) => {
+      const left = result.hp[i][j] / team[i].members[j].hp;
+      const mins = !result.win || left <= 0 ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
+      if (mins) { explorerOf(s, id).injuredUntil = now + mins * 60000; injured.push({ id, mins }); }
+    }));
+    battle = {
+      creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power, hp: foe.hp },
+      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0) })),
+      ...result, injured,
+    };
   }
   const won = !battle || battle.win;
 
@@ -247,8 +302,11 @@ export function collectExpedition(s, id, now) {
   const newly = [exp.hex, ...neighbors(h).map(n => hexKey(...n))].filter(k => !w.revealed.includes(k));
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
-  if (b && b.id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), babyId: exp.babyId, loot, coins, discovered, revealed: newly.length, battle, egg: foundEgg };
+  for (const id of exp.members) {
+    const b = explorerOf(s, id);
+    if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
+  }
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it
@@ -258,16 +316,28 @@ export function cleanWorld(world, s) {
   const home = newWorld(1);
   const ids = new Set([PLAYER_ID, ...s.hatched.map(b => b.id)]);
   const seen = new Set();
+  const KINDS = ['dino', 'player', 'pack'];
+  // a team with only real explorers, each out once
+  const cleanTeam = e => {
+    const team = (Array.isArray(e.team) ? e.team : e.babyId ? [{ kind: e.babyId === PLAYER_ID ? 'player' : 'dino', id: e.babyId, members: [e.babyId] }] : [])
+      .filter(u => u && KINDS.includes(u.kind))
+      .map(u => ({ kind: u.kind, id: String(u.id), members: (Array.isArray(u.members) ? u.members : [u.id]).filter(id => ids.has(id) && !seen.has(id) && seen.add(id)) }))
+      .filter(u => u.members.length)
+      .slice(0, TEAM_SLOTS);
+    return team;
+  };
   return {
     seed: Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s),
     revealed: keys([...home.revealed, ...keys(w.revealed)]),
     visited: keys([...home.visited, ...keys(w.visited)]),
     trips: Math.max(0, Math.floor(Number(w.trips) || 0)),
     expeditions: (Array.isArray(w.expeditions) ? w.expeditions : [])
-      .filter(e => e && ids.has(e.babyId) && !seen.has(e.babyId) && seen.add(e.babyId) && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0)
+      .filter(e => e && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0)
+      .map(e => ({ ...e, team: cleanTeam(e) }))
+      .filter(e => e.team.length)
       .slice(0, EXPEDITION_SLOTS)
       .map(e => ({
-        id: String(e.id), babyId: e.babyId, hex: e.hex, trip: Math.max(1, Math.floor(Number(e.trip) || 1)),
+        id: String(e.id), team: e.team, members: e.team.flatMap(u => u.members), hex: e.hex, trip: Math.max(1, Math.floor(Number(e.trip) || 1)),
         startedAt: Number(e.startedAt) || 0,
         // never sooner than the trip really takes
         returnAt: Math.max(Number(e.returnAt) || 0, (Number(e.startedAt) || 0) + tripMins(e.hex) * 60000),

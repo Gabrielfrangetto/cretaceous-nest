@@ -1,13 +1,14 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
-// Pick a hex, pick a dinosaur, send it; when it comes back, collect what it found.
-import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
+// Pick a hex, put a team together, send it; when it comes back, collect what it found.
+import { BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, tripMins, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, explorerOf,
+  threatAt, isLair, injuredLeft, explorerOf, memberProblem, teamFrom, teamUnits,
 } from '../world.js';
-import { fighterOf, winChance, dangerOf } from '../combat.js';
+import { packOf } from '../packs.js';
+import { teamWinChance, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
@@ -52,18 +53,60 @@ const PROBLEMS = {
   away: 'Already exploring.',
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
-  'no-slot': `Only ${EXPEDITION_SLOTS} explorers can be out at the same time.`,
+  'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
   injured: 'Injured. It heals with time, or sooner with a Healing Herb.',
+  'no-team': 'Add someone to the team first.',
+  'team-full': `A team has at most ${TEAM_SLOTS} places.`,
+  twice: 'Someone is in the team twice.',
+  missing: 'Someone in the team is gone.',
 };
 const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
-let selected = null, explorerId = null, message = '', tick = null;
+let selected = null, message = '', tick = null;
+// the team being put together: [{ kind: 'dino' | 'player' | 'pack', id }]
+let team = [];
 const isMe = b => b && b.id === PLAYER_ID;
 const name = b => isMe(b) ? b.name : `${b.name} ${SEX[sexOf(b)].sym}`;
 const byId = id => explorerOf(S, id);
 const itemName = (id, n) => n === 1 ? ITEMS[id].name : ITEMS[id].plural;
+const unitKey = u => `${u.kind}:${u.id}`;
+const packById = id => (S.packs || []).find(p => p.id === id);
+// a team unit's name, as on its row
+function unitName(u) {
+  if (u.kind === 'player') return 'You';
+  if (u.kind === 'pack') { const p = packById(u.id); return p ? p.name : 'A pack'; }
+  const b = byId(u.id);
+  return b ? name(b) : '?';
+}
+const membersOf = u => u.kind === 'pack' ? (packById(u.id) || { members: [] }).members : [u.kind === 'player' ? PLAYER_ID : u.id];
+// "A", "A and B", "A, B and C"
+const listNames = list => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
+
+// everyone who could join a team: you, each pack, each dinosaur old enough and not in a pack
+function unitChoices() {
+  return [
+    { kind: 'player', id: PLAYER_ID },
+    ...(S.packs || []).map(p => ({ kind: 'pack', id: p.id })),
+    ...S.hatched.filter(b => stageOf(b).id !== 'baby' && !packOf(S, b.id)).map(b => ({ kind: 'dino', id: b.id })),
+  ];
+}
+function unitLabel(u) {
+  if (u.kind === 'player') return `${S.player.name} · you, on foot`;
+  if (u.kind === 'pack') { const p = packById(u.id); return `${p.name} · pack of ${p.members.length} ${SPECIES[p.type].species}`; }
+  const b = byId(u.id);
+  return `${name(b)} · ${SPECIES[b.type].species} · ${stageOf(b).name}`;
+}
+// the first thing keeping one of a unit's members home, with who it is
+function unitProblem(u, t) {
+  for (const id of membersOf(u)) {
+    const problem = memberProblem(S, id, selected, t);
+    if (problem) return { id, problem };
+  }
+  return null;
+}
+const SHORT = { away: 'away', injured: 'injured', hungry: 'hungry', breeding: 'nesting', 'too-far': 'too far for a juvenile', 'too-young': 'too young' };
 
 function mapSVG(t) {
   const w = S.world;
@@ -83,7 +126,7 @@ function mapSVG(t) {
     const label = home ? 'Your nest' : seen ? `${BIOMES[biome].name}${isLair(w.seed, h) ? ' lair' : ''}, ${hexDist(h)} from the nest` : frontier ? `Unexplored, ${hexDist(h)} from the nest` : 'Deep fog';
     const glyph = home ? NEST : seen ? GLYPH[biome] + (isLair(w.seed, h) ? LAIR : '') : frontier ? '<text class="q" y="5">?</text>' : '';
     const exp = away.get(key);
-    const marker = exp ? `<g class="trip ${t >= exp.returnAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc((byId(exp.babyId) || { name: '?' }).name[0] || '?')}</text></g>` : '';
+    const marker = exp ? `<g class="trip ${t >= exp.returnAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc(exp.team.length > 1 ? String(exp.team.length) : (unitName(exp.team[0])[0] || '?'))}</text></g>` : '';
     const focusable = seen || frontier;
     return `<g class="${cls}" data-key="${key}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" ${focusable ? `tabindex="0" role="button" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>
       <polygon points="${corners([0, 0], 0.96)}" ${seen ? `style="fill:${BIOMES[biome].color}"` : ''}/>${glyph}${marker}</g>`;
@@ -92,15 +135,17 @@ function mapSVG(t) {
 }
 
 // what waits there and how a fight would likely go for the chosen explorer
-function threatHTML(h, ex) {
+function threatHTML(h, units) {
   if (!isRevealed(S, hexKey(...h))) return '<p class="hint">Unknown dangers.</p>';
   const th = threatAt(S.world.seed, h);
-  const odds = ex ? winChance(fighterOf(ex), th.foe) : null;
+  const odds = units.length ? teamWinChance(units, th.foe) : null;
+  const power = units.reduce((t, u) => t + u.members.reduce((x, m) => x + m.power, 0), 0);
+  const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : 'Your team';
   const danger = odds == null ? '' : dangerOf(odds);
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.foe.power}</span></p>
     <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * 100)}% chance to meet it.`}</p>
-    ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${esc(ex.name)} wins about ${Math.round(odds * 100)}% of the time (Power ${fighterOf(ex).power})</span></p>`}
+    ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
   </div>`;
 }
 
@@ -117,39 +162,58 @@ function lootHTML(key) {
 
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap a hex next to the fog (marked ?) to explore it. You can go yourself, or send a juvenile or adult dinosaur. Farther hexes take longer and bring back more, sometimes an egg. Dinosaurs come home hungry.</p>`;
+    <p class="hint">Tap a hex next to the fog (marked ?) to explore it. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes take longer and bring back more, sometimes an egg. Dinosaurs come home hungry.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every trip starts and ends here.</p>`;
   const seen = isRevealed(S, selected);
   const biome = seen ? BIOMES[biomeAt(S.world.seed, h)] : null;
   const first = !S.world.visited.includes(selected);
-  // everyone who could go, best candidates first; the ones who can't still show why
-  // the player first, then every dinosaur old enough to explore
-  const cands = [S.player, ...S.hatched.filter(b => stageOf(b).id !== 'baby')];
-  if (!explorerId || !cands.some(b => b.id === explorerId)) explorerId = (cands.find(b => !exploreProblem(S, b.id, selected, t)) || cands.find(b => !expeditionOf(S, b.id)) || cands[0] || {}).id || null;
-  const problem = explorerId ? exploreProblem(S, explorerId, selected, t) : null;
-  const ex = explorerId && byId(explorerId);
+  // the team: kept between hexes; when empty, the first one free to go is suggested
+  const choices = unitChoices();
+  team = team.filter(u => choices.some(c => unitKey(c) === unitKey(u)));
+  if (!team.length) {
+    const free = choices.find(u => !unitProblem(u, t));
+    if (free) team = [free];
+  }
+  const problem = exploreProblem(S, team, selected, t);
+  const blocker = team.map(u => unitProblem(u, t)).find(Boolean);
+  const units = teamUnits(S, (teamFrom(S, team) || []).filter(Boolean));
+  const left = choices.filter(c => !team.some(u => unitKey(u) === unitKey(c)));
+  const rows = team.map((u, i) => {
+    const p = unitProblem(u, t);
+    return `<li class="team-unit"><span><strong>${esc(unitName(u))}</strong> <span class="hint">${esc(unitLabel(u).split(' · ').slice(1).join(' · '))}</span>${p ? ` <span class="hint warn-text">· ${esc(SHORT[p.problem] || p.problem)}</span>` : ''}</span>
+      <button class="ghost" type="button" data-unit-off="${i}" aria-label="Take ${esc(unitName(u))} out of the team">×</button></li>`;
+  }).join('');
+  const why = problem && PROBLEMS[problem]
+    ? (blocker && blocker.problem === problem && team.flatMap(membersOf).length > 1 ? `${esc(blocker.id === PLAYER_ID ? 'You' : byId(blocker.id).name)}: ` : '') + PROBLEMS[problem]
+      + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
+    : '';
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
     <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${tripMins(selected)} min there and back${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
-    ${threatHTML(h, ex)}
-    ${cands.length ? `<div class="field"><label for="explorer">Explorer</label>
-      <select id="explorer">${cands.map(b => `<option value="${esc(b.id)}" ${b.id === explorerId ? 'selected' : ''}>${esc(name(b))} · ${isMe(b) ? 'you, on foot' : `${esc(SPECIES[b.type].species)} · ${stageOf(b).name}`}${expeditionOf(S, b.id) ? ' · away' : injuredLeft(b, t) ? ' · injured' : !isMe(b) && isHungry(b, t) ? ' · hungry' : ''}</option>`).join('')}</select></div>
-      <div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>
-      ${problem && PROBLEMS[problem] ? `<p class="hint warn-text">${PROBLEMS[problem]}${problem === 'injured' ? ` Heals in ${fmt(injuredLeft(ex, t))}.` : ''}</p>` : ''}
-      ${problem === 'injured' ? healHTML() : ''}`
-    : `<p class="hint warn-text">No dinosaur can explore yet. Babies grow into juveniles after ${STAGES[1].meals} meals.</p>`}`;
+    ${threatHTML(h, units)}
+    <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
+      ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
+      ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
+        const p = unitProblem(u, t);
+        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.problem] || p.problem)}` : ''}</option>`;
+      }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
+    </div>
+    ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>` : ''}
+    ${why ? `<p class="hint warn-text">${why}</p>` : ''}
+    ${problem === 'injured' ? healHTML() : ''}
+    ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
 }
 
 function tripsHTML(t) {
   const list = S.world.expeditions;
-  if (!list.length) return `<p class="hint">No one is exploring. ${EXPEDITION_SLOTS} explorers can be out at the same time.</p>`;
+  if (!list.length) return `<p class="hint">No one is exploring. ${EXPEDITION_SLOTS} teams can be out at the same time.</p>`;
   return `<ul class="trips">${list.map(e => {
-    const b = byId(e.babyId), back = t >= e.returnAt;
+    const back = t >= e.returnAt;
     const biome = isRevealed(S, e.hex) ? BIOMES[biomeAt(S.world.seed, parseKey(e.hex))].name : 'the fog';
     const frac = Math.min(1, (t - e.startedAt) / (e.returnAt - e.startedAt));
     return `<li class="trip-row">
-      <div><strong>${esc(b ? name(b) : '?')}</strong> <span class="hint">→ ${esc(biome)}</span></div>
+      <div><strong>${esc(listNames(e.team.map(unitName)))}</strong> <span class="hint">→ ${esc(biome)}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${back
         ? `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`
@@ -219,20 +283,31 @@ function render() {
     message = r.ok ? '' : r.reason === 'room' ? 'Your inventory is full.' : 'That could not be taken off.';
     render();
   }));
-  const ex = document.getElementById('explorer');
-  if (ex) ex.addEventListener('change', e => { explorerId = e.target.value; render(); });
+  const add = document.getElementById('addUnitBtn');
+  if (add) add.addEventListener('click', () => {
+    const [kind, ...rest] = document.getElementById('addUnit').value.split(':');
+    team.push({ kind, id: rest.join(':') });
+    message = '';
+    render();
+  });
+  box.querySelectorAll('[data-unit-off]').forEach(btn => btn.addEventListener('click', () => {
+    team.splice(+btn.dataset.unitOff, 1);
+    render();
+  }));
   const heal = document.getElementById('healBtn');
   if (heal) heal.addEventListener('click', () => {
-    const r = act('heal', { babyId: explorerId });
+    const hurt = team.map(u => unitProblem(u, now())).find(p => p && p.problem === 'injured');
+    if (!hurt) return;
+    const r = act('heal', { babyId: hurt.id });
     message = r.ok ? (r.left ? `Feeling better. Heals in ${fmt(r.left)}.` : 'Fully healed!') : 'No Healing Herbs.';
     render();
   });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
-    const r = act('explore', { babyId: explorerId, hex: selected });
-    const b = byId(explorerId);
-    message = r.ok ? `${isMe(b) ? 'You' : esc(b.name)} set off. Back in ${tripMins(selected)} min.` : esc(PROBLEMS[r.reason] || 'It could not go.');
-    if (r.ok) explorerId = null;   // the next free dinosaur is picked
+    const names = team.map(unitName);
+    const r = act('explore', { team, hex: selected });
+    message = r.ok ? `${esc(listNames(names))} set off. Back in ${tripMins(selected)} min.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    if (r.ok) team = [];   // the next free one is suggested
     render();
   });
   bindTrips(box);
@@ -245,25 +320,29 @@ function bindTrips(box) {
   box.querySelectorAll('[data-collect]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('collectTrip', { id: btn.dataset.collect });
     if (!r.ok) { message = 'Not back yet.'; render(); return; }
-    const b = byId(r.babyId);
-    // the player is "you": "You are back", not "You is back"
-    const me = r.babyId === PLAYER_ID;
-    const who = me ? 'You' : esc(b ? b.name : 'Your explorer'), is = me ? 'are' : 'is';
+    // the player alone is "you": "You are back", not "You is back"
+    const names = r.team.map(unitName);
+    const who = esc(listNames(names)), is = r.team.length > 1 || r.team[0].kind !== 'dino' ? 'are' : 'is';
     const got = r.loot.map(l => `${l.n} ${itemName(l.id, l.n)}${l.lost ? ` (${l.lost} lost, inventory full)` : ''}`);
     if (r.coins) got.push(`${r.coins} coins`);
     const mapped = r.revealed ? ` ${plural(r.revealed, 'new hex', 'new hexes')} on the map.` : '';
-    const hurt = r.battle && r.battle.injuredMins ? ` ${who} ${is} injured for ${r.battle.injuredMins} min.` : '';
-    const follow = !r.egg ? '' : r.egg.lost ? ` ${who} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
-      : ` ${who} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
+    const injured = r.battle ? r.battle.injured : [];
+    const hurtName = id => id === PLAYER_ID ? 'You' : (byId(id) || { name: '?' }).name;
+    const hurt = !injured.length ? ''
+      : injured.length === 1 ? ` ${esc(hurtName(injured[0].id))} ${injured[0].id === PLAYER_ID ? 'are' : 'is'} injured for ${injured[0].mins} min.`
+      : ` ${injured.length} of the team are injured, for up to ${Math.max(...injured.map(x => x.mins))} min.`;
+    const finder = r.team.length === 1 && r.team[0].kind !== 'pack' ? who : 'The team';
+    const follow = !r.egg ? '' : r.egg.lost ? ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
+      : ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
     message = r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${hurt}${mapped}`
       : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${hurt}${follow}${mapped}`;
     render();
-    if (r.battle && b) playFight(b, r.battle, message);
+    if (r.battle) playFight(r.battle, message, byId);
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {
     act('recall', { id: btn.dataset.recall });
-    message = 'Called back. It came home with nothing.';
+    message = 'Called back. The team came home with nothing.';
     render();
   }));
 }
