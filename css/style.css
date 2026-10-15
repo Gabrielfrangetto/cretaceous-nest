@@ -590,3 +590,17 @@ body.on-landing > .site-footer { display: none; }
 .guide-shade { position: fixed; inset: 0; z-index: 890; background: rgba(20, 24, 18, .55); backdrop-filter: blur(1.5px); animation: shade-in .35s ease-out both; }
 @keyframes shade-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .guide-shade { animation: none; } }
+
+/* the guide on the left: she stands on the left, facing her bubble on the right */
+.guide-pop.left { right: auto; left: max(16px, env(safe-area-inset-left, 0px)); flex-direction: row-reverse; }
+.guide-pop.left .guide-char svg { transform: scaleX(-1); }
+.guide-pop.left .guide-bubble::after { right: auto; left: -12px; border-left-color: transparent; border-right-color: var(--ink); }
+/* the part of the page she talks about, lit up above the shade; it can't be clicked until she is done */
+.guide-spot { position: relative; z-index: 895; pointer-events: none; box-shadow: 0 0 0 4px var(--accent), 0 12px 40px rgba(0, 0, 0, .3); border-radius: 18px; }
+@media (max-width: 560px) {
+  .guide-pop.left { flex-direction: column; align-items: flex-start; }
+  .guide-pop.left .guide-bubble::after { left: 46px; bottom: -16px; border-right-color: transparent; border-top-color: var(--ink); }
+}
+
+.guide-spot { scroll-margin-top: 12px; }
+body.guide-room { padding-bottom: 70vh; }

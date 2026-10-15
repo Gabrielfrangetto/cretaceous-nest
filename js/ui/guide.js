@@ -19,15 +19,38 @@ let showing = null, page = 0, timer = null;
 
 const playing = () => devMode() || inGame();
 const unseen = id => S.tutorial && !S.tutorial.seen.includes(id);
+let lit = null;   // the part of the page lit up above the shade
+
+// when each tip may pop up by itself (the welcome first; the rest also need the tip before them read)
+const READY = {
+  welcome: () => true,
+  starters: () => !S.starter && !unseen('welcome'),
+};
+
+// lights up a part of the page and scrolls it to the top of the screen, clear of the guide in the
+// bottom corner (the page gets room below so even a short page can scroll that far)
+function spotlight(selector) {
+  if (lit) lit.classList.remove('guide-spot');
+  lit = selector ? document.querySelector(selector) : null;
+  document.body.classList.toggle('guide-room', !!lit);
+  if (lit) {
+    lit.classList.add('guide-spot');
+    lit.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+}
 
 function close(finished) {
   const id = showing;
   pop.hidden = true;
   shade.hidden = true;
+  spotlight(null);
   showing = null;
   if (!id) return;
   act('seeGuide', { id });
-  if (finished && GUIDE[id].go) setTab(GUIDE[id].go);
+  // the next tip follows straight away; replays (the Tutorial button) chain through every tip
+  const next = finished && GUIDE[id].next;
+  if (next && (replaying || READY[next]())) setTimeout(() => showGuide(next), 450);
+  else replaying = false;
 }
 
 function render() {
@@ -49,28 +72,35 @@ function render() {
   bubble.querySelector('[data-guide="next"]').focus({ preventScroll: true });
 }
 
+let replaying = false;
 export function showGuide(id) {
   if (!GUIDE[id] || showing) return;
+  const tip = GUIDE[id];
   showing = id; page = 0;
+  if (tip.tab) setTab(tip.tab);
+  pop.classList.toggle('left', tip.side === 'left');
   who.innerHTML = '';
   who.appendChild(guideArt(180));
   render();
   pop.hidden = false;
   shade.hidden = false;
+  spotlight(tip.spot);
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 }
 
-// the welcome waits until the game is on screen, then a moment more so the page settles first
+// the first tip that is due pops up once the game is on screen, a moment later so the page settles
 function check() {
-  if (showing || !playing() || !unseen('welcome')) return;
+  if (showing || !playing()) return;
+  const due = Object.keys(GUIDE).find(id => unseen(id) && READY[id] && READY[id]());
+  if (!due) return;
   clearTimeout(timer);
-  timer = setTimeout(() => { if (playing() && unseen('welcome')) showGuide('welcome'); }, 700);
+  timer = setTimeout(() => { if (!showing && playing() && unseen(due) && READY[due]()) showGuide(due); }, 700);
 }
 
 export function initGuide() {
-  // TEMPORARY: the header's Tutorial button replays the welcome while the tutorial is being built
+  // TEMPORARY: the header's Tutorial button replays the tutorial from the start while it is being built
   const replay = document.getElementById('guideReplay');
-  if (replay) replay.addEventListener('click', () => showGuide('welcome'));
+  if (replay) replay.addEventListener('click', () => { replaying = true; showGuide('welcome'); });
   subscribe(check);
   setInterval(check, 1500);
   check();

@@ -227,16 +227,30 @@ export const PLAYER_SLOTS = [
   { id: 'feet', name: 'Feet' },
 ];
 
-// The guide: Professor Ivy Fern pops up to teach the game, one tip at a time. Each tip is shown once
-// per account (s.tutorial.seen). pages are what she says, one bubble each; the last button does `go`.
+// The guide: Professor Ivy Fern pops up to teach the game, one tip at a time, in this order. Each tip
+// is shown once per account (s.tutorial.seen).
+//   pages: what she says, one bubble each     done: the last button's label
+//   tab: the tab opened while she talks        side: 'left' puts her on the left of the screen
+//   spot: a part of the page lit up above the faded game while she talks about it
+//   next: the tip that follows straight after this one
 export const GUIDE = {
   welcome: {
     pages: [
       "Oh, hello! I'm Professor Ivy Fern. I study the dinosaurs of the Cretaceous, and you've just arrived at your very own nest.",
       "Here you'll hatch dinosaurs, raise them, and explore the wild land around us. But every keeper starts the same way: with one baby to look after.",
     ],
-    done: "Show me!",
-    go: 'incubator',
+    done: 'Show me!',
+    next: 'starters',
+  },
+  starters: {
+    tab: 'incubator', side: 'left', spot: '#stage',
+    pages: [
+      'These are the four starter babies. Each one is a little different, so take a good look before you choose.',
+      'Compsognathus and Coelophysis eat meat. They are quick and bite hard, but they can\'t take many hits.',
+      'Psittacosaurus and Hypsilophodon eat plants. Psittacosaurus is the toughest of the four, and Hypsilophodon is a fast little runner.',
+      'The bars are their genes: the longer the bar, the stronger that baby will grow. Pick the one you like best!',
+    ],
+    done: "I'll choose!",
   },
 };
 
