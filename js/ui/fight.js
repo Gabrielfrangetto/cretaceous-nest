@@ -161,6 +161,9 @@ export function playFight(battle, summary, who) {
         // a bone-breaking bite: a lamed leg or a neck
         if (blow.kill) pop(box, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(box, 'Leg broken!', 'mad');
+        // armor plates took most of it, or the bare belly was hit
+        else if (blow.armored) pop(box, 'Armor!', 'mad');
+        else if (blow.part === 'belly') pop(box, 'Belly!', 'mad');
         if (blow.also) pop(box, `×${blow.also.length + 1}`, 'mad');
         showUnit(blow.to);
       }
@@ -176,7 +179,7 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      const move = blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops
@@ -187,7 +190,7 @@ export function playFight(battle, summary, who) {
         foeHp[blow.member] = blow.left;
         for (const x of blow.also || []) foeHp[x.member] = x.left;
         if (blow.kill) pop(foeBox, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
-        else if (blow.lame) pop(foeBox, 'Leg broken!', 'mad');
+        else if (blow.lame) pop(foeBox, blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
         setHp(foeBox, blow.foeLeft, battle.foeMax);
         foeBox.querySelector('.pack-left').textContent = foeNote();
       }

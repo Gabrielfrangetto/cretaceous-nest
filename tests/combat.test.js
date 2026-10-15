@@ -241,3 +241,29 @@ test("a Triceratops' frill takes head blows and gores back; it stays damaged unt
   assert.equal(applyAction(s, 'mendFrill', { babyId: 't' }).reason, 'whole');
   assert.equal(countItem(s, 'herb'), 2);
 });
+
+test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, and its club breaks shins', async () => {
+  const { ARMOR } = await import('../js/config.js');
+  const rex = wildFighter('rex', 6);
+  const parts = {};
+  let thorns = 0, shins = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = teamFight([unitOf('a', [fighterOf(dino('a', 50, 'ankylo'))])], rex, seededRand('k' + i));
+    let lastFoeBlow = null;
+    for (const e of r.log) {
+      if (e.by === 'foe' && !e.miss) {
+        parts[e.part] = (parts[e.part] || 0) + 1;
+        assert.equal(!!e.armored, ARMOR.armored.includes(e.part));
+        assert.ok(!e.kill, 'its neck is never bitten through');
+        lastFoeBlow = e;
+      }
+      if (e.thorns) { thorns++; assert.equal(lastFoeBlow.part, 'back'); }
+      if (e.club) { shins++; assert.ok(e.lame && (e.counter || e.charge)); }
+    }
+  }
+  for (const [p] of ARMOR.parts) assert.ok(parts[p], `blows land on its ${p}`);
+  assert.ok(thorns && shins, `${thorns} spikes, ${shins} shins`);
+  // the armored parts let much less through than the belly
+  const plain = fighterOf(dino('a', 50, 'ankylo'));
+  assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
+});

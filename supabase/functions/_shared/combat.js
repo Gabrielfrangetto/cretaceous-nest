@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, FRILL, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, FRILL, ARMOR, CLUB, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -17,7 +17,7 @@ export function fighterOf(baby, extra = []) {
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
-    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker,
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, power: sheet.power, ...body };
 }
@@ -175,6 +175,8 @@ function withRoles(u, swamp) {
 //   more of a pack adds also: [{ member, dmg, left }]. A blow on a frill adds part: 'head', blocked
 //   and frill (what is left of it); the goring back is a counter with gore: true;
 //   { by: 'bleed', member, dmg, left, foeLeft }: a gored foe bleeding at the start of its turn.
+//   Armor adds part and armored to the foe's blow; a blow on armored plates on the back is followed by
+//   { by, member, dmg, left, foeLeft, thorns: true }; a club that breaks a shin adds lame and club.
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
 // member's health at the end, per unit; foeHps: the foe's members'; frenzy: the frenzied units.
 // opts.swamp: the fight is in a swamp (fishers fight better).
@@ -209,9 +211,16 @@ export function teamFight(units, foe, rand, opts = {}) {
       const alive = standing(foeHp);
       const member = alive[Math.floor(rand() * alive.length)];
       if (rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
-      const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost);
+      // a tail club swung back lands harder than a bite
+      const club = units[who].members[0].club && (extra.counter || extra.charge) ? CLUB.damage : 1;
+      const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost * club);
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
-      const bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
+      let bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
+      // a tail club swung back (a counter or a charge) may break the foe's shin
+      if (dmg > 0 && units[who].members[0].club && (extra.counter || extra.charge) && foeHp[member] > 0 && !foe.members[member].lame && rand() < CLUB.lame) {
+        lameMember(foe, member, 'foe');
+        bone = { part: 'leg', lame: true, club: true };
+      }
       const also = sweep(units[who], foe, foeHp, member, m => rounded(unitHit(units[who], hp[who], foe.members[m], roll) * boost));
       log.push({ by: who, member, dmg, left: foeHp[member], ...bone, ...(also.length ? { also } : {}), foeLeft: foeLeft(), ...extra });
       return member;
@@ -227,19 +236,21 @@ export function teamFight(units, foe, rand, opts = {}) {
     // A bone-breaking bite (a unit led by a boneBreaker) lands on a body part: a leg may be lamed (the
     // member keeps half its dodge and agility), a neck no bigger than neckMax is killed outright.
     // Returns what it did, for the log.
-    const breakBones = (att, target, thp, m, who) => {
-      if (!att.members[0].boneBreaker || thp[m] <= 0) return {};
+    // a lamed member keeps half its dodge and agility; ours come home injured
+    const lameMember = (target, m, who) => {
+      const hit = target.members[m];
+      target.members[m] = { ...hit, lame: true, dodge: hit.dodge * BONE_BREAKER.lameCut, agi: hit.agi * BONE_BREAKER.lameCut };
+      if (who !== 'foe') lamed.push([who, m]);
+    };
+    // part: where the blow landed when the target's armor already decided it
+    const breakBones = (att, target, thp, m, who, part = null) => {
+      if (!att.members[0].boneBreaker || thp[m] <= 0) return part ? { part } : {};
       // something this small does not survive the jaws closing on it
       if (sizeRank(target.members[m].size) <= sizeRank(BONE_BREAKER.oneBite)) { thp[m] = 0; return { part: 'whole', kill: true }; }
-      let x = rand();
-      const part = (BONE_BREAKER.parts.find(([, w]) => (x -= w) < 0) || BONE_BREAKER.parts[0])[0];
+      if (!part) { let x = rand(); part = (BONE_BREAKER.parts.find(([, w]) => (x -= w) < 0) || BONE_BREAKER.parts[0])[0]; }
       const hit = target.members[m];
       if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax)) { thp[m] = 0; return { part, kill: true }; }
-      if (part === 'leg' && !hit.lame && rand() < BONE_BREAKER.lame) {
-        target.members[m] = { ...hit, lame: true, dodge: hit.dodge * BONE_BREAKER.lameCut, agi: hit.agi * BONE_BREAKER.lameCut };
-        if (who !== 'foe') lamed.push([who, m]);
-        return { part, lame: true };
-      }
+      if ((part === 'leg' || part === 'legs') && !hit.lame && rand() < BONE_BREAKER.lame) { lameMember(target, m, who); return { part, lame: true }; }
       return { part };
     };
     // defenders out of their guard after a charge
@@ -294,11 +305,29 @@ export function teamFight(units, foe, rand, opts = {}) {
             }
             head = FRILL.broken;
           }
-          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], roll) * open * head);
+          // armor: the part the blow lands on decides how much gets through
+          let armored = null, cut = 1;
+          if (units[to].members[member].armor) {
+            let x = rand();
+            armored = (ARMOR.parts.find(([, w]) => (x -= w) < 0) || ARMOR.parts[0])[0];
+            cut = ARMOR.armored.includes(armored) ? 1 - ARMOR.cut : armored === 'belly' ? ARMOR.belly : 1;
+          }
+          const raw = unitHit(foe, foeHp, units[to].members[member], roll) * open * head;
+          const dmg = rounded(raw * cut);
           hp[to][member] = Math.max(0, hp[to][member] - dmg);
-          const bone = dmg > 0 && !onHead ? breakBones(foe, units[to], hp[to], member, to) : onHead ? { part: 'head' } : {};
+          const bone = dmg > 0 && !onHead ? breakBones(foe, units[to], hp[to], member, to, armored) : onHead ? { part: 'head' } : armored ? { part: armored } : {};
+          if (armored && ARMOR.armored.includes(armored)) bone.armored = true;
           const also = sweep(foe, units[to], hp[to], member, m => rounded(unitHit(foe, foeHp, units[to].members[m], roll) * open));
           log.push({ by: 'foe', to, member, dmg, left: hp[to][member], ...bone, ...(also.length ? { also } : {}) });
+          // the plates on its back hurt whatever bit them
+          if (armored === 'back' && raw > 0 && foeLeft() > 0) {
+            const alive = standing(foeHp);
+            const m = alive[Math.floor(rand() * alive.length)];
+            const back = Math.max(1, Math.round(raw * ARMOR.thorns));
+            foeHp[m] = Math.max(0, foeHp[m] - back);
+            log.push({ by: to, member: m, dmg: back, left: foeHp[m], foeLeft: foeLeft(), thorns: true });
+          }
+          if (foeLeft() <= 0) break;
           afterAttack(to);
           continue;
         }

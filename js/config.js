@@ -89,6 +89,8 @@ const SIZE = {
 //   crush: the share of the target's hide and damage reduction its bite goes through
 //   boneBreaker: its bites land on a body part (BONE_BREAKER)
 //   frill: a solid bony frill that shields its head (FRILL)
+//   armor: bony plates over most of the body, blow by blow (ARMOR)
+//   club: a tail club that can break a foe's shin (CLUB)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -113,7 +115,7 @@ export const BODY = {
   bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
-  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', charge: 0.15, fear: 'colossal' },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'colossal' },
   allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
   spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', fear: 'huge' },
   rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', fear: 'colossal' },
@@ -366,6 +368,13 @@ export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
 export const SIZE_EDGE = 0.3;
+// Ankylosaurus' armor: every blow lands on a part. The back, the head (fused skull plates, even bony
+// eyelids) and the neck (rings of bone) take cut less damage; a blow on the back also hurts the
+// attacker (thorns, of the blow's full damage). The legs have little armor; the belly none (belly times).
+export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['legs', 0.2], ['belly', 0.05]], armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
+// a tail club's counter or charge may break the foe's shin: lamed, as a Tyrannosaurus' bite lames a leg
+// (its relative Zuul is named crurivastator, "destroyer of shins"); and it lands damage times as hard
+export const CLUB = { lame: 0.35, damage: 1.2 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
 // head head of the time (headPack against a pack, which gets at it from the sides). While the frill
 // holds, a blow on the head does the dinosaur no harm: it costs the frill a point (crushed points for a
