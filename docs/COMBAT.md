@@ -12,8 +12,8 @@ Worst case for the defender: the attacker has perfect genes and lands its hardes
 | Scelidosaurus | Small beak; rows of bony plates | 30 | 10 |
 | Psittacosaurus | Parrot-like beak | 30 | 3 |
 | Coelophysis | Slim jaws full of small teeth | 32 | 0 |
-| Hypsilophodon | Small beak; it runs rather than fights | 18 | 0 |
-| Protoceratops | Hooked beak and a bony frill | 65 | 6 |
+| Hypsilophodon | Small beak; it runs rather than fights | 30 | 0 |
+| Protoceratops | Hooked beak and a bony frill | 50 | 6 |
 | Gallimimus | Toothless beak and kicks | 20 | 2 |
 | Hypacrosaurus | Tail and kicks | 50 | 6 |
 | Pachycephalosaurus | Thick bony dome for ramming | 125 | 8 |
@@ -35,9 +35,9 @@ Worst case for the defender: the attacker has perfect genes and lands its hardes
 - **Scelidosaurus**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus.
 - **Psittacosaurus**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus.
 - **Coelophysis**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Triceratops, Spinosaurus.
-- **Hypsilophodon**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
-- **Protoceratops**: can hurt every species; only scratches Ankylosaurus, Argentinosaurus.
-- **Gallimimus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
+- **Hypsilophodon**: can't hurt Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus.
+- **Protoceratops**: can't hurt Ankylosaurus; only scratches Tyrannosaurus, Argentinosaurus.
+- **Gallimimus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Psittacosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
 - **Hypacrosaurus**: can't hurt Ankylosaurus; only scratches Tyrannosaurus, Argentinosaurus.
 - **Pachycephalosaurus**: can hurt every species.
 - **Velociraptor**: can't hurt Ankylosaurus, Argentinosaurus; only scratches Stegosaurus, Triceratops, Spinosaurus, Tyrannosaurus.
@@ -62,9 +62,9 @@ Rows attack, columns defend. ✓ wounds, ~ only scratches (under 3% of its healt
 | **scelido** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | · | · |
 | **psitta** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | · | · |
 | **coelo** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | · | ✓ | ~ | · | · |
-| **hypsi** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
-| **proto** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ |
-| **galli** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
+| **hypsi** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | · | · |
+| **proto** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · | ✓ | ✓ | ~ | ~ |
+| **galli** | ✓ | ✓ | ~ | ~ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
 | **hypa** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · | ✓ | ✓ | ~ | ~ |
 | **pachy** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **raptor** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | · | ✓ | ~ | ~ | · |

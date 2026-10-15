@@ -78,12 +78,13 @@ test('a new game starts by picking one of four starter babies, a fighter or an e
   assert.equal(migrate(old).starter, true);
 });
 
-test('the fighter starters are led by strength, the explorers by agility', async () => {
-  const { SPECIES_BASE } = await import('../js/config.js');
-  const top = t => Object.entries(SPECIES_BASE[t]).sort((a, b) => b[1] - a[1])[0][0];
-  assert.deepEqual(STARTERS.map(t => [t, DIET[t][0], top(t)]), [
-    ['dilo', 'meat', 'str'], ['proto', 'leaf', 'str'], ['compy', 'meat', 'agi'], ['hypsi', 'leaf', 'agi'],
-  ]);
+test('one fighter hits harder and the other is tougher; one explorer is quicker and the other balanced', async () => {
+  const { SPECIES_BASE: B } = await import('../js/config.js');
+  assert.ok(B.dilo.str > B.dilo.res && B.proto.res > B.proto.str);
+  assert.ok(B.compy.agi > B.hypsi.agi + 20 && B.compy.agi === Math.max(...STARTERS.map(t => B[t].agi)));
+  const h = Object.values(B.hypsi);
+  assert.ok(Math.max(...h) - Math.min(...h) <= 10);
+  assert.deepEqual(STARTERS.map(t => DIET[t][0]), ['meat', 'leaf', 'meat', 'leaf']);
 });
 
 test('rarer species have higher base totals, and every species has a diet and eggs somewhere', async () => {
