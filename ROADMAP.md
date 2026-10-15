@@ -111,6 +111,16 @@ fights, more eggs). The rest belong to species found as eggs:
 - [ ] Digging: bones, amber and obsidian in badlands and volcanoes (Protoceratops, Pachycephalosaurus)
 - [ ] Training: an experienced adult trains the young
 
+### Combat roles (done) and what comes next
+
+Every species has a combat role (attacker, defender, noncombatant, fisher) and a fear: it runs, before
+the fight, from anything bigger. Wild encounters are the game's own species (packs for pack hunters).
+
+- [ ] Mounts: the player riding a fast species (Gallimimus) runs off with it instead of being left alone
+- [ ] Training: a trained noncombatant attacks foes up to its fear size (never its predators)
+- [ ] Other encounters: a herd passing by, an abandoned nest with an egg, a storm
+- [ ] Body parts: blows aimed at the head, body or neck (a Triceratops' frill, a neck critical)
+
 ## Phase 5 — Monetization
 
 Principles (decided): **never pay-to-win**. Anything bought with real money is cosmetic only. Equipment with stats is earned by playing (drops, breeding, coin shop); money buys looks, including skins that change how equipment looks without changing its stats.

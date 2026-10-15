@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from '../js/economy.js';
 import { freshState } from '../js/state.js';
-import { fight, fighterOf, creatureFighter, winChance, dangerOf } from '../js/combat.js';
+import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFight, unitOf, winChance, dangerOf } from '../js/combat.js';
 import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem } from '../js/world.js';
-import { CREATURES, BIOMES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST } from '../js/config.js';
+import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -24,7 +24,7 @@ function trip(s, id, key) {
 }
 
 test('a fight is decided by the stats and replays the same with the same rolls', () => {
-  const strong = fighterOf(dino('a', 100)), weak = creatureFighter('compy_pack', 1);
+  const strong = fighterOf(dino('a', 100)), weak = wildFighter('compy', 1);
   const one = fight(strong, weak, seededRand('x')), two = fight(strong, weak, seededRand('x'));
   assert.deepEqual(one, two);
   assert.equal(one.win, true);
@@ -37,12 +37,18 @@ test('a fight is decided by the stats and replays the same with the same rolls',
   assert.equal(dangerOf(0.1), 'Deadly');
 });
 
-test('every biome has a creature, stronger farther out and strongest in a lair', () => {
-  for (const b of Object.values(BIOMES)) assert.ok(CREATURES[b.creature]);
-  for (const id of Object.keys(CREATURES)) {
-    assert.ok(creatureFighter(id, 5).power > creatureFighter(id, 2).power);
-    assert.ok(creatureFighter(id, 5, true).power > creatureFighter(id, 5).power);
-    assert.match(creatureFighter(id, 5, true).name, /^Alpha /);
+test('every biome has its wild animals, stronger and in bigger packs farther out, strongest in a lair', () => {
+  const power = u => u.members.reduce((t, m) => t + m.power, 0);
+  for (const b of Object.values(BIOMES)) {
+    assert.ok(b.wild.length);
+    for (const e of b.wild) {
+      assert.ok(e.species ? SPECIES[e.species] : CREATURES[e.creature]);
+      assert.ok(e.loot.length && e.weight > 0);
+      assert.ok(power(encounterUnit(e, 5)) > power(encounterUnit(e, 2)));
+      assert.ok(power(encounterUnit(e, 5, true)) > power(encounterUnit(e, 5)));
+      assert.match(encounterUnit(e, 5, true).name, /^Alpha /);
+      if (e.pack) assert.ok(encounterUnit(e, 7).members.length > encounterUnit(e, 1).members.length);
+    }
   }
   const lairs = ALL_HEXES.filter(h => isLair(42, h));
   assert.ok(lairs.length > 0);
@@ -58,14 +64,15 @@ test('beating a creature brings its loot and coins on top of the hex', () => {
   const r = trip(s, 'champ', key);
   assert.equal(r.battle.win, true);
   assert.equal(r.battle.lair, true);
-  const cLoot = CREATURES[r.battle.creature].loot.map(l => l[0]);
+  const cLoot = threatAt(42, key.split(',').map(Number)).entry.loot.map(l => l[0]);
   assert.ok(r.loot.some(l => cLoot.includes(l.id)));
   assert.ok(r.coins > 0);
   assert.equal(injuredLeft(s.hatched[0], T0 + tripMins(key) * 60000) >= 0, true);
 });
 
 test('losing brings nothing, still maps the land, and leaves the dinosaur injured (critically, as it went down)', () => {
-  const s = game(dino('runt', 1, 'proto'));
+  // a Triceratops stands up to anything, so it fights even the strongest lair (and loses)
+  const s = game(dino('runt', 1, 'trike'));
   const key = lairs(42).at(-1);
   const coins = s.coins;
   const back = T0 + tripMins(key) * 60000;
@@ -107,7 +114,7 @@ test('equipment cannot change while the dinosaur is away', () => {
 test('a dinosaur brought down is critically injured: herbs do not help, a Blood Transfusion does', async () => {
   const { CRITICAL_MINS } = await import('../js/config.js');
   const { isCritical } = await import('../js/world.js');
-  const s = game(dino('runt', 1, 'proto'));
+  const s = game(dino('runt', 1, 'trike'));
   const key = lairs(42).at(-1);
   const back = T0 + tripMins(key) * 60000;
   const r = trip(s, 'runt', key);
@@ -125,4 +132,36 @@ test('a dinosaur brought down is critically injured: herbs do not help, a Blood 
   assert.equal(injuredLeft(b, back), 0);
   assert.equal(isCritical(b, back), false);
   assert.equal(countItem(s, 'transfusion'), 0);
+});
+
+test('who is afraid runs before the fight: a Gallimimus leaves the player alone with a Tyrannosaurus', async () => {
+  const { freshState } = await import('../js/state.js');
+  const rex = encounterUnit({ species: 'rex', loot: [] }, 6);
+  const galli = unitOf('g', [fighterOf(dino('g', 50, 'galli'))]);
+  const me = unitOf('You', [fighterOf(freshState().player)]);
+  const r = teamFight([me, galli], rex, seededRand('run'));
+  assert.deepEqual(r.fled, [1]);
+  assert.equal(r.escaped, false);
+  assert.ok(r.log.every(e => e.by !== 1 && e.to !== 1));
+  assert.deepEqual(r.hp[1], [galli.members[0].hp]);
+  // alone, the Gallimimus just runs: no fight at all
+  const alone = teamFight([galli], rex, seededRand('run'));
+  assert.equal(alone.escaped, true);
+  assert.equal(alone.win, false);
+  assert.deepEqual(alone.log, []);
+  // against a small pack it stays, never attacks, and only lashes back when struck
+  const compys = encounterUnit({ species: 'compy', pack: [3, 3], loot: [] }, 2);
+  const f = teamFight([me, galli], compys, seededRand('stay'));
+  assert.deepEqual(f.fled, []);
+  assert.ok(f.log.filter(e => e.by === 1).every(e => e.counter));
+});
+
+test('the foe goes for defenders more and noncombatants less', () => {
+  const foe = encounterUnit({ species: 'dilo', loot: [] }, 3);
+  const hits = { attacker: 0, defender: 0, noncombatant: 0 };
+  for (let i = 0; i < 40; i++) {
+    const team = [unitOf('a', [fighterOf(dino('a', 50, 'dilo'))]), unitOf('d', [fighterOf(dino('d', 50, 'scelido'))]), unitOf('n', [fighterOf(dino('n', 50, 'para'))])];
+    for (const e of teamFight(team, foe, seededRand('t' + i)).log) if (e.by === 'foe') hits[['attacker', 'defender', 'noncombatant'][e.to]]++;
+  }
+  assert.ok(hits.defender > hits.attacker && hits.attacker > hits.noncombatant, JSON.stringify(hits));
 });

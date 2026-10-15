@@ -1,7 +1,7 @@
 // The landing page shown before sign-in (index.html #landing): fills each section's picture with the
 // game's own art, slides sections in from alternating sides as they scroll into view, and opens the
 // sign-in window from every Play button.
-import { SPECIES, STARTERS, CREATURES } from '../config.js';
+import { SPECIES, STARTERS } from '../config.js';
 import { eggSVG, babyArt, dressedArt, playerArt } from '../art.js';
 import { sampleMapSVG } from './world.js';
 import { openSignIn } from './gate.js';
@@ -29,13 +29,12 @@ const ART = {
     return el('art-map', sampleMapSVG(7, 2));
   },
   fight() {
-    const foe = babyArt(CREATURES.wild_raptor.look, 5.5, 'm');
-    foe.style.filter = CREATURES.wild_raptor.tint;
+    const foe = babyArt('raptor', 5.5, 'm');
     const side = (name, art, hp, cls) => el('art-fighter ' + cls, `<strong>${name}</strong><span class="hp"><i style="width:${hp}%"></i></span>`, art);
     return el('art-fight',
       side('You', playerArt({ weapon: 'bone_sword', shield: 'bone_shield', head: 'hide_cap', body: 'clay_armor', feet: 'feather_boots' }, 120), 82, 'me'),
       '<span class="art-vs">VS</span>',
-      side('Wild Raptor', foe, 35, 'foe'));
+      side('Velociraptor', foe, 35, 'foe'));
   },
   breed() {
     return el('art-row art-breed', el('art-stage', babyArt('raptor', 5, 'm'), label('♂')), el('art-heart', '♥', eggSVG(SPECIES.raptor)), el('art-stage', babyArt('raptor', 5, 'f'), label('♀')));

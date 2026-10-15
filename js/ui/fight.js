@@ -1,7 +1,7 @@
 // The fight replay shown when a team comes back from a battle: the team stands on the left, one card
 // per dinosaur, the player or pack, the creature on the right, and the blows the rules already decided
 // play out one by one with health bars and damage numbers.
-import { CREATURES, SEX, PLAYER_ID } from '../config.js';
+import { CREATURES, SPECIES, SEX, PLAYER_ID } from '../config.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
 import { dressedArt, babyArt, playerArt } from '../art.js';
 import { esc } from '../util.js';
@@ -38,15 +38,31 @@ function unitArt(unit, who, n) {
   return group;
 }
 
+// the foe's picture: an animal that isn't a dinosaur in its tint, or a wild dinosaur (a few of a pack)
+function foeArt(battle) {
+  const c = CREATURES[battle.creature];
+  if (c) {
+    const art = babyArt(c.look, battle.lair ? 9 : 7.5, 'm');
+    art.style.filter = c.tint;
+    return art;
+  }
+  const big = { tiny: 3.5, small: 5, medium: 6.5, large: 7.5, huge: 8.5, colossal: 9 }[SPECIES[battle.creature].size] || 6;
+  const lead = dressedArt(battle.creature, big * (battle.lair ? 1.1 : 1), 'm', null, null, 'adult');
+  if (!battle.foe.pack) return lead;
+  const group = document.createElement('div');
+  group.className = 'pack-art';
+  for (let k = 1; k < Math.min(3, battle.foe.count); k++) group.appendChild(dressedArt(battle.creature, big * 0.75, k % 2 ? 'f' : 'm', null, null, 'adult'));
+  group.appendChild(lead);
+  return group;
+}
+
 // battle: what collectTrip returned; who(id) finds a team member
 export function playFight(battle, summary, who) {
   const dialog = document.getElementById('fightDialog');
   const body = document.getElementById('fightBody');
   clearTimeout(timer);
-  const c = CREATURES[battle.creature];
   const team = battle.team;
-  const theirs = babyArt(c.look, battle.lair ? 9 : 7.5, 'm');
-  theirs.style.filter = c.tint;
+  const theirs = foeArt(battle);
   theirs.classList.add('foe-art');
   const one = team.length === 1 && team[0].kind !== 'pack' ? who(team[0].members[0]) : null;
   const title = one ? `${esc(one.name)}${one.id === PLAYER_ID ? '' : ' ' + SEX[sexOf(one)].sym}` : team.length === 1 ? esc(team[0].name) : 'Your team';
@@ -60,11 +76,17 @@ export function playFight(battle, summary, who) {
   const hp = team.map(u => [...u.hp]);
   const sum = list => list.reduce((t, h) => t + h, 0);
   const standing = i => hp[i].filter(h => h > 0).length;
-  const packNote = i => team[i].kind === 'pack' ? `${standing(i)} / ${hp[i].length} standing` : '';
+  const fled = new Set(battle.fled || []);
+  const packNote = i => fled.has(i) ? 'Ran off' : team[i].kind === 'pack' ? `${standing(i)} / ${hp[i].length} standing` : '';
   const boxes = team.map((u, i) => fighterBox('a', u.name, u.power, unitArt(u, who, team.length), sum(u.hp), packNote(i)));
+  // those who ran before the fight are shown faded
+  boxes.forEach((b, i) => b.classList.toggle('fled', fled.has(i)));
   side.append(...boxes);
   side.classList.toggle('crowd', team.length > 2);
-  const foeBox = fighterBox('b', battle.foe.name, battle.foe.power, theirs, battle.foeMax);
+  // a wild pack's members all start with the same health
+  const foeHp = Array.from({ length: battle.foe.count || 1 }, () => battle.foeMax / (battle.foe.count || 1));
+  const foeNote = () => battle.foe.pack ? `${foeHp.filter(h => h > 0).length} / ${foeHp.length} standing` : '';
+  const foeBox = fighterBox('b', battle.foe.name, battle.foe.power, theirs, battle.foeMax, foeNote());
   arena.append(foeBox);
   const setHp = (box, now, max) => {
     const bar = box.querySelector('.hp');
@@ -91,8 +113,10 @@ export function playFight(battle, summary, who) {
     battle.hp.forEach((list, i) => { hp[i] = [...list]; showUnit(i); });
     for (const i of battle.frenzy || []) boxes[i].classList.add('frenzy');
     setHp(foeBox, battle.foeHp, battle.foeMax);
+    battle.foeHps.forEach((h, k) => { foeHp[k] = h; });
+    foeBox.querySelector('.pack-left').textContent = foeNote();
     if (battle.win) foeBox.classList.add('down');
-    else boxes.forEach(b => b.classList.add('down'));
+    else boxes.forEach((b, k) => { if (!fled.has(k)) b.classList.add('down'); });
     const res = body.querySelector('.fight-result');
     res.innerHTML = `<strong class="${battle.win ? 'win' : 'loss'}">${battle.win ? 'Victory!' : 'Defeat'}</strong> ${summary}`;
     body.querySelector('#fightSkip').hidden = true;
@@ -126,13 +150,17 @@ export function playFight(battle, summary, who) {
       showUnit(blow.ally);
     } else {
       lunge(boxes[blow.by]);
+      // a noncombatant struck lashes back
+      if (blow.counter) pop(boxes[blow.by], 'Kick!', 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops
       else if (!blow.dmg) pop(foeBox, 'No effect', 'miss');
       else {
         pop(foeBox, '−' + blow.dmg, 'dmg');
         strike(foeBox);
-        setHp(foeBox, blow.left, battle.foeMax);
+        foeHp[blow.member] = blow.left;
+        setHp(foeBox, blow.foeLeft, battle.foeMax);
+        foeBox.querySelector('.pack-left').textContent = foeNote();
       }
     }
     // bigger teams trade more blows, so they go a little faster

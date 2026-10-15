@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
-import { fighterOf, creatureFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
+import { fighterOf, creatureFighter, wildFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
 import { ALL_HEXES, hexKey, hexDist, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey } from '../js/world.js';
 import { packOf } from '../js/packs.js';
 import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES, SCOUT } from '../js/config.js';
@@ -80,7 +80,7 @@ test('a team comes home together: everyone hungry, the downed ones injured', () 
 });
 
 test('team fights replay the same and a pack loses at most one member per blow', () => {
-  const foe = creatureFighter('old_tyrant', 6);
+  const foe = wildFighter('rex', 6);
   const units = [pack('compy', 10, 50)];
   const a = teamFight(units, foe, seededRand('x')), b = teamFight(units, foe, seededRand('x'));
   assert.deepEqual(a, b);
@@ -125,7 +125,7 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
   // a hex 3 away where a small creature waits, so the fighter wins and can find eggs
   const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
     const t = threatAt(42, parseKey(k));
-    return hexDist(parseKey(k)) === 3 && !t.lair && ['compy_pack', 'wild_raptor'].includes(t.id);
+    return hexDist(parseKey(k)) === 3 && !t.lair && ['compy', 'raptor'].includes(t.id);
   });
   const trips = (team, g) => {
     const s = game(dino('d1', 'dilo', g), dino('c1', 'compy', g));
@@ -153,7 +153,7 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
 test('Allosaurus hunt alone: no packs, and two in one team may turn on each other and go into a frenzy', () => {
   const s = game(dino('a1', 'allo'), dino('a2', 'allo'));
   assert.equal(applyAction(s, 'formPack', { type: 'allo', members: ['a1', 'a2'] }).reason, 'not-pack-species');
-  const foe = creatureFighter('old_tyrant', 7);
+  const foe = wildFighter('rex', 7);
   const pair = () => [unitOf('a1', [fighterOf(dino('a1', 'allo'))]), unitOf('a2', [fighterOf(dino('a2', 'allo'))])];
   let clashes = 0;
   for (let i = 0; i < 60; i++) {

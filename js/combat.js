@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, ROLE_TARGET, ROLE_DAMAGE, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, seededRand } from './economy.js';
@@ -15,7 +15,8 @@ export function fighterOf(baby) {
   const sheet = statSheet(baby);
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
-  const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0 } : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival };
+  const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear };
   return { name: baby.name, ...sheet.derived, agi: sheet.stats.agi, power: sheet.power, ...body };
 }
 
@@ -32,16 +33,43 @@ export function sizeEdge(att, def) {
   return Math.pow(1 + SIZE_EDGE, Math.sign(steps) * Math.abs(steps));
 }
 
-// a creature at a distance from the nest, stronger in a lair
+// younger ones near the nest are a size smaller, with thinner hide; full grown at the edge of the map
+const youngSize = (size, dist, lair) => dist <= YOUNG_DIST && !lair ? SIZE_ORDER[Math.max(0, SIZE_ORDER.indexOf(size) - 1)] : size;
+const youngHide = (hide, level) => Math.round(hide * Math.min(1, level / CREATURE_LEVEL(WORLD_RADIUS)));
+const wildStats = (base, level) => Object.fromEntries(Object.entries(base).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
+
+// a wild dinosaur of one of the game's species, at a distance from the nest, stronger in a lair
+export function wildFighter(type, dist, lair = false) {
+  const sp = SPECIES[type];
+  const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
+  const stats = wildStats(sp.base, level);
+  return {
+    name: sp.species, ...deriveCombat(stats), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
+    size: youngSize(sp.size, dist, lair), bite: sp.bite, hide: youngHide(sp.hide, level), role: sp.role,
+  };
+}
+
+// what waits in a hex (an entry of WILD) as the unit it fights as: one animal, or a pack or herd
+// that grows from pack[0] next to the nest to pack[1] at the edge (the largest in a lair)
+export function encounterUnit(entry, dist, lair = false) {
+  if (entry.creature) {
+    const f = creatureFighter(entry.creature, dist, lair);
+    return unitOf(f.name, [f]);
+  }
+  const sp = SPECIES[entry.species];
+  const n = !entry.pack ? 1 : lair ? entry.pack[1] : Math.round(entry.pack[0] + (entry.pack[1] - entry.pack[0]) * Math.max(0, dist - 1) / (WORLD_RADIUS - 1));
+  const name = (lair ? 'Alpha ' : '') + (n > 1 ? `${sp.species} ${entry.herd ? 'herd' : 'pack'} (${n})` : sp.species);
+  return unitOf(name, Array.from({ length: n }, () => wildFighter(entry.species, dist, lair)), n > 1);
+}
+
+// an animal that isn't a dinosaur (CREATURES), at a distance from the nest, stronger in a lair
 export function creatureFighter(id, dist, lair = false) {
   const c = CREATURES[id];
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
-  // younger ones near the nest are a size smaller, with thinner hide; full grown at the edge of the map
-  const size = dist <= YOUNG_DIST && !lair ? SIZE_ORDER[Math.max(0, SIZE_ORDER.indexOf(c.size) - 1)] : c.size;
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size, bite: c.bite ?? BITE[c.size],
-    hide: Math.round((c.hide ?? HIDE[c.size]) * Math.min(1, level / CREATURE_LEVEL(WORLD_RADIUS))) };
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...deriveCombat(stats), agi: stats.agi, power, level, size: youngSize(c.size, dist, lair),
+    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker' };
 }
 
 // log: [{ by: 'a' | 'b', miss } | { by, dmg, left }], left being the target's health after the blow
@@ -73,13 +101,29 @@ export function winChance(a, b, runs = 120) {
 }
 
 // ---------- teams ----------
-// An expedition's team fights the creature together. A unit is one dinosaur, the player, or a pack:
-// { name, pack, members: [fighter] }. Every round each side acts in agility order: each standing unit
-// strikes the creature, and the creature strikes one standing unit (a random member of it). A blow
-// never carries over to another member, so a pack loses at most one member per blow.
+// An expedition's team fights what it meets together. A unit is one dinosaur, the player, or a pack:
+// { name, pack, members: [fighter] }; the foe is a unit too (one animal, or a wild pack or herd).
+// Before the fight, every unit facing a foe bigger than its fear flees; a team left with nobody
+// who fights runs off altogether. Then every round each side acts in agility order: each standing
+// unit strikes one member of the foe, and the foe strikes one standing unit (a random member of it),
+// going for defenders more and noncombatants less (ROLE_TARGET). A blow never carries over to
+// another member, so a pack loses at most one member per blow.
 export const unitOf = (name, members, pack = false) => ({ name, pack, members });
 const FIGHT_ROUNDS = Math.ceil(FIGHT_MAX_TURNS / 2);
 const standing = hp => hp.flatMap((h, i) => h > 0 ? [i] : []);
+const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
+// a unit's role and the biggest of a unit
+const roleOf = u => u.members[0].role || 'attacker';
+export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
+// a unit that runs from this foe: the player never does
+export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
+// which units flee before the fight; all of them when nobody left would fight
+export function whoFlees(units, foe) {
+  const fled = units.flatMap((u, i) => fears(u, foe) ? [i] : []);
+  const stay = units.flatMap((_, i) => fled.includes(i) ? [] : [i]);
+  const nobody = !stay.some(i => roleOf(units[i]) !== 'noncombatant');
+  return { fled: nobody ? units.map((_, i) => i) : fled, escaped: nobody };
+}
 
 // how a unit dodges and how fast it is while these members stand; a pack gets better at working
 // together the more of it stands
@@ -102,40 +146,76 @@ export function unitHit(u, hp, foe, roll) {
 }
 export const unitHp = u => u.members.reduce((t, m) => t + m.hp, 0);
 
-// log: [{ by: unit index, miss } | { by, dmg, left }] for the team's blows, left being the creature's
-// health; [{ by: 'foe', to, member, miss } | { by: 'foe', to, member, dmg, left }] for the creature's,
-// left being the struck member's health; [{ by, ally, member, dmg, left, clash? }] for a rival or a
-// frenzied one striking its own team (clash: the bite that starts the frenzy). A frenzied unit's
-// blows carry frenzy: true. hp: every member's health at the end, per unit; frenzy: the frenzied units.
-export function teamFight(units, foe, rand) {
+// each member's damage for its role, and for a fisher whether the fight is in the water
+function withRoles(u, swamp) {
+  return { ...u, members: u.members.map(m => {
+    const role = m.role || 'attacker';
+    const cut = ROLE_DAMAGE[role] * (role === 'fisher' ? (swamp ? FISHER.swamp : FISHER.land) : 1);
+    return cut === 1 ? m : { ...m, damage: m.damage * cut };
+  }) };
+}
+
+// log, by: a team unit's index or 'foe':
+//   { by, member, miss } | { by, member, dmg, left, foeLeft }: a team blow on the foe's member
+//     (left: that member's health, foeLeft: the whole foe's); counter: true when a noncombatant
+//     lashes back after being struck;
+//   { by: 'foe', to, member, miss } | { by: 'foe', to, member, dmg, left }: the foe striking a unit;
+//   { by, ally, member, dmg, left, clash? | frenzy? }: a rival or a frenzied one striking its own team.
+// fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
+// member's health at the end, per unit; foeHps: the foe's members'; frenzy: the frenzied units.
+// opts.swamp: the fight is in a swamp (fishers fight better).
+export function teamFight(units, foe, rand, opts = {}) {
+  if (!foe.members) foe = unitOf(foe.name, [foe]);
+  units = units.map(u => withRoles(u, opts.swamp));
+  foe = withRoles(foe, opts.swamp);
+  const { fled, escaped } = whoFlees(units, foe);
+  const inFight = i => !fled.includes(i);
   const hp = units.map(u => u.members.map(m => m.hp));
-  let foeHp = foe.hp;
-  // the order is set by agility at the start; the team goes first on a tie
-  const order = [...units.map((u, i) => ({ who: i, agi: unitPower(u).agi })), { who: 'foe', agi: foe.agi - 0.001 }]
-    .sort((a, b) => b.agi - a.agi).map(x => x.who);
-  const up = () => units.some((_, i) => standing(hp[i]).length);
-  // rivals are units of one member of a rival species; a clash sends both into a frenzy
-  const isRival = i => !units[i].pack && units[i].members.length === 1 && units[i].members[0].rival;
-  const sameKind = (i, j) => units[i].members[0].type === units[j].members[0].type;
-  const frenzy = new Set();
+  const foeHp = foe.members.map(m => m.hp);
+  const foeLeft = () => foeHp.reduce((t, h) => t + h, 0);
+  const foeMax = unitHp(foe);
+  const fighting = units.flatMap((_, i) => inFight(i) ? [i] : []);
   const log = [];
-  for (let round = 0; round < FIGHT_ROUNDS && foeHp > 0 && up(); round++) {
-    for (const who of order) {
-      if (foeHp <= 0 || !up()) break;
-      if (who === 'foe') {
-        const targets = units.flatMap((_, i) => standing(hp[i]).length ? [i] : []);
-        const to = targets[Math.floor(rand() * targets.length)];
-        const alive = standing(hp[to]);
-        const member = alive[Math.floor(rand() * alive.length)];
-        if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); continue; }
-        const hit = units[to].members[member];
-        const dmg = rounded(hitOf(foe, hit, 0.75 + rand() * 0.5));
-        hp[to][member] = Math.max(0, hp[to][member] - dmg);
-        log.push({ by: 'foe', to, member, dmg, left: hp[to][member] });
-      } else {
-        if (!standing(hp[who]).length) continue;
+  const frenzy = new Set();
+  if (!escaped) {
+    // the order is set by agility at the start; the team goes first on a tie
+    const order = [...fighting.map(i => ({ who: i, agi: unitPower(units[i]).agi })), { who: 'foe', agi: unitPower(foe).agi - 0.001 }]
+      .sort((a, b) => b.agi - a.agi).map(x => x.who);
+    const up = () => fighting.some(i => standing(hp[i]).length);
+    // rivals are units of one member of a rival species; a clash sends them into a frenzy
+    const isRival = i => !units[i].pack && units[i].members.length === 1 && units[i].members[0].rival;
+    const sameKind = (i, j) => units[i].members[0].type === units[j].members[0].type;
+    // a team blow on a random standing member of the foe
+    const strike = (who, roll, boost, extra = {}) => {
+      const alive = standing(foeHp);
+      const member = alive[Math.floor(rand() * alive.length)];
+      if (rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return; }
+      const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost);
+      foeHp[member] = Math.max(0, foeHp[member] - dmg);
+      log.push({ by: who, member, dmg, left: foeHp[member], foeLeft: foeLeft(), ...extra });
+    };
+    for (let round = 0; round < FIGHT_ROUNDS && foeLeft() > 0 && up(); round++) {
+      for (const who of order) {
+        if (foeLeft() <= 0 || !up()) break;
+        if (who === 'foe') {
+          // it goes for defenders more and noncombatants less
+          const targets = fighting.filter(i => standing(hp[i]).length);
+          const weights = targets.map(i => ROLE_TARGET[roleOf(units[i])]);
+          let pick = rand() * weights.reduce((t, w) => t + w, 0), to = targets[targets.length - 1];
+          for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { to = targets[k]; break; } }
+          const alive = standing(hp[to]);
+          const member = alive[Math.floor(rand() * alive.length)];
+          if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); continue; }
+          const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], 0.75 + rand() * 0.5));
+          hp[to][member] = Math.max(0, hp[to][member] - dmg);
+          log.push({ by: 'foe', to, member, dmg, left: hp[to][member] });
+          // a noncombatant struck lashes back once, if it still stands
+          if (roleOf(units[to]) === 'noncombatant' && standing(hp[to]).length && foeLeft() > 0) strike(to, 0.75 + rand() * 0.5, 1, { counter: true });
+          continue;
+        }
+        if (!standing(hp[who]).length || roleOf(units[who]) === 'noncombatant') continue;
         const mad = frenzy.has(who), boost = mad ? FRENZY_DAMAGE : 1;
-        const others = test => units.flatMap((_, j) => j !== who && standing(hp[j]).length && test(j) ? [j] : []);
+        const others = test => fighting.filter(j => j !== who && standing(hp[j]).length && test(j));
         // a rival may turn on another one of its kind, and then every one of them goes into a frenzy
         const rivals = isRival(who) && !mad ? others(j => isRival(j) && sameKind(j, who)) : [];
         const clash = rivals.length > 0 && rand() < RIVAL_CLASH;
@@ -155,27 +235,26 @@ export function teamFight(units, foe, rand) {
           const member = alive[Math.floor(rand() * alive.length)];
           const dmg = rounded(hitOf(units[who].members[0], units[ally].members[member], 0.75 + rand() * 0.5) * boost);
           hp[ally][member] = Math.max(0, hp[ally][member] - dmg);
-          if (clash) units.forEach((_, j) => { if (j === ally || (isRival(j) && sameKind(j, who) && standing(hp[j]).length)) frenzy.add(j); });
+          if (clash) fighting.forEach(j => { if (j === ally || (isRival(j) && sameKind(j, who) && standing(hp[j]).length)) frenzy.add(j); });
           log.push({ by: who, ally, member, dmg, left: hp[ally][member], ...(clash ? { clash: true } : { frenzy: true }) });
           continue;
         }
-        if (rand() < foe.dodge) { log.push({ by: who, miss: true }); continue; }
-        const dmg = rounded(unitHit(units[who], hp[who], foe, 0.75 + rand() * 0.5) * boost);
-        foeHp = Math.max(0, foeHp - dmg);
-        log.push({ by: who, dmg, left: foeHp, ...(mad ? { frenzy: true } : {}) });
+        strike(who, 0.75 + rand() * 0.5, boost, mad ? { frenzy: true } : {});
       }
     }
   }
-  const teamMax = units.reduce((t, u) => t + unitHp(u), 0);
-  const teamLeft = hp.flat().reduce((t, h) => t + h, 0);
-  const win = foeHp <= 0 || (teamLeft > 0 && teamLeft / teamMax >= foeHp / foe.hp);
-  return { win, log, hp, foeHp, teamMax, teamLeft, foeMax: foe.hp, frenzy: [...frenzy] };
+  // only those who stayed count for the result
+  const teamMax = fighting.reduce((t, i) => t + unitHp(units[i]), 0);
+  const teamLeft = fighting.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
+  const left = foeLeft();
+  const win = !escaped && (left <= 0 || (teamLeft > 0 && teamLeft / teamMax >= left / foeMax));
+  return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy] };
 }
 
-export function teamWinChance(units, foe, runs = 120) {
-  const rand = seededRand(`odds:${units.map(u => u.name + u.members.length).join(',')}:${foe.name}:${foe.hp}`);
+export function teamWinChance(units, foe, runs = 120, opts = {}) {
+  const rand = seededRand(`odds:${units.map(u => u.name + u.members.length).join(',')}:${foe.name}:${foe.members ? unitHp(foe) : foe.hp}`);
   let wins = 0;
-  for (let i = 0; i < runs; i++) if (teamFight(units, foe, rand).win) wins++;
+  for (let i = 0; i < runs; i++) if (teamFight(units, foe, rand, opts).win) wins++;
   return wins / runs;
 }
 

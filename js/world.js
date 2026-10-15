@@ -6,12 +6,12 @@
 // An expedition's team is up to TEAM_SLOTS units, each { kind: 'dino' | 'player' | 'pack', id, members: [id] }
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
-  BIOMES, CREATURES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
-import { fighterOf, creatureFighter, teamFight, unitOf } from './combat.js';
+import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
 import { hashId } from './util.js';
 
 // ---------- hex geometry ----------
@@ -90,13 +90,20 @@ function pickWeighted(list, rand) {
   return list[list.length - 1].type;
 }
 
-// lairs: a few hexes 3+ away where the biome's creature always waits, stronger
+// lairs: a few hexes 3+ away where an animal always waits, stronger
 export const isLair = (seed, h) => hexDist(h) >= LAIR_MIN_DIST && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
-// what waits in a hex: the creature, how likely a fight is, and whether it is a lair
+// what waits in a hex: one of its biome's wild animals (WILD), the same every time, how likely a
+// fight is, and whether it is a lair. foe is the unit it fights as; id names it (a species or a creature).
 export function threatAt(seed, h) {
   const lair = isLair(seed, h);
-  const id = BIOMES[biomeAt(seed, h)].creature;
-  return { id, lair, chance: lair ? 1 : ENCOUNTER_CHANCE(hexDist(h)), foe: creatureFighter(id, hexDist(h), lair) };
+  const list = BIOMES[biomeAt(seed, h)].wild;
+  let x = cell(seed, 0x165667b1, ...h) * list.reduce((t, e) => t + e.weight, 0);
+  const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
+  const foe = encounterUnit(entry, hexDist(h), lair);
+  return {
+    id: entry.species || entry.creature, entry, lair, chance: lair ? 1 : ENCOUNTER_CHANCE(hexDist(h)), foe,
+    power: foe.members.reduce((t, m) => t + m.power, 0),
+  };
 }
 
 export function newWorld(seed) {
@@ -273,11 +280,12 @@ export function collectExpedition(s, id, now) {
   const scout = hasScout(s, exp.members);
   if (units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1)) {
     const team = teamUnits(s, units), foe = threat.foe;
-    const result = teamFight(team, foe, fightRand);
+    const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp' });
     // a dinosaur that went down is critically injured (the player just injured); the rest are
     // bruised by how much health they lost, and everyone is injured when the team loses
     const injured = [];
-    units.forEach((u, i) => u.members.forEach((id, j) => {
+    // those who ran before the fight come home unhurt
+    units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const left = result.hp[i][j] / team[i].members[j].hp;
       const critical = left <= 0 && id !== PLAYER_ID;
       const mins = critical ? CRITICAL_MINS : !result.win || left <= 0 ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
@@ -288,21 +296,22 @@ export function collectExpedition(s, id, now) {
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }));
     battle = {
-      creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: foe.power, hp: foe.hp },
+      creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
       team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0) })),
       ...result, injured,
       // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
       frenzyCount: exp.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length,
     };
   }
-  const won = !battle || battle.win;
+  // a team that ran off still looked around the hex, but the animal's loot is not theirs
+  const won = !battle || battle.win || battle.escaped;
 
   let coins = 0, discovered = false, foundEgg = null;
   if (won) {
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, roll(l));
-    if (battle) {
+    if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;
-      for (const [item, min, max] of CREATURES[battle.creature].loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
+      for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
       coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
       // a fight that went into a frenzy drops what nothing else gives, more with more of them in it
       if (battle.frenzy.length) {
@@ -316,7 +325,7 @@ export function collectExpedition(s, id, now) {
       }
     }
     // an egg of one of the biome's species, for the egg tray
-    const lair = !!(battle && battle.lair);
+    const lair = !!(battle && battle.win && battle.lair);
     const kinds = eggKinds(biomeAt(w.seed, h), d, lair);
     if (kinds.length && rand() < EGG_CHANCE(d, lair) * (scout ? SCOUT.egg : 1)) {
       const [lo, hi] = EGG_GENES(d, lair);

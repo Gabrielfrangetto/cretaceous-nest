@@ -82,6 +82,8 @@ const SIZE = {
 };
 
 // Weapons and hide, fixed for a species whatever its genes, from how the real animal fought:
+//   role:   how it fights (ROLES_IN_COMBAT): attacker, defender, noncombatant or fisher
+//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
 //           animals with little teeth or a beak stay weak even with perfect genes.
@@ -90,27 +92,37 @@ const SIZE = {
 // is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
-  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0 },
-  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2 },
-  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10 },
-  psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3 },
-  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0 },
-  hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0 },
-  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6 },
-  galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2 },
-  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6 },
-  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8 },
-  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0 },
-  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18 },
-  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10 },
-  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8 },
-  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20 },
-  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35 },
-  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true },
-  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18 },
-  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25 },
-  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30 },
+  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', fear: 'tiny' },
+  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, role: 'attacker', fear: 'large' },
+  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', fear: 'huge' },
+  psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
+  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
+  hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', fear: 'large' },
+  galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
+  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
+  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', fear: 'large' },
+  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, role: 'attacker', fear: 'medium' },
+  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', fear: 'huge' },
+  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, role: 'fisher', fear: 'large' },
+  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
+  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, role: 'defender', fear: 'colossal' },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', fear: 'colossal' },
+  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
+  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, role: 'fisher', fear: 'huge' },
+  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, role: 'attacker', fear: 'colossal' },
+  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', fear: 'colossal' },
 };
+// How each role fights:
+//   attacker: strikes the foe in full.
+//   defender: the foe goes for it ROLE_TARGET times as often; it takes the hits and strikes back for
+//             ROLE_DAMAGE of its damage.
+//   noncombatant: never attacks and is rarely gone for; struck, it lashes back once (a kick, a tail).
+//             A team of only noncombatants runs off without a fight.
+//   fisher: at home in the water: FISHER.swamp of its damage in a swamp, FISHER.land elsewhere.
+export const ROLE_TARGET = { attacker: 1, defender: 3, noncombatant: 0.3, fisher: 1 };
+export const ROLE_DAMAGE = { attacker: 1, defender: 0.75, noncombatant: 1, fisher: 1 };
+export const FISHER = { swamp: 1.3, land: 0.85 };
 // creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
 // with thinner hide (see creatureFighter)
 export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300, colossal: 300 };
@@ -300,25 +312,33 @@ export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes 
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
-// creature: the wild animal met there (CREATURES); eggs: the species whose eggs can be found there
-// (which of them turn up depends on rarity and distance, see RARITIES)
-export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', creature: 'compy_pack', eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', creature: 'wild_raptor', eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
-  swamp:    { name: 'Swamp', color: '#6f8f7a', creature: 'deinosuchus', eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', creature: 'angry_protos', eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
-  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', creature: 'old_tyrant', eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+// What lives in each biome: one of these waits in each hex, picked by its weight (a lair holds an
+// "Alpha"). species are the game's own (wild, at CREATURE_LEVEL of their base stats; packs of
+// pack[0] next to the nest up to pack[1] at the edge); creature is an animal that isn't a dinosaur
+// (CREATURES). loot is extra, on top of the hex's, when it is beaten.
+export const WILD = {
+  meadow:   [{ species: 'compy', pack: [2, 5], weight: 2, loot: [['meat', 1, 2]] }, { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] }],
+  forest:   [{ species: 'raptor', pack: [2, 4], weight: 2, loot: [['feather', 2, 3], ['meat', 1, 2]] }, { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] }],
+  swamp:    [{ creature: 'deinosuchus', weight: 2, loot: [['clay', 2, 3], ['meat', 2, 3]] }, { species: 'bary', weight: 1, loot: [['fish', 2, 3], ['bone', 1, 2]] }],
+  badlands: [{ species: 'proto', pack: [2, 3], herd: true, weight: 2, loot: [['bone', 2, 3]] }, { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] }],
+  volcano:  [{ species: 'rex', weight: 1, loot: [['obsidian', 2, 3], ['meat', 2, 3]] }],
 };
 
-// Wild creatures. stats are at full strength; a creature met d hexes from the nest has
+// wild: the animals met there (WILD); eggs: the species whose eggs can be found there
+// (which of them turn up depends on rarity and distance, see RARITIES)
+export const BIOMES = {
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', wild: WILD.badlands, eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+};
+
+// Wild animals that aren't dinosaurs. stats are at full strength; one met d hexes from the nest has
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
-// art, recoloured with the CSS filter tint. loot is extra, on top of the hex's, when it is beaten.
+// art, recoloured with the CSS filter tint.
 export const CREATURES = {
-  compy_pack:   { name: 'Compsognathus pack', size: 'small', bite: 60, hide: 0, look: 'raptor', tint: 'hue-rotate(70deg) saturate(.8)', stats: { str: 35, agi: 75, vit: 35, res: 25 }, loot: [['meat', 1, 2]] },
-  wild_raptor:  { name: 'Wild Raptor', size: 'small', bite: 45, hide: 0, look: 'raptor', tint: 'grayscale(.7) brightness(.85)', stats: { str: 60, agi: 90, vit: 50, res: 40 }, loot: [['feather', 2, 3], ['meat', 1, 2]] },
-  deinosuchus:  { name: 'Deinosuchus', size: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 }, loot: [['clay', 2, 3], ['meat', 2, 3]] },
-  angry_protos: { name: 'Angry Protoceratops herd', size: 'medium', bite: 70, hide: 6, look: 'proto', tint: 'sepia(.5) saturate(1.8) hue-rotate(-20deg)', stats: { str: 60, agi: 35, vit: 75, res: 90 }, loot: [['bone', 2, 3]] },
-  old_tyrant:   { name: 'Old Tyrant', size: 'huge', bite: 260, hide: 25, look: 'rex', tint: 'grayscale(.5) brightness(.7) contrast(1.2)', stats: { str: 100, agi: 35, vit: 95, res: 85 }, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+  deinosuchus:  { name: 'Deinosuchus', size: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
 };
 // (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
 export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge

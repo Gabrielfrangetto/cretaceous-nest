@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { teamWinChance, dangerOf } from '../combat.js';
+import { teamWinChance, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
@@ -138,12 +138,18 @@ function mapSVG(t) {
 function threatHTML(h, units, scout) {
   if (!isRevealed(S, hexKey(...h))) return '<p class="hint">Unknown dangers.</p>';
   const th = threatAt(S.world.seed, h);
-  const odds = units.length ? teamWinChance(units, th.foe) : null;
-  const power = units.reduce((t, u) => t + u.members.reduce((x, m) => x + m.power, 0), 0);
-  const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : 'Your team';
+  const swamp = biomeAt(S.world.seed, h) === 'swamp';
+  // who would run from it before the fight, and how the rest would do
+  const run = units.length ? whoFlees(units, th.foe) : { fled: [], escaped: false };
+  const odds = units.length && !run.escaped ? teamWinChance(units, th.foe, 120, { swamp }) : null;
+  const power = units.reduce((t, u, i) => run.fled.includes(i) ? t : t + u.members.reduce((x, m) => x + m.power, 0), 0);
+  const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : run.fled.length ? 'Who stays' : 'Your team';
   const danger = odds == null ? '' : dangerOf(odds);
+  const runners = run.fled.map(i => units[i].name);
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
-    <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.foe.power}</span></p>
+    <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
+    ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>`
+      : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
     <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}`}</p>
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
   </div>`;
@@ -364,11 +370,15 @@ function bindTrips(box) {
       : ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
     const mad = r.battle && r.battle.frenzy.length
       ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy.` : '';
-    message = r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${mad}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${mad}${hurt}${critical}${follow}${mapped}`;
+    const ran = r.battle ? r.battle.fled.map(i => r.battle.team[i].name) : [];
+    const runText = !ran.length || (r.battle && r.battle.escaped) ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
+    message = r.battle && r.battle.escaped
+      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
+      : r.battle && !r.battle.win
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${runText}${mad}${hurt}${critical}${mapped}`
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${runText}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
-    if (r.battle) playFight(r.battle, message, byId);
+    if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {
     act('recall', { id: btn.dataset.recall });
