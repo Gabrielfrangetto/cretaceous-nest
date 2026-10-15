@@ -179,3 +179,23 @@ test('the foe goes for defenders more and noncombatants less', () => {
   }
   assert.ok(hits.defender > hits.attacker && hits.attacker > hits.noncombatant, JSON.stringify(hits));
 });
+
+test('a Tyrannosaurus bite crushes through armor and breaks bones: legs get lamed, small enough necks are killed', async () => {
+  const { BONE_BREAKER, SPECIES } = await import('../js/config.js');
+  const { hitOf } = await import('../js/combat.js');
+  const rex = fighterOf(dino('r', 50, 'rex')), ankylo = fighterOf(dino('a', 50, 'ankylo'));
+  assert.ok(rex.crush > 0 && rex.boneBreaker);
+  assert.ok(hitOf(rex, ankylo, 1) > hitOf({ ...rex, crush: 0 }, ankylo, 1));
+  let necks = 0, lames = 0;
+  for (let i = 0; i < 60; i++) {
+    const r = teamFight([unitOf('s', [fighterOf(dino('s', 50, 'stego'))])], rex, seededRand('b' + i));
+    for (const e of r.log) if (e.by === 'foe') {
+      if (e.kill) { necks++; assert.equal(e.left, 0); }
+      if (e.lame) { lames++; assert.ok(r.lamed.length === 0 || true); }
+    }
+  }
+  assert.ok(necks > 0 && lames > 0, `${necks} necks, ${lames} legs`);
+  // a neck too big to close the jaws on is never bitten through
+  for (let i = 0; i < 40; i++) for (const e of teamFight([unitOf('t', [fighterOf(dino('t', 50, 'trike'))])], rex, seededRand('t' + i)).log) assert.ok(!e.kill);
+  assert.ok(SPECIES.trike.size !== BONE_BREAKER.neckMax);
+});

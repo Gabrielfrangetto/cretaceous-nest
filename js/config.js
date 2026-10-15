@@ -86,6 +86,8 @@ const SIZE = {
 //   charge: a defender's chance a turn to charge instead of holding its ground
 //   fisher: at home in the water (FISHER)
 //   fragile: a share of the health its body would have (Coelophysis: hollow, bird-like bones)
+//   crush: the share of the target's hide and damage reduction its bite goes through
+//   boneBreaker: its bites land on a body part (BONE_BREAKER)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -113,7 +115,7 @@ export const BODY = {
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, role: 'defender', charge: 0.15, fear: 'colossal' },
   allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
   spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', fear: 'huge' },
-  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, role: 'attacker', fear: 'colossal' },
+  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', fear: 'colossal' },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
 };
 // How each role fights:
@@ -363,6 +365,10 @@ export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
 export const SIZE_EDGE = 0.3;
+// Where a bone-breaking bite lands (Tyrannosaurus: it crushed and swallowed bone). A leg may be
+// lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
+// outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
+export const BONE_BREAKER = { parts: [['body', 0.65], ['leg', 0.27], ['neck', 0.08]], lame: 0.35, lameCut: 0.5, neckMax: 'large' };
 // health grows with the body: a size's share of the health its stats give (medium as it is)
 export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg

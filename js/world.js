@@ -295,7 +295,9 @@ export function collectExpedition(s, id, now) {
     units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const left = result.hp[i][j] / team[i].members[j].hp;
       const critical = left <= 0 && id !== PLAYER_ID;
-      const mins = critical ? CRITICAL_MINS : !result.win || left <= 0 ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
+      // a leg lamed by a bone-breaking bite comes home injured at least
+      const lame = result.lamed.some(([a, b]) => a === i && b === j);
+      const mins = critical ? CRITICAL_MINS : !result.win || left <= 0 || lame ? INJURY_MINS : left < 0.5 ? Math.round(BRUISE_MINS * (1 - left * 2)) : 0;
       if (!mins) return;
       const b = explorerOf(s, id);
       b.injuredUntil = now + mins * 60000;

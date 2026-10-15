@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -17,7 +17,7 @@ export function fighterOf(baby, extra = []) {
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker' }
-    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher };
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, power: sheet.power, ...body };
 }
 
@@ -26,7 +26,9 @@ export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
 
 // what one blow does before rounding, roll being the ±25% (0.75 to 1.25): 0 when the hide stops it
 export function hitOf(att, def, roll) {
-  const landed = Math.min(att.bite ?? Infinity, att.damage * roll) * (1 - def.reduction) - (def.hide || 0);
+  // a crushing bite goes through part of the hide and the damage reduction
+  const pierce = 1 - (att.crush || 0);
+  const landed = Math.min(att.bite ?? Infinity, att.damage * roll) * (1 - def.reduction * pierce) - (def.hide || 0) * pierce;
   return landed > 0 ? landed * sizeEdge(att, def) : 0;
 }
 const rounded = hit => hit > 0 ? Math.max(1, Math.round(hit)) : 0;
@@ -50,7 +52,7 @@ export function wildFighter(type, dist, lair = false) {
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher,
+    size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker,
   };
 }
 
@@ -167,6 +169,8 @@ function withRoles(u, swamp) {
 //     counter: striking back when attacked; opening: a noncombatant's blow while the foe is busy;
 //   { by: 'foe', to, member, miss } | { by: 'foe', to, member, dmg, left }: the foe striking a unit;
 //   { by, ally, member, dmg, left, clash? | frenzy? }: a rival or a frenzied one striking its own team.
+//   A bone-breaking bite adds part ('body' | 'leg' | 'neck'), and lame or kill; a stomp that catches
+//   more of a pack adds also: [{ member, dmg, left }].
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
 // member's health at the end, per unit; foeHps: the foe's members'; frenzy: the frenzied units.
 // opts.swamp: the fight is in a swamp (fishers fight better).
@@ -183,6 +187,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   const fighting = units.flatMap((_, i) => inFight(i) ? [i] : []);
   const log = [];
   const frenzy = new Set();
+  // members lamed by a bone-breaking bite: [unit, member]
+  const lamed = [];
   if (!escaped) {
     // the order is set by agility at the start; the team goes first on a tie
     const order = [...fighting.map(i => ({ who: i, agi: unitPower(units[i]).agi })), { who: 'foe', agi: unitPower(foe).agi - 0.001 }]
@@ -198,8 +204,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return; }
       const dmg = rounded(unitHit(units[who], hp[who], foe.members[member], roll) * boost);
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
+      const bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
       const also = sweep(units[who], foe, foeHp, member, m => rounded(unitHit(units[who], hp[who], foe.members[m], roll) * boost));
-      log.push({ by: who, member, dmg, left: foeHp[member], ...(also.length ? { also } : {}), foeLeft: foeLeft(), ...extra });
+      log.push({ by: who, member, dmg, left: foeHp[member], ...bone, ...(also.length ? { also } : {}), foeLeft: foeLeft(), ...extra });
     };
     // A blow from something much bigger than a pack's members catches more of them at once (a stomp,
     // a swipe of the tail): one more for every size step past the first. hit(m) is its damage on m.
@@ -208,6 +215,22 @@ export function teamFight(units, foe, rand, opts = {}) {
       const more = sizeRank(biggest(att)) - sizeRank(target.members[first].size) - 1;
       const others = standing(thp).filter(m => m !== first).slice(0, Math.max(0, more));
       return others.map(m => { const dmg = hit(m); thp[m] = Math.max(0, thp[m] - dmg); return { member: m, dmg, left: thp[m] }; });
+    };
+    // A bone-breaking bite (a unit led by a boneBreaker) lands on a body part: a leg may be lamed (the
+    // member keeps half its dodge and agility), a neck no bigger than neckMax is killed outright.
+    // Returns what it did, for the log.
+    const breakBones = (att, target, thp, m, who) => {
+      if (!att.members[0].boneBreaker || thp[m] <= 0) return {};
+      let x = rand();
+      const part = (BONE_BREAKER.parts.find(([, w]) => (x -= w) < 0) || BONE_BREAKER.parts[0])[0];
+      const hit = target.members[m];
+      if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax)) { thp[m] = 0; return { part, kill: true }; }
+      if (part === 'leg' && !hit.lame && rand() < BONE_BREAKER.lame) {
+        target.members[m] = { ...hit, lame: true, dodge: hit.dodge * BONE_BREAKER.lameCut, agi: hit.agi * BONE_BREAKER.lameCut };
+        if (who !== 'foe') lamed.push([who, m]);
+        return { part, lame: true };
+      }
+      return { part };
     };
     // defenders out of their guard after a charge
     const exposed = new Set();
@@ -238,8 +261,9 @@ export function teamFight(units, foe, rand, opts = {}) {
           const roll = 0.75 + rand() * 0.5;
           const dmg = rounded(unitHit(foe, foeHp, units[to].members[member], roll) * open);
           hp[to][member] = Math.max(0, hp[to][member] - dmg);
+          const bone = dmg > 0 ? breakBones(foe, units[to], hp[to], member, to) : {};
           const also = sweep(foe, units[to], hp[to], member, m => rounded(unitHit(foe, foeHp, units[to].members[m], roll) * open));
-          log.push({ by: 'foe', to, member, dmg, left: hp[to][member], ...(also.length ? { also } : {}) });
+          log.push({ by: 'foe', to, member, dmg, left: hp[to][member], ...bone, ...(also.length ? { also } : {}) });
           afterAttack(to);
           continue;
         }
@@ -286,7 +310,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamLeft = fighting.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
   const win = !escaped && (left <= 0 || (teamLeft > 0 && teamLeft / teamMax >= left / foeMax));
-  return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy] };
+  return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed };
 }
 
 export function teamWinChance(units, foe, runs = 120, opts = {}) {
