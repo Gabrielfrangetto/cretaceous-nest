@@ -109,6 +109,7 @@ const SIZE = {
 //   camo:   the biome it blends into (VISIBILITY, CAMO)
 //   digest: gets hungry this many times more slowly (gizzard stones)
 //   crack:  a nut-cracking beak that may break a small foe's limb when it strikes back (CRACK)
+//   creche: an adult in the nest raises its hatchlings with a strong stomach (CRECHE)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -128,7 +129,7 @@ export const BODY = {
   compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
   dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
-  psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, role: 'noncombatant', fear: 'small' },
+  psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, creche: true, role: 'noncombatant', fear: 'small' },
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
@@ -536,6 +537,10 @@ export const CAMO = { target: 0.4 };
 // Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow
 // that lands may break a limb chance of the time.
 export const CRACK = { chance: 0.2 };
+// A group of 34 young Psittacosaurus was found together with an older one: a creche. A baby that
+// hatches with an adult Psittacosaurus in the nest (not out exploring) grows a strong stomach: it gets
+// hungry stomach times more slowly, for life.
+export const CRECHE = { stomach: 1.25 };
 export const NURSE = { hatch: 0.25, perOne: 0.01, max: 0.1 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped

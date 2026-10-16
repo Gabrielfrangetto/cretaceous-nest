@@ -136,6 +136,8 @@ function sanitize(s) {
     ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined } : { injuredUntil: undefined, critical: undefined }),
     // raised among Hypacrosaurus: a share more of every stat (NURSE)
     care: Number(b.care) > 0 ? Math.min(NURSE.max, Number(b.care)) : undefined,
+    // raised in a Psittacosaurus creche: it gets hungry more slowly (CRECHE)
+    stomach: b.stomach === true || undefined,
     // a damaged frill (Triceratops), from 0 to just under whole
     frill: SPECIES[b.type].frill && Number.isInteger(b.frill) && b.frill >= 0 && b.frill < FRILL.hp ? b.frill : undefined,
     // only real equipment, each in its own slot

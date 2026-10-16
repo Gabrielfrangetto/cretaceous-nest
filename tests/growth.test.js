@@ -70,3 +70,18 @@ test('Hypacrosaurus grows up half again as fast, nurses the eggs and raises stro
   assert.ok(raised.stats.str > bare.stats.str);
   assert.ok(SPECIES.hypa.growth > 1);
 });
+
+test('a baby raised with an adult Psittacosaurus in the nest gets a strong stomach', async () => {
+  const { startEgg, hatchEgg, hungerEvery } = await import('../js/economy.js');
+  const { freshState } = await import('../js/state.js');
+  const genes = { str: 80, agi: 80, vit: 80, res: 80 };
+  const s = freshState();
+  startEgg(s, 'dilo', 0);
+  const plain = hatchEgg(s, s.current.duration, () => 0.5).baby;
+  assert.equal(plain.stomach, undefined);
+  s.hatched.push({ id: 'ps', type: 'psitta', sex: 'f', name: 'ps', at: 0, gen: 1, fed: 30, genes, equip: {} });
+  startEgg(s, 'dilo', 0);
+  const raised = hatchEgg(s, s.current.duration, () => 0.5).baby;
+  assert.equal(raised.stomach, true);
+  assert.ok(hungerEvery({ ...raised, id: 'same' }) > hungerEvery({ ...plain, id: 'same' }));
+});

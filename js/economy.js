@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, huntSighting, healBaby, transfuse, mendFrill } from './world.js';
@@ -267,6 +267,8 @@ export function hatchEgg(s, now, rand = Math.random) {
   // raised among Hypacrosaurus: a little more of every stat for life
   const care = Math.min(NURSE.max, nurses(s).length * NURSE.perOne);
   if (care > 0) baby.care = Math.round(care * 100) / 100;
+  // raised in a Psittacosaurus creche: a strong stomach
+  if (s.hatched.some(b => SPECIES[b.type] && SPECIES[b.type].creche && stageOf(b).id === 'adult' && !isAway(s, b.id))) baby.stomach = true;
   s.hatched.unshift(baby);
   const lootId = HATCH_LOOT[type];
   const lost = addItem(s, lootId, 1) > 0;
@@ -280,7 +282,9 @@ export function hatchEgg(s, now, rand = Math.random) {
 export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id) % 2 ? 'm' : 'f');
 
 // (gizzard stones: a species that digests well gets hungry more slowly)
-export const hungerEvery = b => Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000 * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1));
+// (and one raised in a Psittacosaurus creche has a strong stomach)
+export const hungerEvery = b => Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000
+  * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1) * (b.stomach ? CRECHE.stomach : 1));
 export const isHungry = (b, now) => now - (b.lastFed || b.at) >= hungerEvery(b);
 
 // the meal a species would eat now: its favourite food that is in the inventory, or null
