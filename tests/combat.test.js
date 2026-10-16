@@ -883,3 +883,41 @@ test('a Baryonyx brings home fish from the swamp', () => {
   assert.ok(checked > 0);
 });
 function trip0(s, id, key) { return trip(s, id, key); }
+
+test('Hypsilophodon: zigzags away from bigger attackers, forages on any trip, and a herd spots predators in time to scatter', async () => {
+  const { huntOdds, teamUnits, eyesChance } = await import('../js/world.js');
+  const { EYES, PACK_LIMITS, HERDS } = await import('../js/config.js');
+  assert.equal(PACK_LIMITS.hypsi, 6);
+  assert.ok(HERDS.includes('hypsi'));
+  // zigzags: a bigger attacker (Allosaurus) misses it more than the same one without them
+  const misses = zigzag => {
+    let n = 0, all = 0;
+    for (let i = 0; i < 40; i++) for (const e of teamFight([unitOf('h', [{ ...fighterOf(dino('h', 80, 'hypsi')), fear: undefined, role: 'defender', zigzag }])], wildFighter('allo', 4), seededRand('zz' + i)).log) {
+      if (e.by === 'foe' && e.to === 0) { all++; if (e.miss) n++; }
+    }
+    return n / all;
+  };
+  assert.ok(misses(true) > misses(false) + 0.05, `${misses(true)} vs ${misses(false)}`);
+  // harder to run down when hunted
+  const s = game(dino('r', 60, 'raptor'));
+  const team = teamUnits(s, [{ kind: 'dino', id: 'r', members: ['r'] }]);
+  const prey = wildFighter('hypsi', 4);
+  assert.ok(huntOdds(team, prey).chance < huntOdds(team, { ...prey, zigzag: false }).chance);
+  // more eyes, likelier to see a predator first (capped)
+  const ids = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+  const herd = game(...ids.map(id => dino(id, 60, 'hypsi')));
+  assert.equal(eyesChance(herd, ['h1']), EYES.perOne);
+  assert.ok(eyesChance(herd, ids) > eyesChance(herd, ['h1', 'h2']) && eyesChance(herd, ids) <= EYES.max);
+  // a herd going into a raptor lair: sometimes it scatters in time, and then nobody is caught
+  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  let scattered = 0, leaves = 0;
+  for (let trip = 0; trip < 60; trip++) {
+    const s2 = game(...ids.slice(0, 4).map(id => dino(id, 60, 'hypsi')));
+    s2.world.trips = trip;
+    const r = applyAction(s2, 'explore', { team: ids.slice(0, 4).map(id => ({ kind: 'dino', id })), hex: lair }, T0);
+    const c = applyAction(s2, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    if (c.chase) { scattered++; assert.equal(c.chase.scattered, true); assert.equal(c.chase.caught, null); assert.equal(c.battle, null); assert.equal(c.died.length, 0); }
+    if (!c.battle || c.battle.win || c.battle.escaped) leaves += c.loot.filter(l => l.id === 'leaf').length ? 1 : 0;
+  }
+  assert.ok(scattered > 0 && leaves > 0, JSON.stringify({ scattered, leaves }));
+});

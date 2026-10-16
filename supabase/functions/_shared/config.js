@@ -113,6 +113,9 @@ const SIZE = {
 //   fisher: at home in the water: { water, land } its blows' times, landAgi its agility kept on land
 //   hook:   a thumb claw that may hook what it strikes (HOOK)
 //   fishing: [min, max] fish it brings home from a water hex
+//   zigzag: runs in zigzags: harder to hit for anything bigger than it (ZIGZAG), and to run down
+//   forage: self-sharpening teeth: brings home plants from any trip, [item, min, max, chance] each
+//   eyes:   lived in groups: each one in a team may see a predator first, and the team scatters (EYES)
 //   sail:   a sail that intimidates: smaller wild predators keep away from its team, and one as big may
 //           back off after sizing it up (SAIL)
 //   kick:   its blows back land this many times as hard (a long-legged kick)
@@ -137,7 +140,7 @@ export const BODY = {
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, creche: true, role: 'noncombatant', fear: 'small' },
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
-  hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
+  hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, zigzag: true, forage: [['leaf', 1, 2], ['herb', 1, 1, 0.25]], eyes: true, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
@@ -188,7 +191,7 @@ export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
   proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
   compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs.' },
-  hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, but a team it leads travels faster, keeps clear of danger and finds more eggs.' },
+  hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, darting in zigzags that bigger animals struggle to follow. A team it leads travels faster, keeps clear of danger and finds more eggs; it browses on the way and brings plants home, and in a herd its many eyes often spot a predator in time for everyone to scatter.' },
 };
 // a team with a scout in it
 export const SCOUT = { trip: 0.75, encounter: 0.5, egg: 1.5 };
@@ -336,9 +339,9 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. Each member still fights as itself, with its
 // own stats: a pack's turn is all of them striking at once (as many on one foe as can reach it), each
 // PACK_BONUS harder for every other one striking with it.
-export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6, hypa: 10 };
+export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6, hypa: 10, hypsi: 6 };
 // species whose groups are herds rather than packs (only the name changes)
-export const HERDS = ['para', 'hypa'];
+export const HERDS = ['para', 'hypa', 'hypsi'];
 // a species with fullPack: a pack of it at its limit gives every member this much more of every stat
 // (Coelophysis: hundreds were found together at Ghost Ranch)
 
@@ -561,6 +564,12 @@ export const RUNNER = { trip: 0.5, eye: 0.25 };
 // off, likelier in the water (where its owner is at home) and the stronger its owner is next to it
 // (power ratio, clamped); a lair's Alpha defends its ground and never backs off
 export const SAIL = { land: 0.35, water: 0.55, ratio: [0.5, 1.5], max: 0.85 };
+// zigzag running (Hypsilophodon): this much more dodge a size step the attacker is bigger (within the
+// usual cap), and a hunter needs this much more to run one down
+export const ZIGZAG = { perStep: 0.06, hunt: 1.3 };
+// many eyes (Hypsilophodon): each one in a team sees a predator first this often (up to max); the
+// group scatters in zigzags and nobody is caught
+export const EYES = { perOne: 0.05, max: 0.3 };
 export const HOOK = { chance: 0.3, pierce: 0.5, bleed: 0.006, maxBleed: 3 };
 // Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
 // neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,

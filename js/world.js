@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -325,7 +325,8 @@ export function huntOdds(team, prey) {
     if (!able.length) return;
     const top = able.reduce((b, m) => m.agi + SPECIES[m.type].hunt > b.agi + SPECIES[b.type].hunt ? m : b);
     const score = (top.agi + SPECIES[top.type].hunt) * (1 + PACK_BONUS * (u.pack ? u.members.length - 1 : 0));
-    const chance = score / (score + prey.agi);
+    // a zigzag runner (Hypsilophodon) is harder to run down
+    const chance = score / (score + prey.agi * (prey.zigzag ? ZIGZAG.hunt : 1));
     if (!best || chance > best.chance) best = { unit: i, hunter: u.pack ? u.name : top.name, chance };
   });
   return best;
@@ -388,6 +389,8 @@ export function tripStandoff(s, id) {
 const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
 // whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
 const runnersSpot = (s, members, rand) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye);
+// whether a team's watchful ones (Hypsilophodon) see a predator first: more eyes, likelier (EYES)
+export const eyesChance = (s, members) => Math.min(EYES.max, EYES.perOne * members.filter(id => bodyOf(s, id).eyes).length);
 // how a group that stood its ground is told: its species, how many, and whether it's a herd or a pack
 const standoffOf = threat => ({
   name: threat.foe.name, species: SPECIES[threat.entry.species].species, count: threat.foe.members.length,
@@ -449,6 +452,9 @@ export function collectExpedition(s, id, now, choice = {}) {
       else { caught.injuredUntil = now + CRITICAL_MINS * 60000; caught.critical = true; }
     }
     chase = { name: threat.foe.name, count: threat.foe.members.length, caught: caught ? caught.id : null, died: !!caught && dead.includes(caught.id) };
+  } else if (meets && !standsGround(threat.foe) && eyesChance(s, exp.members) && fightRand() < eyesChance(s, exp.members)) {
+    // watchful ones (Hypsilophodon) saw the predator first: the team scatters in zigzags, nobody is caught
+    chase = { name: threat.foe.name, count: threat.foe.members.length, caught: null, died: false, scattered: true };
   } else if (meets && standsGround(threat.foe) && !choice.fight) {
     // it stood its ground and the team left it in peace
     standoff = { ...standoffOf(threat), fought: false };
@@ -507,6 +513,10 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (WATER_BIOMES.includes(biomeAt(w.seed, h))) for (const id of exp.members) {
       const f = bodyOf(s, id).fishing;
       if (f) give('fish', f[0] + Math.floor(rand() * (f[1] - f[0] + 1)));
+    }
+    // a forager with self-sharpening teeth (Hypsilophodon) brings home plants from anywhere
+    for (const id of exp.members) for (const [item, min, max, chance = 1] of bodyOf(s, id).forage || []) {
+      if (rand() < chance) give(item, min + Math.floor(rand() * (max - min + 1)));
     }
     if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;

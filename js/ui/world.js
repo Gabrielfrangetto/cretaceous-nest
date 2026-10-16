@@ -1,6 +1,6 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, put a team together, send it; when it comes back, collect what it found.
-import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS } from '../config.js';
+import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -158,6 +158,8 @@ function threatHTML(h, units, scout) {
   const runners = run.fled.map(i => units[i].name);
   // a rival as big as a Spinosaurus in the team may back off from its sail
   const sail = units.length ? sailBackOff(th, units, biomeAt(S.world.seed, h)) : 0;
+  // watchful ones (Hypsilophodon) may see a predator first and the team scatters
+  const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0));
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>`
@@ -167,6 +169,7 @@ function threatHTML(h, units, scout) {
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
     ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off: about ${Math.round(sail * 100)}% of the time.</p>` : ''}
     ${fight ? riskHTML(units, fight.death) : ''}
+    ${eyes && (th.foe.members[0].role || 'attacker') === 'attacker' ? `<p class="hint">Your Hypsilophodon may see it first (about ${Math.round(eyes * 100)}%): the team scatters and nobody is caught.</p>` : ''}
     ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it may catch the slowest one, and the one caught may not survive.</p>' : ''}
   </div>`;
 }
@@ -460,7 +463,8 @@ function bindTrips(box) {
     const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';
     // runners saw a predator first and the team ran
     const deadName = id => ((r.died || []).find(x => x.id === id) || {}).name || hurtName(id);
-    const ran2 = r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
+    const ran2 = r.chase && r.chase.scattered ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group before it struck. Everyone scattered in zigzags and got away.`
+      : r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
     // the dead, from the fight
     const lost = (r.died || []).filter(x => !r.chase || x.id !== r.chase.caught);
     const mourn = lost.length ? ` ${esc(listNames(lost.map(x => x.name)))} did not survive the fight.` : '';
