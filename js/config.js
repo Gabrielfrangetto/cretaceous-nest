@@ -99,7 +99,8 @@ const SIZE = {
 //   guard: a fighting stance that may turn a blow aside and strike back at once (SPIKES)
 //   throat: small bones covering the throat (THROAT)
 //   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
-//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
+//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
+//           Nothing short of a giant sauropod stands up to one: colossal is theirs alone. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
 //   biped:  walks on two legs, with two arms (otherwise on four legs)
@@ -126,11 +127,11 @@ export const BODY = {
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
-  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
-  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'colossal' },
+  trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
   spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
-  rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'colossal' },
+  rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'huge' },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
 };
 // How each role fights:

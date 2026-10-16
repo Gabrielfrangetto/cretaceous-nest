@@ -23,11 +23,11 @@ Role: attacker (goes for the foe), defender (charges or holds its ground and str
 | Stegosaurus | large | Spiked tail (the thagomizer) | 130 | 18 | defender | huge |
 | Baryonyx | large | Huge thumb claws and fish-catching jaws | 140 | 10 | attacker | large |
 | Parasaurolophus | large | Tail and kicks | 55 | 8 | noncombatant | large |
-| Triceratops | huge | Three horns and a shield of a frill | 170 | 20 | defender | colossal |
-| Ankylosaurus | huge | Bony tail club; armored all over | 160 | 35 | defender | colossal |
+| Triceratops | huge | Three horns and a shield of a frill | 170 | 20 | defender | huge |
+| Ankylosaurus | huge | Bony tail club; armored all over | 160 | 35 | defender | huge |
 | Allosaurus | large | Blade-like teeth, slashing bites | 160 | 12 | attacker | huge |
 | Spinosaurus | huge | Long jaws and big claws | 180 | 18 | attacker | huge |
-| Tyrannosaurus | huge | The strongest bite of any land animal | 260 | 25 | attacker | colossal |
+| Tyrannosaurus | huge | The strongest bite of any land animal | 260 | 25 | attacker | huge |
 | Argentinosaurus | colossal | Its sheer weight: stomps and a whip-like tail | 200 | 30 | defender | colossal |
 
 ## Who each one can't hurt
