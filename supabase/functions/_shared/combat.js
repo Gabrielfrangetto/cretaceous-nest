@@ -211,7 +211,8 @@ function withRoles(u, swamp) {
 //   A Stegosaurus' tail adds spiked to its counters and charges (impaled with lame when it goes
 //   through a leg); a blow it turns aside is { ..., dmg: 0, guarded: true }, answered at once by a
 //   counter with guard: true; a blow on its covered throat adds throat.
-//   A Pachycephalosaurus' charge lands on the flank and may add knocked (it loses its next action:
+//   A Pachycephalosaurus' charge lands on the flank and may add knocked, with rose when the one knocked
+//   down won agility against it and got straight back up (otherwise it loses its next action:
 //   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
 //   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
 //   (the foe's running off is a win).
@@ -261,9 +262,15 @@ export function teamFight(units, foe, rand, opts = {}) {
   // { s, u, at: its member, t, v, m: the one held, ... }.
   const clinging = new Map(), holding = new Map(), latches = new Map(), beaks = new Map();
   // units that lost their footing (they miss their next turn), and defenders out of their guard
-  const stunned = new Set(), exposed = new Set();
-  // animals knocked down: they lose their next action
+  const exposed = new Set();
+  // Animals knocked down (a butt to the flank, a fall): one that wins agility against the one that
+  // floored it gets straight back up; otherwise it loses its next action. Returns whether it rose.
   const knocked = new Set();
+  const knockDown = (t, v, m, agi) => {
+    if (contest(S[t][v].members[m].agi, agi)) return true;
+    knocked.add(E(t, v, m));
+    return false;
+  };
   const holderUp = h => hp[h.s][h.u][h.at] > 0;
   const heldBy = (map, t, v, m) => [...map.values()].find(h => h.t === t && h.v === v && h.m === m && holderUp(h));
   // pinned under a claw or in a beak, it can't strike or dodge
@@ -409,7 +416,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (throat < 1) bone.throat = true;
     if (domed) bone = { part: 'head', dome: true };
     // butted in the flank, it may go down and lose its next action
-    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) { knocked.add(E(t, v, m)); bone = { ...bone, knocked: true }; }
+    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) bone = { ...bone, knocked: true, rose: knockDown(t, v, m, att.agi) };
     // the spikes leave a wound that bleeds, and may go through a leg
     if (spiked && dmg > 0 && hp[t][v][m] > 0) {
       const wounds = spikeWounds.get(E(t, v, m)) || 0;
@@ -591,8 +598,6 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (hp[s][u][h.m] <= 0 || !holderUp(h)) { holding.delete(k); continue; }
       if (contest(unit.members[h.m].str, S[h.s][h.u].members[h.at].str)) { holding.delete(k); log.push(entry(s, u, h.m, h.u, h.at, { broke: true })); }
     }
-    // knocked off its feet: it misses this turn
-    if (stunned.delete(key)) { log.push(selfEntry(s, u, { recovering: true })); return; }
     // knocked down, a lone animal spends its turn getting up
     if (!unit.pack && knocked.delete(E(s, u, 0))) { log.push(selfEntry(s, u, { recovering: true })); return; }
     // pinned under a claw or in a beak, a lone animal can do nothing
@@ -623,7 +628,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       else {
         clinging.delete(key);
         const landed = contest(lead.agi, prey.agi);
-        if (!landed) stunned.add(key);
+        if (!landed) knocked.add(E(s, u, cl.at));
         log.push(entry(s, u, cl.at, cl.v, cl.m, { fell: true, landed }));
         return;
       }

@@ -535,7 +535,7 @@ test('two legs and two arms, or four legs: a low tail blow only finds legs, a bi
 
 test('a Pachycephalosaurus butts flanks and may knock the foe down; its dome shrugs off head blows from its size or smaller', () => {
   const pachy = () => unitOf('p', [{ ...fighterOf(dino('p', 60, 'pachy')), fear: undefined }]);
-  const seen = { butts: 0, knocked: 0, lostTurn: 0, dome: 0, bigHead: 0 };
+  const seen = { butts: 0, knocked: 0, lostTurn: 0, rose: 0, dome: 0, bigHead: 0 };
   for (let i = 0; i < 60; i++) {
     for (const foe of [wildFighter('dilo', 5), wildFighter('rex', 4)]) {
       const r = teamFight([pachy()], foe, seededRand('pa' + foe.name + i));
@@ -545,14 +545,16 @@ test('a Pachycephalosaurus butts flanks and may knock the foe down; its dome shr
           seen.knocked++;
           // nothing two sizes bigger falls: never the Tyrannosaurus
           assert.notEqual(foe.size, 'huge');
-          // the knocked-down foe spends its next turn getting up
+          // the knocked-down foe gets straight back up (it won agility against it) or spends its next
+          // turn getting up
           const next = r.log.slice(k + 1).find(x => x.by === 'foe');
-          if (next && next.recovering) seen.lostTurn++;
+          if (e.rose) { seen.rose++; assert.ok(!next || !next.recovering); }
+          else if (next && next.recovering) seen.lostTurn++;
         }
         if (e.by === 'foe' && e.part === 'head' && e.dome) { seen.dome++; assert.equal(e.dmg, 0); }
         if (e.by === 'foe' && e.part === 'head' && !e.dome && e.dmg > 0) seen.bigHead++;
       });
     }
   }
-  assert.ok(seen.butts && seen.knocked && seen.lostTurn && seen.dome, JSON.stringify(seen));
+  assert.ok(seen.butts && seen.knocked && seen.lostTurn && seen.rose && seen.dome, JSON.stringify(seen));
 });

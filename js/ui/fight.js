@@ -230,7 +230,7 @@ export function playFight(battle, summary, who) {
         if (blow.kill) pop(target, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(target, blow.impaled ? 'Impaled!' : blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
         else if (blow.armBroken) pop(target, 'Arm broken!', 'mad');
-        else if (blow.knocked) pop(target, 'Knocked down!', 'mad');
+        else if (blow.knocked) pop(target, blow.rose ? 'Knocked down, back up!' : 'Knocked down!', 'mad');
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(target, 'Armor!', 'mad');
         else if (blow.tough) pop(target, 'Still standing!', 'mad');
