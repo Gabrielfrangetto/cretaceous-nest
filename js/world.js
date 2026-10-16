@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -298,7 +298,9 @@ const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 export function keepsAway(threat, team) {
   const sp = threat.entry.species && SPECIES[threat.entry.species];
   if (!sp || !sp.fear) return false;
-  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear)));
+  // (a sail, Spinosaurus, intimidates anything no bigger than its owner)
+  const size = sizeRank(threat.foe.members[0].size);
+  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear) || (m.type && SPECIES[m.type].sail && size <= sizeRank(m.size))));
 }
 
 // the team's best chance to hunt one of these (prey: one of them as a fighter), or null when nobody
@@ -484,6 +486,11 @@ export function collectExpedition(s, id, now, choice = {}) {
     // a hauler (a giant sauropod) brings home more of what the hex has
     const haul = teamHaul(s, exp.members);
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, Math.round(roll(l) * haul));
+    // a fisher with a thumb claw (Baryonyx) brings home fish from the water
+    if (WATER_BIOMES.includes(biomeAt(w.seed, h))) for (const id of exp.members) {
+      const f = bodyOf(s, id).fishing;
+      if (f) give('fish', f[0] + Math.floor(rand() * (f[1] - f[0] + 1)));
+    }
     if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;
       // a predator that got away badly hurt leaves no carcass

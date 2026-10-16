@@ -836,3 +836,40 @@ test('the risk of death before a fight: high against a killer, none for the play
   const safe = teamOdds([unitOf('k', [fighterOf(dino('k', 90, 'ankylo'))])], encounterUnit({ species: 'compy', pack: [2, 2], loot: [] }, 2), 60);
   assert.equal(safe.death[0][0], 0);
 });
+
+test('Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and strong in the water, and its sail keeps rivals away', async () => {
+  const { keepsAway, teamUnits } = await import('../js/world.js');
+  const bary = () => unitOf('b', [{ ...fighterOf(dino('b', 60, 'bary')), fear: undefined }]);
+  let hooked = 0, bled = 0;
+  for (let i = 0; i < 30; i++) for (const e of teamFight([bary()], wildFighter('allo', 5), seededRand('hk' + i)).log) {
+    if (e.by === 0 && e.hooked) hooked++;
+    if (e.by === 'bleed' && e.to === undefined) bled++;
+  }
+  assert.ok(hooked > 0 && bled > 0);
+  // the same Spinosaurus wins more in the swamp than on land
+  const spino = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'spino')), fear: undefined }]);
+  const foe = wildFighter('rex', 6);
+  const { teamWinChance } = await import('../js/combat.js');
+  assert.ok(teamWinChance([spino()], foe, 200, { biome: 'swamp' }) > teamWinChance([spino()], foe, 200, { biome: 'badlands' }));
+  // its sail: a Tyrannosaurus (as big as it) keeps away; without it, it doesn't
+  const s = game(dino('s', 60, 'spino'), dino('a', 60, 'allo'));
+  const rexHex = ALL_HEXES.find(h => threatAt(42, h).id === 'rex' && !threatAt(42, h).lair);
+  const th = threatAt(42, rexHex);
+  assert.equal(keepsAway(th, teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }])), true);
+  assert.equal(keepsAway(th, teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }])), false);
+});
+
+test('a Baryonyx brings home fish from the swamp', () => {
+  const swamp = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) <= 3 && threatAt(42, h).id === 'deinosuchus' && !threatAt(42, h).lair; });
+  let checked = 0;
+  for (let trip = 0; trip < 30; trip++) {
+    const s = game(dino('b', 90, 'bary'));
+    s.world.trips = trip;
+    const c = trip0(s, 'b', swamp);
+    if (c.battle && !c.battle.win) continue;
+    checked++;
+    assert.ok(c.loot.filter(l => l.id === 'fish').reduce((t, l) => t + l.n, 0) >= 2);
+  }
+  assert.ok(checked > 0);
+});
+function trip0(s, id, key) { return trip(s, id, key); }

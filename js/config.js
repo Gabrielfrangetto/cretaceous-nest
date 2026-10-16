@@ -84,7 +84,6 @@ const SIZE = {
 // Weapons and hide, fixed for a species whatever its genes, from how the real animal fought:
 //   role:   how it fights (see ROLE_TARGET): attacker, defender or noncombatant
 //   charge: a defender's chance a turn to charge instead of holding its ground
-//   fisher: at home in the water (FISHER)
 //   fragile: a share of the health its body would have (Coelophysis: hollow, bird-like bones)
 //   crush: the share of the target's hide and damage reduction its bite goes through
 //   boneBreaker: its bites land on a body part (BONE_BREAKER)
@@ -111,6 +110,10 @@ const SIZE = {
 //   crack:  a nut-cracking beak that may break a small foe's limb when it strikes back (CRACK)
 //   creche: an adult in the nest raises its hatchlings with a strong stomach (CRECHE)
 //   runner: a fast runner with wide-set eyes (RUNNER)
+//   fisher: at home in the water: { water, land } its blows' times, landAgi its agility kept on land
+//   hook:   a thumb claw that may hook what it strikes (HOOK)
+//   fishing: [min, max] fish it brings home from a water hex
+//   sail:   a sail that intimidates: wild animals no bigger than it keep away from its team
 //   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
@@ -140,12 +143,12 @@ export const BODY = {
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
-  bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
+  bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: { water: 1.3, land: 1 }, hook: true, fishing: [2, 4], role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: 'heavy', crouch: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
-  spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
+  spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: { water: 1.5, land: 1, landAgi: 0.6 }, sail: true, role: 'attacker', hunt: 5, fear: 'huge' },
   rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'huge' },
   argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal' },
 };
@@ -158,13 +161,14 @@ export const BODY = {
 //   noncombatant: never attacks. Struck, it lashes back; and when the foe goes for someone else it
 //             may land a blow through the opening (OPENING a time). Only when it stays: anything
 //             bigger than its fear and it has run. A team of only noncombatants runs off.
-// fishers (Baryonyx, Spinosaurus) are attackers at home in the water: FISHER.swamp of their damage
-// in a swamp, FISHER.land elsewhere.
+// fishers (Baryonyx, Spinosaurus) are attackers at home in the water (BODY fisher).
 export const ROLE_TARGET = { attacker: 1, defender: 3, noncombatant: 0.3 };
 export const CHARGE_DAMAGE = 2;
 export const CHARGE_EXPOSED = 1.25;
 export const OPENING = 0.35;
-export const FISHER = { swamp: 1.3, land: 0.85 };
+// (fishers: BODY fisher { water, land, landAgi } – their blows times water in the water, times land on
+// land; landAgi: on land it keeps only that share of its agility and dodge)
+export const WATER_BIOMES = ['swamp'];
 // creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
 // with thinner hide (see creatureFighter)
 export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300, colossal: 300 };
@@ -549,6 +553,10 @@ export const CRECHE = { stomach: 1.25 };
 // what the hex gave. The predator may still catch one of them: its agility against twice the slowest
 // one's; the one caught comes home critically injured.
 export const RUNNER = { trip: 0.5, eye: 0.25 };
+// Baryonyx' huge thumb claw, a gaff for fish: a blow that lands may hook (chance of the time): it goes
+// through pierce of hide and damage reduction and leaves a wound that bleeds bleed of the health a turn
+// (up to maxBleed wounds).
+export const HOOK = { chance: 0.3, pierce: 0.5, bleed: 0.006, maxBleed: 3 };
 // Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
 // neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,
 // critically injured, resistance / (resistance + resBase) of the time (between min and max), and dies
