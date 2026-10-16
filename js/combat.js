@@ -74,7 +74,7 @@ export function wildFighter(type, dist, lair = false) {
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    size, bite: sp.bite, hide: youngHide(sp.hide, level), role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -219,6 +219,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   const stayed = [...fighting];
   const routed = [];
   let foeRouted = false;
+  // the foe's members the unit having its turn went for (a wild defender strikes back from them)
+  const hitBy = new Set();
   const log = [];
   const frenzy = new Set();
   // members lamed by a bone-breaking bite: [unit, member]
@@ -265,6 +267,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       const at = opts.at ?? 0, att = units[who].members[at], prey = foe.members[member];
       const buff = opts.buff || 1;
       const by = units[who].pack ? { at } : {};
+      hitBy.add(member);
       // a pinned or held foe can't dodge
       if (!held && !pinned(member) && rand() < dodgeVs(dodgeIn(foe, foeHp, member), prey.agi, prey.size, att.agi, att.size)) { log.push({ by: who, ...by, member, miss: true, ...extra }); return -1; }
       // a tail club swung back (a counter or a charge) lands harder than a bite
@@ -394,11 +397,13 @@ export function teamFight(units, foe, rand, opts = {}) {
     // noncombatants less, on one of ours that still has room for it (room: how many more can reach
     // each of ours, REACH_SLOTS by size). Returns the unit it went for and whether it may strike back,
     // or null when none is in reach or the blow can't touch it.
-    const foeBlow = (a, buff, room) => {
-      const fa = foe.members[a];
+    // opts.to: the unit it must go for (striking back at it); opts.boost, opts.extra: a charge's or a
+    // counter's
+    const foeBlow = (a, buff, room, opts = {}) => {
+      const fa = foe.members[a], boost = opts.boost || 1, extra = opts.extra || {};
       const left = (to, m) => room.get(to + ':' + m) ?? (REACH_SLOTS[units[to].members[m].size] || 4);
       const reach = to => standing(hp[to]).filter(m => left(to, m) > 0);
-      const targets = fighting.filter(i => reach(i).length);
+      const targets = fighting.filter(i => reach(i).length && (opts.to === undefined || i === opts.to));
       if (!targets.length) return null;
       const weights = targets.map(i => ROLE_TARGET[roleOf(units[i])]);
       let pick = rand() * weights.reduce((t, w) => t + w, 0), to = targets[targets.length - 1];
@@ -410,8 +415,8 @@ export function teamFight(units, foe, rand, opts = {}) {
       const hit = units[to].members[member];
       // clinging to the foe's body, out of its reach
       const clung = latches.get(to);
-      if (clinging.has(to) || (clung && clung.mode === 'cling' && clung.holder === member)) { log.push({ by: 'foe', ...by, to, member, dmg: 0, left: hp[to][member], immune: true }); return null; }
-      if (rand() < dodgeVs(dodgeIn(units[to], hp[to], member), hit.agi, hit.size, fa.agi, fa.size)) { log.push({ by: 'foe', ...by, to, member, miss: true }); return { to, counter: true }; }
+      if (clinging.has(to) || (clung && clung.mode === 'cling' && clung.holder === member)) { log.push({ by: 'foe', ...by, to, member, dmg: 0, left: hp[to][member], immune: true, ...extra }); return null; }
+      if (rand() < dodgeVs(dodgeIn(units[to], hp[to], member), hit.agi, hit.size, fa.agi, fa.size)) { log.push({ by: 'foe', ...by, to, member, miss: true, ...extra }); return { to, counter: true }; }
       // a defender caught out of its guard by its own charge takes more
       const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
       const roll = 0.75 + rand() * 0.5;
@@ -438,7 +443,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         armored = (ARMOR.parts.find(([, w]) => (x -= w) < 0) || ARMOR.parts[0])[0];
         cut = ARMOR.armored.includes(armored) ? 1 - ARMOR.cut : armored === 'belly' ? ARMOR.belly : 1;
       }
-      const raw = hitOf(fa, hit, roll) * buff * open * head;
+      const raw = hitOf(fa, hit, roll) * buff * boost * open * head;
       const dmg = rounded(raw * cut);
       hp[to][member] = Math.max(0, hp[to][member] - dmg);
       const bone = dmg > 0 && !onHead ? breakBones(foe, units[to], hp[to], member, to, armored) : onHead ? { part: 'head' } : armored ? { part: armored } : {};
@@ -451,7 +456,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         bone.tough = true;
       }
       const also = sweep(fa, units[to], hp[to], member, m => rounded(hitOf(fa, units[to].members[m], roll) * buff * open));
-      log.push({ by: 'foe', ...by, to, member, dmg, left: hp[to][member], ...bone, ...(also.length ? { also } : {}) });
+      log.push({ by: 'foe', ...by, to, member, dmg, left: hp[to][member], ...bone, ...(also.length ? { also } : {}), ...extra });
       // the plates on its back hurt whatever bit them
       if (armored === 'back' && raw > 0 && foeLeft() > 0) {
         const back = Math.max(1, Math.round(raw * ARMOR.thorns));
@@ -460,11 +465,29 @@ export function teamFight(units, foe, rand, opts = {}) {
       }
       return { to, counter: true };
     };
+    // A wild defender or noncombatant strikes back at the unit that just had its turn: each of its
+    // members that unit went for (hitBy), still standing and free, one blow at it.
+    let striker = null;
+    const foeCounters = () => {
+      const to = striker;
+      striker = null;
+      if (to !== null && roleOf(foe) !== 'attacker' && fighting.includes(to)) {
+        const buff = 1 + PACK_BONUS * (foe.pack ? standing(foeHp).length - 1 : 0);
+        for (const m of hitBy) {
+          if (foeHp[m] <= 0 || pinned(m) || foeLeft() <= 0 || !standing(hp[to]).length) continue;
+          foeBlow(m, buff, new Map(), { to, extra: { counter: true } });
+        }
+      }
+      hitBy.clear();
+    };
     for (let round = 0; round < FIGHT_SAFETY && foeLeft() > 0 && !foeRouted && up(); round++) {
       for (const who of order) {
+        foeCounters();
         checkRouts();
         if (foeLeft() <= 0 || foeRouted || !up()) break;
         if (who !== 'foe' && !fighting.includes(who)) continue;
+        hitBy.clear();
+        if (who !== 'foe') striker = who;
         if (who === 'foe') {
           // gored wounds bleed every turn
           for (let m = 0; m < foeHp.length && foeLeft() > 0; m++) {
@@ -493,12 +516,18 @@ export function teamFight(units, foe, rand, opts = {}) {
           const free = standing(foeHp).filter(m => !pinned(m));
           if (!free.length) { log.push({ by: 'foe', pinned: true }); continue; }
           const buff = 1 + PACK_BONUS * (foe.pack ? free.length - 1 : 0);
+          // a wild defender charges now and then and otherwise holds its ground; a noncombatant never
+          // goes for anyone on its own (both strike back when attacked)
+          const foeRole = roleOf(foe);
+          const charging = foeRole === 'defender' && rand() < (foe.members[0].charge || 0);
+          if (foeRole !== 'attacker' && !charging) continue;
+          const how = charging ? { boost: CHARGE_DAMAGE, extra: { charge: true } } : {};
           const room = new Map();
           // the units it went for: whether each may strike back (a frill's goring already did)
           const struck = new Map();
           for (const a of free) {
             if (foeHp[a] <= 0 || foeLeft() <= 0 || !up()) continue;
-            const r = foeBlow(a, buff, room);
+            const r = foeBlow(a, buff, room, how);
             if (r) struck.set(r.to, (struck.get(r.to) ?? false) || r.counter);
           }
           if (foeLeft() <= 0) break;
@@ -577,6 +606,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         }
         attack(who, boost, mad ? { frenzy: true } : {}, busy);
       }
+      if (foeLeft() > 0 && !foeRouted && up()) foeCounters();
     }
   }
   // only those who stayed count for the result

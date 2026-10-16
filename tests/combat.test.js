@@ -151,8 +151,8 @@ test('who is afraid runs before the fight: a Gallimimus leaves the player alone 
   assert.deepEqual(alone.log, []);
   // against a small pack it stays and never attacks on its own: it strikes back when attacked, or
   // through an opening while the pack goes for someone else
-  const compys = encounterUnit({ species: 'compy', pack: [3, 3], loot: [] }, 2);
-  const f = teamFight([me, galli], compys, seededRand('stay'));
+  const raptors = encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 2);
+  const f = teamFight([me, galli], raptors, seededRand('stay'));
   assert.deepEqual(f.fled, []);
   const its = f.log.filter(e => e.by === 1);
   assert.ok(its.length && its.every(e => e.counter || e.opening));
@@ -352,4 +352,18 @@ test("an Ankylosaurus' tail club kills anything small it lands on", () => {
     }
   }
   assert.ok(swings && kills, `${swings} swings, ${landed} landed`);
+});
+
+test('wild animals fight by their role: a herd of defenders only charges or strikes back', () => {
+  const herd = encounterUnit({ species: 'proto', pack: [3, 3], herd: true, loot: [] }, 4);
+  const raptors = unitOf('p', Array.from({ length: 4 }, (_, i) => fighterOf(dino('r' + i, 50, 'raptor'))), true);
+  let charges = 0, counters = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = teamFight([raptors], herd, seededRand('herd' + i));
+    for (const e of r.log.filter(e => e.by === 'foe' && (e.dmg !== undefined || e.miss))) {
+      assert.ok(e.charge || e.counter);
+      if (e.charge) charges++; else counters++;
+    }
+  }
+  assert.ok(charges > 0 && counters > charges);
 });
