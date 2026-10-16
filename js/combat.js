@@ -5,8 +5,8 @@
 // economy.js, plus agility and its species' body). The faster one strikes first, then they take
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
-// does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, TIMEOUT_WIN, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+// does nothing. They fight until one is down: there is no turn limit.
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -101,7 +101,7 @@ export function fight(a, b, rand) {
   const side = { a, b };
   let turn = a.agi >= b.agi ? 'a' : 'b';
   const log = [];
-  for (let i = 0; i < FIGHT_MAX_TURNS && hp.a > 0 && hp.b > 0; i++) {
+  for (let i = 0; i < FIGHT_SAFETY && hp.a > 0 && hp.b > 0; i++) {
     const att = side[turn], other = turn === 'a' ? 'b' : 'a', def = side[other];
     if (rand() < dodgeVs(def.dodge, def.size, att.size)) log.push({ by: turn, miss: true });
     else {
@@ -111,7 +111,7 @@ export function fight(a, b, rand) {
     }
     turn = other;
   }
-  const win = hp.b <= 0 || (hp.a > 0 && hp.a / a.hp >= hp.b / b.hp);
+  const win = hp.b <= 0;
   return { win, log, hpA: hp.a, hpB: hp.b, maxA: a.hp, maxB: b.hp };
 }
 
@@ -134,7 +134,6 @@ export function winChance(a, b, runs = 120) {
 // back when attacked, or through an opening when the foe goes for someone else. A blow never
 // carries over to another member, so a pack loses at most one member per blow.
 export const unitOf = (name, members, pack = false) => ({ name, pack, members });
-const FIGHT_ROUNDS = Math.ceil(FIGHT_MAX_TURNS / 2);
 const standing = hp => hp.flatMap((h, i) => h > 0 ? [i] : []);
 const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 // a unit's role and the biggest of a unit
@@ -349,7 +348,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (rand() < OPENING) strike(j, 0.75 + rand() * 0.5, 1, { opening: true });
       }
     };
-    for (let round = 0; round < FIGHT_ROUNDS && foeLeft() > 0 && up(); round++) {
+    for (let round = 0; round < FIGHT_SAFETY && foeLeft() > 0 && up(); round++) {
       for (const who of order) {
         if (foeLeft() <= 0 || !up()) break;
         if (who === 'foe') {
@@ -518,7 +517,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamMax = fighting.reduce((t, i) => t + unitHp(units[i]), 0);
   const teamLeft = fighting.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
-  const win = !escaped && (left <= 0 || (teamLeft > 0 && left / foeMax <= TIMEOUT_WIN && teamLeft / teamMax >= left / foeMax));
+  const win = !escaped && left <= 0;
   return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill };
 }
 
