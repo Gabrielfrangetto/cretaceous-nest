@@ -474,9 +474,9 @@ export const DOME = { back: 0.7, maxStep: 1 };
 // its next action. The slow stay down.
 export const RISE = { max: 0.95 };
 // A giant sauropod (Argentinosaurus) never starts a fight; it strikes back. Each blow back is a stomp
-// (stomp of the time) or a swing of its heavy tail. A stomp lands a flat hit[1] of the time on
-// something as slow as itself, down to hit[0] on something twice as quick or more (no dodge roll), and
-// crushes anything short of colossal outright. The tail is slow, dodged slow times the target's lead in
+// (stomp of the time) or a swing of its heavy tail. A stomp comes down right a flat hit[1] of the time
+// on something as slow as itself, down to hit[0] on something twice as quick or more; then the target
+// still gets its dodge. One that lands crushes anything short of colossal outright. The tail is slow, dodged slow times the target's lead in
 // speed more (as a spiked tail), and lands tail times as hard, on that one target alone. Nothing
 // smaller can reach its neck, break its legs, or knock it down.
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1 };

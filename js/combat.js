@@ -346,8 +346,8 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (recording) struck.delete(E(t, v, m));
       return -1;
     }
-    // a giant strikes back with a stomp or its tail; a stomp lands only a flat few times in a hundred,
-    // fewer on something quicker
+    // a giant strikes back with a stomp or its tail; a stomp comes down right only a flat few times in a
+    // hundred, fewer on something quicker, and even then the target may still dodge it
     const stomp = att.giant && (extra.counter || extra.charge) && rand() < GIANT.stomp;
     const swipe = att.giant && (extra.counter || extra.charge) && !stomp;
     const lead = Math.max(0, Math.min(1, 2 * prey.agi / (prey.agi + att.agi) - 1));
@@ -359,7 +359,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     // it coming
     const slowSwing = (extra.counter || extra.charge) && (att.spikes ? SPIKES.slow : swipe ? GIANT.slow : 0);
     const tail = slowSwing ? slowSwing * lead : 0;
-    if (!held && !stomp && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
+    if (!held && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
       log.push(entry(s, u, at, v, m, { miss: true, ...extra }));
       return -1;
     }
