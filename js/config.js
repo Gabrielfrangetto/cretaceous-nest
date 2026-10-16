@@ -371,6 +371,10 @@ export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];
 export const SIZE_EDGE = 0.3;
+// something smaller is harder to hit: a dodge bonus for each size step the target is smaller than
+// its attacker (dodge never goes past 75%)
+export const SIZE_DODGE = 0.09;
+export const DODGE_MAX = 0.75;
 // Ankylosaurus' armor: every blow lands on a part. The back, the head (fused skull plates, even bony
 // eyelids) and the neck (rings of bone) take cut less damage; a blow on the back also hurts the
 // attacker (thorns, of the blow's full damage). The legs have little armor; the belly none (belly times).

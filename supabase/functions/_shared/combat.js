@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -22,6 +22,10 @@ export function fighterOf(baby, extra = []) {
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
+
+// a dodge against an attacker: smaller targets are harder to hit (SIZE_DODGE a size step)
+export const dodgeVs = (dodge, size, attSize) =>
+  Math.min(DODGE_MAX, dodge + SIZE_DODGE * Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small')));
 
 // health for the size of the body (SIZE_HP)
 export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
@@ -91,7 +95,7 @@ export function fight(a, b, rand) {
   const log = [];
   for (let i = 0; i < FIGHT_MAX_TURNS && hp.a > 0 && hp.b > 0; i++) {
     const att = side[turn], other = turn === 'a' ? 'b' : 'a', def = side[other];
-    if (rand() < def.dodge) log.push({ by: turn, miss: true });
+    if (rand() < dodgeVs(def.dodge, def.size, att.size)) log.push({ by: turn, miss: true });
     else {
       const dmg = rounded(hitOf(att, def, 0.75 + rand() * 0.5));
       hp[other] = Math.max(0, hp[other] - dmg);
@@ -245,7 +249,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       const held = extra.slash || extra.hold;
       const member = held ? extra.member : alive[Math.floor(rand() * alive.length)];
       // a pinned or held foe can't dodge
-      if (!held && !pinned(member) && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
+      if (!held && !pinned(member) && rand() < dodgeVs(unitPower(foe, foeHp).dodge, foe.members[member].size, biggest(units[who]))) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
       // a tail club swung back (a counter or a charge)
       const swung = units[who].members[0].club && (extra.counter || extra.charge);
       // a tail club swung back lands harder than a bite
@@ -375,7 +379,7 @@ export function teamFight(units, foe, rand, opts = {}) {
           // clinging to the foe's body, out of its reach
           const clung = latches.get(to);
           if (clinging.has(to) || (clung && clung.mode === 'cling' && clung.holder === member)) { log.push({ by: 'foe', to, member, dmg: 0, left: hp[to][member], immune: true }); continue; }
-          if (rand() < unitPower(units[to], hp[to]).dodge) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
+          if (rand() < dodgeVs(unitPower(units[to], hp[to]).dodge, units[to].members[member].size, biggest(foe))) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
           // a defender caught out of its guard by its own charge takes more
           const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
           const roll = 0.75 + rand() * 0.5;
