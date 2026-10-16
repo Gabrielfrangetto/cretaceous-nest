@@ -257,12 +257,12 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
     for (const e of r.log) {
       if (e.by === 'foe' && !e.miss) {
         parts[e.part] = (parts[e.part] || 0) + 1;
-        assert.equal(!!e.armored, ARMOR.armored.includes(e.part) && !e.belly);
-        if (e.belly) bellies++;
+        assert.equal(!!e.armored, ARMOR.armored.includes(e.part));
+        if (e.part === 'belly') bellies++;
         assert.ok(!e.kill, 'its neck is never bitten through');
         lastFoeBlow = e;
       }
-      if (e.thorns) { thorns++; assert.equal(lastFoeBlow.part, 'body'); assert.ok(!lastFoeBlow.belly); }
+      if (e.thorns) { thorns++; assert.equal(lastFoeBlow.part, 'back'); }
       if (e.club) { shins++; assert.ok(e.lame && (e.counter || e.charge)); }
     }
   }
@@ -271,7 +271,7 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
   for (const [p] of [...ARMOR.parts, ...BONE_BREAKER_PARTS]) assert.ok(PARTS.includes(p), p);
   // the armored parts let much less through than the belly
   const plain = fighterOf(dino('a', 50, 'ankylo'));
-  assert.ok(1 - ARMOR.cut < 1 && ARMOR.bellyHit > 1 && plain.armor && plain.club);
+  assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
 });
 
 test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller ones in its grip', async () => {
