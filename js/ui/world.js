@@ -156,16 +156,15 @@ function threatHTML(h, units, scout) {
   const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : run.fled.length ? 'Who stays' : 'Your team';
   const danger = odds == null ? '' : dangerOf(odds);
   const runners = run.fled.map(i => units[i].name);
-  // everyone would run: a predator gives chase and may corner the slowest, who then fights alone
+  // everyone would run: a predator gives chase and may catch the slowest, who may not survive
   const chased = units.length && run.escaped ? chaseOf(units, th.foe) : null;
-  const corner = chased ? teamOdds([chased.cornered], th.foe, 120, { swamp, biome: biomeAt(S.world.seed, h) }) : null;
   // a rival as big as a Spinosaurus in the team may back off from its sail
   const sail = units.length ? sailBackOff(th, units, biomeAt(S.world.seed, h)) : 0;
   // watchful ones (Hypsilophodon) may see a predator first and the team scatters
   const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0));
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
-    ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase: about ${Math.round(chased.chance * 100)}% of the time it runs down ${esc(chased.fighter.name)}, who then fights for its life (wins about ${Math.round(corner.win * 100)}%, risk of death ~${Math.round(corner.death[0][0] * 100)}%).</p>` : ''}`
+    ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase and may catch ${esc(chased.fighter.name)} (about ${Math.round(chased.chance * 100)}%), who may not survive: risk of death ~${Math.round(chased.chance * chased.death * 100)}%.</p>` : ''}`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
     <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
@@ -474,13 +473,13 @@ function bindTrips(box) {
     // a rival as big as the team's Spinosaurus sized up its sail and backed off
     const sailed = r.backedOff ? ` On the way, ${/^[AEIOU]/.test(r.backedOff.name) ? 'an' : 'a'} ${esc(r.backedOff.name)} sized up ${esc(r.backedOff.by)}'s sail and backed off.` : '';
     const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
-    // a predator ran down one of those who ran, and it fought for its life
-    const cornerName = r.battle && r.battle.cornered ? esc(r.battle.team[0].name) : '';
-    const cornerOut = !cornerName ? '' : r.battle.win ? (r.battle.foeFled ? '' : ` ${cornerName} fought it off and won.`) : (r.died || []).length ? '' : ` ${cornerName} lost the fight.`;
-    message = r.battle && r.battle.cornered
-      ? `${who} ${is} back from the ${esc(BIOMES[r.biome].name)} with ${esc(got.join(', ') || 'nothing')}. Everyone ran from the ${esc(r.battle.foe.name)}, but it ran ${cornerName} down, cornered, to fight for its life.${cornerOut}${foeBroke}${mourn}${hurt}${critical}${follow}${mapped}`
+    // a predator gave chase to those who ran and caught one
+    const c = r.battle && r.battle.caught;
+    const caughtText = c ? ` In the escape, ${esc(deadName(c.id))} was caught${c.died ? ' and did not survive.' : ' and is critically injured.'}` : '';
+    message = c && c.died && r.members.length === 1
+      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran, but was caught and did not survive.${mapped}`
       : r.battle && r.battle.escaped
-      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
+      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off.${caughtText} ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${mourn}${hurt}${critical}${mapped}`
       : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${sailed}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;

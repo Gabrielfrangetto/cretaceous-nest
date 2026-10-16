@@ -922,7 +922,7 @@ test('Hypsilophodon: zigzags away from bigger attackers, forages on any trip, an
   assert.ok(scattered > 0 && leaves > 0, JSON.stringify({ scattered, leaves }));
 });
 
-test('a predator everyone ran from gives chase: it may corner the slowest, who fights for its life; zigzags help get away', async () => {
+test('a predator everyone ran from gives chase: it may catch the slowest, who may not survive; zigzags help get away', async () => {
   const { chaseOf, catchChance, teamUnits } = await import('../js/world.js');
   const s = game(dino('h', 60, 'hypsi'), dino('p', 60, 'psitta'));
   const raptors = wildFighter('raptor', 5);
@@ -939,18 +939,19 @@ test('a predator everyone ran from gives chase: it may corner the slowest, who f
   const tiny = teamUnits(game(dino('c', 60, 'compy')), [{ kind: 'dino', id: 'c', members: ['c'] }]);
   assert.equal(chaseOf(tiny, { name: 'T. rex', pack: false, members: [wildFighter('rex', 6)] }), null);
   assert.ok(chaseOf(tiny, foe));
-  // trips: a lone Psittacosaurus into a raptor lair is sometimes run down and cornered
+  // trips: a lone Psittacosaurus into a raptor lair is sometimes caught: dead (nothing comes home) or critical
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
-  let cornered = 0, away = 0;
-  for (let trip = 0; trip < 40; trip++) {
+  let caught = 0, died = 0, away = 0;
+  for (let trip = 0; trip < 60; trip++) {
     const s2 = game(dino('p', 60, 'psitta'));
     s2.world.trips = trip;
     const c = trip0(s2, 'p', lair);
-    if (c.battle && c.battle.cornered) {
-      cornered++;
-      assert.equal(c.battle.cornered, 'p');
-      assert.equal(c.battle.escaped, false);
-    } else if (c.battle && c.battle.escaped) away++;
+    if (!c.battle || !c.battle.escaped) continue;
+    if (!c.battle.caught) { away++; continue; }
+    caught++;
+    assert.equal(c.battle.caught.id, 'p');
+    if (c.battle.caught.died) { died++; assert.equal(s2.hatched.find(x => x.id === 'p'), undefined); assert.equal(c.loot.length, 0); }
+    else assert.equal(s2.hatched.find(x => x.id === 'p').critical, true);
   }
-  assert.ok(cornered > 0 && away > 0, JSON.stringify({ cornered, away }));
+  assert.ok(caught > 0 && died > 0 && away > 0, JSON.stringify({ caught, died, away }));
 });
