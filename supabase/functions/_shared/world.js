@@ -336,9 +336,14 @@ export function tripStandoff(s, id) {
   const scout = hasScout(s, exp.members);
   const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
   if (!meets || !standsGround(threat.foe) || keepsAway(threat, teamUnits(s, units))) return null;
-  return { name: threat.foe.name, power: threat.power, lair: threat.lair, foe: threat.foe };
+  return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
 }
 const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
+// how a group that stood its ground is told: its species, how many, and whether it's a herd or a pack
+const standoffOf = threat => ({
+  name: threat.foe.name, species: SPECIES[threat.entry.species].species, count: threat.foe.members.length,
+  group: threat.foe.members.length > 1 ? (threat.entry.herd ? 'herd' : 'pack') : '', lair: threat.lair,
+});
 
 // choice.fight: fight what stood its ground (tripStandoff) instead of leaving it be
 export function collectExpedition(s, id, now, choice = {}) {
@@ -376,9 +381,9 @@ export function collectExpedition(s, id, now, choice = {}) {
     }
   } else if (meets && standsGround(threat.foe) && !choice.fight) {
     // it stood its ground and the team left it in peace
-    standoff = { name: threat.foe.name, fought: false };
+    standoff = { ...standoffOf(threat), fought: false };
   } else if (meets) {
-    if (standsGround(threat.foe)) standoff = { name: threat.foe.name, fought: true };
+    if (standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
     const team = teamUnits(s, units), foe = threat.foe;
     const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp' });
     // a dinosaur that went down is critically injured (the player just injured); the rest are

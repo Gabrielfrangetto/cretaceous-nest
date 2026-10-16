@@ -461,13 +461,14 @@ test('a wild defender stands its ground instead of attacking: the player chooses
       const r = applyAction(s, 'explore', { babyId: 'd', hex: key }, T0);
       const st = tripStandoff(s, r.expedition.id);
       if (!st) continue;
-      assert.match(st.name, /Protoceratops/);
+      assert.equal(st.species, 'Protoceratops');
+      assert.equal(st.group, st.count > 1 ? 'herd' : '');
       results[fight] = applyAction(s, 'collectTrip', { id: r.expedition.id, fight }, r.expedition.returnAt);
       break;
     }
   }
   assert.equal(results.false.battle, null);
-  assert.deepEqual(results.false.standoff, { name: results.false.standoff.name, fought: false });
+  assert.equal(results.false.standoff.fought, false);
   assert.ok(results.false.loot.length > 0);
   assert.ok(results.true.battle);
   assert.equal(results.true.standoff.fought, true);

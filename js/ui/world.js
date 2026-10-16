@@ -253,6 +253,11 @@ function sightingsHTML() {
 // a wild defender or noncombatant that stood its ground on the way: fight it, or leave it be (the
 // odds are worked out once per trip)
 const standoffOdds = new Map();
+// "On the way, a Protoceratops herd spotted you and 2 stood their ground to drive you off."
+const standText = st => {
+  const what = `${st.lair ? 'Alpha ' : ''}${st.species}${st.group ? ' ' + st.group : ''}`;
+  return `On the way, ${/^[AEIOU]/.test(what) ? 'an' : 'a'} <strong>${esc(what)}</strong> spotted you and ${st.count > 1 ? `${st.count} stood their ground` : 'stood its ground'} to drive you off.`;
+};
 function standoffHTML(e) {
   const st = tripStandoff(S, e.id);
   if (!st) return '';
@@ -262,9 +267,9 @@ function standoffHTML(e) {
     standoffOdds.set(e.id, teamWinChance(units, st.foe, 120, { swamp }));
   }
   const odds = standoffOdds.get(e.id);
-  return `<p class="hint">Back! On the way, ${/^[AEIOU]/.test(st.name) ? 'an' : 'a'} <strong>${esc(st.name)}</strong> stood its ground to drive the team off.</p>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight it <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave it be</button>`;
+  return `<p class="hint">Back! ${standText(st)}</p>
+    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
+    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>`;
 }
 
 function tripsHTML(t) {
@@ -426,7 +431,7 @@ function bindTrips(box) {
     // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
     const broke = r.battle && r.battle.routed && r.battle.routed.length ? ` ${esc(listNames(r.battle.routed.map(i => r.battle.team[i].name)))} lost half the pack and ran off.` : '';
     const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
-    const peace = r.standoff && !r.standoff.fought ? ` On the way, ${/^[AEIOU]/.test(r.standoff.name) ? 'an' : 'a'} ${esc(r.standoff.name)} stood its ground, and the team left it in peace.` : '';
+    const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
