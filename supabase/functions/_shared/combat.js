@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -24,8 +24,10 @@ export function fighterOf(baby, extra = []) {
 }
 
 // a dodge against an attacker: smaller targets are harder to hit (SIZE_DODGE a size step)
-export const dodgeVs = (dodge, size, attSize) =>
-  Math.min(DODGE_MAX, dodge + SIZE_DODGE * Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small')));
+export const dodgeVs = (dodge, size, attSize) => {
+  const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
+  return steps ? Math.min(SIZE_DODGE_MAX, dodge + SIZE_DODGE * steps) : Math.min(DODGE_MAX, dodge);
+};
 
 // health for the size of the body (SIZE_HP)
 export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
