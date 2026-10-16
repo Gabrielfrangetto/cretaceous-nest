@@ -1,7 +1,7 @@
 // The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
-import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL } from './config.js';
+import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, seedFor, cleanWorld } from './world.js';
 import { cleanPacks } from './packs.js';
@@ -134,6 +134,8 @@ function sanitize(s) {
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
     ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined } : { injuredUntil: undefined, critical: undefined }),
+    // raised among Hypacrosaurus: a share more of every stat (NURSE)
+    care: Number(b.care) > 0 ? Math.min(NURSE.max, Number(b.care)) : undefined,
     // a damaged frill (Triceratops), from 0 to just under whole
     frill: SPECIES[b.type].frill && Number.isInteger(b.frill) && b.frill >= 0 && b.frill < FRILL.hp ? b.frill : undefined,
     // only real equipment, each in its own slot

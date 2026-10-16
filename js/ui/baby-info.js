@@ -2,7 +2,7 @@
 // equipment (equip and take off) and family.
 import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
@@ -64,7 +64,7 @@ function equipmentHTML(b) {
     </li>`;
   }).join('');
   const next = nextStage(b);
-  const until = next && plural(STAGES[STAGES.length - 1].meals - (b.fed || 0), 'more meal', 'more meals');
+  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more meal', 'more meals');
   return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
     ${loadHTML(b)}
     <ul class="gear-slots">${rows}</ul>

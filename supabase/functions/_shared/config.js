@@ -102,6 +102,8 @@ const SIZE = {
 //   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
 //   alert: a deep call through its hollow crest that warns its group of a predator (ALERT)
 //   escape: may get away from a blow that would bring it down (ESCAPE)
+//   growth: grows up this many times as fast (needs that many times fewer meals for each stage)
+//   nurse:  cares for the nest's eggs and hatchlings (NURSE)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -126,7 +128,7 @@ export const BODY = {
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
-  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
+  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
@@ -321,9 +323,9 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. Each member still fights as itself, with its
 // own stats: a pack's turn is all of them striking at once (as many on one foe as can reach it), each
 // PACK_BONUS harder for every other one striking with it.
-export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6 };
+export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6, hypa: 10 };
 // species whose groups are herds rather than packs (only the name changes)
-export const HERDS = ['para'];
+export const HERDS = ['para', 'hypa'];
 // a species with fullPack: a pack of it at its limit gives every member this much more of every stat
 // (Coelophysis: hundreds were found together at Ghost Ranch)
 
@@ -495,6 +497,11 @@ export const ALERT = { chance: 0.6, perEye: 0.08, bonus: 0.05, perCall: 0.01, ma
 // than max), unless it is pinned or held: it leaves the fight and comes home hurt, not critically. Its
 // whole herd runs with it.
 export const ESCAPE = { max: 0.95 };
+// Hypacrosaurus nested in colonies (eggs, embryos and hatchlings were found together) and grew up fast.
+// With an adult one in the nest when an egg goes into the incubator, the egg hatches hatch faster. Every
+// Hypacrosaurus in the nest (not out exploring) when a baby hatches gives it perOne more of every stat
+// for life, up to max.
+export const NURSE = { hatch: 0.25, perOne: 0.01, max: 0.1 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.

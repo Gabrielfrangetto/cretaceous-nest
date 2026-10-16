@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, startExpedition, recallExpedition, collectExpedition, huntSighting, healBaby, transfuse, mendFrill } from './world.js';
@@ -58,11 +58,13 @@ export function cleanGenes(g, seed) {
 
 // ---------- growth ----------
 // A baby's stage comes from how many meals it has eaten, which only the rules (and the server) change.
-export const stageOf = b => [...STAGES].reverse().find(st => ((b && b.fed) || 0) >= st.meals);
+// the meals a stage needs for this one (a fast-growing species needs fewer)
+export const mealsFor = (b, st) => Math.ceil(st.meals / ((b && b.type && SPECIES[b.type] && SPECIES[b.type].growth) || 1));
+export const stageOf = b => [...STAGES].reverse().find(st => ((b && b.fed) || 0) >= mealsFor(b, st));
 // the next stage and how many meals it still needs, or null for adults
 export function nextStage(b) {
   const next = STAGES[STAGES.indexOf(stageOf(b)) + 1];
-  return next ? { stage: next, mealsLeft: next.meals - ((b && b.fed) || 0) } : null;
+  return next ? { stage: next, mealsLeft: mealsFor(b, next) - ((b && b.fed) || 0) } : null;
 }
 
 // ---------- stats ----------
@@ -95,6 +97,8 @@ export function gearMods(baby) {
   const mods = Object.values(wornGear(baby)).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
   const load = loadFactor(baby);
   if (load < 1) mods.push({ stat: 'agi', type: 'more', value: Math.round(load * 100) / 100, weight: true });
+  // raised among Hypacrosaurus (NURSE)
+  if (baby && baby.care > 0) for (const { id } of STATS) mods.push({ stat: id, type: 'more', value: 1 + baby.care, care: true });
   return mods;
 }
 
@@ -223,8 +227,12 @@ export function discardOne(s, i) {
 
 // ---------- eggs ----------
 // egg is a bred egg from the tray (carrying its genes and family), or null for a free egg
+// nest-mates that care for eggs and hatchlings (NURSE), at home
+const nurses = (s, adults) => s.hatched.filter(b => SPECIES[b.type] && SPECIES[b.type].nurse && !isAway(s, b.id) && (!adults || stageOf(b).id === 'adult'));
 export function startEgg(s, type, now, egg = null) {
-  s.current = { type, startedAt: now, duration: SPECIES[type].mins * 60000, bonus: 0 };
+  // an adult that nests in colonies looks after it: it hatches sooner
+  const nursed = nurses(s, true).length > 0;
+  s.current = { type, startedAt: now, duration: Math.round(SPECIES[type].mins * 60000 * (nursed ? 1 - NURSE.hatch : 1)), bonus: 0, ...(nursed ? { nursed } : {}) };
   if (egg) Object.assign(s.current, { genes: egg.genes, gen: egg.gen, parents: egg.parents });
 }
 
@@ -256,6 +264,9 @@ export function hatchEgg(s, now, rand = Math.random) {
   baby.genes = egg.genes ? { ...egg.genes } : wildGenes(rand);
   baby.gen = egg.gen || 1;
   if (egg.parents) baby.parents = [...egg.parents];
+  // raised among Hypacrosaurus: a little more of every stat for life
+  const care = Math.min(NURSE.max, nurses(s).length * NURSE.perOne);
+  if (care > 0) baby.care = Math.round(care * 100) / 100;
   s.hatched.unshift(baby);
   const lootId = HATCH_LOOT[type];
   const lost = addItem(s, lootId, 1) > 0;

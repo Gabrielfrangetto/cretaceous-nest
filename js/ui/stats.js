@@ -77,5 +77,5 @@ export function breakdownHTML(thing) {
     if (st.increased) parts.push(`${st.increased > 0 ? '+' : '−'}${pct(Math.abs(st.increased))}`);
     if (st.more !== 1) parts.push(`×${st.more.toFixed(2)}`);
     return `<li><strong>${name} ${st.value}</strong>: ${parts.join(', then ')}</li>`;
-  }).join('')}</ul>`;
+  }).join('')}${thing.care ? `<li class="hint">Raised among Hypacrosaurus: ×${(1 + thing.care).toFixed(2)} to every stat, for life</li>` : ''}</ul>`;
 }
