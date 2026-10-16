@@ -389,7 +389,10 @@ export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, co
 // Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
 // terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
 export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, badlands: 1, forest: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
-export const JUVENILE_RANGE = 6;             // juveniles explore up to this far (in travel cost); adults anywhere
+// On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
+// team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
+// and the team meets it instead of what waits at the end.
+export const INTERCEPT = { share: 0.12, lair: 0.3 };
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)

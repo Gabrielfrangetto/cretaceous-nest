@@ -6,7 +6,7 @@
 // An expedition's team is up to TEAM_SLOTS units, each { kind: 'dino' | 'player' | 'pack', id, members: [id] }
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
-  BIOMES, ITEMS, MAP_VERSION, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  BIOMES, ITEMS, MAP_VERSION, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
 } from './config.js';
@@ -14,7 +14,7 @@ import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
 import { hashId } from './util.js';
-import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost } from './map.js';
+import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath } from './map.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -30,7 +30,7 @@ export const neighbors = mapNeighbors;
 export const ALL_HEXES = MAP_HEXES;
 // the land hexes of a world: where expeditions can go
 export const landHexes = seed => ALL_HEXES.filter(h => !isWater(seed, h));
-export { isWater, cellAt, travelCost };
+export { isWater, cellAt, travelCost, travelPath };
 
 // a hash of a hex, for what is fixed about it (lairs)
 function mix(x) {
@@ -107,11 +107,11 @@ export const seedFor = s => hashId('world:' + ((s.hatched || []).map(b => b && b
 export const explorerOf = (s, id) => id === PLAYER_ID ? s.player : s.hatched.find(x => x.id === id);
 const W = s => s.world;
 export const isRevealed = (s, key) => W(s).revealed.includes(key);
-// hexes an expedition can go to: revealed ones and the fog right next to them (not the nest itself)
+// hexes an expedition can go to: any land the nest's continent reaches, however far (revealed ones
+// are those whose animals are known: seen on the way or nearby)
 export function canReach(s, key) {
   const h = parseKey(key);
-  if (!inWorld(h) || hexDist(h) === 0 || isWater(W(s).seed, h) || travelCost(W(s).seed, h) === Infinity) return false;
-  return isRevealed(s, key) || neighbors(h).some(n => isRevealed(s, hexKey(...n)));
+  return inWorld(h) && hexDist(h) > 0 && !isWater(W(s).seed, h) && travelCost(W(s).seed, h) < Infinity;
 }
 // minutes for a trip there and back, the easiest way (TRAVEL)
 export const tripMins = (key, seed) => Math.max(1, Math.round(travelCost(seed, parseKey(key)) * TRAVEL.mins));
@@ -191,7 +191,6 @@ export function memberProblem(s, id, key, now) {
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
-  if (stage === 'juvenile' && travelCost(W(s).seed, parseKey(key)) > JUVENILE_RANGE) return 'too-far';
   if (isAway(s, id)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
@@ -385,7 +384,7 @@ export function tripStandoff(s, id) {
   const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
   const threat = threatAt(w.seed, parseKey(exp.hex));
   const scout = hasScout(s, exp.members);
-  if (witnessOf(s, exp)) return null;
+  if (interceptOf(s, exp) || witnessOf(s, exp)) return null;
   const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, parseKey(exp.hex)), scout);
   if (!meets || !standsGround(threat.foe) || keepsAway(threat, teamUnits(s, units))) return null;
   return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
@@ -486,12 +485,55 @@ export function interveneOptions(s, exp, wt) {
     return { ...base, prey: onPrey, predator: onPred };
   });
 }
-const witnessFor = (s, id) => { const exp = W(s).expeditions.find(e => e.id === id); return exp ? witnessOf(s, exp) : null; };
 // a hunt a trip that is back watched, and who could step in: null when there was none
 export function tripWitness(s, id) {
   const exp = W(s).expeditions.find(e => e.id === id);
-  const wt = exp && witnessOf(s, exp);
+  const wt = exp && !interceptOf(s, exp) && witnessOf(s, exp);
   return wt && { ...wt, options: interveneOptions(s, exp, wt) };
+}
+
+// What notices the team on the way to a trip's hex (INTERCEPT), or null: rolled on its own, in the
+// order the hexes are crossed. A predator that would come for this team (not keeping away from it, not
+// passing it by), past the nest's calm. { ...its threat (threatAt), hex: where }
+export function interceptOf(s, exp) {
+  const w = W(s), h = parseKey(exp.hex);
+  const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
+  if (!units.length) return null;
+  const team = teamUnits(s, units), scout = hasScout(s, exp.members);
+  const rand = seededRand(`route:${w.seed}:${exp.trip}`);
+  for (const p of travelPath(w.seed, h).slice(0, -1)) {
+    if (hexDist(p) <= NEST_CALM) continue;
+    const t = threatAt(w.seed, p);
+    if ((t.foe.members[0].role || 'attacker') !== 'attacker' || keepsAway(t, team)) continue;
+    const chance = t.lair ? INTERCEPT.lair : encounterChance(t, team, biomeAt(w.seed, p), scout) * INTERCEPT.share;
+    if (rand() < chance) return { ...t, hex: hexKey(...p) };
+  }
+  return null;
+}
+// What a team going to a hex could run into, for the warning before it sets out: from what the player
+// knows, not what waits (the animals of the biomes on the way, grown ones): the chance something on the
+// way stops it, and the predators that could (fighters, from teamUnits), worst first: [{ foe, biome }]
+export function routeRisk(s, team, key) {
+  const seed = W(s).seed, h = parseKey(key), path = travelPath(seed, h);
+  let pass = 1;
+  const seen = new Map();
+  for (const p of path) {
+    const last = hexKey(...p) === key;
+    if (hexDist(p) <= NEST_CALM && !last) continue;
+    const biome = biomeAt(seed, p), known = isRevealed(s, hexKey(...p));
+    // what lives there: the one known, or any of the biome's
+    const kinds = known ? [threatAt(seed, p)] : BIOMES[biome].wild.map(e => ({ entry: e, lair: false, chance: BIOMES[biome].density, foe: encounterUnit(e, AGES.adult.step, false), weight: e.weight }));
+    const total = kinds.reduce((t, k) => t + (k.weight || 1), 0);
+    let p0 = 0;
+    for (const k of kinds) {
+      if ((k.foe.members[0].role || 'attacker') !== 'attacker' || keepsAway(k, team)) continue;
+      if (!last) p0 += (k.weight || 1) / total * (k.lair ? INTERCEPT.lair : Math.min(1, k.chance) * INTERCEPT.share);
+      const id = k.entry.species || k.entry.creature;
+      if (!seen.has(id)) seen.set(id, { foe: k.foe, biome, at: last ? 'there' : 'on the way' });
+    }
+    if (!last) pass *= 1 - p0;
+  }
+  return { stopped: 1 - pass, crosses: [...new Set(path.slice(0, -1).filter(p => hexDist(p) > NEST_CALM).map(p => biomeAt(seed, p)))], foes: [...seen.values()] };
 }
 
 // the scatter a trip that is back would run into, rolled as collecting it does (null: none)
@@ -500,11 +542,12 @@ export function tripScatter(s, id) {
   const exp = w.expeditions.find(e => e.id === id);
   if (!exp) return null;
   const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
-  const h = parseKey(exp.hex), threat = threatAt(w.seed, h);
+  const ic = interceptOf(s, exp);
+  const h = ic ? parseKey(ic.hex) : parseKey(exp.hex), threat = ic || threatAt(w.seed, h);
   const rand = seededRand(`fight:${w.seed}:${exp.trip}`);
   const team = teamUnits(s, units);
-  if (witnessOf(s, exp)) return null;
-  if (!units.length || rand() >= encounterChance(threat, team, biomeAt(w.seed, h), hasScout(s, exp.members))) return null;
+  if (!ic && witnessOf(s, exp)) return null;
+  if (!units.length || (!ic && rand() >= encounterChance(threat, team, biomeAt(w.seed, h), hasScout(s, exp.members)))) return null;
   if (keepsAway(threat, team)) return null;
   const back = sailBackOff(threat, team, watery(w.seed, h));
   if (back && rand() < back) return null;
@@ -561,17 +604,20 @@ export function collectExpedition(s, id, now, choice = {}) {
 
   // a creature may be waiting; losing means coming home hurt with nothing
   let battle = null;
-  const threat = threatAt(w.seed, h);
+  // something on the way may have noticed the team first: then that is what it met (at fh)
+  const intercepted = interceptOf(s, exp);
+  const threat = intercepted || threatAt(w.seed, h);
+  const fh = intercepted ? parseKey(intercepted.hex) : h;
   const scout = hasScout(s, exp.members);
   let sighting = null, standoff = null, chase = null, spotted = false, backedOff = null, backChance = 0, scatter = null;
   // the dinosaurs that died on this trip
   const dead = [];
   // wild against wild: the team watched instead of meeting either, and may have stepped in
   // (choice.witness { act: 'prey' | 'predator', hunter: the unit's id }): what it won goes in witnessLoot
-  const witnessed = witnessOf(s, exp);
+  const witnessed = !intercepted && witnessOf(s, exp);
   const witness = witnessed && { hunter: witnessed.hunter, prey: witnessed.prey, outcome: witnessed.outcome, act: 'none' };
   const witnessLoot = [];
-  const meets = !witnessed && units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
+  const meets = intercepted ? units.length > 0 : !witnessed && units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
   if (witnessed && choice.witness) {
     const opt = interveneOptions(s, exp, witnessed).find(o => o.id === choice.witness.hunter);
     const act = choice.witness.act, go = opt && (act === 'prey' ? opt.prey : act === 'predator' ? opt.predator : null);
@@ -616,7 +662,7 @@ export function collectExpedition(s, id, now, choice = {}) {
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
-  } else if (meets && (backChance = sailBackOff(threat, teamUnits(s, units), watery(w.seed, h))) && fightRand() < backChance) {
+  } else if (meets && (backChance = sailBackOff(threat, teamUnits(s, units), watery(w.seed, fh))) && fightRand() < backChance) {
     // a rival as big as the team's Spinosaurus sized up its sail and backed off: no fight
     const sail = teamUnits(s, units).flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
     backedOff = { name: threat.foe.name, count: threat.foe.members.length, by: sail.name };
@@ -662,7 +708,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (!how.foe && standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
     // (how.units: those who fight, the team by default; how.defend: the team went for it, so it defends
     // itself whatever it would hunt)
-    const foe = how.foe || threat.foe, opts = { swamp: watery(w.seed, h), biome: biomeAt(w.seed, h), ...(how.defend ? { defend: true } : {}) };
+    const foe = how.foe || threat.foe, opts = { swamp: watery(w.seed, fh), biome: biomeAt(w.seed, fh), ...(how.defend ? { defend: true } : {}) };
     const fought = how.units || units, team = teamUnits(s, fought);
     const result = teamFight(team, foe, fightRand, opts);
     // everyone ran from a predator: it gives chase, and may catch the slowest, who may not survive
@@ -774,7 +820,8 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (coins) earn(s, coins);
   }
   // even a beaten explorer saw the land
-  const newly = [exp.hex, ...neighbors(h).map(n => hexKey(...n))].filter(k => !w.revealed.includes(k));
+  // (and what lives along the way, seen in passing)
+  const newly = [...new Set([exp.hex, ...neighbors(h).map(n => hexKey(...n)), ...travelPath(w.seed, h).map(p => hexKey(...p))])].filter(k => !w.revealed.includes(k));
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
   // a trip leaves everyone hungry, but a small hunter (Compsognathus) fed itself on the way: a meal
@@ -786,7 +833,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     else b.lastFed = now - hungerEvery(b);
   }
   const died = dead.map(id => bury(s, id)).filter(Boolean);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, witness, scatter: scatter && { name: scatter.name, prey: scatter.prey, mounted: scatter.mounted, alone: scatter.alone, choice: scatter.choice }, died, fedSelf, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, witness, intercepted: intercepted && { name: intercepted.foe.name, hex: intercepted.hex, biome: biomeAt(w.seed, fh) }, scatter: scatter && { name: scatter.name, prey: scatter.prey, mounted: scatter.mounted, alone: scatter.alone, choice: scatter.choice }, died, fedSelf, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

@@ -1169,3 +1169,42 @@ test('wild against wild: the team watches a hunt, and may step in after the prey
   assert.ok(ran.length);
   for (const { wt, c } of ran) { assert.ok(wt.options[0].predator.chase); assert.equal(c.battle, null); }
 });
+
+test('an open world: the way to a far hex crosses danger, and something on it may come for the team first', async () => {
+  const { interceptOf, routeRisk, travelPath, canReach } = await import('../js/world.js');
+  const land = landHexes(42);
+  const far = hexKey(...land.filter(h => threatAt(42, h).id === 'rex').at(-1));
+  const near = hexKey(...land.find(h => hexDist(h) === 3));
+  let stopped = 0, met = 0;
+  for (let trip = 1; trip <= 60; trip++) {
+    const s = game(dino('p', 60, 'proto'));
+    s.world.trips = trip - 1;
+    assert.equal(canReach(s, far), true);
+    const r = applyAction(s, 'explore', { babyId: 'p', hex: far }, T0);
+    assert.equal(r.ok, true, r.reason);
+    const ic = interceptOf(s, r.expedition);
+    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    if (ic) {
+      stopped++;
+      assert.equal(c.intercepted.name, ic.foe.name);
+      // it met the one on the way, somewhere it crossed
+      assert.ok(travelPath(42, far.split(',').map(Number)).some(h => hexKey(...h) === ic.hex));
+      if (c.battle) met++;
+    }
+    // the way there is known now
+    assert.ok(travelPath(42, far.split(',').map(Number)).every(h => s.world.revealed.includes(hexKey(...h))));
+  }
+  assert.ok(stopped > 0 && met > 0, JSON.stringify({ stopped, met }));
+  // near the nest the way is calm
+  const s = game(dino('p', 60, 'proto'));
+  for (let trip = 1; trip <= 30; trip++) {
+    s.world.trips = trip - 1;
+    s.world.expeditions = [];
+    const r = applyAction(s, 'explore', { babyId: 'p', hex: near }, T0);
+    assert.equal(interceptOf(s, r.expedition), null);
+  }
+  // the warning before setting out: from the biomes crossed
+  const team = teamUnits(game(dino('p', 60, 'proto')), [{ kind: 'dino', id: 'p', members: ['p'] }]);
+  const risk = routeRisk(game(dino('p', 60, 'proto')), team, far);
+  assert.ok(risk.stopped > 0 && risk.foes.length && risk.crosses.length);
+});

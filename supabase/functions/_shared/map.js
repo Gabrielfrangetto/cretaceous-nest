@@ -192,9 +192,10 @@ export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.
 // terrain's or its biome's, whichever is more, plus a river to cross. Water can't be crossed.
 const costs = new Map();
 export const stepCost = c => Math.max(TRAVEL.terrain[c.terrain] || 1, TRAVEL.biome[c.biome] || 1) + (c.river ? TRAVEL.river : 0);
-export function travelCosts(seed) {
+// { best: cost to each hex, prev: the hex it is reached from }
+function routes(seed) {
   if (costs.has(seed)) return costs.get(seed);
-  const map = worldMap(seed), best = new Map([[key(0, 0), 0]]);
+  const map = worldMap(seed), best = new Map([[key(0, 0), 0]]), prev = new Map();
   // a small binary heap of [cost, hex]
   const heap = [[0, [0, 0]]];
   const push = x => { heap.push(x); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
@@ -206,12 +207,21 @@ export function travelCosts(seed) {
       const cell = map.get(key(...n));
       if (!cell || cell.terrain === 'ocean' || cell.terrain === 'lake') continue;
       const nc = c + stepCost(cell);
-      if (nc < (best.get(key(...n)) ?? Infinity)) { best.set(key(...n), nc); push([nc, n]); }
+      if (nc < (best.get(key(...n)) ?? Infinity)) { best.set(key(...n), nc); prev.set(key(...n), h); push([nc, n]); }
     }
   }
   if (costs.size > 8) costs.clear();
-  costs.set(seed, best);
-  return best;
+  const out = { best, prev };
+  costs.set(seed, out);
+  return out;
 }
+export const travelCosts = seed => routes(seed).best;
 // the cost of the easiest way from the nest to a hex (Infinity: there is none)
-export const travelCost = (seed, h) => travelCosts(seed).get(key(...h)) ?? Infinity;
+export const travelCost = (seed, h) => routes(seed).best.get(key(...h)) ?? Infinity;
+// the easiest way from the nest to a hex: the hexes crossed, the hex itself last (not the nest)
+export function travelPath(seed, h) {
+  const { prev } = routes(seed), path = [];
+  if (!prev.has(key(...h))) return [];
+  for (let x = h; x && key(...x) !== key(0, 0); x = prev.get(key(...x))) path.unshift(x);
+  return path;
+}

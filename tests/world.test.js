@@ -6,7 +6,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, BIOMES, EXPEDITION_SLOTS, JUVENILE_RANGE, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
+import { MAP, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
@@ -49,12 +49,14 @@ test("every map has every biome, a calm meadow around the nest, rivers and lakes
   }
 });
 
-test('a new world shows the nest and its neighbours; expeditions reach one hex into the fog, over land, by the easiest way', () => {
+test('an open world: what lives around the nest is known, and any land can be explored, by the easiest way', () => {
   const s = game();
   assert.equal(s.world.revealed.length, 7);
   assert.equal(canReach(s, '0,0'), false);
-  assert.equal(canReach(s, '2,0'), true);    // fog next to a revealed hex
-  assert.equal(canReach(s, '3,0'), false);   // deeper fog
+  assert.equal(canReach(s, '2,0'), true);
+  // however far: the danger is the player's to weigh
+  const far = landHexes(42).at(-1);
+  assert.equal(canReach(s, hexKey(...far)), true);
   assert.equal(canReach(s, '99,0'), false);
   // a trip takes as long as the way there is hard: farther, longer
   assert.ok(tripMins('1,0', 42) >= 1 && tripMins('3,0', 42) > tripMins('1,0', 42));
@@ -66,12 +68,12 @@ test('a new world shows the nest and its neighbours; expeditions reach one hex i
   assert.equal(canReach(s, hexKey(...sea)), false);
 });
 
-test('who can explore: juveniles nearby, adults anywhere, never babies, hungry or busy ones', () => {
+test('who can explore: juveniles and adults anywhere, never babies, hungry or busy ones', () => {
   const s = game(dino('baby', 0), dino('juv', 10), dino('ad', 30), dino('ad2', 30, 'f'), dino('ad3', 30));
   s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
-  const far = hexKey(...landHexes(42).find(h => travelCost(42, h) > JUVENILE_RANGE));
+  const far = hexKey(...landHexes(42).at(-1));
   assert.equal(exploreProblem(s, 'baby', '1,0', T0), 'too-young');
-  assert.equal(exploreProblem(s, 'juv', far, T0), 'too-far');
+  assert.equal(exploreProblem(s, 'juv', far, T0), null);
   assert.equal(exploreProblem(s, 'juv', '1,0', T0), null);
   assert.equal(exploreProblem(s, 'ad', far, T0), null);
   assert.equal(exploreProblem(s, 'ad', '0,0', T0), 'home');
