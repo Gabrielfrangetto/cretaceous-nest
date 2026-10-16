@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -266,6 +266,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   // Animals knocked down (a butt to the flank, a fall): on its own agility (RISE) it gets straight back
   // up; otherwise it loses its next action. Returns whether it rose.
   const knocked = new Set();
+  // how firmly it stands against being knocked down: four feet on the ground hold better than two
+  const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
     if (rand() < Math.min(RISE.max, S[t][v].members[m].agi / 100)) return true;
     knocked.add(E(t, v, m));
@@ -416,7 +418,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (throat < 1) bone.throat = true;
     if (domed) bone = { part: 'head', dome: true };
     // butted in the flank, it may go down and lose its next action
-    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) bone = { ...bone, knocked: true, rose: knockDown(t, v, m) };
+    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, footing(prey))) bone = { ...bone, knocked: true, rose: knockDown(t, v, m) };
     // the spikes leave a wound that bleeds, and may go through a leg
     if (spiked && dmg > 0 && hp[t][v][m] > 0) {
       const wounds = spikeWounds.get(E(t, v, m)) || 0;

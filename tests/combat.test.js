@@ -558,3 +558,17 @@ test('a Pachycephalosaurus butts flanks and may knock the foe down; its dome shr
   }
   assert.ok(seen.butts && seen.knocked && seen.lostTurn && seen.rose && seen.dome, JSON.stringify(seen));
 });
+
+test('four feet stand firmer than two: a quadruped is harder to knock down', () => {
+  const pachy = () => unitOf('p', [{ ...fighterOf(dino('p', 60, 'pachy')), fear: undefined }]);
+  const rate = foe => {
+    let butts = 0, downs = 0;
+    for (let i = 0; i < 150; i++) for (const e of teamFight([pachy()], foe, seededRand('st' + foe.name + i)).log) {
+      if (e.by === 0 && e.butt && e.dmg > 0) { butts++; if (e.knocked) downs++; }
+    }
+    return downs / butts;
+  };
+  // the same body, on two legs or on four
+  const two = { ...wildFighter('proto', 4), biped: true, beak: false, name: 'two' }, four = { ...two, biped: false, name: 'four' };
+  assert.ok(rate(four) < rate(two), `${rate(four)} vs ${rate(two)}`);
+});
