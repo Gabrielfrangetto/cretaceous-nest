@@ -140,8 +140,12 @@ const bodyOf = (s, id) => { const b = id !== PLAYER_ID && explorerOf(s, id); ret
 export const teamSlow = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).slow || 1));
 export const teamHaul = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).haul || 1));
 // a team of nothing but runners (Gallimimus) goes twice as fast
-export const allRunners = (s, members) => members.length > 0 && members.every(id => bodyOf(s, id).runner);
-export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1) * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1);
+// (the player rides one of them: a single Gallimimus with the player is enough)
+export const allRunners = (s, members) => {
+  const dinos = members.filter(id => id !== PLAYER_ID);
+  return dinos.length > 0 && dinos.every(id => bodyOf(s, id).runner);
+};
+export const teamTripMins = (s, members, key) => tripMins(key) * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1);
 
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);

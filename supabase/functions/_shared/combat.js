@@ -466,7 +466,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
     // a dome's charge butts the flank; on a domed head the part matters wherever the blow lands
     const butt = att.dome && extra.charge && !held;
-    if (butt && !part) part = rand() < DOME.back ? 'back' : 'belly';
+    // a domed head goes for the flank, not the front, whatever the blow
+    if (att.dome && !held && !part) part = rand() < DOME.back ? 'back' : 'belly';
     if (!part && !onHead && prey.dome) part = rollPart(HIT_PARTS, prey, low);
     // a bone-breaking bite picks its part before it lands (a covered throat can take some of it)
     if (!part && !onHead && S[s][u].members[0].boneBreaker && sizeRank(prey.size) > sizeRank(BONE_BREAKER.oneBite)) part = rollPart(BONE_BREAKER.parts, prey, low);
@@ -475,7 +476,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     // little less from anything bigger
     const step = sizeRank(att.size) - sizeRank(prey.size);
     const throat = part === 'neck' && prey.throat ? (step < 0 ? 0 : step === 0 ? THROAT.same : THROAT.bigger) : 1;
-    // a domed head shrugs off anything no bigger than itself
+    // a domed head takes little from anything no bigger than itself
     const domed = (part === 'head' || onHead) && prey.dome && step <= 0;
     // a tail club swung (a counter or a charge) lands harder than a bite; a spiked tail pierces
     const swung = att.club && (extra.counter || extra.charge);
@@ -486,7 +487,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     const weapon = neck ? { ...att, crush: 1 } : spiked ? { ...att, crush: Math.max(att.crush || 0, SPIKES.pierce) } : hooked ? { ...att, crush: Math.max(att.crush || 0, HOOK.pierce) } : att;
     // a long-legged kick back lands harder (Gallimimus)
     const kick = extra.counter && att.kick > 1 ? att.kick : 1;
-    const raw = hitOf(weapon, prey, roll) * buff * boost * kick * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? 0 : 1);
+    const raw = hitOf(weapon, prey, roll) * buff * boost * kick * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? DOME.head : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     // what this turn's blows did to hunkered-down armor (a frustrated predator gives up)

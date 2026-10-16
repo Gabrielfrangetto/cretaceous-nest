@@ -533,14 +533,15 @@ test('two legs and two arms, or four legs: a low tail blow only finds legs, a bi
   assert.ok(seen.arm && seen.bipedLeg && seen.quadLeg, JSON.stringify(seen));
 });
 
-test('a Pachycephalosaurus butts flanks and may knock the foe down; its dome shrugs off head blows from its size or smaller', () => {
+test('a Pachycephalosaurus goes for the flanks and may knock the foe down; its dome takes head blows from its size or smaller lightly', () => {
   const pachy = () => unitOf('p', [{ ...fighterOf(dino('p', 60, 'pachy')), fear: undefined }]);
   const seen = { butts: 0, knocked: 0, lostTurn: 0, rose: 0, dome: 0, bigHead: 0 };
   for (let i = 0; i < 60; i++) {
     for (const foe of [wildFighter('dilo', 5), wildFighter('rex', 4)]) {
       const r = teamFight([pachy()], foe, seededRand('pa' + foe.name + i));
       r.log.forEach((e, k) => {
-        if (e.by === 0 && e.butt && e.dmg > 0) { seen.butts++; assert.ok(['back', 'belly'].includes(e.part), e.part); }
+        if (e.by === 0 && e.dmg > 0 && e.part) assert.ok(['back', 'belly'].includes(e.part), e.part);
+        if (e.by === 0 && e.butt && e.dmg > 0) seen.butts++;
         if (e.by === 0 && e.knocked) {
           seen.knocked++;
           // nothing two sizes bigger falls: never the Tyrannosaurus
@@ -551,7 +552,7 @@ test('a Pachycephalosaurus butts flanks and may knock the foe down; its dome shr
           if (e.rose) { seen.rose++; assert.ok(!next || !next.recovering); }
           else if (next && next.recovering) seen.lostTurn++;
         }
-        if (e.by === 'foe' && e.part === 'head' && e.dome) { seen.dome++; assert.equal(e.dmg, 0); }
+        if (e.by === 'foe' && e.part === 'head' && e.dome) seen.dome++;
         if (e.by === 'foe' && e.part === 'head' && !e.dome && e.dmg > 0) seen.bigHead++;
       });
     }
@@ -775,6 +776,9 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
   const key = '2,0';
   assert.equal(teamTripMins(s0, ['g1', 'g2'], key), teamTripMins(s0, ['d'], key) * RUNNER.trip);
   assert.equal(teamTripMins(s0, ['g1', 'd'], key), teamTripMins(s0, ['d'], key));
+  // the player rides one: a lone Gallimimus with the player still goes twice as fast
+  assert.equal(teamTripMins(s0, ['player', 'g1'], key), teamTripMins(s0, ['d'], key) * RUNNER.trip);
+  assert.equal(teamTripMins(s0, ['player'], key), teamTripMins(s0, ['d'], key));
   // a raptor pack lair: always met, and fought or run from
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   let ran = 0, caught = 0, fought = 0;

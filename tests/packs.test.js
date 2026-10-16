@@ -124,7 +124,7 @@ test('older saves turn a one-explorer trip into a team of one', () => {
   assert.equal(isAway(m, 'a'), true);
 });
 
-test('a Compsognathus scouts for its team: shorter trips, fewer fights, more eggs', () => {
+test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
   // a hex 3 away where a small creature waits, so the fighter wins and can find eggs
   const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
     const t = threatAt(42, parseKey(k));
@@ -150,7 +150,8 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
   };
   const without = trips(['d1'], 100), led = trips(['d1', 'c1'], 100);
   assert.equal(without.mins, tripMins(key));
-  assert.equal(led.mins, tripMins(key) * SCOUT.trip);
+  // too small to ride: no shorter trip
+  assert.equal(led.mins, tripMins(key));
   assert.ok(led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
   assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });

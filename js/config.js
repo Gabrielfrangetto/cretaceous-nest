@@ -99,7 +99,7 @@ const SIZE = {
 //   spikes: a spiked tail that pierces when it strikes back or charges (SPIKES)
 //   guard: a fighting stance that may turn a blow aside and strike back at once (SPIKES)
 //   throat: small bones covering the throat (THROAT)
-//   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
+//   dome: a thick bony skull dome: it goes for the flanks and takes blows to the head lightly (DOME)
 //   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
 //   alert: a deep call through its hollow crest that warns its group of a predator (ALERT)
 //   escape: may get away from a blow that would bring it down (ESCAPE)
@@ -191,11 +191,12 @@ export const STARTERS = ['dilo', 'proto', 'compy', 'hypsi'];
 export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
   proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
-  compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
-  hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, darting in zigzags that bigger animals struggle to follow. A team it leads travels faster, keeps clear of danger and finds more eggs; it browses on the way and brings plants home, and in a herd its many eyes often spot a predator in time for everyone to scatter.' },
+  compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals (or to ride), but a team it leads sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
+  hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, darting in zigzags that bigger animals struggle to follow. A team it leads keeps clear of danger and finds more eggs; it browses on the way and brings plants home, and in a herd its many eyes often spot a predator in time for everyone to scatter.' },
 };
-// a team with a scout in it
-export const SCOUT = { trip: 0.75, encounter: 0.5, egg: 1.5 };
+// a team with a scout in it: it leads the team around danger and sniffs out eggs. It doesn't make the
+// trip any shorter: the player goes along, and a scout is far too small to ride.
+export const SCOUT = { encounter: 0.5, egg: 1.5 };
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
 export const BUILDS = { theropod: 'Theropod', ornithopod: 'Ornithopod', pachycephalosaur: 'Pachycephalosaur', ceratopsian: 'Ceratopsian', armored: 'Armored', sauropod: 'Sauropod' };
@@ -506,11 +507,11 @@ export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bon
 export const THROAT = { same: 0.5, bigger: 0.9 };
 // Pachycephalosaurus' dome, up to 25 cm of bone (about a fifth of the domes found carry healed combat
 // wounds; its rounded shape suits butting an opponent's flank more than head-on clashes). Its charge
-// lands on the flank (the back back of the time, else the belly) and may knock the target down: it
-// loses its next action (strength against strength; nothing more than maxStep sizes bigger falls).
-// Blows land all over it (HIT_PARTS), and one on the head from anything no bigger than itself does
-// nothing.
-export const DOME = { back: 0.7, maxStep: 1 };
+// goes for the flank rather than the front: every blow of its lands on the flank (the back back of the
+// time, else the belly), and its charge may knock the target down: it loses its next action (strength
+// against strength; nothing more than maxStep sizes bigger falls). Blows land all over it (HIT_PARTS),
+// and one on the head from anything no bigger than itself does head of its damage.
+export const DOME = { back: 0.7, maxStep: 1, head: 0.3 };
 // Knocked down (a butt to the flank, a fall), an animal gets straight back up on its own agility alone:
 // its agility as a percentage (26 agility, 26% of the time), never more than max; otherwise it loses
 // its next action. The slow stay down.
@@ -690,7 +691,7 @@ export const GUIDE = {
       { focus: '[data-type="dilo"], [data-type="proto"]',
         text: "These two are fighters, the ones to have beside you when something wild jumps out of the ferns. Dilophosaurus hits hard but can't take much in return; Protoceratops is the other way round, tough as an old log. It eats plants, but don't let that fool you: we found one locked in battle with a Velociraptor!" },
       { focus: '[data-type="compy"], [data-type="hypsi"]',
-        text: "And these two are explorers. They're too small to fight anything big, but with one in your team you travel faster, slip past danger and find more eggs. Compsognathus is the quickest of them all; Hypsilophodon is good at a bit of everything." },
+        text: "And these two are explorers. They're too small to fight anything big, but with one in your team you slip past danger and find more eggs. Compsognathus is the quickest of them all; Hypsilophodon is good at a bit of everything." },
       "Whichever you choose, the world out there is wild and hostile, and nobody should face it alone. Later you'll find eggs of many more species, each good at something of its own.",
     ],
     done: "I'll choose!",
