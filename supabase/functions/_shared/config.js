@@ -376,6 +376,12 @@ export const SIZE_EDGE = 0.3;
 export const SIZE_DODGE = 0.12;
 export const DODGE_MAX = 0.75;
 export const SIZE_DODGE_MAX = 0.85;
+// a wound's bleeding follows size too: each size step the attacker is bigger than its target bleeds
+// BLEED_BIGGER more (a bite that tears a piece off), each step smaller BLEED_SMALLER less (small cuts
+// on a big body; a pack adds them up), never under BLEED_MIN of the wound's bleeding
+export const BLEED_BIGGER = 0.3;
+export const BLEED_SMALLER = 0.25;
+export const BLEED_MIN = 0.25;
 // Ankylosaurus' armor: every blow lands on a part. The back, the head (fused skull plates, even bony
 // eyelids) and the neck (rings of bone) take cut less damage; a blow on the back also hurts the
 // attacker (thorns, of the blow's full damage). The legs have little armor; the belly none (belly times).
@@ -425,7 +431,10 @@ export const BONE_BREAKER = { parts: [['body', 0.65], ['leg', 0.27], ['neck', 0.
 // health grows with the body: a size's share of the health its stats give (medium as it is)
 export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
-export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins
+export const FIGHT_MAX_TURNS = 60;           // after this the one with more health left (as a share) wins,
+// but a team only wins a drawn-out fight when the foe is down to TIMEOUT_WIN of its health or less
+// (a big animal that a small one only harasses doesn't give up its ground)
+export const TIMEOUT_WIN = 0.5;
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight

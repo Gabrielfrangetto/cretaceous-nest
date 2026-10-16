@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_MAX_TURNS, TIMEOUT_WIN, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -27,6 +27,12 @@ export function fighterOf(baby, extra = []) {
 export const dodgeVs = (dodge, size, attSize) => {
   const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
   return steps ? Math.min(SIZE_DODGE_MAX, dodge + SIZE_DODGE * steps) : Math.min(DODGE_MAX, dodge);
+};
+
+// how much a wound bleeds when an attacker of attSize opens it on a target of size
+export const bleedVs = (bleed, attSize, size) => {
+  const steps = SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small');
+  return bleed * (steps >= 0 ? 1 + BLEED_BIGGER * steps : Math.max(BLEED_MIN, 1 + BLEED_SMALLER * steps));
 };
 
 // health for the size of the body (SIZE_HP)
@@ -226,7 +232,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const stunned = new Set();
   const holding = new Map();
   const slashed = foe.members.map(() => false);
-  const slashWound = m => { if (m >= 0 && foeHp[m] > 0 && !slashed[m]) { slashed[m] = true; bleeding[m] += GRAB.bleed; } };
+  const slashWound = (m, who) => { if (m >= 0 && foeHp[m] > 0 && !slashed[m]) { slashed[m] = true; bleeding[m] += bleedVs(GRAB.bleed, biggest(units[who]), foe.members[m].size); } };
   // a contest of one value against another: a / (a + b) to win
   const contest = (a, b) => rand() < a / (a + b);
   // Velociraptors latched on to the foe: unit -> { m: the foe's member, holder: its own member,
@@ -395,7 +401,7 @@ export function teamFight(units, foe, rand, opts = {}) {
               log.push({ by: 'foe', to, member, dmg: 0, left: hp[to][member], part: 'head', blocked: true, frill: frill[to][member] });
               if (foeLeft() > 0) {
                 const gored = strike(to, roll, 1, { counter: true, gore: true });
-                if (gored >= 0 && foeHp[gored] > 0 && gores[gored] < FRILL.maxBleed) { gores[gored]++; bleeding[gored] += FRILL.bleed; }
+                if (gored >= 0 && foeHp[gored] > 0 && gores[gored] < FRILL.maxBleed) { gores[gored]++; bleeding[gored] += bleedVs(FRILL.bleed, units[to].members[member].size, foe.members[gored].size); }
               }
               afterAttack(to, false);
               continue;
@@ -442,7 +448,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (holding.has(who)) {
           const m = holding.get(who);
           if (foeHp[m] <= 0) holding.delete(who);
-          else { slashWound(strike(who, 0.75 + rand() * 0.5, 1, { hold: true, member: m })); continue; }
+          else { slashWound(strike(who, 0.75 + rand() * 0.5, 1, { hold: true, member: m }), who); continue; }
         }
         // clinging on: it holds on (strength against the foe's agility) and slashes, or falls off; a
         // bad fall (agility against agility) costs it its next turn
@@ -450,7 +456,7 @@ export function teamFight(units, foe, rand, opts = {}) {
           const m = clinging.get(who), lead = units[who].members[0], prey = foe.members[m];
           if (foeHp[m] <= 0) clinging.delete(who);
           else if (contest(lead.str, prey.agi)) {
-            slashWound(strike(who, 0.75 + rand() * 0.5, 1, { slash: true, member: m }));
+            slashWound(strike(who, 0.75 + rand() * 0.5, 1, { slash: true, member: m }), who);
             continue;
           } else {
             clinging.delete(who);
@@ -466,7 +472,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         else if (latch) {
           const dmg = rounded(hitOf({ ...units[who].members[latch.holder], crush: 1 }, foe.members[latch.m], 0.75 + rand() * 0.5));
           foeHp[latch.m] = Math.max(0, foeHp[latch.m] - dmg);
-          if (foeHp[latch.m] > 0 && clawWounds[latch.m] < LATCH.maxStacks) { clawWounds[latch.m]++; bleeding[latch.m] += LATCH.bleed; }
+          if (foeHp[latch.m] > 0 && clawWounds[latch.m] < LATCH.maxStacks) { clawWounds[latch.m]++; bleeding[latch.m] += bleedVs(LATCH.bleed, units[who].members[latch.holder].size, foe.members[latch.m].size); }
           log.push({ by: who, member: latch.m, dmg, left: foeHp[latch.m], foeLeft: foeLeft(), latched: latch.mode });
           // the rest of a pack keeps attacking
           if (!units[who].pack || standing(hp[who]).length < 2 || foeLeft() <= 0) continue;
@@ -512,7 +518,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamMax = fighting.reduce((t, i) => t + unitHp(units[i]), 0);
   const teamLeft = fighting.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
-  const win = !escaped && (left <= 0 || (teamLeft > 0 && teamLeft / teamMax >= left / foeMax));
+  const win = !escaped && (left <= 0 || (teamLeft > 0 && left / foeMax <= TIMEOUT_WIN && teamLeft / teamMax >= left / foeMax));
   return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill };
 }
 
