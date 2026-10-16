@@ -172,7 +172,7 @@ function threatHTML(h, units, scout) {
     ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off: about ${Math.round(sail * 100)}% of the time.</p>` : ''}
     ${fight ? riskHTML(units, fight.death) : ''}
     ${eyes && (th.foe.members[0].role || 'attacker') === 'attacker' ? `<p class="hint">Your Hypsilophodon may see it first (about ${Math.round(eyes * 100)}%): the team scatters and nobody is caught.</p>` : ''}
-    ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it may catch the slowest one, and the one caught may not survive.</p>' : ''}
+    ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it gives chase: it may catch the slowest of the team, and the one caught may not survive.</p>' : ''}
   </div>`;
 }
 

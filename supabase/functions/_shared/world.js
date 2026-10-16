@@ -461,14 +461,13 @@ export function collectExpedition(s, id, now, choice = {}) {
     const sail = teamUnits(s, units).flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
     backedOff = { name: threat.foe.name, count: threat.foe.members.length, by: sail.name };
   } else if (meets && !standsGround(threat.foe) && (spotted = runnersSpot(s, exp.members, fightRand))) {
-    // runners (Gallimimus) saw the predator first: the team runs, and it may catch the slowest of them
-    const ids = units.flatMap(u => u.members), fighters = teamUnits(s, units).flatMap(u => u.members);
-    const runners = fighters.map((f, i) => ({ f, id: ids[i] })).filter(x => x.f.type && SPECIES[x.f.type].runner);
-    const slow = runners.reduce((a, x) => (!a || x.f.agi < a.f.agi ? x : a), null);
+    // runners (Gallimimus) saw the predator first: the team runs, and as with anyone running from a
+    // predator it gives chase to the slowest (chaseOf), who may not survive
+    const chased = chaseOf(teamUnits(s, units), threat.foe);
     let caught = null;
-    if (slow && fightRand() < catchChance(threat.foe, slow.f)) {
-      caught = explorerOf(s, slow.id);
-      if (fightRand() < caughtDeath(threat.foe, slow.f)) dead.push(caught.id);
+    if (chased && fightRand() < chased.chance) {
+      caught = explorerOf(s, units[chased.unit].members[chased.member]);
+      if (fightRand() < chased.death) dead.push(caught.id);
       else { caught.injuredUntil = now + CRITICAL_MINS * 60000; caught.critical = true; }
     }
     chase = { name: threat.foe.name, count: threat.foe.members.length, caught: caught ? caught.id : null, died: !!caught && dead.includes(caught.id) };
