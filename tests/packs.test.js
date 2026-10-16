@@ -191,7 +191,9 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
 });
 
 test('only a won fight that went into a frenzy drops Allosaurus teeth and blood, more with more Allosaurus', () => {
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) === 3 && threatAt(42, parseKey(k)).lair);
+  // a lair whose animal doesn't keep away from Allosaurus
+  const shows = k => { const e = threatAt(42, parseKey(k)).entry; return !e.species || !['tiny', 'small', 'medium'].includes(SPECIES[e.species].fear); };
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 4 && threatAt(42, parseKey(k)).lair && shows(k));
   const haul = n => {
     const ids = Array.from({ length: n }, (_, i) => 'a' + i);
     const s = game(...ids.map(id => dino(id, 'allo', 80)));

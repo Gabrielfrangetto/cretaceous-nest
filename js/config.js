@@ -94,7 +94,10 @@ const SIZE = {
 //   grab: clings to a bigger foe's body to slash it (GRAB)
 //   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
 //   claw: a sickle claw that latches on and goes for the neck (LATCH, CLAW)
-//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts
+//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
+//           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
+//           at a distance and hunted (hunt)
+//   hunt:   a carnivore's hunting skill, added to its agility when it hunts what it spotted (HUNT)
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
 //           animals with little teeth or a beak stay weak even with perfect genes.
@@ -103,25 +106,25 @@ const SIZE = {
 // is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
-  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', fear: 'tiny' },
-  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', fear: 'large' },
+  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
+  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
-  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', fear: 'medium' },
+  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', fear: 'medium' },
+  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', charge: 0.2, fear: 'huge' },
-  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', fear: 'large' },
+  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'colossal' },
-  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', fear: 'huge' },
-  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', fear: 'huge' },
-  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', fear: 'colossal' },
+  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
+  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
+  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'colossal' },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
 };
 // How each role fights:
@@ -440,6 +443,11 @@ export const FIGHT_SAFETY = 10000;
 // a pack or herd's morale: once it has lost this share of its members (one of two, two of three, half
 // of a bigger one), the rest run off and the fight is over for them
 export const ROUT = 0.5;
+// Hunting what keeps away from the team: the team's best hunter (a carnivore with BODY hunt, no
+// smaller than its prey) against the prey's agility: (agility + hunt) / (that + the prey's agility),
+// PACK_BONUS more for each other member of a pack hunting with it. A catch brings home what beating
+// one in a fight would. A team keeps at most HUNT_SIGHTINGS waiting to be decided.
+export const HUNT_SIGHTINGS = 5;
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight

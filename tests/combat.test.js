@@ -4,7 +4,9 @@ import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from 
 import { freshState } from '../js/state.js';
 import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFight, unitOf, winChance, dangerOf } from '../js/combat.js';
 import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem } from '../js/world.js';
-import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST } from '../js/config.js';
+import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER } from '../js/config.js';
+// whether what waits in a hex shows itself to a team whose biggest is size (it keeps away otherwise)
+const showsTo = (key, size) => { const e = threatAt(42, key.split(',').map(Number)).entry; const f = e.species && SPECIES[e.species].fear; return !f || SIZE_ORDER.indexOf(f) >= SIZE_ORDER.indexOf(size); };
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -60,7 +62,7 @@ const lairs = seed => ALL_HEXES.filter(h => isLair(seed, h)).sort((x, y) => thre
 
 test('beating a creature brings its loot and coins on top of the hex', () => {
   const s = game(dino('champ', 100));
-  const key = lairs(42)[0];
+  const key = lairs(42).find(k => showsTo(k, SPECIES.rex.size));
   const r = trip(s, 'champ', key);
   assert.equal(r.battle.win, true);
   assert.equal(r.battle.lair, true);
@@ -366,4 +368,35 @@ test('wild animals fight by their role: a herd of defenders only charges or stri
     }
   }
   assert.ok(charges > 0 && counters > charges);
+});
+
+test('a wild animal keeps away from anything bigger than its fear: it can only be spotted and hunted', () => {
+  // a Compsognathus lair always has its pack there, but they keep away from a Tyrannosaurus
+  const key = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'compy');
+  const caught = { yes: 0, no: 0 };
+  for (let i = 0; i < 30; i++) {
+    const s = game(dino('rex', 60));
+    s.world.trips = i;
+    const r = trip(s, 'rex', key);
+    assert.equal(r.battle, null);
+    assert.equal(r.sighting.species, 'compy');
+    assert.ok(r.sighting.chance > 0 && r.sighting.chance < 1);
+    assert.deepEqual(s.world.sightings.map(x => x.id), [r.sighting.id]);
+    const meat = countItem(s, 'meat');
+    const h = applyAction(s, 'hunt', { id: r.sighting.id, go: true });
+    assert.equal(h.ok, true);
+    assert.deepEqual(s.world.sightings, []);
+    if (h.caught) { caught.yes++; assert.ok(countItem(s, 'meat') > meat && h.coins > 0); } else { caught.no++; assert.equal(countItem(s, 'meat'), meat); }
+    assert.equal(applyAction(s, 'hunt', { id: r.sighting.id, go: true }).ok, false);
+  }
+  assert.ok(caught.yes > 0 && caught.no > 0, JSON.stringify(caught));
+  // letting them be brings nothing; a team with no carnivore big enough doesn't even get the chance
+  const s = game(dino('rex', 60));
+  const r = trip(s, 'rex', key);
+  assert.equal(applyAction(s, 'hunt', { id: r.sighting.id, go: false }).caught, undefined);
+  assert.deepEqual(s.world.sightings, []);
+  const herbivore = game(dino('trike', 60, 'trike'));
+  const t = trip(herbivore, 'trike', key);
+  assert.equal(t.battle, null);
+  assert.equal(t.sighting, null);
 });

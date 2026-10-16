@@ -442,6 +442,9 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .loot li { display: flex; align-items: center; gap: 6px; }
 .loot .mini svg, .trips .mini svg { width: 18px; height: 18px; display: block; }
 .trips { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.sightings { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.sighting { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px dashed var(--line); }
+.sighting p { margin: 0; }
 .trip-row { display: grid; gap: 6px; }
 .trip-row .row { justify-content: space-between; }
 

@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -108,7 +108,7 @@ export function threatAt(seed, h) {
 
 export function newWorld(seed) {
   const home = [0, 0];
-  return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [] };
+  return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [], sightings: [] };
 }
 
 // a seed for saves made before the world existed: taken from the save itself, so the browser and
@@ -271,6 +271,49 @@ export function teamUnits(s, units) {
   }).filter(u => u.members.length);
 }
 
+// ---------- keeping away and hunting ----------
+const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
+// a wild animal that doesn't show itself to this team (fighters, from teamUnits): it keeps away from
+// anything bigger than its fear
+export function keepsAway(threat, team) {
+  const sp = threat.entry.species && SPECIES[threat.entry.species];
+  if (!sp || !sp.fear) return false;
+  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear)));
+}
+
+// the team's best chance to hunt one of these (prey: one of them as a fighter), or null when nobody
+// can: a carnivore no smaller than it, by its agility and hunting skill against the prey's agility
+export function huntOdds(team, prey) {
+  let best = null;
+  team.forEach((u, i) => {
+    const able = u.members.filter(m => m.type && SPECIES[m.type] && SPECIES[m.type].hunt && sizeRank(m.size) >= sizeRank(prey.size));
+    if (!able.length) return;
+    const top = able.reduce((b, m) => m.agi + SPECIES[m.type].hunt > b.agi + SPECIES[b.type].hunt ? m : b);
+    const score = (top.agi + SPECIES[top.type].hunt) * (1 + PACK_BONUS * (u.pack ? u.members.length - 1 : 0));
+    const chance = score / (score + prey.agi);
+    if (!best || chance > best.chance) best = { unit: i, hunter: u.pack ? u.name : top.name, chance };
+  });
+  return best;
+}
+
+// decides on a group the team spotted at a distance (w.sightings): go after one of them, or let them be
+export function huntSighting(s, { id, go }) {
+  const w = W(s);
+  const at = (w.sightings || []).findIndex(x => x.id === id);
+  if (at < 0) return { ok: false, reason: 'no-sighting' };
+  const sight = w.sightings.splice(at, 1)[0];
+  if (!go) return { ok: true, hunted: false, sighting: sight };
+  const rand = seededRand(`hunt:${w.seed}:${sight.trip}`);
+  if (rand() >= sight.chance) return { ok: true, hunted: true, caught: false, sighting: sight };
+  const loot = [];
+  for (const [item, min, max] of sight.loot) {
+    const n = min + Math.floor(rand() * (max - min + 1));
+    if (n > 0) loot.push({ id: item, n, lost: addItem(s, item, n) });
+  }
+  if (sight.coins) earn(s, sight.coins);
+  return { ok: true, hunted: true, caught: true, sighting: sight, loot, coins: sight.coins };
+}
+
 // calls the dinosaur back early: no loot, no new map, but it is free again right away
 export function recallExpedition(s, id) {
   const w = W(s);
@@ -299,7 +342,22 @@ export function collectExpedition(s, id, now) {
   let battle = null;
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
-  if (units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1)) {
+  let sighting = null;
+  const meets = units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
+  // what keeps away from the team may still be spotted at a distance, and hunted
+  if (meets && keepsAway(threat, teamUnits(s, units))) {
+    const odds = huntOdds(teamUnits(s, units), threat.foe.members[0]);
+    if (odds) {
+      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      sighting = {
+        id: `sight-${w.seed}-${exp.trip}`, trip: exp.trip, hex: exp.hex, species: threat.entry.species, name: threat.foe.name,
+        count: threat.foe.members.length, hunter: odds.hunter, chance: Math.round(odds.chance * 1000) / 1000,
+        loot: threat.entry.loot.map(([item, min, max]) => [item, Math.round(min * mult), Math.round(max * mult)]),
+        coins: d * WIN_COINS_PER_HEX * (threat.lair ? 2 : 1),
+      };
+      w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
+    }
+  } else if (meets) {
     const team = teamUnits(s, units), foe = threat.foe;
     const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp' });
     // a dinosaur that went down is critically injured (the player just injured); the rest are
@@ -380,7 +438,7 @@ export function collectExpedition(s, id, now) {
     const b = explorerOf(s, id);
     if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   }
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it
@@ -405,6 +463,16 @@ export function cleanWorld(world, s) {
     revealed: keys([...home.revealed, ...keys(w.revealed)]),
     visited: keys([...home.visited, ...keys(w.visited)]),
     trips: Math.max(0, Math.floor(Number(w.trips) || 0)),
+    // groups spotted at a distance, waiting for the player to hunt them or let them be
+    sightings: (Array.isArray(w.sightings) ? w.sightings : [])
+      .filter(x => x && SPECIES[x.species] && Array.isArray(x.loot))
+      .slice(-HUNT_SIGHTINGS)
+      .map(x => ({
+        id: String(x.id), trip: Math.max(1, Math.floor(Number(x.trip) || 1)), hex: String(x.hex), species: x.species, name: String(x.name || SPECIES[x.species].species).slice(0, 60),
+        count: Math.max(1, Math.floor(Number(x.count) || 1)), hunter: String(x.hunter || '').slice(0, 24), chance: Math.max(0, Math.min(1, Number(x.chance) || 0)),
+        loot: x.loot.filter(l => Array.isArray(l) && ITEMS[l[0]]).map(([item, min, max]) => [item, Math.max(0, Math.floor(Number(min) || 0)), Math.max(0, Math.floor(Number(max) || 0))]),
+        coins: Math.max(0, Math.floor(Number(x.coins) || 0)),
+      })),
     expeditions: (Array.isArray(w.expeditions) ? w.expeditions : [])
       .filter(e => e && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0)
       .map(e => ({ ...e, team: cleanTeam(e) }))
