@@ -293,6 +293,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   // Velociraptors latched on (one at a time in a pack), Protoceratops clamped on with its beak. Each
   // { s, u, at: its member, t, v, m: the one held, ... }.
   const clinging = new Map(), holding = new Map(), latches = new Map(), beaks = new Map();
+  // the one each predator unit has singled out: { v, m }
+  const focus = new Map();
   // units that lost their footing (they miss their next turn), and defenders out of their guard
   const exposed = new Set();
   // Animals knocked down (a butt to the flank, a fall): on its own agility (RISE) it gets straight back
@@ -621,12 +623,18 @@ export function teamFight(units, foe, rand, opts = {}) {
         const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => usable(x, y)));
         if (!targets.length) continue;
         // camouflaged in this biome, it is hard to pick out
-        const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])] * (opts.biome && S[t][x].members.every(f => f.camo === opts.biome) ? CAMO.target : 1));
-        let pick = rand() * weights.reduce((a, w) => a + w, 0);
-        v = targets[targets.length - 1];
-        for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { v = targets[k]; break; } }
-        const free = alive(t, v).filter(y => usable(v, y));
-        m = o.target !== undefined && v === o.to && hp[t][v][o.target] > 0 ? o.target : free[Math.floor(rand() * free.length)];
+        // a predator singles one out and keeps at it till it is down (or out of reach)
+        const fx = roleOf(S[s][u]) === 'attacker' && o.target === undefined ? focus.get(K(s, u)) : null;
+        if (fx && targets.includes(fx.v) && hp[t][fx.v][fx.m] > 0 && usable(fx.v, fx.m)) { v = fx.v; m = fx.m; }
+        else {
+          const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])] * (opts.biome && S[t][x].members.every(f => f.camo === opts.biome) ? CAMO.target : 1));
+          let pick = rand() * weights.reduce((a, w) => a + w, 0);
+          v = targets[targets.length - 1];
+          for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { v = targets[k]; break; } }
+          const free = alive(t, v).filter(y => usable(v, y));
+          m = o.target !== undefined && v === o.to && hp[t][v][o.target] > 0 ? o.target : free[Math.floor(rand() * free.length)];
+          if (roleOf(S[s][u]) === 'attacker' && o.target === undefined && !(fx && targets.includes(fx.v) && hp[t][fx.v][fx.m] > 0)) focus.set(K(s, u), { v, m });
+        }
       }
       room.set(E(t, v, m), roomOf(v, m) - 1);
       blows.push({ at, v, m, part });

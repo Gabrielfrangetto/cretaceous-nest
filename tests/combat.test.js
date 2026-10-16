@@ -767,7 +767,7 @@ test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small f
   assert.ok(hungerEvery({ id: 'x', type: 'psitta' }) > hungerEvery({ id: 'x', type: 'hypsi' }));
   assert.ok(SPECIES.psitta.digest > 1);
   let cracked = 0;
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 400; i++) {
     // (a prey animal runs before any fight: the rule is for one cornered, so it stands here as a defender)
     const ps = unitOf('p', [{ ...fighterOf(dino('p', 70, 'psitta')), fear: undefined, role: 'defender' }]);
     const me = unitOf('m', [{ ...fighterOf(dino('m', 70, 'dilo')), fear: undefined }]);
