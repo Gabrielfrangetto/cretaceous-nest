@@ -439,7 +439,7 @@ export const FLIGHT = { below: 0.25, base: 100 };
 // on hunkered-down armor and did less than perTurn of that one's health in all is frustrated; after
 // turns such turns in a row it gives up on them and goes for the rest of the group, or, with nobody
 // else left, leaves (no carcass, as one that fled). A turn that hurts resets it.
-export const GIVE_UP = { perTurn: 0.05, turns: 3 };
+export const GIVE_UP = { perTurn: 0.08, turns: 3 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's
