@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripCarcass, encounterChance,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripWitness, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -318,24 +318,33 @@ function scatterHTML(e) {
     ${riskHTML(sc.units, death)}`;
 }
 
-// a kill watched on the way, wild against wild: wait for the leftovers, take the carcass from the fed
-// hunter, or leave it (the odds are worked out once per trip)
-const carcassOdds = new Map();
+// a hunt the team watches on the way, wild against wild: let it be, or step in with one of its hunters,
+// going after the prey or after the hunter (the odds of a fight are worked out once per trip)
+const witnessOdds = new Map();
 const wildName = x => `${article(x.name)} ${esc(x.name)}`;
-function carcassHTML(e) {
-  const wt = tripCarcass(S, e.id);
+function witnessHTML(e) {
+  const wt = tripWitness(S, e.id);
   if (!wt) return '';
-  const units = teamUnits(S, e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length));
-  if (!carcassOdds.has(e.id)) {
-    const biome = biomeAt(S.world.seed, parseKey(e.hex));
-    carcassOdds.set(e.id, teamOdds(units, wt.fed, 120, { swamp: biome === 'swamp', biome, defend: true }));
+  const live = e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length);
+  const biome = biomeAt(S.world.seed, parseKey(e.hex));
+  const fightOdds = id => {
+    const k = e.id + ':' + id;
+    if (!witnessOdds.has(k)) witnessOdds.set(k, teamOdds(teamUnits(S, live.filter(u => u.kind === 'player' || u.id === id)), wt.hunterFoe, 120, { swamp: biome === 'swamp', biome, defend: true }));
+    return witnessOdds.get(k);
+  };
+  const buttons = [], cant = [];
+  for (const o of wt.options) {
+    if (o.prey.ok) buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="prey" data-hunter="${esc(o.id)}">Hunt the ${esc(wt.prey.name)} with ${esc(o.name)} <span class="hint">(~${Math.round(o.prey.chance * 100)}%${o.prey.backsOff ? '' : ', then the hunter may fight you for it'})</span></button>`);
+    if (o.predator.ok) {
+      const tag = o.predator.chase ? `it runs: ~${Math.round(o.predator.chance * 100)}% to catch it` : (() => { const f = fightOdds(o.id); return `a fight: ${dangerOf(f.win)}, ${Math.round(f.win * 100)}%`; })();
+      buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="predator" data-hunter="${esc(o.id)}">Go after the ${esc(wt.hunter.name)} with ${esc(o.name)} <span class="hint">(${tag})</span></button>`);
+    }
+    if (!o.prey.ok && !o.predator.ok) cant.push(`${esc(o.name)} (${esc(o.prey.reason === o.predator.reason ? o.prey.reason : `prey: ${o.prey.reason}; hunter: ${o.predator.reason}`)})`);
   }
-  const { win, death } = carcassOdds.get(e.id);
-  return `<p class="hint">On the way, the team watches ${wildName(wt.hunter)} bring down ${wildName(wt.prey)}. ${wt.hunter.count > 1 ? 'They are' : 'It is'} feeding on the carcass now, fed and hurt.</p>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}" data-carcass="wait">Wait for the leftovers</button>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-carcass="take">Take the carcass <span class="hint">(${dangerOf(win)}, ${Math.round(win * 100)}%)</span></button>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}" data-carcass="leave">Leave it</button>
-    ${riskHTML(units, death)}`;
+  return `<p class="hint">On the way, ${wildName(wt.hunter)} ${wt.hunter.count > 1 ? 'are' : 'is'} chasing ${wildName(wt.prey)}. Do you step in?</p>
+    ${buttons.join('')}
+    <button class="ghost" type="button" data-collect="${esc(e.id)}">Let it be</button>
+    ${cant.length ? `<p class="hint">Can't step in: ${cant.join(', ')}.</p>` : ''}`;
 }
 
 function tripsHTML(t) {
@@ -348,7 +357,7 @@ function tripsHTML(t) {
     return `<li class="trip-row">
       <div><strong>${esc(listNames(e.team.map(unitName)))}</strong> <span class="hint">→ ${esc(biome)}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
-      <div class="row">${back ? (standoffHTML(e) || scatterHTML(e) || carcassHTML(e) ||
+      <div class="row">${back ? (standoffHTML(e) || scatterHTML(e) || witnessHTML(e) ||
         `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`)
         : `<span class="hint">Back in ${fmt(e.returnAt - t)}</span><button class="ghost" type="button" data-recall="${esc(e.id)}">Call back</button>`}</div>
     </li>`;
@@ -472,7 +481,8 @@ let shownBack = '';
 function bindTrips(box) {
   shownBack = backKey(now());
   box.querySelectorAll('[data-collect]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1', flee: btn.dataset.flee === '1', carcass: btn.dataset.carcass });
+    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1', flee: btn.dataset.flee === '1',
+      ...(btn.dataset.witness ? { witness: { act: btn.dataset.witness, hunter: btn.dataset.hunter } } : {}) });
     if (!r.ok) { message = 'Not back yet.'; render(); return; }
     // the player alone is "you": "You are back", not "You is back"
     const names = r.team.map(unitName);
@@ -520,9 +530,14 @@ function bindTrips(box) {
         : r.chase && r.chase.scattered ? 'You ran too, and it never got close: everyone regrouped. ' : 'You ran too, and everyone got away and regrouped. ');
     // wild against wild, watched on the way
     const wt = r.witness;
-    const witnessText = !wt ? '' : wt.outcome === 'kill'
-      ? `On the way, the team watched ${wildName(wt.hunter)} bring down ${wildName(wt.prey)}${wt.choice === 'wait' ? ', and waited for the leftovers' : wt.choice === 'take' ? ', and went to take the carcass' : ', and left it to its meal'}. `
-      : `On the way, the team watched ${wildName(wt.hunter)} go for ${wildName(wt.prey)}, ${wt.outcome === 'repelled' ? `which drove ${wt.hunter.count > 1 ? 'them' : 'it'} off` : 'which got away'}. `;
+    const natural = wt && (wt.outcome === 'kill' ? `bring down ${wildName(wt.prey)}. `
+      : `go for ${wildName(wt.prey)}, ${wt.outcome === 'repelled' ? `which drove ${wt.hunter.count > 1 ? 'them' : 'it'} off. ` : 'which got away. '}`);
+    const witnessText = !wt ? '' : wt.act === 'none' ? `On the way, the team watched ${wildName(wt.hunter)} ${natural}`
+      : wt.act === 'prey' ? `On the way, ${wildName(wt.hunter)} was chasing ${wildName(wt.prey)}, and ${esc(wt.by)} went after it too: `
+        + (wt.caught ? (wt.contested ? `it ran the ${esc(wt.prey.name)} down, but the ${esc(wt.hunter.name)} came for the kill. ` : `it ran the ${esc(wt.prey.name)} down, and the ${esc(wt.hunter.name)} let it have it. `)
+          : `the ${esc(wt.prey.name)} got away${wt.turned ? `, and the ${esc(wt.hunter.name)} turned on the team. ` : `, and the ${esc(wt.hunter.name)} left. `}`)
+      : `On the way, ${wildName(wt.hunter)} was chasing ${wildName(wt.prey)}, and ${esc(wt.by)} went after the ${esc(wt.hunter.name)}: the ${esc(wt.prey.name)} ran off, `
+        + (r.battle ? 'and it stood its ground. ' : wt.caught ? `and the ${esc(wt.hunter.name)} ran too, but was caught. ` : `and the ${esc(wt.hunter.name)} ran too, and got away. `);
     const ran2 = sc ? '' : r.chase && r.chase.scattered ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group before it struck. Everyone scattered in zigzags and got away.`
       : r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
     // the dead, from the fight

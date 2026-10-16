@@ -664,9 +664,10 @@ export const ACTIONS = {
   },
   // fight: fight what stood its ground on the way (a wild defender), or leave it be; flee: when a
   // predator scattered the player's group, run too instead of facing it
-  // carcass: a kill watched on the way: 'wait' for the leftovers, 'take' it from the fed hunter, or leave it
-  collectTrip(s, { id, fight, flee, carcass }, now) {
-    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee, carcass: ['wait', 'take'].includes(carcass) ? carcass : 'leave' });
+  // witness: a hunt watched on the way, stepped into: { act: 'prey' | 'predator', hunter: a unit's id }
+  collectTrip(s, { id, fight, flee, witness }, now) {
+    const w = witness && typeof witness === 'object' && ['prey', 'predator'].includes(witness.act) ? { act: witness.act, hunter: String(witness.hunter || '') } : null;
+    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee, witness: w });
   },
   // a group the team spotted at a distance: go after one of them (go: true), or let them be
   hunt(s, { id, go }) {

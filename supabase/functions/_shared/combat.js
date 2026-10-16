@@ -770,8 +770,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it
     if (s === 1 && roleOf(unit) === 'attacker') {
       const left = hp[s][u].reduce((a, h) => a + h, 0) / unitHp(unit);
-      // (one that has just eaten gives way sooner)
-      const below = unit.members[0].fed ? FLIGHT.fed : FLIGHT.below;
+      const below = FLIGHT.below;
       if (left < below) {
         const up = alive(s, u).map(m => unit.members[m]);
         const speed = up.reduce((a, f) => a + f.agi + f.res, 0) / up.length;

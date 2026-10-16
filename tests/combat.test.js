@@ -1122,29 +1122,45 @@ test('an Allosaurus goes for its own kind (cannibalism), but no other theropod',
   assert.equal(isPrey(wild, fighterOf(dino('s', 60, 'stego'))), true);
 });
 
-test('wild against wild: the team watches a hunt, and may wait for the leftovers or take the carcass', async () => {
-  const { tripCarcass, tripScatter } = await import('../js/world.js');
-  // a swamp, where a Deinosuchus hunts a Baryonyx (or another Deinosuchus)
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 3 && !threatAt(42, h).lair && threatAt(42, h).id === 'deinosuchus'; });
-  const seen = { kill: 0, escaped: 0, repelled: 0, wait: 0, take: 0, leave: 0 };
-  for (let trip = 0; trip < 200 && (seen.wait < 2 || seen.take < 2 || seen.leave < 2); trip++) {
-    const choice = ['wait', 'take', 'leave'][trip % 3];
-    const s = game(dino('r', 90, 'rex'));
-    s.world.trips = trip;
-    const r = applyAction(s, 'explore', { babyId: 'r', hex: key }, T0);
-    const carcass = tripCarcass(s, r.expedition.id);
-    const c = applyAction(s, 'collectTrip', { id: r.expedition.id, carcass: choice }, r.expedition.returnAt);
-    if (!c.witness) { assert.equal(carcass, null); continue; }
-    seen[c.witness.outcome]++;
-    // the team met neither of them
-    assert.equal(c.sighting, null);
-    assert.equal(tripScatter(s, r.expedition.id), null);
-    if (c.witness.outcome !== 'kill') { assert.equal(c.battle, null); continue; }
-    assert.ok(carcass);
-    seen[c.witness.choice]++;
-    assert.equal(c.witness.choice, choice);
-    if (choice === 'take') { assert.ok(c.battle); assert.equal(c.battle.creature, c.witness.hunter.species); assert.ok(c.battle.foe); }
-    else assert.equal(c.battle, null);
+test('wild against wild: the team watches a hunt, and may step in after the prey or the hunter', async () => {
+  const { tripWitness, tripScatter } = await import('../js/world.js');
+  const hexOf = id => ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 4 && !threatAt(42, h).lair && threatAt(42, h).id === id; });
+  const run = (key, types, pick) => {
+    const seen = [];
+    for (let trip = 0; trip < 300 && seen.length < 12; trip++) {
+      const s = game(...types.map(([id, t]) => dino(id, 90, t)));
+      s.world.trips = trip;
+      const r = applyAction(s, 'explore', { team: types.map(([id]) => ({ kind: 'dino', id })), hex: key }, T0);
+      const wt = tripWitness(s, r.expedition.id);
+      if (!wt) continue;
+      // the team met neither of them
+      assert.equal(tripScatter(s, r.expedition.id), null);
+      const choice = pick(wt);
+      const c = applyAction(s, 'collectTrip', { id: r.expedition.id, ...(choice ? { witness: choice } : {}) }, r.expedition.returnAt);
+      assert.ok(c.witness);
+      seen.push({ wt, c });
+    }
+    return seen;
+  };
+  // a swamp: a Deinosuchus goes for a Baryonyx (or one of its own). A Tyrannosaurus may go after either;
+  // a Velociraptor won't go near any of them
+  const swamp = hexOf('deinosuchus');
+  const opts = run(swamp, [['r', 'rex'], ['v', 'raptor']], () => null);
+  assert.ok(opts.length);
+  for (const { wt, c } of opts) {
+    const v = wt.options.find(o => o.id === 'v');
+    assert.equal(v.predator.ok, false);
+    assert.equal(c.witness.act, 'none');
+    assert.equal(c.battle, null);
   }
-  assert.ok(seen.kill && seen.wait && seen.take && seen.leave, JSON.stringify(seen));
+  const fights = run(swamp, [['r', 'rex']], () => ({ act: 'predator', hunter: 'r' }));
+  assert.ok(fights.some(({ c }) => c.battle && c.battle.creature === 'deinosuchus'));
+  for (const { c } of fights) if (c.battle && c.battle.win && !c.battle.foeFled) assert.ok(c.loot.length);
+  const preys = run(swamp, [['r', 'rex']], wt => (wt.options[0].prey.ok ? { act: 'prey', hunter: 'r' } : null));
+  for (const { c } of preys) if (c.witness.act === 'prey' && c.witness.caught) assert.ok(c.witness.contested ? c.battle : c.loot.length);
+  // a meadow: a Dilophosaurus goes for a Compsognathus; it fears a Tyrannosaurus, so it runs and is chased
+  const chases = run(hexOf('dilo'), [['r', 'rex']], wt => (wt.hunter.species === 'dilo' ? { act: 'predator', hunter: 'r' } : null));
+  const ran = chases.filter(({ wt }) => wt.hunter.species === 'dilo');
+  assert.ok(ran.length);
+  for (const { wt, c } of ran) { assert.ok(wt.options[0].predator.chase); assert.equal(c.battle, null); }
 });
