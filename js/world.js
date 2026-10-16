@@ -432,7 +432,8 @@ export function collectExpedition(s, id, now, choice = {}) {
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, Math.round(roll(l) * haul));
     if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;
-      for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
+      // a predator that got away badly hurt leaves no carcass
+      if (!battle.foeFled) for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
       coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
       // a fight that went into a frenzy drops what nothing else gives, more with more of them in it
       if (battle.frenzy.length) {

@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -17,7 +17,7 @@ export function fighterOf(baby, extra = []) {
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
-    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
         grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
@@ -79,7 +79,7 @@ export function wildFighter(type, dist, lair = false) {
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: !!sp.armor, club: !!sp.club,
+    size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
     grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
@@ -219,6 +219,10 @@ function withRoles(u, swamp) {
 //   swipe (its tail).
 //   A blow that would have brought down a Parasaurolophus may add escaped: it ran (left 0 for the fight;
 //   one of ours comes home with 1).
+//   { by, crouch: true } | { by: 'foe', crouch: true }: an armored one hunkers down before a bigger
+//   predator (it stays down, its belly and legs out of reach, while one is there);
+//   { by: 'foe', fled: true }: a wild predator badly hurt got away (foeFled; a win with no carcass), or
+//   { by: 'foe', caught: true }: it tried and was caught, losing its turn.
 //   { by, alert: true } | { by: 'foe', alert: true }: a Parasaurolophus' call warned its side of a
 //   predator (alerted: 'team' | 'foe'): readied, it acts first. teamHps: our members' full health for
 //   the fight (a readied team has a little more).
@@ -256,7 +260,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const active = [units.flatMap((_, i) => fled.includes(i) ? [] : [i]), [0]];
   const stayed = [...active[0]];
   const routed = [];
-  let foeRouted = false;
+  let foeRouted = false, foeFled = false;
   const log = [];
   const frenzy = new Set();
   // our members lamed by a bone-breaking bite or a club: [unit, member]
@@ -289,6 +293,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   const knocked = new Set();
   // animals that broke away and ran instead of going down: out of the fight, home with a little health
   const brokeAway = new Set();
+  // armored ones hunkered down before a bigger predator, till their next turn (CROUCH in config.js)
+  const crouched = new Set();
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
@@ -317,7 +323,13 @@ export function teamFight(units, foe, rand, opts = {}) {
   // where a blow lands on this body: 'limbs' in a list becomes one of its legs, or a biped's arm
   const legOf = f => { const legs = f.biped ? BIPED_LEGS : QUAD_LEGS; return legs[Math.floor(rand() * legs.length)]; };
   const limbOf = f => f.biped && rand() < LIMBS.arm ? ARMS[Math.floor(rand() * ARMS.length)] : legOf(f);
-  const rollPart = (list, f) => { let x = rand(); const p = (list.find(([, w]) => (x -= w) < 0) || list[0])[0]; return p === 'limbs' ? limbOf(f) : p; };
+  // (a hunkered-down one shows neither belly nor legs)
+  const rollPart = (list, f, low = false) => {
+    const open = low ? list.filter(([p]) => p !== 'belly' && p !== 'limbs') : list;
+    let x = rand() * open.reduce((t, [, w]) => t + w, 0);
+    const p = (open.find(([, w]) => (x -= w) < 0) || open[0])[0];
+    return p === 'limbs' ? limbOf(f) : p;
+  };
   // an arm broken: that hand can't grab any more; ours come home injured
   const breakArm = (t, v, m) => {
     S[t][v].members[m] = { ...S[t][v].members[m], armBroken: true, grab: false };
@@ -328,7 +340,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     const hit = S[t][v].members[m];
     if (sizeRank(hit.size) <= sizeRank(BONE_BREAKER.oneBite)) { hp[t][v][m] = 0; return { part: 'whole', kill: true }; }
     if (!part) part = rollPart(BONE_BREAKER.parts, hit);
-    if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax) && !hit.throat) { hp[t][v][m] = 0; return { part, kill: true }; }
+    if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax) && !hit.throat && !hit.collar) { hp[t][v][m] = 0; return { part, kill: true }; }
     if (isLeg(part) && !hit.lame && !(hit.giant && sizeRank(S[s][u].members[0].size) < sizeRank(hit.size)) && rand() < BONE_BREAKER.lame) { lameMember(t, v, m); return { part, lame: true }; }
     if (isArm(part) && !hit.armBroken && rand() < BONE_BREAKER.lame) { breakArm(t, v, m); return { part, armBroken: true }; }
     return { part };
@@ -426,17 +438,20 @@ export function teamFight(units, foe, rand, opts = {}) {
     // a sickle claw driven into the neck from below goes through any armor
     const neck = att.claw && !held && !o.part && !below && rand() < CLAW.neck;
     // armor: the part the blow lands on decides how much gets through
+    // hunkered down, only its armored top shows
+    const low = crouched.has(E(t, v, m));
     let part = neck ? 'neck' : o.part || null, cut = 1;
-    if (prey.armor && !neck) {
-      if (!part) part = rollPart(ARMOR.parts, prey);
-      cut = ARMOR.armored.includes(part) ? 1 - ARMOR.cut : part === 'belly' ? ARMOR.belly : 1;
+    const plates = prey.armor && ARMOR[prey.armor];
+    if (plates && !neck) {
+      if (!part) part = rollPart(ARMOR.parts, prey, low);
+      cut = plates.armored.includes(part) ? 1 - plates.cut : part === 'belly' ? ARMOR.belly : 1;
     }
     // a dome's charge butts the flank; on a domed head the part matters wherever the blow lands
     const butt = att.dome && extra.charge && !held;
     if (butt && !part) part = rand() < DOME.back ? 'back' : 'belly';
-    if (!part && !onHead && prey.dome) part = rollPart(HIT_PARTS, prey);
+    if (!part && !onHead && prey.dome) part = rollPart(HIT_PARTS, prey, low);
     // a bone-breaking bite picks its part before it lands (a covered throat can take some of it)
-    if (!part && !onHead && S[s][u].members[0].boneBreaker && sizeRank(prey.size) > sizeRank(BONE_BREAKER.oneBite)) part = rollPart(BONE_BREAKER.parts, prey);
+    if (!part && !onHead && S[s][u].members[0].boneBreaker && sizeRank(prey.size) > sizeRank(BONE_BREAKER.oneBite)) part = rollPart(BONE_BREAKER.parts, prey, low);
     if (below && part === 'neck') part = rollPart(HIT_PARTS.filter(([p]) => p !== 'neck'), prey);
     // a throat covered in small bones: nothing from something smaller, half from one its size, a
     // little less from anything bigger
@@ -453,7 +468,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     let bone = neck ? { part: 'neck' } : dmg > 0 && !onHead ? breakBones(s, u, t, v, m, part) : onHead ? { part: 'head' } : part ? { part } : {};
-    if (prey.armor && !neck && ARMOR.armored.includes(part)) bone.armored = true;
+    if (plates && !neck && plates.armored.includes(part)) bone.armored = true;
     if (throat < 1) bone.throat = true;
     if (domed) bone = { part: 'head', dome: true };
     // a giant's stomp crushes anything short of colossal
@@ -521,9 +536,9 @@ export function teamFight(units, foe, rand, opts = {}) {
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
     log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
     if (herdRuns && S[t][v].pack && alive(t, v).length && active[t].includes(v)) runOff(t, v);
-    // the plates on its back hurt whatever bit them
-    if (part === 'back' && prey.armor && raw > 0 && hp[s][u][at] > 0) {
-      const back = Math.max(1, Math.round(raw * ARMOR.thorns));
+    // the plates hurt whatever bit them
+    if (plates && plates.thornsOn.includes(part) && raw > 0 && hp[s][u][at] > 0) {
+      const back = Math.max(1, Math.round(raw * plates.thorns));
       hp[s][u][at] = Math.max(0, hp[s][u][at] - back);
       log.push(entry(t, v, m, u, at, { dmg: back, left: hp[s][u][at], thorns: true }));
     }
@@ -589,7 +604,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     for (const [v, list] of back) {
       if (!active[t].includes(v) || roleOf(S[t][v]) === 'attacker') continue;
       for (const { m, at } of list) {
-        if (over() || hp[t][v][m] <= 0 || !alive(s, u).length) continue;
+        if (over() || hp[t][v][m] <= 0 || !alive(s, u).length || crouched.has(E(t, v, m))) continue;
         attack(t, v, 1, { counter: true }, { only: m, to: u, target: at });
       }
     }
@@ -610,11 +625,11 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
   };
   // a unit leaving the fight: ours that ran off, or the foe's (a win)
-  const runOff = (s, u) => {
+  const runOff = (s, u, how = { rout: true }) => {
     active[s].splice(active[s].indexOf(u), 1);
-    if (s === 0) routed.push(u); else foeRouted = true;
+    if (s === 0) routed.push(u); else { foeRouted = true; if (how.fled) foeFled = true; }
     for (const map of [clinging, holding, latches, beaks]) for (const [k, h] of map) if ((h.s === s && h.u === u) || (h.t === s && h.v === u)) map.delete(k);
-    log.push(selfEntry(s, u, { rout: true }));
+    log.push(selfEntry(s, u, how));
   };
   // morale: a pack or herd that has lost ROUT of its members runs off, ours as well as the foe's
   const routs = list => list.length >= 2 && list.length - standing(list).length >= list.length * ROUT;
@@ -654,6 +669,26 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (h.t !== s || h.v !== u) continue;
       if (hp[s][u][h.m] <= 0 || !holderUp(h)) { holding.delete(k); continue; }
       if (contest(unit.members[h.m].str, S[h.s][h.u].members[h.at].str)) { holding.delete(k); log.push(entry(s, u, h.m, h.u, h.at, { broke: true })); }
+    }
+    // hunkered down before a bigger predator (each of its armored ones, every turn), it does nothing else
+    const bigger = f => active[t].some(x => roleOf(S[t][x]) === 'attacker' && alive(t, x).some(y => sizeRank(S[t][x].members[y].size) > sizeRank(f.size)));
+    for (const m of alive(s, u)) {
+      const f = unit.members[m], was = crouched.has(E(s, u, m));
+      if (f.crouch && bigger(f)) { crouched.add(E(s, u, m)); if (!was) log.push(selfEntry(s, u, { crouch: true, ...(unit.pack ? { at: m } : {}) })); }
+      else crouched.delete(E(s, u, m));
+    }
+    if (!unit.pack && crouched.has(E(s, u, 0))) return;
+    // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it
+    if (s === 1 && roleOf(unit) === 'attacker') {
+      const left = hp[s][u].reduce((a, h) => a + h, 0) / unitHp(unit);
+      if (left < FLIGHT.below) {
+        const up = alive(s, u).map(m => unit.members[m]);
+        const speed = up.reduce((a, f) => a + f.agi + f.res, 0) / up.length;
+        const chasers = active[t].some(x => roleOf(S[t][x]) === 'attacker' && alive(t, x).length);
+        if (!chasers || rand() < Math.min(0.95, speed / (speed + FLIGHT.base) * left / FLIGHT.below)) { runOff(s, u, { fled: true }); return; }
+        log.push(selfEntry(s, u, { caught: true }));
+        return;
+      }
     }
     // knocked down, a lone animal spends its turn getting up
     if (!unit.pack && knocked.delete(E(s, u, 0))) { log.push(selfEntry(s, u, { recovering: true })); return; }
@@ -764,7 +799,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamLeft = stayed.reduce((t, i) => t + hp[0][i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
   const win = !escaped && (left <= 0 || foeRouted);
-  return { win, escaped, fled, routed, foeRouted, alerted, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
+  return { win, escaped, fled, routed, foeRouted, foeFled, alerted, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
 }
 
 export function teamWinChance(units, foe, runs = 120, opts = {}) {

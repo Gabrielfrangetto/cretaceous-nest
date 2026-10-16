@@ -438,7 +438,8 @@ function bindTrips(box) {
       ...routs.filter(i => !herdRan(i)).length ? [` ${esc(listNames(routs.filter(i => !herdRan(i)).map(i => r.battle.team[i].name)))} lost half the pack and ran off.`] : [],
       ...routs.filter(herdRan).map(i => ` One of ${esc(r.battle.team[i].name)} broke away and the whole herd ran with it.`),
     ].join('');
-    const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
+    const foeBroke = r.battle && r.battle.foeFled ? ` Badly hurt, the ${esc(r.battle.foe.name)} fled and left nothing behind.`
+      : r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
     // a Parasaurolophus heard the predator coming
     const call = r.battle && r.battle.alerted === 'team' ? r.battle.log.find(e => e.alert) : null;
     const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';

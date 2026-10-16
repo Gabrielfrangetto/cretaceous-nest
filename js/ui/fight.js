@@ -125,7 +125,7 @@ export function playFight(battle, summary, who) {
     foeBox.querySelector('.pack-left').textContent = foeNote();
     // a pack or herd that ran off mid-fight is shown faded, not down
     for (const k of battle.routed || []) { fled.add(k); boxes[k].classList.add('fled'); boxes[k].querySelector('.pack-left').textContent = packNote(k); }
-    if (battle.win) foeBox.classList.add(battle.foeRouted ? 'fled' : 'down');
+    if (battle.win) foeBox.classList.add(battle.foeRouted || battle.foeFled ? 'fled' : 'down');
     else boxes.forEach((b, k) => { if (!fled.has(k)) b.classList.add('down'); });
     const res = body.querySelector('.fight-result');
     res.innerHTML = `<strong class="${battle.win ? 'win' : 'loss'}">${battle.win ? 'Victory!' : 'Defeat'}</strong> ${summary}`;
@@ -154,7 +154,16 @@ export function playFight(battle, summary, who) {
         foeBox.querySelector('.pack-left').textContent = foeNote();
       }
     };
-    if (blow.alert) {
+    if (blow.crouch) {
+      // an armored one hunkers down before a bigger predator
+      pop(actor, 'Hunkered down!', 'mad');
+    } else if (blow.fled) {
+      // a wild predator badly hurt got away
+      pop(foeBox, 'Fled!', 'miss');
+      foeBox.classList.add('fled');
+    } else if (blow.caught) {
+      pop(foeBox, 'Tried to flee!', 'miss');
+    } else if (blow.alert) {
       // a Parasaurolophus' call warned its group of the predator
       pop(actor, 'Warning call!', 'mad');
     } else if (blow.rout) {

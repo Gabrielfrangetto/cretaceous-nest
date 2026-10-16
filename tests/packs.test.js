@@ -181,7 +181,7 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
         lastOnes++;
       }
       if (e.ally !== undefined) hp[e.ally][e.member] = e.left;
-      else if (e.by === 'foe' && !e.miss) hp[e.to][e.member] = e.left;
+      else if (e.by === 'foe' && !e.miss && e.to !== undefined && e.left !== undefined) hp[e.to][e.member] = e.left;
     }
   }
   assert.ok(lastOnes > 0, 'the last Allosaurus standing bites its friends');

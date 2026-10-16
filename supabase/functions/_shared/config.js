@@ -89,7 +89,9 @@ const SIZE = {
 //   crush: the share of the target's hide and damage reduction its bite goes through
 //   boneBreaker: its bites land on a body part (BONE_BREAKER)
 //   frill: a solid bony frill that shields its head (FRILL)
-//   armor: bony plates over most of the body, blow by blow (ARMOR)
+//   armor: bony plates, blow by blow: 'heavy' over most of the body, 'light' rows of scutes (ARMOR)
+//   collar: bony scutes over the neck: it is never bitten through there
+//   crouch: an armored one that hunkers down before a bigger predator (CROUCH)
 //   club: a tail club that can break a foe's shin (CLUB)
 //   grab: clings to a bigger foe's body to slash it (GRAB)
 //   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
@@ -122,7 +124,7 @@ const SIZE = {
 export const BODY = {
   compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
   dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
-  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
+  scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
@@ -135,7 +137,7 @@ export const BODY = {
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
-  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
+  ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: 'heavy', crouch: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
   spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
   rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'huge' },
@@ -414,11 +416,25 @@ export const isArm = part => ARMS.includes(part);
 // a blow on the limbs ('limbs' in the lists of where blows land) of a biped finds an arm arm of the
 // time (smaller, and held up out of the way), otherwise a leg
 export const LIMBS = { arm: 0.3 };
-// Ankylosaurus' armor: every blow lands on a part. The back (bony plates), the head (fused skull
-// plates, even bony eyelids) and the neck (rings of bone) take cut less damage; a blow on the plated
-// back also hurts the attacker (thorns, of the blow's full damage). The legs have little armor; the
-// bare belly takes belly times as much.
-export const ARMOR = { parts: [['back', 0.5], ['belly', 0.05], ['head', 0.15], ['neck', 0.1], ['limbs', 0.2]], armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
+// Armor, blow by blow: every blow on an armored animal lands on a part (parts: 'limbs' a leg, or a biped's
+// arm). The armored parts take cut less damage, and a blow on them also hurts the attacker (thorns, of
+// the blow's full damage, on the parts in thornsOn). The bare belly takes belly times as much.
+//   heavy (Ankylosaurus): the back (bony plates), the head (fused skull plates, even bony eyelids) and the
+//     neck (rings of bone); its back's plates hurt.
+//   light (Scelidosaurus, an early relative): rows of scutes along the back and over the neck.
+export const ARMOR = {
+  parts: [['back', 0.5], ['belly', 0.05], ['head', 0.15], ['neck', 0.1], ['limbs', 0.2]], belly: 1.5,
+  heavy: { armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, thornsOn: ['back'] },
+  light: { armored: ['back', 'neck'], cut: 0.35, thorns: 0.01, thornsOn: ['back', 'neck'] },
+};
+// An armored one (BODY crouch) facing a bigger predator hunkers down on its turn: legs tucked under, belly
+// on the ground, only its armored top showing. Till its next turn its belly and legs can't be hit, and it
+// neither strikes back nor charges.
+// A wild predator badly hurt (under below of its health) tries to run on its turn: (agility +
+// resistance) / (that + base), less the less health it has left. With nobody on the other side to chase
+// it (no predator, no player) it always gets away; caught, it loses its turn. One that got away leaves no
+// carcass: a win without its loot.
+export const FLIGHT = { below: 0.25, base: 100 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's

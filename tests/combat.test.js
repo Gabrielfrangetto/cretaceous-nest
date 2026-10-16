@@ -257,7 +257,7 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
     for (const e of r.log) {
       if (e.by === 'foe' && !e.miss) {
         parts[e.part] = (parts[e.part] || 0) + 1;
-        assert.equal(!!e.armored, ARMOR.armored.includes(e.part));
+        assert.equal(!!e.armored, ARMOR.heavy.armored.includes(e.part));
         if (e.part === 'belly') bellies++;
         assert.ok(!e.kill, 'its neck is never bitten through');
         lastFoeBlow = e;
@@ -272,7 +272,7 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
   for (const [p] of [...ARMOR.parts, ...BONE_BREAKER_PARTS]) assert.ok(p === 'limbs' || PARTS.includes(p), p);
   // the armored parts let much less through than the belly
   const plain = fighterOf(dino('a', 50, 'ankylo'));
-  assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
+  assert.ok(1 - ARMOR.heavy.cut < 1 && ARMOR.belly > 1 && plain.armor === 'heavy' && plain.club);
 });
 
 test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller ones in its grip', async () => {
@@ -287,7 +287,7 @@ test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller
       else if (e.by === 0 && e.slash) { seen.slash++; assert.ok(holding); }
       else if (e.by === 0 && e.fell) { seen.fell++; holding = false; }
       else if (e.by === 0 && e.recovering) seen.recovering++;
-      if (e.by === 'foe') { if (holding) { assert.ok(e.immune); seen.immune++; } else assert.ok(!e.immune); }
+      if (e.by === 'foe' && (e.dmg !== undefined || e.miss)) { if (holding) { assert.ok(e.immune); seen.immune++; } else assert.ok(!e.immune); }
     }
   }
   for (const k of Object.keys(seen)) assert.ok(seen[k], JSON.stringify(seen));
@@ -657,4 +657,40 @@ test('a Parasaurolophus brought down may break away instead: home hurt, not crit
     assert.ok(!r.log.slice(at + 2).some(e => e.by === 1 || e.to === 1));
   }
   assert.ok(herds > 0);
+});
+
+test('armored ones hunker down before a bigger predator: no belly, no legs, no striking back', () => {
+  const sc = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
+  let crouches = 0, low = 0, back = 0, thorns = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = teamFight([sc()], wildFighter('allo', 5), seededRand('cr' + i));
+    let down = false;
+    for (const e of r.log) {
+      if (e.by === 0 && e.crouch) { crouches++; down = true; }
+      if (down && e.by === 'foe' && e.part) { low++; assert.ok(!['belly', 'legFL', 'legFR', 'legHL', 'legHR'].includes(e.part), e.part); }
+      if (down && e.by === 0 && e.counter) back++;
+      if (e.by === 0 && e.thorns) thorns++;
+    }
+  }
+  assert.ok(crouches > 0 && low > 0 && thorns > 0, JSON.stringify({ crouches, low, thorns }));
+  assert.equal(back, 0);
+  // against something its size or smaller it fights as usual
+  assert.ok(!teamFight([sc()], wildFighter('pachy', 4), seededRand('pa')).log.some(e => e.crouch));
+});
+
+test("a wild predator badly hurt runs: always from those who can't chase it, and leaves no carcass", () => {
+  // a Stegosaurus can't chase: the Allosaurus always gets away once badly hurt
+  const st = () => unitOf('s', [{ ...fighterOf(dino('s', 90, 'stego')), fear: undefined }]);
+  let fled = 0;
+  for (let i = 0; i < 30; i++) {
+    const r = teamFight([st()], wildFighter('allo', 4), seededRand('fl' + i));
+    assert.ok(!r.log.some(e => e.caught));
+    if (r.foeFled) { fled++; assert.equal(r.win, true); assert.ok(r.foeHp > 0); }
+  }
+  assert.ok(fled > 0);
+  // with a predator in the team it may be caught
+  const rex = () => unitOf('r', [{ ...fighterOf(dino('r', 90, 'rex')), fear: undefined }]);
+  let caught = 0;
+  for (let i = 0; i < 40; i++) if (teamFight([rex()], wildFighter('allo', 6), seededRand('ca' + i)).log.some(e => e.caught)) caught++;
+  assert.ok(caught > 0);
 });
