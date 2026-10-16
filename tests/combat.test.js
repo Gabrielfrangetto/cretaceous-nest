@@ -401,6 +401,8 @@ test('a wild animal keeps away from anything bigger than its fear: it can only b
     const s = game(dino('rex', 60));
     s.world.trips = i;
     const r = trip(s, 'rex', key);
+    // (a trip that watched wild against wild instead)
+    if (r.witness) continue;
     assert.equal(r.battle, null);
     assert.equal(r.sighting.species, 'compy');
     assert.ok(r.sighting.chance > 0 && r.sighting.chance < 1);
@@ -1044,7 +1046,9 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   // without the player there is nothing to decide
   assert.equal(go(['p1'], 1, {}).sc, null);
   // riding a Gallimimus: face it on foot, thrown off; or ride off, and only the Gallimimus may be caught
-  const faced = go(['player', 'g1'], 1, { fight: true }, rexLair);
+  // (the first trip that meets it, rather than watching wild against wild)
+  let faced = null;
+  for (let trip = 1; !faced || !faced.sc; trip++) faced = go(['player', 'g1'], trip, { fight: true }, rexLair);
   assert.ok(faced.sc && faced.sc.mounted);
   assert.equal(faced.c.scatter.choice, 'fight');
   assert.ok(faced.c.battle.thrown);
@@ -1052,6 +1056,7 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   let rodeOff = 0, galliCaught = 0;
   for (let trip = 0; trip < 40; trip++) {
     const { c } = go(['player', 'g1'], trip, { flee: true }, rexLair);
+    if (c.witness) continue;
     assert.equal(c.battle, null);
     rodeOff++;
     if (c.chase.caught) { galliCaught++; assert.equal(c.chase.caught, 'g1'); }
@@ -1061,6 +1066,7 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   let forced = 0, preyCaught = 0, away = 0;
   for (let trip = 0; trip < 80; trip++) {
     const { sc, c } = go(['player', 'p1'], trip, { flee: true });
+    if (c.witness) { assert.equal(sc, null); continue; }
     assert.ok(sc && !sc.mounted && sc.alone);
     if (c.battle) { forced++; assert.equal(c.battle.forced, sc.run.id); assert.ok(sc.run.fights); }
     else if (c.chase.caught) { preyCaught++; assert.equal(c.chase.caught, 'p1'); }
@@ -1114,4 +1120,31 @@ test('an Allosaurus goes for its own kind (cannibalism), but no other theropod',
   assert.equal(isPrey(wild, fighterOf(dino('a', 60, 'allo'))), true);
   assert.equal(isPrey(wild, fighterOf(dino('d', 60, 'dilo'))), false);
   assert.equal(isPrey(wild, fighterOf(dino('s', 60, 'stego'))), true);
+});
+
+test('wild against wild: the team watches a hunt, and may wait for the leftovers or take the carcass', async () => {
+  const { tripCarcass, tripScatter } = await import('../js/world.js');
+  // a swamp, where a Deinosuchus hunts a Baryonyx (or another Deinosuchus)
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 3 && !threatAt(42, h).lair && threatAt(42, h).id === 'deinosuchus'; });
+  const seen = { kill: 0, escaped: 0, repelled: 0, wait: 0, take: 0, leave: 0 };
+  for (let trip = 0; trip < 200 && (seen.wait < 2 || seen.take < 2 || seen.leave < 2); trip++) {
+    const choice = ['wait', 'take', 'leave'][trip % 3];
+    const s = game(dino('r', 90, 'rex'));
+    s.world.trips = trip;
+    const r = applyAction(s, 'explore', { babyId: 'r', hex: key }, T0);
+    const carcass = tripCarcass(s, r.expedition.id);
+    const c = applyAction(s, 'collectTrip', { id: r.expedition.id, carcass: choice }, r.expedition.returnAt);
+    if (!c.witness) { assert.equal(carcass, null); continue; }
+    seen[c.witness.outcome]++;
+    // the team met neither of them
+    assert.equal(c.sighting, null);
+    assert.equal(tripScatter(s, r.expedition.id), null);
+    if (c.witness.outcome !== 'kill') { assert.equal(c.battle, null); continue; }
+    assert.ok(carcass);
+    seen[c.witness.choice]++;
+    assert.equal(c.witness.choice, choice);
+    if (choice === 'take') { assert.ok(c.battle); assert.equal(c.battle.creature, c.witness.hunter.species); assert.ok(c.battle.foe); }
+    else assert.equal(c.battle, null);
+  }
+  assert.ok(seen.kill && seen.wait && seen.take && seen.leave, JSON.stringify(seen));
 });

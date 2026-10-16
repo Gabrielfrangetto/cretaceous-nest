@@ -664,8 +664,9 @@ export const ACTIONS = {
   },
   // fight: fight what stood its ground on the way (a wild defender), or leave it be; flee: when a
   // predator scattered the player's group, run too instead of facing it
-  collectTrip(s, { id, fight, flee }, now) {
-    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee });
+  // carcass: a kill watched on the way: 'wait' for the leftovers, 'take' it from the fed hunter, or leave it
+  collectTrip(s, { id, fight, flee, carcass }, now) {
+    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee, carcass: ['wait', 'take'].includes(carcass) ? carcass : 'leave' });
   },
   // a group the team spotted at a distance: go after one of them (go: true), or let them be
   hunt(s, { id, go }) {

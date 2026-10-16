@@ -168,10 +168,11 @@ const isPredator = foe => (foe.members[0].role || 'attacker') === 'attacker';
 // which units flee before the fight: those afraid of it, and every noncombatant (prey animals: the
 // urge to run wins out, trained or not); all of them when nobody left would fight, or, against a
 // predator, when nobody left is prey to it (it goes after those who ran, or passes by)
-export function whoFlees(units, foe) {
+// (defend: the team went for it, so it fights back whatever it would hunt)
+export function whoFlees(units, foe, defend = false) {
   const fled = units.flatMap((u, i) => fears(u, foe) || roleOf(u) === 'noncombatant' ? [i] : []);
   const stay = units.flatMap((_, i) => fled.includes(i) ? [] : [i]);
-  const hunted = i => !isPredator(foe) || units[i].members.some(m => isPrey(foe.members[0], m));
+  const hunted = i => defend || !isPredator(foe) || units[i].members.some(m => isPrey(foe.members[0], m));
   const nobody = !stay.some(i => roleOf(units[i]) !== 'noncombatant' && hunted(i));
   return { fled: nobody ? units.map((_, i) => i) : fled, escaped: nobody };
 }
@@ -268,7 +269,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     res: m.res * bonus, dodge: Math.min(DODGE_MAX, m.dodge * bonus), reduction: m.reduction * bonus })) });
   if (alerted === 'team') units = units.map(readied);
   if (alerted === 'foe') foe = readied(foe);
-  const { fled, escaped } = whoFlees(units, foe);
+  const { fled, escaped } = whoFlees(units, foe, !!opts.defend);
   // The two sides follow the same rules: side 0 is the team (its units), side 1 the foe (one unit). A
   // unit is (side, index), one of its animals (side, index, member).
   const S = [units, [foe]];
@@ -324,8 +325,9 @@ export function teamFight(units, foe, rand, opts = {}) {
   const frustrated = new Map();
   // the hunkered-down ones each wild predator gave up on: it goes for anyone else first
   const ignored = new Map();
-  // a wild predator never goes for what isn't prey to it (out of its food chain)
-  if (isPredator(foe)) {
+  // a wild predator never goes for what isn't prey to it (out of its food chain), unless the team went
+  // for it (opts.defend)
+  if (isPredator(foe) && !opts.defend) {
     const out = new Set();
     units.forEach((u, v) => u.members.forEach((m, j) => { if (!isPrey(foe.members[0], m)) out.add(E(0, v, j)); }));
     if (out.size) ignored.set(0, out);
@@ -761,18 +763,20 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
     if (!unit.pack && crouched.has(E(s, u, 0))) return;
     // a wild predator with no prey left in reach leaves: the rest is out of its food chain
-    if (s === 1 && roleOf(unit) === 'attacker') {
+    if (s === 1 && roleOf(unit) === 'attacker' && !opts.defend) {
       const ign = ignored.get(u) || new Set();
       if (!active[t].some(v => alive(t, v).some(m => !ign.has(E(t, v, m))))) { runOff(s, u, { fled: true, passed: true }); return; }
     }
     // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it
     if (s === 1 && roleOf(unit) === 'attacker') {
       const left = hp[s][u].reduce((a, h) => a + h, 0) / unitHp(unit);
-      if (left < FLIGHT.below) {
+      // (one that has just eaten gives way sooner)
+      const below = unit.members[0].fed ? FLIGHT.fed : FLIGHT.below;
+      if (left < below) {
         const up = alive(s, u).map(m => unit.members[m]);
         const speed = up.reduce((a, f) => a + f.agi + f.res, 0) / up.length;
         const chasers = active[t].some(x => roleOf(S[t][x]) === 'attacker' && alive(t, x).length);
-        if (!chasers || rand() < Math.min(0.95, speed / (speed + FLIGHT.base) * left / FLIGHT.below)) { runOff(s, u, { fled: true }); return; }
+        if (!chasers || rand() < Math.min(0.95, speed / (speed + FLIGHT.base) * left / below)) { runOff(s, u, { fled: true }); return; }
         log.push(selfEntry(s, u, { caught: true }));
         return;
       }

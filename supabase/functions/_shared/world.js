@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey } from './combat.js';
@@ -398,6 +398,7 @@ export function tripStandoff(s, id) {
   const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
   const threat = threatAt(w.seed, parseKey(exp.hex));
   const scout = hasScout(s, exp.members);
+  if (witnessOf(s, exp)) return null;
   const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, parseKey(exp.hex)), scout);
   if (!meets || !standsGround(threat.foe) || keepsAway(threat, teamUnits(s, units))) return null;
   return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
@@ -437,6 +438,41 @@ export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
   return { ...slow, chance: catchChance(foe, slow.fighter), death: caughtDeath(foe, slow.fighter), safe: eyesChance(s, units.flatMap(u => u.members)),
     fights: slow.id === PLAYER_ID || !sc.fled.includes(slow.unit) };
 }
+// What the team watched on a trip, wild against wild (WITNESS), or null: rolled on its own, so it is the
+// same whenever it is worked out. { hunter, prey: { name, species, count, entry }, outcome: 'kill' (a
+// carcass the hunter feeds on), 'escaped' or 'repelled', log: the fight as watched, fed: the hunter as
+// it is after eating (its health what it had left), for one who tries to take the carcass }
+export function witnessOf(s, exp) {
+  const w = W(s), h = parseKey(exp.hex), d = hexDist(h);
+  const rand = seededRand(`witness:${w.seed}:${exp.trip}`);
+  if (rand() >= WITNESS.chance) return null;
+  const biome = biomeAt(w.seed, h), threat = threatAt(w.seed, h);
+  const list = BIOMES[biome].wild;
+  let x = rand() * list.reduce((t, e) => t + e.weight, 0);
+  const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
+  const visitor = { entry, foe: encounterUnit(entry, d, false) };
+  const resident = { entry: threat.entry, foe: threat.foe };
+  const hunts = (a, b) => (a.foe.members[0].role || 'attacker') === 'attacker' && isPrey(a.foe.members[0], b.foe.members[0]);
+  const [hunter, prey] = hunts(resident, visitor) ? [resident, visitor] : hunts(visitor, resident) ? [visitor, resident] : [];
+  if (!hunter) return null;
+  const who = u => ({ name: u.foe.name, species: u.entry.species || u.entry.creature, count: u.foe.members.length, entry: u.entry });
+  const r = teamFight([prey.foe], hunter.foe, rand, { biome, swamp: biome === 'swamp' });
+  let outcome;
+  if (r.escaped) {
+    // it ran: the hunter goes after the slowest
+    const slow = prey.foe.members.reduce((a, f) => (f.agi < a.agi ? f : a));
+    outcome = rand() < catchChance(hunter.foe, slow) ? 'kill' : 'escaped';
+  } else outcome = r.win ? 'repelled' : r.routed.length && r.hp[0].some(v => v > 0) && !r.hp[0].some(v => v <= 0) ? 'escaped' : 'kill';
+  const fed = outcome === 'kill' ? { ...hunter.foe, members: hunter.foe.members.map((f, i) => ({ ...f, hp: Math.max(1, (r.escaped ? f.hp : r.foeHps[i]) || 1), fed: true })) } : null;
+  return { hunter: who(hunter), prey: who(prey), outcome, log: r.escaped ? [] : r.log, fed };
+}
+const witnessFor = (s, id) => { const exp = W(s).expeditions.find(e => e.id === id); return exp ? witnessOf(s, exp) : null; };
+// a carcass a trip that is back could still go for (a kill was watched): what to show, or null
+export function tripCarcass(s, id) {
+  const wt = witnessFor(s, id);
+  return wt && wt.outcome === 'kill' ? wt : null;
+}
+
 // the scatter a trip that is back would run into, rolled as collecting it does (null: none)
 export function tripScatter(s, id) {
   const w = W(s);
@@ -446,6 +482,7 @@ export function tripScatter(s, id) {
   const h = parseKey(exp.hex), threat = threatAt(w.seed, h);
   const rand = seededRand(`fight:${w.seed}:${exp.trip}`);
   const team = teamUnits(s, units);
+  if (witnessOf(s, exp)) return null;
   if (!units.length || rand() >= encounterChance(threat, team, biomeAt(w.seed, h), hasScout(s, exp.members))) return null;
   if (keepsAway(threat, team)) return null;
   const back = sailBackOff(threat, team, biomeAt(w.seed, h));
@@ -508,7 +545,15 @@ export function collectExpedition(s, id, now, choice = {}) {
   let sighting = null, standoff = null, chase = null, spotted = false, backedOff = null, backChance = 0, scatter = null;
   // the dinosaurs that died on this trip
   const dead = [];
-  const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
+  // wild against wild: the team watched instead of meeting either; a kill leaves a carcass to wait
+  // for (choice.carcass 'wait'), to take from the fed hunter ('take') or to leave
+  const witnessed = witnessOf(s, exp);
+  let witness = witnessed && { hunter: witnessed.hunter, prey: witnessed.prey, outcome: witnessed.outcome };
+  const meets = !witnessed && units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
+  if (witnessed && witnessed.outcome === 'kill') {
+    witness.choice = ['wait', 'take'].includes(choice.carcass) ? choice.carcass : 'leave';
+    if (witness.choice === 'take') fightIt({ foe: witnessed.fed });
+  }
   // what keeps away from the team may still be spotted at a distance, and hunted
   if (meets && keepsAway(threat, teamUnits(s, units))) {
     const odds = huntOdds(teamUnits(s, units), threat.foe.members[0]);
@@ -565,8 +610,9 @@ export function collectExpedition(s, id, now, choice = {}) {
   // the fight with what the team met (how: thrown, the player came off its mount; forced, the one caught
   // running that turned to fight)
   function fightIt(how = {}) {
-    if (standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
-    const foe = threat.foe, opts = { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h) };
+    if (!how.foe && standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
+    // (going for a fed hunter's carcass, the team is the one attacking: it defends itself)
+    const foe = how.foe || threat.foe, opts = { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h), ...(how.foe ? { defend: true } : {}) };
     const team = teamUnits(s, units), fought = units;
     const result = teamFight(team, foe, fightRand, opts);
     // everyone ran from a predator: it gives chase, and may catch the slowest, who may not survive
@@ -609,7 +655,7 @@ export function collectExpedition(s, id, now, choice = {}) {
       if (f !== null && f !== undefined && !dead.includes(id)) explorerOf(s, id).frill = f;
     }));
     battle = {
-      creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
+      creature: how.foe ? witnessed.hunter.species : threat.id, lair: !how.foe && threat.lair, foe: { name: foe.name, power: how.foe ? foe.members.reduce((t, m) => t + m.power, 0) : threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
       team: team.map((t, i) => ({ name: t.name, kind: fought[i].kind, members: fought[i].members, hp: result.teamHps[i], power: t.members.reduce((x, m) => x + m.power, 0),
         ...(t.members.some(m => m.frill !== undefined) ? { frill: t.members.map(m => m.frill ?? null) } : {}) })),
       ...result, injured, ...(caught ? { caught } : {}), ...(how.thrown ? { thrown: true } : {}), ...(how.forced ? { forced: how.forced } : {}),
@@ -623,6 +669,14 @@ export function collectExpedition(s, id, now, choice = {}) {
 
   let coins = 0, discovered = false, foundEgg = null;
   if (won) {
+    // the leftovers of a carcass the team waited for
+    if (witness && witness.choice === 'wait') {
+      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      for (const [item, min, max] of witnessed.prey.entry.loot) {
+        const n = Math.floor(roll({ min: Math.round(min * mult), max: Math.round(max * mult) }) * WITNESS.leftovers);
+        if (n > 0) give(item, n);
+      }
+    }
     // a hauler (a giant sauropod) brings home more of what the hex has
     const haul = teamHaul(s, exp.members);
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, Math.round(roll(l) * haul));
@@ -638,7 +692,9 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;
       // a predator that got away badly hurt leaves no carcass
-      if (!battle.foeFled) for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
+      // (taken from a fed hunter: the carcass it was feeding on, and its own if it didn't get away)
+      if (witness && witness.choice === 'take') for (const [item, min, max] of witnessed.prey.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
+      if (!battle.foeFled) for (const [item, min, max] of (witness ? witnessed.hunter.entry.loot : threat.entry.loot)) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
       coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
       // a fight that went into a frenzy drops what nothing else gives, more with more of them in it
       if (battle.frenzy.length) {
@@ -681,7 +737,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     else b.lastFed = now - hungerEvery(b);
   }
   const died = dead.map(id => bury(s, id)).filter(Boolean);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, scatter: scatter && { name: scatter.name, prey: scatter.prey, mounted: scatter.mounted, alone: scatter.alone, choice: scatter.choice }, died, fedSelf, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, witness, scatter: scatter && { name: scatter.name, prey: scatter.prey, mounted: scatter.mounted, alone: scatter.alone, choice: scatter.choice }, died, fedSelf, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

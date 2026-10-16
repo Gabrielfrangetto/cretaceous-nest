@@ -466,7 +466,7 @@ export const ARMOR = {
 // resistance) / (that + base), less the less health it has left. With nobody on the other side to chase
 // it (no predator, no player) it always gets away; caught, it loses its turn. One that got away leaves no
 // carcass: a win without its loot.
-export const FLIGHT = { below: 0.25, base: 100 };
+export const FLIGHT = { below: 0.25, base: 100, fed: 0.7 };   // fed: a predator that has just eaten gives way sooner
 // Hunkering down works because the predator gives up: a wild predator whose every blow of a turn went
 // on hunkered-down armor and did less than perTurn of that one's health in all is frustrated; after
 // turns such turns in a row it gives up on them and goes for the rest of the group, or, with nobody
@@ -595,6 +595,12 @@ export const CHASE = { lead: 2, maxSteps: 3 };
 // many eyes (Hypsilophodon): each one in a team sees a predator first this often (up to max); the
 // group scatters in zigzags and nobody is caught
 export const EYES = { perOne: 0.05, max: 0.3 };
+// Wild against wild: now and then (chance of a trip) a second animal of the hex's biome turns up beside
+// the one that lives there, and the team watches from a distance instead of meeting either. If one of
+// them hunts the other (BODY hunts) it goes for it: the prey brought down is a carcass the predator
+// feeds on, and the team may wait for its leftovers (leftovers of the carcass) or try to take it from
+// the predator, fed and hurt; one that got away or drove the predator off leaves nothing behind.
+export const WITNESS = { chance: 0.15, leftovers: 0.5 };
 export const HOOK = { chance: 0.3, pierce: 0.5, bleed: 0.006, maxBleed: 3 };
 // Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
 // neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,
