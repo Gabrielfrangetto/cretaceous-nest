@@ -268,23 +268,31 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
   assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
 });
 
-test('a Dilophosaurus clings to bigger unarmored foes to slash them, and shrugs off one deadly blow from its size', async () => {
+test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller ones in its grip', async () => {
   const { GRAB, TOUGH, SPECIES } = await import('../js/config.js');
   const dilo = () => unitOf('d', [{ ...fighterOf(dino('d', 50, 'dilo')), fear: undefined }]);
-  let grabs = 0, slashes = 0, immune = 0;
-  for (let i = 0; i < 40; i++) {
+  const seen = { cling: 0, slash: 0, immune: 0, fell: 0, recovering: 0 };
+  for (let i = 0; i < 60; i++) {
     const r = teamFight([dilo()], wildFighter('allo', 5), seededRand('g' + i));
     let holding = false;
     for (const e of r.log) {
-      if (e.by === 0 && e.grab) { grabs++; holding = true; }
-      else if (e.by === 0 && e.slash) { slashes++; holding = false; }
-      if (e.by === 'foe') { if (holding) { assert.ok(e.immune); immune++; } else assert.ok(!e.immune); }
+      if (e.by === 0 && e.grab === 'cling') { seen.cling++; holding = true; }
+      else if (e.by === 0 && e.slash) { seen.slash++; assert.ok(holding); }
+      else if (e.by === 0 && e.fell) { seen.fell++; holding = false; }
+      else if (e.by === 0 && e.recovering) seen.recovering++;
+      if (e.by === 'foe') { if (holding) { assert.ok(e.immune); seen.immune++; } else assert.ok(!e.immune); }
     }
   }
-  assert.ok(grabs && slashes && immune, `${grabs} grabs, ${slashes} slashes, ${immune} out of reach`);
-  // never on armored bodies, nor on foes no bigger than itself
-  for (const foe of [wildFighter('stego', 5), wildFighter('pachy', 5)])
-    for (let i = 0; i < 20; i++) assert.ok(!teamFight([dilo()], foe, seededRand('n' + i)).log.some(e => e.grab));
+  for (const k of Object.keys(seen)) assert.ok(seen[k], JSON.stringify(seen));
+  // smaller foes die in its grip; one its size may wrench free
+  let kills = 0, freed = 0;
+  for (let i = 0; i < 60; i++) {
+    for (const e of teamFight([dilo()], wildFighter('raptor', 5), seededRand('k' + i)).log) if (e.grab === 'kill') { kills++; assert.equal(e.left, 0); }
+    for (const e of teamFight([dilo()], wildFighter('pachy', 5), seededRand('f' + i)).log) if (e.grab === 'freed') freed++;
+  }
+  assert.ok(kills && freed, `${kills} kills, ${freed} freed`);
+  // never on armored bodies
+  for (let i = 0; i < 20; i++) assert.ok(!teamFight([dilo()], wildFighter('stego', 5), seededRand('n' + i)).log.some(e => e.grab));
   // tough: once a fight, a deadly blow from something its size leaves it at 1
   let tough = 0;
   for (let i = 0; i < 40; i++) {
@@ -294,7 +302,7 @@ test('a Dilophosaurus clings to bigger unarmored foes to slash them, and shrugs 
     if (saved.length) { tough++; assert.equal(saved[0].left, 1); }
   }
   assert.ok(tough > 0);
-  assert.ok(SPECIES.dilo.tough && TOUGH.heal < 1 && GRAB.chance > 0);
+  assert.ok(SPECIES.dilo.tough && TOUGH.heal < 1 && GRAB.tries > 0);
 });
 
 test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pinning smaller ones, until shaken off", () => {

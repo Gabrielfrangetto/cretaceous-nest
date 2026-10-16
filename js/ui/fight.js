@@ -142,6 +142,11 @@ export function playFight(battle, summary, who) {
       foeHp[blow.member] = blow.left;
       setHp(foeBox, blow.foeLeft, battle.foeMax);
       foeBox.querySelector('.pack-left').textContent = foeNote();
+    } else if (blow.fell) {
+      // fell off the foe it clung to: on its feet, or knocked down for a turn
+      pop(boxes[blow.by], blow.landed ? 'Fell off, landed!' : 'Fell off!', 'miss');
+    } else if (blow.recovering) {
+      pop(boxes[blow.by], 'Getting up…', 'miss');
     } else if (blow.shake) {
       // the foe threw off a claw latched on to it
       lunge(foeBox);
@@ -191,7 +196,7 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.latched ? 'Claw!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      const move = blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops

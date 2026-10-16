@@ -20,7 +20,7 @@ export function fighterOf(baby, extra = []) {
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
         grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
-  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, power: sheet.power, ...body };
+  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, power: sheet.power, ...body };
 }
 
 // health for the size of the body (SIZE_HP)
@@ -53,7 +53,7 @@ export function wildFighter(type, dist, lair = false) {
   const stats = wildStats(sp.base, level);
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
-    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
+    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
@@ -79,7 +79,7 @@ export function creatureFighter(id, dist, lair = false) {
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
   const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, power, level, size,
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, power, level, size,
     bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker' };
 }
 
@@ -176,8 +176,10 @@ function withRoles(u, swamp) {
 //   more of a pack adds also: [{ member, dmg, left }]. A blow on a frill adds part: 'head', blocked
 //   and frill (what is left of it); the goring back is a counter with gore: true;
 //   { by: 'bleed', member, dmg, left, foeLeft }: a wounded foe bleeding at the start of its turn.
-//   A Dilophosaurus' blow that clings on adds grab; its next one is a slash (slash: true); the foe's
-//   blows on it meanwhile are { immune: true }; a deadly blow it shrugs off adds tough.
+//   A Dilophosaurus' blow adds grab: 'cling' (on a bigger foe), 'kill' (seized and killed) or 'freed'
+//   (seized, but it wrenched free); clinging, each of its turns is a slash (slash: true) or a fall
+//   ({ by, member, fell: true, landed }), and a bad fall costs its next turn ({ by, recovering: true });
+//   the foe's blows on it while it clings are { immune: true }; a deadly blow it shrugs off adds tough.
 //   A Velociraptor's blow that latches on adds latch ('cling' | 'pin'); then each of its turns is
 //   { by, member, dmg, left, foeLeft, latched } until { by: 'foe', to, member, shake: true, mode };
 //   a foe whose every member is pinned loses its turn: { by: 'foe', pinned: true }.
@@ -210,6 +212,10 @@ export function teamFight(units, foe, rand, opts = {}) {
   // deadly blow this fight
   const clinging = new Map();
   const toughUsed = new Set();
+  // units that lost their footing and miss their next turn
+  const stunned = new Set();
+  // a contest of one value against another: a / (a + b) to win
+  const contest = (a, b) => rand() < a / (a + b);
   // Velociraptors latched on to the foe: unit -> { m: the foe's member, holder: its own member,
   // mode: 'cling' | 'pin' }, and how many claw wounds each foe member bleeds from
   const latches = new Map();
@@ -245,12 +251,20 @@ export function teamFight(units, foe, rand, opts = {}) {
         lameMember(foe, member, 'foe');
         bone = { part: 'leg', lame: true, club: true };
       }
-      // grasping hands may cling on to a bigger foe with no armor on its body
+      // grasping hands (Dilophosaurus) on a foe with no armor on its body: a bigger one it may climb
+      // on to (agility against agility); one its size or smaller it may seize (agility and strength
+      // against agility and strength), and a smaller one, or one its size that can't wrench free
+      // (strength against strength), dies in its grip
       const lead = units[who].members[0], prey = foe.members[member];
       let grab = {};
-      if (dmg > 0 && lead.grab && !extra.slash && foeHp[member] > 0 && !prey.plated && sizeRank(prey.size) > sizeRank(lead.size) && rand() < GRAB.chance) {
-        clinging.set(who, member);
-        grab = { grab: true };
+      if (dmg > 0 && lead.grab && !extra.slash && foeHp[member] > 0 && !prey.plated && !clinging.has(who) && rand() < GRAB.tries) {
+        const step = sizeRank(prey.size) - sizeRank(lead.size);
+        if (step > 0) {
+          if (contest(lead.agi, prey.agi)) { clinging.set(who, member); grab = { grab: 'cling' }; }
+        } else if (contest(lead.agi + lead.str, prey.agi + prey.str)) {
+          if (step < 0 || contest(lead.str, prey.str)) { foeHp[member] = 0; grab = { grab: 'kill' }; }
+          else grab = { grab: 'freed' };
+        }
       }
       // a sickle claw may latch on: clinging to a bigger foe, pinning one its size or smaller
       if (dmg > 0 && clawed && !latches.has(who) && foeHp[member] > 0 && !prey.plated && rand() < LATCH.chance) {
@@ -392,13 +406,22 @@ export function teamFight(units, foe, rand, opts = {}) {
           continue;
         }
         if (!standing(hp[who]).length) continue;
-        // clinging on: it slashes the one it holds and lets go
+        // knocked off its feet: it misses this turn
+        if (stunned.delete(who)) { log.push({ by: who, recovering: true }); continue; }
+        // clinging on: it holds on (strength against the foe's agility) and slashes, or falls off; a
+        // bad fall (agility against agility) costs it its next turn
         if (clinging.has(who)) {
-          const m = clinging.get(who);
-          clinging.delete(who);
-          if (foeHp[m] > 0) {
+          const m = clinging.get(who), lead = units[who].members[0], prey = foe.members[m];
+          if (foeHp[m] <= 0) clinging.delete(who);
+          else if (contest(lead.str, prey.agi)) {
             const cut = strike(who, 0.75 + rand() * 0.5, 1, { slash: true, member: m });
             if (cut >= 0 && foeHp[cut] > 0) bleeding[cut] += GRAB.bleed;
+            continue;
+          } else {
+            clinging.delete(who);
+            const landed = contest(lead.agi, prey.agi);
+            if (!landed) stunned.add(who);
+            log.push({ by: who, member: m, fell: true, landed });
             continue;
           }
         }

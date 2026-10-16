@@ -378,10 +378,15 @@ export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['l
 // a tail club's counter or charge may break the foe's shin: lamed, as a Tyrannosaurus' bite lames a leg
 // (its relative Zuul is named crurivastator, "destroyer of shins"); and it lands damage times as hard
 export const CLUB = { lame: 0.35, damage: 1.2 };
-// Dilophosaurus' grasping hands: a blow that lands on a bigger foe without body armor may let it cling
-// on (chance). Clinging, nothing can reach it until its next turn, when it slashes, leaving a wound
-// that bleeds bleed of the foe's health a turn for the rest of the fight.
-export const GRAB = { chance: 0.3, bleed: 0.005 };
+// Dilophosaurus' grasping hands, settled by contests (one value against another: a / (a + b) to win).
+// When a blow lands on a foe with no armor on its body, it tries to get hold of it tries of the time. A bigger foe: agility against agility to
+// climb on to it. Clinging, nothing can reach it; each of its turns, its strength against the foe's
+// agility to hold on and slash (a wound that bleeds bleed of the foe's health a turn for the rest of
+// the fight), or it falls off, and agility against agility decides whether it lands on its feet or
+// misses its next turn. A foe its size or smaller: agility and strength against agility and strength
+// to seize it; a smaller one dies in its grip, one its size dies unless it wrenches free (strength
+// against strength), and the fight goes on.
+export const GRAB = { tries: 0.3, bleed: 0.005 };
 // Dilophosaurus is tough (one known skeleton healed from eight injuries): once a fight, a blow that
 // would bring it down, from something no bigger than itself, leaves it standing at 1; and its
 // injuries heal in heal of the time (not a critical one, which takes as long as anyone's).
