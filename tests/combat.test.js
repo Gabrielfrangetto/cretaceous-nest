@@ -824,3 +824,15 @@ test('death: a deadly blow kills, one brought down may not survive (its resistan
   assert.deepEqual(s.packs, []);
   assert.equal(countItem(s, 'leaf_crown'), 1);
 });
+
+test('the risk of death before a fight: high against a killer, none for the player', async () => {
+  const { teamOdds } = await import('../js/combat.js');
+  const { freshState } = await import('../js/state.js');
+  const me = unitOf('You', [fighterOf(freshState().player)]);
+  const compy = unitOf('c', [{ ...fighterOf(dino('c', 50, 'compy')), fear: undefined, role: 'attacker' }]);
+  const r = teamOdds([me, compy], wildFighter('rex', 6), 60);
+  assert.equal(r.death[0][0], 0);
+  assert.ok(r.death[1][0] > 0.5, r.death[1][0]);
+  const safe = teamOdds([unitOf('k', [fighterOf(dino('k', 90, 'ankylo'))])], encounterUnit({ species: 'compy', pack: [2, 2], loot: [] }, 2), 60);
+  assert.equal(safe.death[0][0], 0);
+});

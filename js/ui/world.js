@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { teamWinChance, dangerOf, whoFlees } from '../combat.js';
+import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
@@ -150,7 +150,8 @@ function threatHTML(h, units, scout) {
   }
   // who would run from it before the fight, and how the rest would do
   const run = units.length ? whoFlees(units, th.foe) : { fled: [], escaped: false };
-  const odds = units.length && !run.escaped ? teamWinChance(units, th.foe, 120, { swamp }) : null;
+  const fight = units.length && !run.escaped ? teamOdds(units, th.foe, 120, { swamp, biome: biomeAt(S.world.seed, h) }) : null;
+  const odds = fight ? fight.win : null;
   const power = units.reduce((t, u, i) => run.fled.includes(i) ? t : t + u.members.reduce((x, m) => x + m.power, 0), 0);
   const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : run.fled.length ? 'Who stays' : 'Your team';
   const danger = odds == null ? '' : dangerOf(odds);
@@ -162,7 +163,16 @@ function threatHTML(h, units, scout) {
     <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
+    ${fight ? riskHTML(units, fight.death) : ''}
+    ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it may catch the slowest one, and the one caught may not survive.</p>' : ''}
   </div>`;
+}
+
+// the risk of death in a fight, for those who could die (1% or more); a pack shows its likeliest one
+function riskHTML(units, death) {
+  const at = units.map((u, i) => ({ name: u.name, p: Math.max(...death[i]) })).filter(x => x.p >= 0.01);
+  if (!at.length) return '<p class="hint">Nobody is likely to die if it comes to a fight.</p>';
+  return `<p class="hint warn-text">Risk of death if it comes to a fight: ${at.map(x => `${esc(x.name)} ~${Math.round(x.p * 100)}%`).join(', ')}.</p>`;
 }
 
 const healHTML = (b, t) => {
@@ -266,12 +276,13 @@ function standoffHTML(e) {
   if (!standoffOdds.has(e.id)) {
     const units = teamUnits(S, e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length));
     const swamp = biomeAt(S.world.seed, parseKey(e.hex)) === 'swamp';
-    standoffOdds.set(e.id, teamWinChance(units, st.foe, 120, { swamp }));
+    standoffOdds.set(e.id, { ...teamOdds(units, st.foe, 120, { swamp, biome: biomeAt(S.world.seed, parseKey(e.hex)) }), units });
   }
-  const odds = standoffOdds.get(e.id);
+  const { win: odds, death, units } = standoffOdds.get(e.id);
   return `<p class="hint">${standText(st)}</p>
     <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>`;
+    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>
+    ${riskHTML(units, death)}`;
 }
 
 function tripsHTML(t) {

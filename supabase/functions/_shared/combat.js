@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -346,9 +346,11 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (t === 0) lamed.push([v, m]);
   };
   const breakBones = (s, u, t, v, m, part = null) => {
-    if (!S[s][u].members[0].boneBreaker || hp[t][v][m] <= 0) return part ? { part } : {};
+    if (!S[s][u].members[0].boneBreaker) return part ? { part } : {};
     const hit = S[t][v].members[m];
+    // something this small is swallowed whole, whatever the bite already did
     if (sizeRank(hit.size) <= sizeRank(BONE_BREAKER.oneBite)) { hp[t][v][m] = 0; return { part: 'whole', kill: true }; }
+    if (hp[t][v][m] <= 0) return part ? { part } : {};
     if (!part) part = rollPart(BONE_BREAKER.parts, hit);
     if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax) && !hit.throat && !hit.collar) { hp[t][v][m] = 0; return { part, kill: true }; }
     if (isLeg(part) && !hit.lame && !(hit.giant && sizeRank(S[s][u].members[0].size) < sizeRank(hit.size)) && rand() < BONE_BREAKER.lame) { lameMember(t, v, m); return { part, lame: true }; }
@@ -848,12 +850,27 @@ export function teamFight(units, foe, rand, opts = {}) {
   return { win, escaped, fled, routed, foeRouted, foeFled, alerted, slain, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
 }
 
-export function teamWinChance(units, foe, runs = 120, opts = {}) {
+// How a team would do, from a fixed set of rolls so the answer does not flicker: how often it wins,
+// and how likely each of its members (per unit) is to die in the fight (a deadly blow, or brought down
+// and not surviving it: DEATH). The player never dies.
+export function teamOdds(units, foe, runs = 120, opts = {}) {
   const rand = seededRand(`odds:${units.map(u => u.name + u.members.length).join(',')}:${foe.name}:${foe.members ? unitHp(foe) : foe.hp}`);
   let wins = 0;
-  for (let i = 0; i < runs; i++) if (teamFight(units, foe, rand, opts).win) wins++;
-  return wins / runs;
+  const death = units.map(u => u.members.map(() => 0));
+  for (let i = 0; i < runs; i++) {
+    const r = teamFight(units, foe, rand, opts);
+    if (r.win) wins++;
+    r.hp.forEach((list, a) => list.forEach((h, b) => {
+      const f = units[a].members[b];
+      if (h > 0 || !f.type) return;
+      const slain = r.slain.some(([x, y]) => x === a && y === b);
+      const lives = Math.min(DEATH.max, Math.max(DEATH.min, f.res / (f.res + DEATH.resBase)));
+      death[a][b] += slain ? 1 : 1 - lives;
+    }));
+  }
+  return { win: wins / runs, death: death.map(list => list.map(d => d / runs)) };
 }
+export const teamWinChance = (units, foe, runs = 120, opts = {}) => teamOdds(units, foe, runs, opts).win;
 
 export const DANGER = [[0.85, 'Easy'], [0.6, 'Fair'], [0.3, 'Hard'], [0, 'Deadly']];
 export const dangerOf = chance => DANGER.find(([min]) => chance >= min)[1];
