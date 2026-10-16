@@ -440,7 +440,9 @@ export const LIMBS = { arm: 0.3 };
 //   heavy (Ankylosaurus): the back (bony plates), the head (fused skull plates, even bony eyelids) and the
 //     neck (rings of bone); its back's plates hurt.
 //   light (Scelidosaurus, an early relative): rows of scutes along the back and over the neck.
+// ignores: nothing this size or smaller can hurt an armored one (BODY build armored) at all.
 export const ARMOR = {
+  ignores: 'small',
   parts: [['back', 0.5], ['belly', 0.05], ['head', 0.15], ['neck', 0.1], ['limbs', 0.2]], belly: 1.5,
   heavy: { armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, thornsOn: ['back'] },
   light: { armored: ['back', 'neck'], cut: 0.35, thorns: 0.01, thornsOn: ['back', 'neck'] },

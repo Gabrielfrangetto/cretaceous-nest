@@ -2,13 +2,15 @@
 // Worst case for the defender: the attacker with perfect genes and its hardest roll, against the
 // defender with the weakest genes. Run it after changing BODY: node scripts/matchups.js
 import { writeFileSync } from 'node:fs';
-import { SPECIES, ORDER, GENES_MAX } from '../js/config.js';
+import { SPECIES, ORDER, GENES_MAX, ARMOR, SIZE_ORDER } from '../js/config.js';
 import { fighterOf, hitOf } from '../js/combat.js';
 
 const at = (type, g) => fighterOf({ id: type, type, name: type, genes: { str: g, agi: g, vit: g, res: g }, equip: {}, fed: 0 });
 // the most one blow can take off, as a share of the defender's health
 export function bestBlow(a, b) {
   const att = at(a, GENES_MAX), def = at(b, 0);
+  // armor is beyond anything small or tiny
+  if (def.plated && SIZE_ORDER.indexOf(att.size) <= SIZE_ORDER.indexOf(ARMOR.ignores)) return { dmg: 0, share: 0 };
   return { dmg: Math.round(hitOf(att, def, 1.25)), share: hitOf(att, def, 1.25) / def.hp };
 }
 // none: it can't hurt it at all; scratch: under 3% of its health a blow; wound: more

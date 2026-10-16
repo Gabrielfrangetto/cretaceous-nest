@@ -236,7 +236,7 @@ export function playFight(battle, summary, who) {
       if (move) pop(actor, move, 'mad');
       if (blow.miss) pop(target, 'Miss', 'miss');
       // a blow its hide stops, or a throat covered in bone
-      else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : 'No effect', 'miss');
+      else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : blow.shrugged ? 'Armor holds!' : 'No effect', 'miss');
       else {
         pop(target, '−' + blow.dmg, 'dmg');
         strike(target);

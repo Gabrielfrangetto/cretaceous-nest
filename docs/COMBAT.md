@@ -33,16 +33,16 @@ Role: attacker (goes for the foe), defender (charges or holds its ground and str
 ## Who each one can't hurt
 
 - **Dilophosaurus**: can hurt every species; only scratches Ankylosaurus, Tyrannosaurus, Argentinosaurus.
-- **Compsognathus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
+- **Compsognathus**: can't hurt Scelidosaurus, Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
 - **Scelidosaurus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Hypacrosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
-- **Psittacosaurus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
-- **Coelophysis**: can't hurt Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Stegosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
-- **Hypsilophodon**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
+- **Psittacosaurus**: can't hurt Scelidosaurus, Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
+- **Coelophysis**: can't hurt Scelidosaurus, Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
+- **Hypsilophodon**: can't hurt Scelidosaurus, Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
 - **Protoceratops**: can't hurt Ankylosaurus; only scratches Hypacrosaurus, Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus, Tyrannosaurus, Argentinosaurus.
 - **Gallimimus**: can't hurt Stegosaurus, Triceratops, Ankylosaurus, Spinosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus.
 - **Hypacrosaurus**: can't hurt Ankylosaurus; only scratches Stegosaurus, Parasaurolophus, Triceratops, Spinosaurus, Tyrannosaurus, Argentinosaurus.
 - **Pachycephalosaurus**: can hurt every species; only scratches Ankylosaurus, Argentinosaurus.
-- **Velociraptor**: can't hurt Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Scelidosaurus, Protoceratops, Hypacrosaurus, Pachycephalosaurus, Stegosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
+- **Velociraptor**: can't hurt Scelidosaurus, Stegosaurus, Triceratops, Ankylosaurus, Tyrannosaurus, Argentinosaurus; only scratches Protoceratops, Hypacrosaurus, Pachycephalosaurus, Baryonyx, Parasaurolophus, Allosaurus, Spinosaurus.
 - **Stegosaurus**: can hurt every species; only scratches Ankylosaurus, Argentinosaurus.
 - **Baryonyx**: can hurt every species; only scratches Argentinosaurus.
 - **Parasaurolophus**: can't hurt Ankylosaurus; only scratches Stegosaurus, Triceratops, Spinosaurus, Tyrannosaurus, Argentinosaurus.
@@ -60,16 +60,16 @@ Rows attack, columns defend. ✓ wounds, ~ only scratches (under 3% of its healt
 | | dilo | compy | scelido | psitta | coelo | hypsi | proto | galli | hypa | pachy | raptor | stego | bary | para | trike | ankylo | allo | spino | rex | argent |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **dilo** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | ~ |
-| **compy** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
+| **compy** | ✓ | ✓ | · | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
 | **scelido** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
-| **psitta** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
-| **coelo** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | ~ | ~ | ~ | · | · | ~ | ~ | · | · |
-| **hypsi** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
+| **psitta** | ✓ | ✓ | · | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
+| **coelo** | ✓ | ✓ | · | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
+| **hypsi** | ✓ | ✓ | · | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
 | **proto** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | ~ | ~ |
 | **galli** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | · | · | · |
 | **hypa** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | · | ✓ | ~ | ~ | ~ |
 | **pachy** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ |
-| **raptor** | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | ~ | ~ | ~ | · | · | ~ | ~ | · | · |
+| **raptor** | ✓ | ✓ | · | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ~ | ✓ | · | ~ | ~ | · | · | ~ | ~ | · | · |
 | **stego** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ |
 | **bary** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ |
 | **para** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ~ | · | ✓ | ~ | ~ | ~ |

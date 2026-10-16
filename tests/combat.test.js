@@ -1049,3 +1049,18 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   }
   assert.ok((forced || preyCaught) && away, JSON.stringify({ forced, preyCaught, away }));
 });
+
+test('armor is beyond anything small or tiny: raptors do nothing to a Scelidosaurus and give up on it', () => {
+  let gaveUp = 0;
+  for (let i = 0; i < 20; i++) {
+    const sc = unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
+    const r = teamFight([sc], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), seededRand('arm' + i));
+    for (const e of r.log) if (e.by === 'foe' && e.to === 0 && !e.miss && e.dmg !== undefined) { assert.equal(e.dmg, 0); assert.ok(e.shrugged || e.immune); }
+    assert.equal(r.hp[0][0], sc.members[0].hp);
+    if (r.win && r.foeFled) gaveUp++;
+  }
+  assert.ok(gaveUp > 0);
+  // something bigger still gets through
+  const allo = teamFight([unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }])], wildFighter('allo', 5), seededRand('arm-a'));
+  assert.ok(allo.log.some(e => e.by === 'foe' && e.dmg > 0));
+});

@@ -490,14 +490,17 @@ export function teamFight(units, foe, rand, opts = {}) {
     const weapon = neck ? { ...att, crush: 1 } : spiked ? { ...att, crush: Math.max(att.crush || 0, SPIKES.pierce) } : hooked ? { ...att, crush: Math.max(att.crush || 0, HOOK.pierce) } : att;
     // a long-legged kick back lands harder (Gallimimus)
     const kick = extra.counter && att.kick > 1 ? att.kick : 1;
-    const raw = hitOf(weapon, prey, roll) * buff * boost * kick * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? DOME.head : 1);
+    // armor (plates, scutes) is beyond anything small or tiny: its teeth and claws do nothing
+    const shrug = prey.plated && sizeRank(att.size) <= sizeRank(ARMOR.ignores);
+    const raw = shrug ? 0 : hitOf(weapon, prey, roll) * buff * boost * kick * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? DOME.head : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     // what this turn's blows did to hunkered-down armor (a frustrated predator gives up)
-    if (recording) { if (low) { turnHits.dmg += dmg; turnHits.hp = Math.max(turnHits.hp, prey.hp); } else turnHits.open = true; }
+    if (recording) { if (low || shrug) { turnHits.dmg += dmg; turnHits.hp = Math.max(turnHits.hp, prey.hp); } else turnHits.open = true; }
     let bone = neck ? { part: 'neck' } : dmg > 0 && !onHead ? breakBones(s, u, t, v, m, part) : onHead ? { part: 'head' } : part ? { part } : {};
     if (plates && !neck && plates.armored.includes(part)) bone.armored = true;
     if (throat < 1) bone.throat = true;
+    if (shrug) bone.shrugged = true;
     if (domed) bone = { part: 'head', dome: true };
     // a giant's stomp crushes anything short of colossal
     if (stomp && hp[t][v][m] > 0 && sizeRank(prey.size) < sizeRank('colossal')) { hp[t][v][m] = 0; bone = { part: 'whole', kill: true, stomped: true }; }
@@ -851,7 +854,8 @@ export function teamFight(units, foe, rand, opts = {}) {
         turnHits = { dmg: 0, hp: 0, open: false };
         turn(s, u);
         recording = false;
-        // a wild predator that only scraped hunkered-down armor this turn grows frustrated, and gives up
+        // a wild predator that only scraped hunkered-down armor (or armor too much for it) this turn grows
+        // frustrated, and gives up
         if (s === 1 && active[1].includes(u) && roleOf(S[1][u]) === 'attacker' && !over()) {
           const scraped = turnHits.hp > 0 && !turnHits.open && turnHits.dmg < GIVE_UP.perTurn * turnHits.hp;
           const n = scraped ? (frustrated.get(u) || 0) + 1 : 0;
@@ -860,7 +864,8 @@ export function teamFight(units, foe, rand, opts = {}) {
             // it gives up on the hunkered-down ones and turns on the rest of the group; with nobody else
             // left to go for, it leaves
             const ign = ignored.get(u) || new Set();
-            for (const v of active[0]) for (const m of alive(0, v)) if (crouched.has(E(0, v, m))) ign.add(E(0, v, m));
+            const small = sizeRank(biggest(S[1][u])) <= sizeRank(ARMOR.ignores);
+            for (const v of active[0]) for (const m of alive(0, v)) if (crouched.has(E(0, v, m)) || (small && S[0][v].members[m].plated)) ign.add(E(0, v, m));
             ignored.set(u, ign);
             frustrated.set(u, 0);
             const others = active[0].some(v => alive(0, v).some(m => !ign.has(E(0, v, m))));
