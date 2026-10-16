@@ -323,6 +323,16 @@ test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller
   }
   assert.ok(tough > 0);
   assert.ok(SPECIES.dilo.tough && TOUGH.heal < 1 && GRAB.tries > 0);
+  // a wild one saved that way may run there and then: the team wins without its carcass (from a
+  // defender, which won't chase it, it always gets away)
+  let ran = 0, stayed = 0;
+  for (let i = 0; i < 200; i++) {
+    const r = teamFight([unitOf('d', [{ ...fighterOf(dino('d', 70, 'dilo')), fear: undefined }])], wildFighter('dilo', 5), seededRand('tr' + i));
+    const k = r.log.findIndex(e => e.by === 0 && e.tough);
+    if (k < 0) continue;
+    if (r.log[k + 1] && r.log[k + 1].by === 'foe' && r.log[k + 1].fled) { ran++; assert.ok(r.win && r.foeFled); } else stayed++;
+  }
+  assert.ok(ran > 0 && stayed > 0, JSON.stringify({ ran, stayed }));
 });
 
 test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pinning smaller ones, until shaken off", () => {

@@ -474,7 +474,9 @@ export const CLUB = { lame: 0.15, bonus: 0.35, damage: 1.2, crushes: 'small' };
 export const GRAB = { tries: 0.3, bleed: 0.005 };
 // Dilophosaurus is tough (one known skeleton healed from eight injuries): once a fight, a blow that
 // would bring it down, from something no bigger than itself, leaves it standing at 1; and its
-// injuries heal in heal of the time (not a critical one, which takes as long as anyone's).
+// injuries heal in heal of the time (not a critical one, which takes as long as anyone's). A wild one
+// saved that way tries to run there and then, as a badly hurt predator does (FLIGHT), its 1 health left
+// not holding it back.
 export const TOUGH = { heal: 0.5 };
 // Velociraptor's sickle claw, settled by contests like Dilophosaurus' hands. When a blow lands on a
 // foe with no armor on its body, it tries to latch on tries of the time: on a bigger foe it clings to

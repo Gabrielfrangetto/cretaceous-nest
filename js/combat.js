@@ -516,11 +516,18 @@ export function teamFight(units, foe, rand, opts = {}) {
       lameMember(t, v, m);
       bone = { part: legOf(prey), lame: true, club: true };
     }
+    let toughRan = false;
     // tough: once a fight it stays standing after a deadly blow from something no bigger than itself
     if (hp[t][v][m] <= 0 && prey.tough && !toughUsed.has(E(t, v, m)) && sizeRank(att.size) <= sizeRank(prey.size)) {
       hp[t][v][m] = 1;
       toughUsed.add(E(t, v, m));
       bone.tough = true;
+      // a wild one gets that one more chance to run, there and then (its health doesn't hold it back)
+      if (t === 1 && roleOf(S[t][v]) === 'attacker') {
+        const speed = prey.agi + prey.res;
+        const chasers = active[s].some(x => roleOf(S[s][x]) === 'attacker' && alive(s, x).length);
+        if (!chasers || rand() < Math.min(0.95, speed / (speed + FLIGHT.base))) toughRan = true;
+      }
     }
     // grasping hands (Dilophosaurus) on one with no armor on its body: a bigger one it may climb on to
     // (agility against agility); one its size or smaller it may seize (agility and strength against
@@ -571,6 +578,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
     log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(hooked && dmg > 0 ? { hooked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
     if (herdRuns && S[t][v].pack && alive(t, v).length && active[t].includes(v)) runOff(t, v);
+    // saved by its toughness, a wild one ran for it
+    if (toughRan && active[t].includes(v)) runOff(t, v, { fled: true });
     // ours killed outright (not just brought down)
     if (t === 0 && hp[t][v][m] <= 0 && (bone.kill || grab.grab === 'kill') && !slain.some(([a, b]) => a === v && b === m)) slain.push([v, m]);
     // the plates hurt whatever bit them
