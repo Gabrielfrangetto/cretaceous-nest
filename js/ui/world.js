@@ -253,10 +253,12 @@ function sightingsHTML() {
 // a wild defender or noncombatant that stood its ground on the way: fight it, or leave it be (the
 // odds are worked out once per trip)
 const standoffOdds = new Map();
-// "On the way, a Protoceratops herd spotted you and 2 stood their ground to drive you off."
-const standText = st => {
+// "On the way, a Protoceratops herd spots you and 2 stay their ground to drive you off.": happening
+// now, on the trip, while the choice is open; told in the past in the trip report
+const standText = (st, past = false) => {
   const what = `${st.lair ? 'Alpha ' : ''}${st.species}${st.group ? ' ' + st.group : ''}`;
-  return `On the way, ${/^[AEIOU]/.test(what) ? 'an' : 'a'} <strong>${esc(what)}</strong> spotted you and ${st.count > 1 ? `${st.count} stood their ground` : 'stood its ground'} to drive you off.`;
+  const ground = past ? (st.count > 1 ? `${st.count} stood their ground` : 'stood its ground') : (st.count > 1 ? `${st.count} stay their ground` : 'stays its ground');
+  return `On the way, ${/^[AEIOU]/.test(what) ? 'an' : 'a'} <strong>${esc(what)}</strong> ${past ? 'spotted' : 'spots'} you and ${ground} to drive you off.`;
 };
 function standoffHTML(e) {
   const st = tripStandoff(S, e.id);
@@ -431,7 +433,7 @@ function bindTrips(box) {
     // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
     const broke = r.battle && r.battle.routed && r.battle.routed.length ? ` ${esc(listNames(r.battle.routed.map(i => r.battle.team[i].name)))} lost half the pack and ran off.` : '';
     const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
-    const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
+    const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
