@@ -285,12 +285,25 @@ test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller
   }
   for (const k of Object.keys(seen)) assert.ok(seen[k], JSON.stringify(seen));
   // smaller foes die in its grip; one its size may wrench free
-  let kills = 0, freed = 0;
+  let kills = 0, freed = 0, holds = 0;
   for (let i = 0; i < 60; i++) {
     for (const e of teamFight([dilo()], wildFighter('raptor', 5), seededRand('k' + i)).log) if (e.grab === 'kill') { kills++; assert.equal(e.left, 0); }
-    for (const e of teamFight([dilo()], wildFighter('pachy', 5), seededRand('f' + i)).log) if (e.grab === 'freed') freed++;
+    let holding = false;
+    for (const e of teamFight([dilo()], wildFighter('pachy', 5), seededRand('f' + i)).log) {
+      assert.notEqual(e.grab, 'kill', 'one its size is never killed in its grip');
+      if (e.grab === 'freed') freed++;
+      if (e.grab === 'hold') { holds++; holding = true; }
+      if (e.hold) assert.ok(holding);
+      if (e.broke) holding = false;
+    }
   }
-  assert.ok(kills && freed, `${kills} kills, ${freed} freed`);
+  assert.ok(kills && freed && holds, `${kills} kills, ${freed} freed, ${holds} holds`);
+  // one bleeding wound per foe, however long it holds on
+  for (let i = 0; i < 20; i++) {
+    const r = teamFight([dilo()], wildFighter('allo', 5), seededRand('b' + i));
+    const ticks = r.log.filter(e => e.by === 'bleed').map(e => e.dmg);
+    assert.ok(new Set(ticks).size <= 1, 'the bleeding never grows');
+  }
   // never on armored bodies
   for (let i = 0; i < 20; i++) assert.ok(!teamFight([dilo()], wildFighter('stego', 5), seededRand('n' + i)).log.some(e => e.grab));
   // tough: once a fight, a deadly blow from something its size leaves it at 1

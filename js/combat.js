@@ -176,8 +176,10 @@ function withRoles(u, swamp) {
 //   more of a pack adds also: [{ member, dmg, left }]. A blow on a frill adds part: 'head', blocked
 //   and frill (what is left of it); the goring back is a counter with gore: true;
 //   { by: 'bleed', member, dmg, left, foeLeft }: a wounded foe bleeding at the start of its turn.
-//   A Dilophosaurus' blow adds grab: 'cling' (on a bigger foe), 'kill' (seized and killed) or 'freed'
-//   (seized, but it wrenched free); clinging, each of its turns is a slash (slash: true) or a fall
+//   A Dilophosaurus' blow adds grab: 'cling' (on a bigger foe), 'kill' (a smaller one seized and
+//   killed), 'hold' (one its size held: each of its turns then a blow with hold: true, until
+//   { by: 'foe', to, broke: true }) or 'freed' (it wrenched free at once); clinging, each of its turns
+//   is a slash (slash: true) or a fall
 //   ({ by, member, fell: true, landed }), and a bad fall costs its next turn ({ by, recovering: true });
 //   the foe's blows on it while it clings are { immune: true }; a deadly blow it shrugs off adds tough.
 //   A Velociraptor's blow that latches on adds latch ('cling' | 'pin'); then each of its turns is
@@ -212,8 +214,13 @@ export function teamFight(units, foe, rand, opts = {}) {
   // deadly blow this fight
   const clinging = new Map();
   const toughUsed = new Set();
-  // units that lost their footing and miss their next turn
+  // units that lost their footing and miss their next turn; Dilophosaurus holding a foe its size
+  // (unit -> the foe's member); and which of the foe's members already bleed from its slash (one
+  // wound each, however long it holds on)
   const stunned = new Set();
+  const holding = new Map();
+  const slashed = foe.members.map(() => false);
+  const slashWound = m => { if (m >= 0 && foeHp[m] > 0 && !slashed[m]) { slashed[m] = true; bleeding[m] += GRAB.bleed; } };
   // a contest of one value against another: a / (a + b) to win
   const contest = (a, b) => rand() < a / (a + b);
   // Velociraptors latched on to the foe: unit -> { m: the foe's member, holder: its own member,
@@ -235,9 +242,10 @@ export function teamFight(units, foe, rand, opts = {}) {
     // extra.slash: a clinging Dilophosaurus' slash at the member it holds on to (it can't be dodged)
     const strike = (who, roll, boost, extra = {}) => {
       const alive = standing(foeHp);
-      const member = extra.slash ? extra.member : alive[Math.floor(rand() * alive.length)];
-      // a pinned foe can't dodge
-      if (!extra.slash && !pinned(member) && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
+      const held = extra.slash || extra.hold;
+      const member = held ? extra.member : alive[Math.floor(rand() * alive.length)];
+      // a pinned or held foe can't dodge
+      if (!held && !pinned(member) && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
       // a tail club swung back lands harder than a bite
       const club = units[who].members[0].club && (extra.counter || extra.charge) ? CLUB.damage : 1;
       // a sickle claw driven into the neck from below goes through any armor
@@ -257,12 +265,14 @@ export function teamFight(units, foe, rand, opts = {}) {
       // (strength against strength), dies in its grip
       const lead = units[who].members[0], prey = foe.members[member];
       let grab = {};
-      if (dmg > 0 && lead.grab && !extra.slash && foeHp[member] > 0 && !prey.plated && !clinging.has(who) && rand() < GRAB.tries) {
+      if (dmg > 0 && lead.grab && !held && foeHp[member] > 0 && !prey.plated && !clinging.has(who) && !holding.has(who) && rand() < GRAB.tries) {
         const step = sizeRank(prey.size) - sizeRank(lead.size);
         if (step > 0) {
           if (contest(lead.agi, prey.agi)) { clinging.set(who, member); grab = { grab: 'cling' }; }
         } else if (contest(lead.agi + lead.str, prey.agi + prey.str)) {
-          if (step < 0 || contest(lead.str, prey.str)) { foeHp[member] = 0; grab = { grab: 'kill' }; }
+          if (step < 0) { foeHp[member] = 0; grab = { grab: 'kill' }; }
+          // one its size: it holds on unless the foe wrenches free (strength against strength)
+          else if (contest(lead.str, prey.str)) { holding.set(who, member); grab = { grab: 'hold' }; }
           else grab = { grab: 'freed' };
         }
       }
@@ -338,6 +348,12 @@ export function teamFight(units, foe, rand, opts = {}) {
             const p = l.mode === 'cling' ? prey.agi / (prey.agi + holder.agi) : prey.damage / (prey.damage + holder.damage);
             if (rand() < p * LATCH.shake) { latches.delete(j); log.push({ by: 'foe', to: j, member: l.holder, shake: true, mode: l.mode }); }
           }
+          // one held by a Dilophosaurus tries to wrench free: strength against strength
+          for (const [j, m] of holding) {
+            const lead = units[j].members[0];
+            if (foeHp[m] <= 0 || !standing(hp[j]).length) { holding.delete(j); continue; }
+            if (contest(foe.members[m].str, lead.str)) { holding.delete(j); log.push({ by: 'foe', to: j, member: 0, broke: true }); }
+          }
           // pinned members can't strike; if none is free, it loses its turn
           const atkHp = foeHp.map((h, m) => pinned(m) ? 0 : h);
           if (!standing(atkHp).length) { log.push({ by: 'foe', pinned: true }); continue; }
@@ -408,14 +424,19 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (!standing(hp[who]).length) continue;
         // knocked off its feet: it misses this turn
         if (stunned.delete(who)) { log.push({ by: who, recovering: true }); continue; }
+        // holding a foe its size: a blow and a light slash every turn, until it wrenches free
+        if (holding.has(who)) {
+          const m = holding.get(who);
+          if (foeHp[m] <= 0) holding.delete(who);
+          else { slashWound(strike(who, 0.75 + rand() * 0.5, 1, { hold: true, member: m })); continue; }
+        }
         // clinging on: it holds on (strength against the foe's agility) and slashes, or falls off; a
         // bad fall (agility against agility) costs it its next turn
         if (clinging.has(who)) {
           const m = clinging.get(who), lead = units[who].members[0], prey = foe.members[m];
           if (foeHp[m] <= 0) clinging.delete(who);
           else if (contest(lead.str, prey.agi)) {
-            const cut = strike(who, 0.75 + rand() * 0.5, 1, { slash: true, member: m });
-            if (cut >= 0 && foeHp[cut] > 0) bleeding[cut] += GRAB.bleed;
+            slashWound(strike(who, 0.75 + rand() * 0.5, 1, { slash: true, member: m }));
             continue;
           } else {
             clinging.delete(who);

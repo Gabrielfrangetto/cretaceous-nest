@@ -384,8 +384,10 @@ export const CLUB = { lame: 0.35, damage: 1.2 };
 // agility to hold on and slash (a wound that bleeds bleed of the foe's health a turn for the rest of
 // the fight), or it falls off, and agility against agility decides whether it lands on its feet or
 // misses its next turn. A foe its size or smaller: agility and strength against agility and strength
-// to seize it; a smaller one dies in its grip, one its size dies unless it wrenches free (strength
-// against strength), and the fight goes on.
+// to seize it. A smaller one dies in its grip. One its size it holds unless it wrenches free at once
+// (strength against strength); held, every turn it takes a blow and a light slash, and it tries again
+// to wrench free each of its own turns. Its slash leaves one bleeding wound on a foe, however long it
+// holds on.
 export const GRAB = { tries: 0.3, bleed: 0.005 };
 // Dilophosaurus is tough (one known skeleton healed from eight injuries): once a fight, a blow that
 // would bring it down, from something no bigger than itself, leaves it standing at 1; and its
