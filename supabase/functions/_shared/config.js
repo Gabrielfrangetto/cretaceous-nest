@@ -438,6 +438,9 @@ export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 // a fight has no turn limit: it goes on until one side is down. This only stops a fight that can't
 // end because of a bug (no real fight comes near it); it then counts as lost.
 export const FIGHT_SAFETY = 10000;
+// a pack or herd's morale: once it has lost this share of its members (one of two, two of three, half
+// of a bigger one), the rest run off and the fight is over for them
+export const ROUT = 0.5;
 export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight

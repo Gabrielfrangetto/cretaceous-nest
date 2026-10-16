@@ -241,3 +241,39 @@ test('only so many fit around a foe, a much bigger foe catches several at once, 
   assert.ok(SIZE_HP.huge > SIZE_HP.medium && SIZE_HP.medium > SIZE_HP.small);
   assert.equal(bodyHp(500, 'medium'), 500);
 });
+
+test('a pack or herd that loses half its members runs off', () => {
+  const ROUT_RUNS = 40;
+  for (let i = 0; i < ROUT_RUNS; i++) {
+    // a wild herd: once half of it is down the rest run and the team wins
+    const herd = unitOf('herd', Array.from({ length: 3 }, (_, k) => wildFighter('proto', 4)), true);
+    const r = teamFight([pack('coelo', 15, 50)], herd, seededRand('rout' + i));
+    const down = r.foeHps.filter(h => h <= 0).length;
+    if (r.foeRouted) {
+      assert.ok(r.win);
+      assert.ok(down >= 2 && down < 3);
+      assert.deepEqual(r.log.at(-1), { by: 'foe', rout: true });
+    }
+    // our pack: it runs once half of it is down, and stays out of the rest of the fight
+    for (const u of r.routed) {
+      const at = r.log.findIndex(e => e.by === u && e.rout);
+      assert.ok(at >= 0);
+      assert.ok(r.hp[u].filter(h => h <= 0).length >= r.hp[u].length / 2);
+      assert.ok(!r.log.slice(at + 1).some(e => e.by === u || (e.by === 'foe' && e.to === u)));
+    }
+  }
+  // four Velociraptors against a grown herd: sometimes they are the ones that break
+  let broke = 0;
+  for (let i = 0; i < ROUT_RUNS; i++) {
+    const herd = unitOf('herd', Array.from({ length: 3 }, () => wildFighter('proto', 8)), true);
+    const r = teamFight([pack('raptor', 4, 50)], herd, seededRand('break' + i));
+    if (!r.routed.length) continue;
+    broke++;
+    assert.equal(r.win, false);
+    assert.equal(r.hp[0].filter(h => h <= 0).length, 2);
+  }
+  assert.ok(broke > 0);
+  // a lone animal has no pack to lose
+  const lone = teamFight([pack('coelo', 15, 50)], wildFighter('proto', 4), seededRand('lone'));
+  assert.equal(lone.foeRouted, false);
+});

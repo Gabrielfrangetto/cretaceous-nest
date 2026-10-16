@@ -372,11 +372,14 @@ function bindTrips(box) {
       ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy.` : '';
     const ran = r.battle ? r.battle.fled.map(i => r.battle.team[i].name) : [];
     const runText = !ran.length || (r.battle && r.battle.escaped) ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
+    // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
+    const broke = r.battle && r.battle.routed && r.battle.routed.length ? ` ${esc(listNames(r.battle.routed.map(i => r.battle.team[i].name)))} lost half the pack and ran off.` : '';
+    const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${runText}${mad}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${runText}${mad}${hurt}${critical}${follow}${mapped}`;
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${runText}${broke}${mad}${hurt}${critical}${mapped}`
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));

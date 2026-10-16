@@ -123,7 +123,9 @@ export function playFight(battle, summary, who) {
     setHp(foeBox, battle.foeHp, battle.foeMax);
     battle.foeHps.forEach((h, k) => { foeHp[k] = h; });
     foeBox.querySelector('.pack-left').textContent = foeNote();
-    if (battle.win) foeBox.classList.add('down');
+    // a pack or herd that ran off mid-fight is shown faded, not down
+    for (const k of battle.routed || []) { fled.add(k); boxes[k].classList.add('fled'); boxes[k].querySelector('.pack-left').textContent = packNote(k); }
+    if (battle.win) foeBox.classList.add(battle.foeRouted ? 'fled' : 'down');
     else boxes.forEach((b, k) => { if (!fled.has(k)) b.classList.add('down'); });
     const res = body.querySelector('.fight-result');
     res.innerHTML = `<strong class="${battle.win ? 'win' : 'loss'}">${battle.win ? 'Victory!' : 'Defeat'}</strong> ${summary}`;
@@ -136,7 +138,11 @@ export function playFight(battle, summary, who) {
   const step = () => {
     if (i >= battle.log.length) { finish(); return; }
     const blow = battle.log[i++];
-    if (blow.by === 'bleed') {
+    if (blow.rout) {
+      // a pack or herd that lost half its members runs off
+      if (blow.by === 'foe') { pop(foeBox, 'Ran off!', 'miss'); foeBox.classList.add('fled'); }
+      else { fled.add(blow.by); pop(boxes[blow.by], 'Ran off!', 'miss'); boxes[blow.by].classList.add('fled'); boxes[blow.by].querySelector('.pack-left').textContent = packNote(blow.by); }
+    } else if (blow.by === 'bleed') {
       // a gored foe bleeding
       pop(foeBox, '−' + blow.dmg + ' bleeding', 'dmg');
       foeHp[blow.member] = blow.left;

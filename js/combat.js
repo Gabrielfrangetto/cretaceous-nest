@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -206,7 +206,10 @@ function withRoles(u, swamp) {
 //   a foe whose every member is pinned loses its turn: { by: 'foe', pinned: true }.
 //   Armor adds part and armored to the foe's blow; a blow on armored plates on the back is followed by
 //   { by, member, dmg, left, foeLeft, thorns: true }; a club that breaks a shin adds lame and club.
-// fled: the units that ran before the fight (escaped: everyone did, so there was none); hp: every
+//   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
+//   (the foe's running off is a win).
+// fled: the units that ran before the fight (escaped: everyone did, so there was none); routed: the
+// units that ran off mid-fight; hp: every
 // member's health at the end, per unit; foeHps: the foe's members'; frenzy: the frenzied units.
 // opts.swamp: the fight is in a swamp (fishers fight better).
 export function teamFight(units, foe, rand, opts = {}) {
@@ -220,6 +223,10 @@ export function teamFight(units, foe, rand, opts = {}) {
   const foeLeft = () => foeHp.reduce((t, h) => t + h, 0);
   const foeMax = unitHp(foe);
   const fighting = units.flatMap((_, i) => inFight(i) ? [i] : []);
+  // those who stayed to fight; units that ran off mid-fight leave fighting for routed
+  const stayed = [...fighting];
+  const routed = [];
+  let foeRouted = false;
   const log = [];
   const frenzy = new Set();
   // members lamed by a bone-breaking bite: [unit, member]
@@ -356,9 +363,23 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (rand() < OPENING) strike(j, 0.75 + rand() * 0.5, 1, { opening: true });
       }
     };
-    for (let round = 0; round < FIGHT_SAFETY && foeLeft() > 0 && up(); round++) {
+    // morale: a pack or herd that has lost ROUT of its members runs off, ours as well as the foe's
+    const routs = (list, n) => n >= 2 && list.length - standing(list).length >= n * ROUT;
+    const checkRouts = () => {
+      for (const i of [...fighting]) {
+        if (!routs(hp[i], hp[i].length) || !standing(hp[i]).length) continue;
+        fighting.splice(fighting.indexOf(i), 1);
+        routed.push(i);
+        clinging.delete(i); latches.delete(i); holding.delete(i);
+        log.push({ by: i, rout: true });
+      }
+      if (!foeRouted && foeLeft() > 0 && up() && routs(foeHp, foeHp.length)) { foeRouted = true; log.push({ by: 'foe', rout: true }); }
+    };
+    for (let round = 0; round < FIGHT_SAFETY && foeLeft() > 0 && !foeRouted && up(); round++) {
       for (const who of order) {
-        if (foeLeft() <= 0 || !up()) break;
+        checkRouts();
+        if (foeLeft() <= 0 || foeRouted || !up()) break;
+        if (who !== 'foe' && !fighting.includes(who)) continue;
         if (who === 'foe') {
           // gored wounds bleed every turn
           for (let m = 0; m < foeHp.length && foeLeft() > 0; m++) {
@@ -522,11 +543,11 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
   }
   // only those who stayed count for the result
-  const teamMax = fighting.reduce((t, i) => t + unitHp(units[i]), 0);
-  const teamLeft = fighting.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
+  const teamMax = stayed.reduce((t, i) => t + unitHp(units[i]), 0);
+  const teamLeft = stayed.reduce((t, i) => t + hp[i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
-  const win = !escaped && left <= 0;
-  return { win, escaped, fled, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill };
+  const win = !escaped && (left <= 0 || foeRouted);
+  return { win, escaped, fled, routed, foeRouted, log, hp, foeHp: left, foeHps: foeHp, teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill };
 }
 
 export function teamWinChance(units, foe, runs = 120, opts = {}) {
