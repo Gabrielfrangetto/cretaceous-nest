@@ -1,6 +1,6 @@
 // World tab: the hex map around the nest under its fog, and the expeditions that explore it.
 // Pick a hex, put a team together, send it; when it comes back, collect what it found.
-import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, SIZE_ORDER } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, SIZE_ORDER } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -200,9 +200,7 @@ function bindMap(box) {
 // what waits there and how a fight would likely go for the chosen explorer
 function threatHTML(h, units, scout) {
   if (!isRevealed(S, hexKey(...h))) {
-    const b = BIOMES[biomeAt(S.world.seed, h)];
-    const kinds = [...new Set(b.wild.map(e => e.species ? SPECIES[e.species].species : e.creature === 'deinosuchus' ? 'Deinosuchus' : e.creature))];
-    return `<div class="threat"><p class="hint">No one knows what lives there yet. In the ${esc(b.name)} you may find ${esc(listNames(kinds))}.</p></div>`;
+    return '<div class="threat"><p class="hint">Tread carefully in these parts: you know not what could happen. Always be prepared.</p></div>';
   }
   const th = threatAt(S.world.seed, h);
   const swamp = watery(S.world.seed, h);
@@ -212,7 +210,7 @@ function threatHTML(h, units, scout) {
     return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     <p class="hint">${passesBy(th, units) ? 'Nothing in your team is prey to it: it will pass you by.' : 'It keeps away from a team like yours: there will be no fight.'}</p>
-    <p class="hint">${hunt ? `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to spot it at a distance; ${esc(hunt.hunter)} would catch one about ${Math.round(hunt.chance * 100)}% of the time.` : 'Nobody in this team could hunt it.'}</p>
+    <p class="hint">${hunt ? `You ${often(encounterChance(th, units, biomeAt(S.world.seed, h), scout))} spot it at a distance, and ${esc(hunt.hunter)} would have ${chanceOf(hunt.chance)} chance of catching one.` : 'Nobody in this team could hunt it.'}</p>
   </div>`;
   }
   // who would run from it before the fight, and how the rest would do
@@ -231,14 +229,14 @@ function threatHTML(h, units, scout) {
   const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0));
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
-    ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase and may catch ${esc(chased.fighter.name)} (about ${Math.round(chased.chance * 100)}%), who may not survive: risk of death ~${Math.round(chased.chance * chased.death * 100)}%.</p>` : ''}`
+    ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase, with ${chanceOf(chased.chance)} chance of catching ${esc(chased.fighter.name)}, who would be ${riskOf(chased.chance * chased.death)}.</p>` : ''}`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
-    <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
+    <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${cap(often(encounterChance(th, units, biomeAt(S.world.seed, h), scout)))} met here.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
-    ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
-    ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off: about ${Math.round(sail * 100)}% of the time.</p>` : ''}
+    ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} ${winOf(odds)} (Power ${power})</span></p>`}
+    ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off, as it ${often(sail)} does.</p>` : ''}
     ${fight ? riskHTML(units, fight.death) : ''}
-    ${eyes && (th.foe.members[0].role || 'attacker') === 'attacker' ? `<p class="hint">Your Hypsilophodon may see it first (about ${Math.round(eyes * 100)}%): the team scatters and nobody is caught.</p>` : ''}
+    ${eyes && (th.foe.members[0].role || 'attacker') === 'attacker' ? `<p class="hint">Your Hypsilophodon ${often(eyes)} see it first: then the team scatters and nobody is caught.</p>` : ''}
     ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it gives chase: it may catch the slowest of the team, and the one caught may not survive.</p>' : ''}
   </div>`;
 }
@@ -259,17 +257,18 @@ function routeHTML(units, key) {
     routeCache.set(sig, { ...r, worst });
   }
   const r = routeCache.get(sig);
-  const way = r.crosses.length ? `On the way you cross ${esc(listNames(r.crosses.map(b => BIOMES[b].name)))}: about ${Math.round(r.stopped * 100)}% chance something there comes for the team first.` : 'The way there is calm.';
+  const how = r.stopped < 0.08 ? 'The way is quiet.' : r.stopped < 0.25 ? 'Something may notice you on the way.' : r.stopped < 0.5 ? 'The way is dangerous: something will likely come for you.' : 'Few cross that way unharmed.';
+  const way = r.crosses.length ? `On the way you cross ${esc(listNames(r.crosses.map(b => `the ${BIOMES[b].name}`)))}. ${how}` : 'The way there is calm.';
   const w = r.worst;
   return `<div class="route ${w && w.odds.win < 0.5 ? 'warn' : ''}"><p class="hint">${way}</p>
-    ${w ? `<p class="hint ${w.odds.win < 0.5 ? 'warn-text' : ''}">The worst you could meet ${w.at}: ${article(w.foe.name)} ${esc(w.foe.name)} <span class="danger danger-${dangerOf(w.odds.win).toLowerCase()}">${dangerOf(w.odds.win)}</span>${Math.max(...w.odds.death.flat()) >= 0.01 ? ` (risk of death ~${Math.round(Math.max(...w.odds.death.flat()) * 100)}%)` : ''}.</p>` : ''}</div>`;
+    ${w ? `<p class="hint ${w.odds.win < 0.5 ? 'warn-text' : ''}">The worst you could meet ${w.at}: ${article(w.foe.name)} ${esc(w.foe.name)} <span class="danger danger-${dangerOf(w.odds.win).toLowerCase()}">${dangerOf(w.odds.win)}</span>${Math.max(...w.odds.death.flat()) >= 0.01 ? ` (${riskOf(Math.max(...w.odds.death.flat()))})` : ''}.</p>` : ''}</div>`;
 }
 
 // the risk of death in a fight, for those who could die (1% or more); a pack shows its likeliest one
 function riskHTML(units, death) {
   const at = units.map((u, i) => ({ name: u.name, p: Math.max(...death[i]) })).filter(x => x.p >= 0.01);
   if (!at.length) return '<p class="hint">Nobody is likely to die if it comes to a fight.</p>';
-  return `<p class="hint warn-text">Risk of death if it comes to a fight: ${at.map(x => `${esc(x.name)} ~${Math.round(x.p * 100)}%`).join(', ')}.</p>`;
+  return `<p class="hint warn-text">If it comes to a fight: ${at.map(x => `${esc(x.name)} would be ${riskOf(x.p)}`).join('; ')}.</p>`;
 }
 
 const healHTML = (b, t) => {
@@ -284,8 +283,8 @@ const healHTML = (b, t) => {
 };
 
 function lootHTML(key) {
-  if (!isRevealed(S, key)) return '<p class="hint">Unexplored. Send a dinosaur to find out what is there.</p>';
-  return `<ul class="loot">${lootTable(S, key).map(l => `<li><span class="mini">${ITEM_ICONS[l.id]}</span>${l.min === l.max ? l.min : l.min + '–' + l.max} ${esc(itemName(l.id, l.max))}${l.chance < 1 ? ` <span class="hint">(${Math.round(l.chance * 100)}% chance)</span>` : ''}</li>`).join('')}</ul>`;
+  if (!isRevealed(S, key)) return '';
+  return `<ul class="loot">${lootTable(S, key).map(l => `<li><span class="mini">${ITEM_ICONS[l.id]}</span>${l.min === l.max ? l.min : l.min + '–' + l.max} ${esc(itemName(l.id, l.max))}${l.chance < 1 ? ` <span class="hint">(${often(l.chance)})</span>` : ''}</li>`).join('')}</ul>`;
 }
 
 // species that may turn on each other (BODY rival) warn when there is more than one
@@ -293,7 +292,7 @@ function rivalsHTML(members) {
   const types = members.map(id => id !== PLAYER_ID && byId(id)).filter(Boolean).map(b => b.type);
   return [...new Set(types)].filter(t => SPECIES[t].rival && types.filter(x => x === t).length > 1).map(t => {
     const n = types.filter(x => x === t).length;
-    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. In a fight they may turn on each other and go into a frenzy: ${Math.round((FRENZY_DAMAGE - 1) * 100)}% more damage, but they bite the foe and each other alike, and the last one standing bites anyone in the team. Win after a frenzy and it may drop ${FRENZY_DROPS.map(d => ITEMS[d.id].plural).join(' and ')}, likelier and more of them the more ${esc(SPECIES[t].species)} there are (now: ${FRENZY_DROPS.map(d => `${ITEMS[d.id].name} ${Math.round(d.chance(n) * 100)}%`).join(', ')}).</p>`;
+    return `<p class="hint warn-text">${n} ${esc(SPECIES[t].species)} in one team: every one for itself. In a fight they may turn on each other and go into a frenzy: they bite far harder, but they bite the foe and each other alike, and the last one standing bites anyone in the team. Win after a frenzy and it may drop ${FRENZY_DROPS.map(d => ITEMS[d.id].plural).join(' and ')}, likelier and more of them the more ${esc(SPECIES[t].species)} there are (now: ${FRENZY_DROPS.map(d => `${ITEMS[d.id].name} ${often(d.chance(n))}`).join(', ')}).</p>`;
   }).join('');
 }
 
@@ -352,7 +351,7 @@ function sightingsHTML() {
   if (!list.length) return '';
   return `<ul class="sightings">${list.map(x => `<li class="sighting">
     <p>Your team spotted ${/^[AEIOU]/.test(x.name) ? 'an' : 'a'} <strong>${esc(x.name)}</strong> at a distance${isRevealed(S, x.hex) ? `, in the ${esc(BIOMES[biomeAt(S.world.seed, parseKey(x.hex))].name)}` : ''}. Hunt one of them?</p>
-    <div class="row"><button class="btn small" type="button" data-hunt="${esc(x.id)}">Hunt <span class="hint">(${esc(x.hunter)}, ${Math.round(x.chance * 100)}%)</span></button>
+    <div class="row"><button class="btn small" type="button" data-hunt="${esc(x.id)}">Hunt <span class="hint">(${esc(x.hunter)}: ${chanceOf(x.chance)} chance)</span></button>
       <button class="ghost" type="button" data-let="${esc(x.id)}">Let them be</button></div>
   </li>`).join('')}</ul>`;
 }
@@ -377,10 +376,18 @@ function standoffHTML(e) {
   }
   const { win: odds, death, units } = standoffOdds.get(e.id);
   return `<p class="hint">${standText(st)}</p>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
+    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)})</span></button>
     <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>
     ${riskHTML(units, death)}`;
 }
+
+// Odds are told in words, never in numbers: how often, how good a chance, how grave a risk, how a fight
+// would go.
+const often = p => (p >= 0.9 ? 'almost always' : p >= 0.65 ? 'usually' : p >= 0.4 ? 'often' : p >= 0.2 ? 'sometimes' : p >= 0.07 ? 'now and then' : 'rarely');
+const chanceOf = p => (p >= 0.85 ? 'a near-certain' : p >= 0.6 ? 'a good' : p >= 0.35 ? 'a fair' : p >= 0.12 ? 'a poor' : 'a slim');
+const riskOf = p => (p >= 0.45 ? 'likely to die' : p >= 0.2 ? 'a grave risk of dying' : p >= 0.05 ? 'a real risk of dying' : 'a slight risk of dying');
+const winOf = p => (p >= 0.85 ? 'should win with ease' : p >= 0.6 ? 'should win' : p >= 0.4 ? 'could go either way' : p >= 0.15 ? 'would likely lose' : 'stands almost no chance');
+const cap = t => t[0].toUpperCase() + t.slice(1);
 
 // a predator that scattered the player's group on the way: face it with whoever stayed, or run too (the
 // odds are worked out once per trip)
@@ -395,13 +402,13 @@ function scatterHTML(e) {
   }
   const { win, death } = scatterOdds.get(e.id);
   const stay = e.team.filter((u, i) => u.kind !== 'player' && !sc.fled.includes(i)).map(unitName);
-  const run = sc.run, p = run ? Math.round(run.chance * (1 - run.safe) * 100) : 0;
+  const run = sc.run, p = run ? run.chance * (1 - run.safe) : 0;
   const runner = run && (run.id === PLAYER_ID ? 'you' : esc(run.fighter.name));
-  const runText = !run || !p ? 'It can\'t catch any of you.'
-    : run.fights ? `It may catch ${runner} (about ${p}%), and then there's no escaping the fight.`
-    : `It may catch ${runner} (about ${p}%), who may not survive (risk of death ~${Math.round(run.chance * (1 - run.safe) * run.death * 100)}%).`;
+  const runText = !run || p < 0.01 ? 'It can\'t catch any of you.'
+    : run.fights ? `It has ${chanceOf(p)} chance of catching ${runner}, and then there's no escaping the fight.`
+    : `It has ${chanceOf(p)} chance of catching ${runner}, who would be ${riskOf(p * run.death)}.`;
   return `<p class="hint">On the way, ${esc(listNames(sc.prey))} ${sc.prey.length > 1 ? 'spot' : 'spots'} ${article(sc.name)} <strong>${esc(sc.name)}</strong> charging the group and ${sc.prey.length > 1 ? 'scatter' : 'bolts'}. ${sc.mounted ? 'You are still riding one of them.' : sc.alone ? 'You are on your own.' : `You stand with ${esc(listNames(stay))}.`}</p>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">${sc.mounted ? 'Jump down and face it' : 'Face it'} <span class="hint">(${dangerOf(win)}, ${Math.round(win * 100)}%)</span></button>
+    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">${sc.mounted ? 'Jump down and face it' : 'Face it'} <span class="hint">(${dangerOf(win)})</span></button>
     <button class="ghost" type="button" data-collect="${esc(e.id)}" data-flee="1">${sc.mounted ? 'Ride off' : 'Run for it'}</button>
     <p class="hint">${runText}</p>
     ${riskHTML(sc.units, death)}`;
@@ -423,9 +430,9 @@ function witnessHTML(e) {
   };
   const buttons = [], cant = [];
   for (const o of wt.options) {
-    if (o.prey.ok) buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="prey" data-hunter="${esc(o.id)}">Hunt the ${esc(wt.prey.name)} with ${esc(o.name)} <span class="hint">(~${Math.round(o.prey.chance * 100)}%${o.prey.backsOff ? '' : ', then the hunter may fight you for it'})</span></button>`);
+    if (o.prey.ok) buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="prey" data-hunter="${esc(o.id)}">Hunt the ${esc(wt.prey.name)} with ${esc(o.name)} <span class="hint">(${chanceOf(o.prey.chance)} chance${o.prey.backsOff ? '' : ', then the hunter may fight you for it'})</span></button>`);
     if (o.predator.ok) {
-      const tag = o.predator.chase ? `it runs: ~${Math.round(o.predator.chance * 100)}% to catch it` : (() => { const f = fightOdds(o.id); return `a fight: ${dangerOf(f.win)}, ${Math.round(f.win * 100)}%`; })();
+      const tag = o.predator.chase ? `it runs: ${chanceOf(o.predator.chance)} chance to catch it` : (() => { const f = fightOdds(o.id); return `a fight: ${dangerOf(f.win)}`; })();
       buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="predator" data-hunter="${esc(o.id)}">Go after the ${esc(wt.hunter.name)} with ${esc(o.name)} <span class="hint">(${tag})</span></button>`);
     }
     if (!o.prey.ok && !o.predator.ok) cant.push(`${esc(o.name)} (${esc(o.prey.reason === o.predator.reason ? o.prey.reason : `prey: ${o.prey.reason}; hunter: ${o.predator.reason}`)})`);
