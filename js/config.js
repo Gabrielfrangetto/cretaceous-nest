@@ -95,6 +95,9 @@ const SIZE = {
 //   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
 //   claw: a sickle claw that latches on and goes for the neck (LATCH, CLAW)
 //   beak: a hooked beak that clamps on to what it strikes back at (BEAK)
+//   spikes: a spiked tail that pierces when it strikes back or charges (SPIKES)
+//   guard: a fighting stance that may turn a blow aside and strike back at once (GUARD)
+//   throat: small bones covering the throat (THROAT)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
@@ -118,7 +121,7 @@ export const BODY = {
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
-  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, role: 'defender', charge: 0.2, fear: 'huge' },
+  stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
@@ -426,6 +429,18 @@ export const LATCH = { tries: 0.2, bleed: 0.005, maxStacks: 5 };
 // holding it; a smaller one can't strike at all. It lets go once it has taken release of its own
 // health since it clamped on, from the held one or anyone else.
 export const BEAK = { hold: 0.5, small: 1.5, release: 0.2 };
+// Stegosaurus' thagomizer (an Allosaurus tail bone was found with a hole a spike fits, and many spikes
+// have broken, healed tips). Its counters and charges pierce: they go through pierce of hide and damage
+// reduction, leave a wound that bleeds bleed of the health a turn (up to maxBleed wounds), and may
+// impale a leg (impale, plus bonus times its strength against the target's resistance), laming it.
+export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bonus: 0.2 };
+// Its fighting stance, side on with the tail swinging: a blow about to land on it may be turned aside
+// (agility against the attacker's agility, tries of the time it gets the chance) and answered at once
+// with the tail.
+export const GUARD = { tries: 1 };
+// Bony disks covered its throat: a blow on the neck from something smaller does nothing, from one its
+// size half (same), from something bigger kills nothing outright and is cut a little (bigger).
+export const THROAT = { same: 0.5, bigger: 0.9 };
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor.
 // The claw was made to grip and pin prey no bigger than itself: on those a blow can land up to bite
 // (its own bite stays the limit on anything bigger, where the claw only cuts shallow)

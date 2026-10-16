@@ -193,6 +193,10 @@ export function playFight(battle, summary, who) {
       // clinging to the other's body, out of its reach
       lunge(actor);
       pop(target, 'Out of reach!', 'miss');
+    } else if (blow.guarded) {
+      // a Stegosaurus turned the blow aside (its tail answers at once)
+      lunge(actor);
+      pop(target, 'Turned aside!', 'miss');
     } else if (blow.blocked) {
       // the frill took it
       lunge(actor);
@@ -213,22 +217,23 @@ export function playFight(battle, summary, who) {
       const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!'
         : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!'
         : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!'
-        : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+        : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.guard ? 'Tail swing!' : (blow.counter || blow.charge) && blow.spiked ? 'Tail spikes!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(actor, move, 'mad');
       if (blow.miss) pop(target, 'Miss', 'miss');
-      // a blow its hide stops
-      else if (!blow.dmg) pop(target, 'No effect', 'miss');
+      // a blow its hide stops, or a throat covered in bone
+      else if (!blow.dmg) pop(target, blow.throat ? 'Throat guarded!' : 'No effect', 'miss');
       else {
         pop(target, '−' + blow.dmg, 'dmg');
         strike(target);
         landed();
         // a bone-breaking bite or a club: a lamed leg, a neck, or something small crushed
         if (blow.kill) pop(target, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
-        else if (blow.lame) pop(target, blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
+        else if (blow.lame) pop(target, blow.impaled ? 'Impaled!' : blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(target, 'Armor!', 'mad');
         else if (blow.tough) pop(target, 'Still standing!', 'mad');
         else if (blow.part === 'belly') pop(target, 'Belly!', 'mad');
+        else if (blow.throat) pop(target, 'Throat guarded!', 'mad');
         if (blow.also) pop(target, `×${blow.also.length + 1}`, 'mad');
       }
     }

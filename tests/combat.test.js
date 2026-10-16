@@ -190,7 +190,8 @@ test('a Tyrannosaurus bite crushes through armor and breaks bones: legs get lame
   assert.ok(hitOf(rex, ankylo, 1) > hitOf({ ...rex, crush: 0 }, ankylo, 1));
   let necks = 0, lames = 0;
   for (let i = 0; i < 60; i++) {
-    const r = teamFight([unitOf('s', [fighterOf(dino('s', 50, 'stego'))])], rex, seededRand('b' + i));
+    // (an Allosaurus: a Stegosaurus' throat is covered in bone)
+    const r = teamFight([unitOf('a', [fighterOf(dino('a', 50, 'allo'))])], rex, seededRand('b' + i));
     for (const e of r.log) if (e.by === 'foe') {
       if (e.kill) { necks++; assert.equal(e.left, 0); }
       if (e.lame) { lames++; assert.ok(r.lamed.length === 0 || true); }
@@ -477,4 +478,33 @@ test('a wild defender stands its ground instead of attacking: the player chooses
   const raptors = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   const r = applyAction(s, 'explore', { babyId: 'd', hex: raptors }, T0);
   assert.equal(tripStandoff(s, r.expedition.id), null);
+});
+
+test('a Stegosaurus: a piercing tail, a stance that turns blows aside, and a throat covered in bone', () => {
+  const stego = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'stego')), fear: undefined }]);
+  const seen = { spikes: 0, impaled: 0, guarded: 0, answered: 0, throat: 0, neckKill: 0 };
+  for (let i = 0; i < 40; i++) {
+    for (const foe of [encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 5), wildFighter('rex', 6), wildFighter('allo', 5)]) {
+      const r = teamFight([stego()], foe, seededRand('st' + foe.name + i));
+      r.log.forEach((e, k) => {
+        if (e.by === 0 && (e.counter || e.charge) && e.dmg > 0) seen.spikes++;
+        if (e.by === 0 && e.impaled) seen.impaled++;
+        if (e.by === 'foe' && e.guarded) {
+          seen.guarded++;
+          assert.equal(e.dmg, 0);
+          // answered at once with the tail
+          const next = r.log[k + 1];
+          if (next && next.by === 0 && next.guard) seen.answered++;
+        }
+        if (e.by === 'foe' && e.throat) {
+          seen.throat++;
+          // nothing gets through from the smaller Velociraptors
+          if (/Velociraptor/.test(foe.name || '')) assert.equal(e.dmg, 0);
+        }
+        if (e.by === 'foe' && e.kill && e.part === 'neck') seen.neckKill++;
+      });
+    }
+  }
+  assert.ok(seen.spikes && seen.impaled && seen.guarded && seen.answered && seen.throat, JSON.stringify(seen));
+  assert.equal(seen.neckKill, 0);
 });
