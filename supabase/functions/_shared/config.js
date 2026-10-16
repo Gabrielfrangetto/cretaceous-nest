@@ -374,6 +374,8 @@ export const SIZE_EDGE = 0.3;
 // something smaller is harder to hit: a dodge bonus for each size step the target is smaller than
 // its attacker. Dodge never goes past DODGE_MAX against a foe its size, SIZE_DODGE_MAX against a bigger one.
 export const SIZE_DODGE = 0.12;
+// even between two equally quick fighters a blow misses this often (a glancing blow, a slip, a feint)
+export const MISS_FLOOR = 0.1;
 export const DODGE_MAX = 0.75;
 export const SIZE_DODGE_MAX = 0.85;
 // a wound's bleeding follows size too: each size step the attacker is bigger than its target bleeds

@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, PACK_REACH, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -23,15 +23,16 @@ export function fighterOf(baby, extra = []) {
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
 
-// a dodge against an attacker. Speed against speed: from the share of agility the target has of the
-// two (agi / (agi + attacker's)), two equally quick ones keep half their dodge and hit each other as
-// readily as two slow ones; a target three times as quick keeps all of it, one a third as quick
-// none. Then smaller targets are harder to hit (SIZE_DODGE a size step).
+// a dodge against an attacker. Speed against speed: two equally quick ones cancel each other out and
+// only miss MISS_FLOOR of the time; the quicker the target is than its attacker, the more of its
+// dodge it keeps (all of it at twice as quick). Then smaller targets are harder to hit
+// (SIZE_DODGE a size step).
 export const dodgeVs = (dodge, agi, size, attAgi, attSize) => {
   const share = agi > 0 ? agi / (agi + Math.max(0, attAgi || 0)) : 0;
-  const quick = Math.max(0, Math.min(1, 2 * share - 0.5));
+  const quick = Math.max(0, Math.min(1, (share - 0.5) * 6));
+  const own = Math.max(MISS_FLOOR, dodge * quick);
   const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
-  return steps ? Math.min(SIZE_DODGE_MAX, dodge * quick + SIZE_DODGE * steps) : Math.min(DODGE_MAX, dodge * quick);
+  return steps ? Math.min(SIZE_DODGE_MAX, own + SIZE_DODGE * steps) : Math.min(DODGE_MAX, own);
 };
 
 // how much a wound bleeds when an attacker of attSize opens it on a target of size
