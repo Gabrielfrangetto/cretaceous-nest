@@ -435,7 +435,7 @@ export const BEAK = { hold: 0.5, small: 1.5, release: 0.2 };
 // impale a leg (impale, plus bonus times its strength against the target's resistance), laming it.
 // The tail is a slow, wide swing that a quick animal sees coming: against it a target dodges slow times
 // its lead in speed more (2 × its share of the two agilities − 1), up to SIZE_DODGE_MAX.
-export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bonus: 0.2, slow: 0.85 };
+export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bonus: 0.2, slow: 1.1 };
 // Its fighting stance, side on with the tail swinging (guard): a blow about to land on it may be turned
 // aside, as often as its dodge against that attacker's speed alone (quickDodge in combat.js: only
 // MISS_FLOOR against one as quick, all of its dodge against one half as quick), and answered at once
