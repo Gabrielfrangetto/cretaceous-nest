@@ -267,7 +267,7 @@ function standoffHTML(e) {
     standoffOdds.set(e.id, teamWinChance(units, st.foe, 120, { swamp }));
   }
   const odds = standoffOdds.get(e.id);
-  return `<p class="hint">Back! ${standText(st)}</p>
+  return `<p class="hint">${standText(st)}</p>
     <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
     <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>`;
 }
