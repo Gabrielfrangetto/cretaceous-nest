@@ -314,7 +314,8 @@ export function keepsAway(threat, team) {
   // prey animals (noncombatants) run from any team: they can only be spotted and hunted
   if (sp.role === 'noncombatant') return true;
   const size = sizeRank(threat.foe.members[0].size), predator = sp.role === 'attacker';
-  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
+  // (it runs from a predator bigger than it stands up to; a big plant eater it simply leaves alone)
+  return team.some(u => u.members.some(m => ((m.role || 'attacker') === 'attacker' && sizeRank(m.size) > sizeRank(sp.fear)) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
 }
 
 // the chance a wild predator as big as a sail's owner backs off after sizing it up (SAIL), or 0: none
@@ -336,7 +337,7 @@ export function sailBackOff(threat, team, biome) {
 export function huntOdds(team, prey) {
   let best = null;
   team.forEach((u, i) => {
-    const able = u.members.filter(m => m.type && SPECIES[m.type] && SPECIES[m.type].hunt && sizeRank(m.size) >= sizeRank(prey.size) && isPrey({ ...m, fear: undefined }, prey));
+    const able = u.members.filter(m => m.type && SPECIES[m.type] && SPECIES[m.type].hunt && sizeRank(m.size) >= sizeRank(prey.size) && isPrey(m, prey));
     if (!able.length) return;
     const top = able.reduce((b, m) => m.agi + SPECIES[m.type].hunt > b.agi + SPECIES[b.type].hunt ? m : b);
     const score = (top.agi + SPECIES[top.type].hunt) * (1 + PACK_BONUS * (u.pack ? u.members.length - 1 : 0));

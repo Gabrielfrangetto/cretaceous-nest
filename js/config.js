@@ -126,6 +126,16 @@ const SIZE = {
 //           Nothing short of a giant sauropod stands up to one: colossal is theirs alone. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
+//   hunts:  a predator's diet, from fossil evidence (bite marks, stomach contents, fossils locked in
+//           combat): the body plans (SPECIES build, 'human' for the player) it hunts, 'any' for all;
+//           preyMax the biggest it takes on (no bigger than itself; a size more for a pack hunter).
+//           Compsognathus: a lizard in its stomach. Coelophysis: crocodile-line reptiles and lizards.
+//           Dilophosaurus: small ornithischians such as Scutellosaurus (a small armored one), and fish.
+//           Velociraptor: Protoceratops (the Fighting Dinosaurs, tooth marks). Baryonyx: fish and a young
+//           Iguanodon in its stomach. Spinosaurus: mostly fish. Allosaurus: Stegosaurus (a vertebra
+//           pierced by a thagomizer, bitten plates), ornithopods. Tyrannosaurus: Triceratops (bones
+//           covered in bites), hadrosaurs (a healed bite on an Edmontosaurus tail), its own kind. The
+//           player is prey to anything big enough: no animal has ever been seen to pass a person by.
 //   biped:  walks on two legs, with two arms (otherwise on four legs)
 //   hunt:   a carnivore's hunting skill, added to its agility when it hunts what it spotted (HUNT)
 //   weapon: what it fights with, as the Dinopedia will say
@@ -136,25 +146,25 @@ const SIZE = {
 // is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
-  compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, selfFeed: true, forage: [['insect', 1, 2, 0.5]], role: 'noncombatant', hunt: 10, fear: 'tiny' },
-  dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
+  compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, selfFeed: true, forage: [['insect', 1, 2, 0.5]], hunts: [], preyMax: 'tiny', role: 'noncombatant', hunt: 10, fear: 'tiny' },
+  dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, hunts: ['theropod', 'ornithopod', 'ceratopsian', 'armored', 'human'], preyMax: 'medium', role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, creche: true, role: 'noncombatant', fear: 'small' },
-  coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
+  coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, hunts: ['theropod', 'ornithopod', 'ceratopsian', 'human'], preyMax: 'small', role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, zigzag: true, forage: [['leaf', 1, 2], ['herb', 1, 1, 0.25]], eyes: true, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
+  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
-  bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: { water: 1.3, land: 1 }, hook: true, fishing: [2, 4], role: 'attacker', hunt: 5, fear: 'large' },
+  bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: { water: 1.3, land: 1 }, hook: true, fishing: [2, 4], hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: 'heavy', crouch: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
-  allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
-  spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: { water: 1.5, land: 1, landAgi: 0.6 }, sail: true, role: 'attacker', hunt: 5, fear: 'huge' },
-  rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'huge' },
+  allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, hunts: ['armored', 'ornithopod', 'pachycephalosaur', 'human'], preyMax: 'large', role: 'attacker', hunt: 15, fear: 'huge' },
+  spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: { water: 1.5, land: 1, landAgi: 0.6 }, sail: true, hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'huge' },
+  rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, hunts: ['ceratopsian', 'ornithopod', 'pachycephalosaur', 'theropod', 'human'], preyMax: 'huge', role: 'attacker', hunt: 10, fear: 'huge' },
   argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal' },
 };
 // How each role fights:
@@ -397,7 +407,7 @@ export const BIOMES = {
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
 // art, recoloured with the CSS filter tint.
 export const CREATURES = {
-  deinosuchus:  { name: 'Deinosuchus', size: 'huge', fear: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
+  deinosuchus:  { name: 'Deinosuchus', size: 'huge', fear: 'huge', hunts: 'any', preyMax: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
 };
 // (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
 export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge

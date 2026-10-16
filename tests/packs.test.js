@@ -125,18 +125,19 @@ test('older saves turn a one-explorer trip into a team of one', () => {
 });
 
 test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
-  // a hex 3 away where a small creature waits, so the fighter wins and can find eggs
+  // a hex 4 away where grown raptors wait (they hunt a Protoceratops; other theropods aren't on their
+  // menu, and young ones nearer the nest only take smaller prey)
   const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
     const t = threatAt(42, parseKey(k));
-    return hexDist(parseKey(k)) === 3 && !t.lair && ['compy', 'raptor'].includes(t.id);
+    return hexDist(parseKey(k)) === 4 && !t.lair && t.id === 'raptor';
   });
   const trips = (team, g) => {
-    const s = game(dino('d1', 'dilo', g), dino('c1', 'compy', g));
+    const s = game(dino('d1', 'proto', g), dino('c1', 'compy', g));
     let fights = 0, eggs = 0, mins = 0;
     for (let i = 0; i < 300; i++) {
       s.world.expeditions = [];
       // (one that died comes back for the next try)
-      for (const [id, t] of [['d1', 'dilo'], ['c1', 'compy']]) if (!s.hatched.some(b => b.id === id)) s.hatched.push(dino(id, t, g));
+      for (const [id, t] of [['d1', 'proto'], ['c1', 'compy']]) if (!s.hatched.some(b => b.id === id)) s.hatched.push(dino(id, t, g));
       s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; delete b.critical; });
       const r = applyAction(s, 'explore', { team: team.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);

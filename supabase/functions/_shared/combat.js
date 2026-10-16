@@ -17,7 +17,7 @@ export function fighterOf(baby, extra = []) {
   const me = baby.id === PLAYER_ID, sp = SPECIES[baby.type];
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
-    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
+    : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, hunts: sp.hunts || null, preyMax: sp.preyMax || null, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
         grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, zigzag: !!sp.zigzag, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
@@ -79,7 +79,7 @@ export function wildFighter(type, dist, lair = false) {
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
+    size, young: size !== sp.size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, hunts: sp.hunts || null, preyMax: sp.preyMax || null, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
     grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, zigzag: !!sp.zigzag, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
@@ -105,8 +105,8 @@ export function creatureFighter(id, dist, lair = false) {
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
   const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, res: stats.res, power, level, size,
-    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear };
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, res: stats.res, power, level, size, young: size !== c.size,
+    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear, hunts: c.hunts || null, preyMax: c.preyMax || null };
 }
 
 // log: [{ by: 'a' | 'b', miss } | { by, dmg, left }], left being the target's health after the blow
@@ -155,10 +155,15 @@ const roleOf = u => u.members[0].role || 'attacker';
 export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
 // a unit that runs from this foe: the player never does
 export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
-// The food chain: what a wild predator hunts. Only an animal no bigger than what it stands up to (its
-// fear) that it can hurt at all; anything else it passes by (and anything bigger it runs from).
-export const isPrey = (pred, m) => (!pred.fear || sizeRank(m.size) <= sizeRank(pred.fear))
-  && !(m.plated && sizeRank(pred.size) <= sizeRank(ARMOR.ignores)) && hitOf(pred, m, 1.25) > 0;
+// The food chain: what a predator hunts (BODY hunts). An animal of a body plan in its diet, no bigger
+// than it takes on (preyMax; a size less for a young one near the nest), that it can hurt at all;
+// anything else it passes by.
+const familyOf = m => (m.type && SPECIES[m.type] ? SPECIES[m.type].build : 'human');
+export const isPrey = (pred, m) => {
+  if (!pred.hunts || !(pred.hunts === 'any' || pred.hunts.includes(familyOf(m)))) return false;
+  const most = sizeRank(pred.preyMax || pred.size) - (pred.young ? 1 : 0);
+  return sizeRank(m.size) <= most && !(m.plated && sizeRank(pred.size) <= sizeRank(ARMOR.ignores)) && hitOf(pred, m, 1.25) > 0;
+};
 const isPredator = foe => (foe.members[0].role || 'attacker') === 'attacker';
 // which units flee before the fight: those afraid of it, and every noncombatant (prey animals: the
 // urge to run wins out, trained or not); all of them when nobody left would fight, or, against a

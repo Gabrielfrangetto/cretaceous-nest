@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from '../js/economy.js';
 import { freshState } from '../js/state.js';
-import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFight, unitOf, winChance, dangerOf } from '../js/combat.js';
+import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFight as realFight, unitOf, winChance, dangerOf } from '../js/combat.js';
+// Most tests here look at how abilities play out, between animals that may not be on each other's menu:
+// their foes are made hungry enough to go for anything (the food chain has tests of its own, realFight)
+const hungry = f => ({ ...f, hunts: 'any', preyMax: 'colossal' });
+const teamFight = (units, foe, rand, opts) => realFight(units, foe.members ? { ...foe, members: foe.members.map(hungry) } : hungry(foe), rand, opts);
 import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem } from '../js/world.js';
 import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER } from '../js/config.js';
 // whether what waits in a hex shows itself to a team whose biggest is size (it keeps away otherwise)
@@ -795,8 +799,9 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
   // the player rides one: a lone Gallimimus with the player still goes twice as fast
   assert.equal(teamTripMins(s0, ['player', 'g1'], key), teamTripMins(s0, ['d'], key) * RUNNER.trip);
   assert.equal(teamTripMins(s0, ['player'], key), teamTripMins(s0, ['d'], key));
-  // a raptor pack lair: always met, and fought or run from
-  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  // a Tyrannosaurus lair (raptors don't hunt them: other theropods aren't on their menu): always met,
+  // and run from
+  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'rex');
   let ran = 0, caught = 0, fought = 0;
   for (let trip = 0; trip < 60; trip++) {
     const s = game(...['g1', 'g2', 'g3', 'g4'].map(id => dino(id, 60, 'galli')));
@@ -874,9 +879,11 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   // its sail: a smaller predator (Allosaurus) keeps away; a Tyrannosaurus (as big as it) doesn't, but
   // may back off after sizing it up, likelier in the water; a lair's Alpha never does
   const { sailBackOff } = await import('../js/world.js');
-  const s = game(dino('s', 60, 'spino'), dino('a', 60, 'allo'));
+  // (a Stegosaurus beside: something an Allosaurus does hunt)
+  const s = game(dino('s', 60, 'spino'), dino('a', 60, 'stego'));
   const sTeam = teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }]), aTeam = teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }]);
-  const at = (id, lair) => threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair));
+  // (grown ones, past the young near the nest)
+  const at = (id, lair) => threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair && hexDist(h) > 3));
   assert.equal(keepsAway(at('allo', false), sTeam), true);
   assert.equal(keepsAway(at('allo', false), aTeam), false);
   const rex = at('rex', false);
@@ -958,7 +965,9 @@ test('a predator everyone ran from gives chase: it may catch the slowest, who ma
   // a Tyrannosaurus won't run after a Compsognathus
   const tiny = teamUnits(game(dino('c', 60, 'compy')), [{ kind: 'dino', id: 'c', members: ['c'] }]);
   assert.equal(chaseOf(tiny, { name: 'T. rex', pack: false, members: [wildFighter('rex', 6)] }), null);
-  assert.ok(chaseOf(tiny, foe));
+  assert.ok(chaseOf(tiny, { name: 'Dilophosaurus', pack: false, members: [wildFighter('dilo', 6)] }));
+  // nor raptors: other theropods aren't on their menu
+  assert.equal(chaseOf(tiny, foe), null);
   // trips: a lone Psittacosaurus into a raptor lair is sometimes caught: dead (nothing comes home) or critical
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   let caught = 0, died = 0, away = 0;
@@ -1021,11 +1030,13 @@ test('prey animals never fight: they run from any predator, even with the player
 test("a predator scatters the player's group: face it with whoever stays, or run too and maybe be caught", async () => {
   const { tripScatter } = await import('../js/world.js');
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
-  const go = (ids, trip, choice) => {
+  // (a Tyrannosaurus hunts Gallimimus; raptors don't)
+  const rexLair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'rex');
+  const go = (ids, trip, choice, hex = lair) => {
     const s = game(...ids.filter(id => id !== 'player').map(id => dino(id, 60, id.startsWith('g') ? 'galli' : 'psitta')));
     s.world.trips = trip;
     const team = ids.map(id => id === 'player' ? { kind: 'player' } : { kind: 'dino', id });
-    const r = applyAction(s, 'explore', { team, hex: lair }, T0);
+    const r = applyAction(s, 'explore', { team, hex }, T0);
     assert.equal(r.ok, true, r.reason);
     const sc = tripScatter(s, r.expedition.id);
     return { s, sc, c: applyAction(s, 'collectTrip', { id: r.expedition.id, ...choice }, r.expedition.returnAt) };
@@ -1033,14 +1044,14 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   // without the player there is nothing to decide
   assert.equal(go(['p1'], 1, {}).sc, null);
   // riding a Gallimimus: face it on foot, thrown off; or ride off, and only the Gallimimus may be caught
-  const faced = go(['player', 'g1'], 1, { fight: true });
+  const faced = go(['player', 'g1'], 1, { fight: true }, rexLair);
   assert.ok(faced.sc && faced.sc.mounted);
   assert.equal(faced.c.scatter.choice, 'fight');
   assert.ok(faced.c.battle.thrown);
   assert.deepEqual(faced.c.battle.fled, [1]);
   let rodeOff = 0, galliCaught = 0;
   for (let trip = 0; trip < 40; trip++) {
-    const { c } = go(['player', 'g1'], trip, { flee: true });
+    const { c } = go(['player', 'g1'], trip, { flee: true }, rexLair);
     assert.equal(c.battle, null);
     rodeOff++;
     if (c.chase.caught) { galliCaught++; assert.equal(c.chase.caught, 'g1'); }
@@ -1071,14 +1082,14 @@ test('the food chain: raptors pass an armored Scelidosaurus by, go for the playe
   // with the player beside it they go for the player only
   const me = unitOf('You', [fighterOf(freshState().player)]);
   for (let i = 0; i < 20; i++) {
-    const r = teamFight([sc(), me], raptors, seededRand('arm' + i));
+    const r = realFight([sc(), me], raptors, seededRand('arm' + i));
     assert.ok(!r.log.some(e => e.by === 'foe' && e.to === 0 && e.dmg !== undefined));
   }
   // and armor stays beyond anything small even when one does strike it
   const desperate = { ...raptors, members: raptors.members.map(f => ({ ...f, fear: undefined, plated: false })) };
   const blow = fighterOf(dino('r', 60, 'raptor'));
   assert.ok(blow);
-  const r = teamFight([sc()], { ...desperate, members: desperate.members }, seededRand('arm-x'));
+  const r = realFight([sc()], { ...desperate, members: desperate.members }, seededRand('arm-x'));
   for (const e of r.log) if (e.by === 'foe' && e.dmg !== undefined) assert.equal(e.dmg, 0);
 });
 
@@ -1092,7 +1103,7 @@ test('the food chain: a predator passes by what it can neither hunt nor hurt, an
   assert.equal(passesBy({ entry: { species: 'raptor' }, foe: raptors }, of(['k'])), true);
   // with a Hypsilophodon along they do come: it runs, and it is the one they chase (never the Ankylosaurus)
   assert.equal(passesBy({ entry: { species: 'raptor' }, foe: raptors }, of(['k', 'h'])), false);
-  const r = teamFight(of(['k', 'h']), raptors, seededRand('fc'));
+  const r = realFight(of(['k', 'h']), raptors, seededRand('fc'));
   assert.equal(r.escaped, true);
   assert.equal(chaseOf(of(['k', 'h']), raptors).unit, 1);
 });
