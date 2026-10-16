@@ -276,12 +276,15 @@ export function teamFight(units, foe, rand, opts = {}) {
           else grab = { grab: 'freed' };
         }
       }
-      // a sickle claw may latch on: clinging to a bigger foe, pinning one its size or smaller
-      if (dmg > 0 && clawed && !latches.has(who) && foeHp[member] > 0 && !prey.plated && rand() < LATCH.chance) {
-        const ready = standing(hp[who]), holder = ready[Math.floor(rand() * ready.length)];
-        const mode = sizeRank(prey.size) > sizeRank(units[who].members[holder].size) ? 'cling' : 'pin';
-        latches.set(who, { m: member, holder, mode });
-        grab = { ...grab, latch: mode };
+      // a sickle claw may latch on: clinging to a bigger foe (agility against agility), pinning one its
+      // size or smaller (agility and strength against agility and strength)
+      if (dmg > 0 && clawed && !latches.has(who) && foeHp[member] > 0 && !prey.plated && rand() < LATCH.tries) {
+        const ready = standing(hp[who]), holder = ready[Math.floor(rand() * ready.length)], claw = units[who].members[holder];
+        const mode = sizeRank(prey.size) > sizeRank(claw.size) ? 'cling' : 'pin';
+        if (mode === 'cling' ? contest(claw.agi, prey.agi) : contest(claw.agi + claw.str, prey.agi + prey.str)) {
+          latches.set(who, { m: member, holder, mode });
+          grab = { ...grab, latch: mode };
+        }
       }
       if (neck) bone = { ...bone, part: 'neck' };
       const also = sweep(units[who], foe, foeHp, member, m => rounded(unitHit(units[who], hp[who], foe.members[m], roll) * boost));
@@ -345,8 +348,7 @@ export function teamFight(units, foe, rand, opts = {}) {
           for (const [j, l] of latches) {
             const holder = units[j].members[l.holder], prey = foe.members[l.m];
             if (foeHp[l.m] <= 0 || hp[j][l.holder] <= 0) { latches.delete(j); continue; }
-            const p = l.mode === 'cling' ? prey.agi / (prey.agi + holder.agi) : prey.damage / (prey.damage + holder.damage);
-            if (rand() < p * LATCH.shake) { latches.delete(j); log.push({ by: 'foe', to: j, member: l.holder, shake: true, mode: l.mode }); }
+            if (l.mode === 'cling' ? contest(prey.agi, holder.agi) : contest(prey.str, holder.str)) { latches.delete(j); log.push({ by: 'foe', to: j, member: l.holder, shake: true, mode: l.mode }); }
           }
           // one held by a Dilophosaurus tries to wrench free: strength against strength
           for (const [j, m] of holding) {

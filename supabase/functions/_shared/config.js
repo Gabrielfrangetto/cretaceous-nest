@@ -393,13 +393,14 @@ export const GRAB = { tries: 0.3, bleed: 0.005 };
 // would bring it down, from something no bigger than itself, leaves it standing at 1; and its
 // injuries heal in heal of the time (not a critical one, which takes as long as anyone's).
 export const TOUGH = { heal: 0.5 };
-// Velociraptor's sickle claw. A blow that lands on a foe with no armor on its body may latch on
-// (chance): on a bigger foe it clings to it, out of its reach; a foe its size or smaller it pins to
-// the ground, and a pinned foe can neither strike nor dodge. Latched, every turn it drives the claw in:
-// a piercing blow (through hide and armor) and a wound that bleeds bleed more of the foe's health a
-// turn (up to maxStacks wounds), until the foe shakes it off: each of the foe's turns, a chance of
-// shake times agility against agility (clinging) or strength against strength (pinned).
-export const LATCH = { chance: 0.2, bleed: 0.005, maxStacks: 5, shake: 1.3 };
+// Velociraptor's sickle claw, settled by contests like Dilophosaurus' hands. When a blow lands on a
+// foe with no armor on its body, it tries to latch on tries of the time: on a bigger foe it clings to
+// it, out of its reach (agility against agility); a foe its size or smaller it pins to the ground,
+// where it can neither strike nor dodge (agility and strength against agility and strength).
+// Latched, every turn it drives the claw in: a piercing blow (through hide and armor) and a wound that
+// bleeds bleed more of the foe's health a turn (up to maxStacks wounds), until the foe shakes it off:
+// each of the foe's turns, agility against agility (clinging) or strength against strength (pinned).
+export const LATCH = { tries: 0.2, bleed: 0.005, maxStacks: 5 };
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor
 export const CLAW = { neck: 0.3 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
