@@ -4,9 +4,9 @@ import { applyAction, countItem, hungerEvery, feedBaby, breedProblem } from '../
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import {
-  ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway,
+  ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { WORLD_RADIUS, BIOMES, EXPEDITION_SLOTS, JUVENILE_RANGE, TRIP_MINS_PER_HEX } from '../js/config.js';
+import { MAP, BIOMES, EXPEDITION_SLOTS, JUVENILE_RANGE, AGES, NEST_CALM, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
@@ -17,39 +17,59 @@ function game(...babies) {
   return s;
 }
 
-test('the map is a hex disc around the nest, the same for the same seed', () => {
-  assert.equal(ALL_HEXES.length, 1 + 3 * WORLD_RADIUS * (WORLD_RADIUS + 1));
+test('the map is a supercontinent around the nest, the same for the same seed', () => {
+  assert.equal(ALL_HEXES.length, MAP.cols * MAP.rows);
   assert.deepEqual(ALL_HEXES[0], [0, 0]);
   const a = ALL_HEXES.map(h => biomeAt(42, h)), b = ALL_HEXES.map(h => biomeAt(42, h));
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, ALL_HEXES.map(h => biomeAt(43, h)));
-});
-
-test('every map has every biome, meadow around the nest and volcanoes only far out', () => {
   for (const seed of [1, 7, 42, 1234, 99999]) {
-    const seen = new Set(ALL_HEXES.map(h => biomeAt(seed, h)));
-    assert.deepEqual([...seen].sort(), Object.keys(BIOMES).sort(), 'seed ' + seed);
-    for (const h of ALL_HEXES) {
-      if (hexDist(h) <= 1) assert.equal(biomeAt(seed, h), 'meadow');
-      if (biomeAt(seed, h) === 'volcano') assert.ok(hexDist(h) >= 4);
-    }
+    const land = landHexes(seed);
+    // about the share of land asked for, all of it one continent the nest can reach, sea at the edges
+    assert.ok(Math.abs(land.length / ALL_HEXES.length - MAP.land) < 0.06, `seed ${seed}: ${land.length}`);
+    for (const h of land) assert.ok(travelCost(seed, h) < Infinity);
+    assert.equal(isWater(seed, [-MAP.west - Math.floor(-MAP.north / 2), -MAP.north]), true);
   }
 });
 
-test('a new world shows the nest and its neighbours; expeditions reach one hex into the fog', () => {
+test("every map has every biome, a calm meadow around the nest, rivers and lakes, and a planet's climate", () => {
+  for (const seed of [1, 7, 42, 1234, 99999]) {
+    const land = landHexes(seed);
+    const seen = new Set(land.map(h => biomeAt(seed, h)));
+    assert.deepEqual([...seen].sort(), Object.keys(BIOMES).sort(), 'seed ' + seed);
+    for (const h of land) {
+      if (hexDist(h) <= MAP.calm) { assert.equal(biomeAt(seed, h), 'meadow'); assert.equal(cellAt(seed, h).terrain, 'flat'); }
+      if (biomeAt(seed, h) === 'volcano') assert.ok(hexDist(h) > MAP.calm + 3);
+    }
+    const cells = ALL_HEXES.map(h => cellAt(seed, h));
+    assert.ok(cells.some(c => c.river) && cells.some(c => c.terrain === 'lake') && cells.some(c => c.terrain === 'mountain'));
+    // warmer toward the equator, cooler toward the poles
+    const heat = band => { const c = cells.filter(c => c.terrain !== 'ocean' && band(Math.abs(c.lat))); return c.reduce((t, x) => t + x.heat, 0) / c.length; };
+    assert.ok(heat(a => a < 20) > heat(a => a > 55), 'seed ' + seed);
+  }
+});
+
+test('a new world shows the nest and its neighbours; expeditions reach one hex into the fog, over land, by the easiest way', () => {
   const s = game();
   assert.equal(s.world.revealed.length, 7);
   assert.equal(canReach(s, '0,0'), false);
   assert.equal(canReach(s, '2,0'), true);    // fog next to a revealed hex
   assert.equal(canReach(s, '3,0'), false);   // deeper fog
   assert.equal(canReach(s, '99,0'), false);
-  assert.equal(tripMins('2,-1'), 2 * TRIP_MINS_PER_HEX);
+  // a trip takes as long as the way there is hard: farther, longer
+  assert.ok(tripMins('1,0', 42) >= 1 && tripMins('3,0', 42) > tripMins('1,0', 42));
+  // open water: no one goes there
+  s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
+  s.hatched.push(dino('ad', 30));
+  const sea = ALL_HEXES.find(h => isWater(42, h));
+  assert.equal(exploreProblem(s, 'ad', hexKey(...sea), T0), 'water');
+  assert.equal(canReach(s, hexKey(...sea)), false);
 });
 
 test('who can explore: juveniles nearby, adults anywhere, never babies, hungry or busy ones', () => {
   const s = game(dino('baby', 0), dino('juv', 10), dino('ad', 30), dino('ad2', 30, 'f'), dino('ad3', 30));
   s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
-  const far = hexKey(JUVENILE_RANGE + 1, 0);
+  const far = hexKey(...landHexes(42).find(h => travelCost(42, h) > JUVENILE_RANGE));
   assert.equal(exploreProblem(s, 'baby', '1,0', T0), 'too-young');
   assert.equal(exploreProblem(s, 'juv', far, T0), 'too-far');
   assert.equal(exploreProblem(s, 'juv', '1,0', T0), null);
@@ -107,12 +127,21 @@ test('the loot of a trip is the same in the browser and on the server', () => {
   assert.deepEqual(applyAction(a, 'collectTrip', { id: 't1' }, back).loot, applyAction(b, 'collectTrip', { id: 't1' }, back).loot);
 });
 
-test('farther hexes bring more', () => {
+test("what lives in a hex is of an age: young, old, adult or in its prime (a lair's Alpha the strongest); no predators near the nest", () => {
+  const land = landHexes(42);
+  const ages = new Set(land.map(h => threatAt(42, h).age));
+  for (const a of [...Object.keys(AGES), 'alpha']) assert.ok(ages.has(a), a);
+  const power = age => { const t = land.map(h => threatAt(42, h)).filter(t => t.age === age); return t.reduce((x, y) => x + y.power / y.foe.members.length, 0) / t.length; };
+  assert.ok(power('prime') > power('adult') && power('adult') > power('young'));
+  for (const h of land) if (hexDist(h) <= NEST_CALM) {
+    const t = threatAt(42, h);
+    assert.notEqual(t.entry.species && SPECIES[t.entry.species].role, 'attacker');
+    assert.equal(t.lair, false);
+  }
+  // the hex's own loot no longer grows with distance
   const s = game();
-  const near = ALL_HEXES.find(h => hexDist(h) === 2 && biomeAt(42, h) === 'meadow');
-  const far = ALL_HEXES.find(h => hexDist(h) === 7 && biomeAt(42, h) === 'meadow');
-  assert.ok(near && far);
-  assert.ok(lootTable(s, hexKey(...far))[0].max > lootTable(s, hexKey(...near))[0].max);
+  const meadows = land.filter(h => biomeAt(42, h) === 'meadow');
+  assert.deepEqual(lootTable(s, hexKey(...meadows[0])), lootTable(s, hexKey(...meadows.at(-1))));
 });
 
 test('recalling brings the dinosaur home with nothing', () => {

@@ -7,10 +7,12 @@ import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFigh
 // their foes are made hungry enough to go for anything (the food chain has tests of its own, realFight)
 const hungry = f => ({ ...f, hunts: 'any', preyMax: 'colossal' });
 const teamFight = (units, foe, rand, opts) => realFight(units, foe.members ? { ...foe, members: foe.members.map(hungry) } : hungry(foe), rand, opts);
-import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem } from '../js/world.js';
+import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem, keepsAway, teamUnits } from '../js/world.js';
 import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER } from '../js/config.js';
 // whether what waits in a hex shows itself to a team whose biggest is size (it keeps away otherwise)
-const showsTo = (key, size) => { const e = threatAt(42, key.split(',').map(Number)).entry; const f = e.species && SPECIES[e.species].fear; return !f || SIZE_ORDER.indexOf(f) >= SIZE_ORDER.indexOf(size); };
+// whether what waits in a hex comes for a team of one dinosaur of this kind (not keeping away from it,
+// nor passing it by: the food chain)
+const showsTo = (key, type) => { const s = game(dino('x', 50, type)); return !keepsAway(threatAt(42, key.split(',').map(Number)), teamUnits(s, [{ kind: 'dino', id: 'x', members: ['x'] }])); };
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -26,7 +28,7 @@ function game(...babies) {
 function trip(s, id, key) {
   const r = applyAction(s, 'explore', { babyId: id, hex: key }, T0);
   assert.equal(r.ok, true, r.reason);
-  return applyAction(s, 'collectTrip', { id: r.expedition.id }, T0 + tripMins(key) * 60000);
+  return applyAction(s, 'collectTrip', { id: r.expedition.id }, T0 + tripMins(key, 42) * 60000);
 }
 
 test('a fight is decided by the stats and replays the same with the same rolls', () => {
@@ -63,25 +65,27 @@ test('every biome has its wild animals, stronger and in bigger packs farther out
 
 // the lairs on the map, weakest creature first
 const lairs = seed => ALL_HEXES.filter(h => isLair(seed, h)).sort((x, y) => threatAt(seed, x).foe.power - threatAt(seed, y).foe.power).map(h => hexKey(...h));
+// the strongest lair of a Tyrannosaurus (something that hunts a Triceratops, and wins)
+const rexLairTop = () => lairs(42).filter(k => threatAt(42, k.split(',').map(Number)).id === 'rex').at(-1);
 
 test('beating a creature brings its loot and coins on top of the hex', () => {
   const s = game(dino('champ', 100));
-  const key = lairs(42).find(k => showsTo(k, SPECIES.rex.size));
+  const key = lairs(42).find(k => showsTo(k, 'rex'));
   const r = trip(s, 'champ', key);
   assert.equal(r.battle.win, true);
   assert.equal(r.battle.lair, true);
   const cLoot = threatAt(42, key.split(',').map(Number)).entry.loot.map(l => l[0]);
   assert.ok(r.loot.some(l => cLoot.includes(l.id)));
   assert.ok(r.coins > 0);
-  assert.equal(injuredLeft(s.hatched[0], T0 + tripMins(key) * 60000) >= 0, true);
+  assert.equal(injuredLeft(s.hatched[0], T0 + tripMins(key, 42) * 60000) >= 0, true);
 });
 
 test('losing brings nothing, still maps the land, and leaves the dinosaur injured (critically, as it went down)', () => {
-  // a Triceratops stands up to anything, so it fights even the strongest lair (and loses)
+  // a Triceratops stands up to anything, so it fights even a Tyrannosaurus' lair (and loses)
   const s = game(dino('runt', 1, 'trike'));
-  const key = lairs(42).at(-1);
+  const key = rexLairTop();
   const coins = s.coins;
-  const back = T0 + tripMins(key) * 60000;
+  const back = T0 + tripMins(key, 42) * 60000;
   const r = trip(s, 'runt', key);
   assert.equal(r.battle.win, false);
   assert.deepEqual(r.loot, []);
@@ -121,8 +125,8 @@ test('a dinosaur brought down is critically injured: herbs do not help, a Blood 
   const { CRITICAL_MINS } = await import('../js/config.js');
   const { isCritical } = await import('../js/world.js');
   const s = game(dino('runt', 1, 'trike'));
-  const key = lairs(42).at(-1);
-  const back = T0 + tripMins(key) * 60000;
+  const key = rexLairTop();
+  const back = T0 + tripMins(key, 42) * 60000;
   const r = trip(s, 'runt', key);
   assert.equal(r.battle.win, false);
   const b = s.hatched[0];
@@ -827,7 +831,7 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
 
 test('death: a deadly blow kills, one brought down may not survive (its resistance), the player never dies', async () => {
   const { bury } = await import('../js/world.js');
-  const lair = lairs(42).at(-1);
+  const lair = rexLairTop();
   let died = 0, critical = 0;
   for (let trip = 0; trip < 40; trip++) {
     // a Triceratops stands up to the strongest lair and goes down
@@ -899,7 +903,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
 });
 
 test('a Baryonyx brings home fish from the swamp', () => {
-  const swamp = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) <= 3 && threatAt(42, h).id === 'deinosuchus' && !threatAt(42, h).lair; });
+  const swamp = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return threatAt(42, h).id === 'deinosuchus' && !threatAt(42, h).lair; });
   let checked = 0;
   for (let trip = 0; trip < 30; trip++) {
     const s = game(dino('b', 90, 'bary'));

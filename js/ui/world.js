@@ -4,7 +4,7 @@ import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDI
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
+  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, cellAt, neighbors, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripWitness, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
@@ -33,15 +33,27 @@ const GLYPH = {
   badlands: '<path d="M-12 8 L-8 -3 L-2 -3 L1 2 L5 -6 L10 -6 L13 8Z" fill="#a9824e"/>',
   volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
 };
+// terrain drawn over the biome: hills, mountains, a volcano's peak, a river; water has its own colour
+const TERRAIN = {
+  hill: '<path d="M-13 9 q6 -10 12 0 q5 -8 12 0" fill="none" stroke="#5b4a32" stroke-width="2" opacity=".7"/>',
+  mountain: '<path d="M-14 10 L-5 -9 L1 2 L5 -4 L14 10Z" fill="#6e6458"/><path d="M-5 -9 L-2 -3 L-7 -3Z" fill="#f2efe6"/>',
+  volcano: '<path d="M-14 10 L-4 -8 L4 -8 L14 10Z" fill="#4a3028"/><path d="M-4 -8 L-1 -13 L2 -9 L4 -12 L4 -8Z" fill="#e2643a"/>',
+};
+const RIVER = '<path d="M-22 -6 C-8 -14 -6 8 8 0 S 18 -4 24 6" fill="none" stroke="#4f8fcf" stroke-width="4" stroke-linecap="round"/>';
+const WATER = { ocean: '#3b6e9e', lake: '#5b95c8' };
+const fillOf = c => WATER[c.terrain] || BIOMES[c.biome].color;
+const glyphOf = c => WATER[c.terrain] ? '' : (TERRAIN[c.terrain] || GLYPH[c.biome]) + (c.river ? RIVER : '');
+const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
+const placeName = c => WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
 const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
 export function sampleMapSVG(seed, seen = 3) {
   const cells = ALL_HEXES.filter(h => hexDist(h) <= seen + 1).map(h => {
-    const c = center(h), d = hexDist(h), biome = biomeAt(seed, h);
+    const c = center(h), d = hexDist(h), cell = cellAt(seed, h);
     const fog = d > seen;
     return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
-      <polygon points="${corners([0, 0], 0.96)}" ${fog ? '' : `style="fill:${BIOMES[biome].color}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : GLYPH[biome]}</g>`;
+      <polygon points="${corners([0, 0], 0.96)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : glyphOf(cell)}</g>`;
   }).join('');
   const r = SIZE * SQ3 * (seen + 1.6);
   return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;
@@ -49,13 +61,14 @@ export function sampleMapSVG(seed, seen = 3) {
 
 const PROBLEMS = {
   'too-young': 'Babies stay in the nest. Feed it until it is a juvenile.',
-  'too-far': `Juveniles only explore up to ${JUVENILE_RANGE} hexes from the nest. Adults go anywhere.`,
+  'too-far': `Juveniles only explore close to the nest (up to ${JUVENILE_RANGE} min away). Adults go anywhere.`,
   away: 'Already exploring.',
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
+  water: 'Open water: no one can go there.',
   injured: 'Injured. It heals with time, or sooner with a Healing Herb.',
   'no-team': 'Add someone to the team first.',
   'team-full': `A team has at most ${TEAM_SLOTS} places.`,
@@ -108,30 +121,86 @@ function unitProblem(u, t) {
 }
 const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', hungry: 'hungry', breeding: 'nesting', 'too-far': 'too far for a juvenile', 'too-young': 'too young' };
 
+// the map's view (in map units), kept while the player looks around; first framed on the nest
+let view = null;
+const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = SIZE * SQ3 * 60;
 function mapSVG(t) {
   const w = S.world;
   const away = new Map(w.expeditions.map(e => [e.hex, e]));
-  // frame what has been found plus a ring of fog around it, never tighter than 3 hexes from the
-  // nest, so the map starts big and opens up as it is explored
-  const shown = ALL_HEXES.filter(h => hexDist(h) <= 3 || canReach(S, hexKey(...h)) || isRevealed(S, hexKey(...h))).map(center);
-  const pad = SIZE * 2.2;
-  const xs = shown.map(c => c[0]), ys = shown.map(c => c[1]);
-  const box = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2];
-  const cells = ALL_HEXES.map(h => {
-    const key = hexKey(...h), c = center(h);
+  // what is drawn: the hexes found, and the fog right around them (the rest of the world is unknown)
+  const keys = new Set();
+  for (const k of w.revealed) { keys.add(k); for (const n of neighbors(parseKey(k))) keys.add(hexKey(...n)); }
+  if (!view) view = { x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 };
+  const cells = [...keys].map(key => {
+    const h = parseKey(key), c = center(h);
     const seen = isRevealed(S, key), frontier = !seen && canReach(S, key);
-    const biome = seen ? biomeAt(w.seed, h) : null;
-    const home = hexDist(h) === 0;
+    if (!seen && !frontier) return `<g class="hex fog" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" aria-hidden="true"><polygon points="${corners([0, 0], 0.96)}"/></g>`;
+    const cell = cellAt(w.seed, h);
+    const home = hexDist(h) === 0, water = seen && (cell.terrain === 'ocean' || cell.terrain === 'lake');
     const cls = ['hex', seen ? 'seen' : 'fog', frontier ? 'frontier' : '', key === selected ? 'sel' : ''].filter(Boolean).join(' ');
-    const label = home ? 'Your nest' : seen ? `${BIOMES[biome].name}${isLair(w.seed, h) ? ' lair' : ''}, ${hexDist(h)} from the nest` : frontier ? `Unexplored, ${hexDist(h)} from the nest` : 'Deep fog';
-    const glyph = home ? NEST : seen ? GLYPH[biome] + (isLair(w.seed, h) ? LAIR : '') : frontier ? '<text class="q" y="5">?</text>' : '';
+    const lair = seen && !water && isLair(w.seed, h);
+    const label = home ? 'Your nest' : seen ? `${placeName(cell)}${lair ? ', a lair' : ''}` : 'Unexplored';
+    const glyph = home ? NEST : seen ? glyphOf(cell) + (lair ? LAIR : '') : '<text class="q" y="5">?</text>';
     const exp = away.get(key);
     const marker = exp ? `<g class="trip ${t >= exp.returnAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc(exp.team.length > 1 ? String(exp.team.length) : (unitName(exp.team[0])[0] || '?'))}</text></g>` : '';
-    const focusable = seen || frontier;
-    return `<g class="${cls}" data-key="${key}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" ${focusable ? `tabindex="0" role="button" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>
-      <polygon points="${corners([0, 0], 0.96)}" ${seen ? `style="fill:${BIOMES[biome].color}"` : ''}/>${glyph}${marker}</g>`;
+    const focusable = !water && (seen || frontier);
+    return `<g class="${cls}" data-key="${key}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" ${focusable ? `tabindex="0" role="button" aria-label="${esc(label)}"` : `aria-label="${esc(label)}"`}>
+      <polygon points="${corners([0, 0], 0.96)}" ${seen ? `style="fill:${fillOf(cell)}"` : ''}/>${glyph}${marker}</g>`;
   }).join('');
-  return `<svg class="world-map" viewBox="${box.map(v => v.toFixed(1)).join(' ')}" role="group" aria-label="World map">${cells}</svg>`;
+  return `<svg class="world-map" id="worldMap" viewBox="${[view.x, view.y, view.w, view.h].map(v => v.toFixed(1)).join(' ')}" preserveAspectRatio="xMidYMid meet" role="group" aria-label="World map">${cells}</svg>
+    <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
+    <p class="hint map-legend"><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p>`;
+}
+
+// drag to look around, the wheel or two fingers to zoom; a press that doesn't move is a tap on a hex
+let dragged = false;
+function bindMap(box) {
+  const svg = box.querySelector('#worldMap');
+  if (!svg) return;
+  const set = () => svg.setAttribute('viewBox', [view.x, view.y, view.w, view.h].map(v => v.toFixed(1)).join(' '));
+  const scale = () => view.w / svg.getBoundingClientRect().width;
+  const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
+    const w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, view.w * k)), f = w / view.w;
+    view = { x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f };
+    set();
+  };
+  const pts = new Map();
+  let start = null, pinch = null;
+  svg.addEventListener('pointerdown', e => {
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, view: { ...view } }; dragged = false; }
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), w: view.w }; }
+  });
+  svg.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 2 && pinch) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (d > 0) zoom(pinch.w / (view.w * d / pinch.d));
+      dragged = true;
+      return;
+    }
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    if (!dragged && Math.hypot(dx, dy) < 6) return;
+    if (!dragged) svg.setPointerCapture(e.pointerId);
+    dragged = true;
+    const k = scale();
+    view = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
+    set();
+  });
+  const end = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) start = null; };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect(), k = scale();
+    zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, view.x + (e.clientX - r.left) * k, view.y + (e.clientY - r.top) * k);
+  }, { passive: false });
+  box.querySelectorAll('[data-zoom]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.zoom === 'home') { view = { x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 }; set(); }
+    else zoom(b.dataset.zoom === 'in' ? 1 / 1.3 : 1.3);
+  }));
 }
 
 // what waits there and how a fight would likely go for the chosen explorer
@@ -210,11 +279,11 @@ function rivalsHTML(members) {
 
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap a hex next to the fog (marked ?) to explore it. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes take longer and bring back more, sometimes an egg. Dinosaurs come home hungry.</p>`;
+    <p class="hint">Tap a hex next to the fog (marked ?) to explore it; drag the map to look around. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. Dinosaurs come home hungry.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every trip starts and ends here.</p>`;
   const seen = isRevealed(S, selected);
-  const biome = seen ? BIOMES[biomeAt(S.world.seed, h)] : null;
+  const place = seen ? placeName(cellAt(S.world.seed, h)) : null;
   const first = !S.world.visited.includes(selected);
   // the team: kept between hexes; when empty, the first one free to go is suggested
   const choices = unitChoices();
@@ -239,8 +308,8 @@ function sideHTML(t) {
       + (critical ? 'Critically injured: it went down in a fight. Herbs won\'t help; a Blood Transfusion heals it at once.' : PROBLEMS[problem])
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
-  return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+  return `<h3>${seen ? esc(place) : 'Unexplored hex'}</h3>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
@@ -409,9 +478,10 @@ function render() {
           <div id="sightBox">${sightingsHTML()}</div></section>
       </div>
     </div>`;
+  bindMap(box);
   box.querySelectorAll('.hex[tabindex]').forEach(g => {
     const pick = () => { selected = g.dataset.key; message = ''; render(); };
-    g.addEventListener('click', pick);
+    g.addEventListener('click', () => { if (!dragged) pick(); });
     g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
   });
   box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 110));

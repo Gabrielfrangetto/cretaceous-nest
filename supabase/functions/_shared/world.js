@@ -6,13 +6,14 @@
 // An expedition's team is up to TEAM_SLOTS units, each { kind: 'dino' | 'player' | 'pack', id, members: [id] }
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
-  BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
-  LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
+  BIOMES, ITEMS, MAP_VERSION, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
 import { hashId } from './util.js';
+import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost } from './map.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -21,67 +22,31 @@ export function parseKey(key) {
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 export const hexDist = ([q, r]) => (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
-const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
-export const inWorld = h => !!h && hexDist(h) <= WORLD_RADIUS;
-export const neighbors = ([q, r]) => DIRS.map(([dq, dr]) => [q + dq, r + dr]).filter(inWorld);
-
+// the map itself (map.js): a supercontinent around the nest
+export const inWorld = inMap;
+export const neighbors = mapNeighbors;
 // every hex of the map, nest first
-export const ALL_HEXES = (() => {
-  const out = [];
-  for (let q = -WORLD_RADIUS; q <= WORLD_RADIUS; q++)
-    for (let r = -WORLD_RADIUS; r <= WORLD_RADIUS; r++) if (inWorld([q, r])) out.push([q, r]);
-  return out.sort((a, b) => hexDist(a) - hexDist(b));
-})();
+export const ALL_HEXES = MAP_HEXES;
+// the land hexes of a world: where expeditions can go
+export const landHexes = seed => ALL_HEXES.filter(h => !isWater(seed, h));
+export { isWater, cellAt, travelCost };
 
-// ---------- generation ----------
-// A smooth random field: each hex's own value blended with the hexes up to two steps away, so
-// biomes form patches instead of noise.
+// a hash of a hex, for what is fixed about it (lairs)
 function mix(x) {
   x = Math.imul(x ^ (x >>> 16), 0x7feb352d);
   x = Math.imul(x ^ (x >>> 15), 0x846ca68b);
   return (x ^ (x >>> 16)) >>> 0;
 }
 const cell = (seed, salt, q, r) => mix(mix(mix(seed + salt) + q * 73856093) + r * 19349663) / 4294967296;
-function field(seed, salt, [q, r]) {
-  let total = 0, weight = 0;
-  for (let dq = -2; dq <= 2; dq++) for (let dr = -2; dr <= 2; dr++) {
-    const d = hexDist([dq, dr]);
-    if (d > 2) continue;
-    const w = 3 - d;
-    total += cell(seed, salt, q + dq, r + dr) * w; weight += w;
-  }
-  return total / weight;
-}
+// a hex's biome (water has none: it reads as Swamp, though no one goes there)
+export const biomeAt = (seed, h) => (cellAt(seed, h) || {}).biome || 'swamp';
 
-// Biomes are shared out by rank, so every map gets a similar mix: the hottest hexes become volcano
-// (only far from the nest; nearer, badlands), the next hottest and dry ones badlands, then the
-// wettest swamp, the next forest, and the rest meadow. The nest's surroundings are always meadow.
-const SHARE = { hot: 0.16, dry: 0.12, swamp: 0.22, forest: 0.3 };
-const maps = new Map();
-function biomeMap(seed) {
-  if (maps.has(seed)) return maps.get(seed);
-  const hexes = ALL_HEXES.filter(h => hexDist(h) > 1).map(h => ({ h, wet: field(seed, 0x9e3779b9, h), heat: field(seed, 0x85ebca6b, h) }));
-  const out = new Map(ALL_HEXES.map(h => [hexKey(...h), 'meadow']));
-  const n = hexes.length, take = (list, share) => list.slice(0, Math.round(n * share));
-  const byHeat = [...hexes].sort((a, b) => b.heat - a.heat);
-  for (const x of take(byHeat, SHARE.hot)) out.set(hexKey(...x.h), hexDist(x.h) >= 4 ? 'volcano' : 'badlands');
-  const left = () => hexes.filter(x => out.get(hexKey(...x.h)) === 'meadow');
-  for (const x of take(left().sort((a, b) => (b.heat - b.wet) - (a.heat - a.wet)), SHARE.dry)) out.set(hexKey(...x.h), 'badlands');
-  const byWet = left().sort((a, b) => b.wet - a.wet);
-  for (const x of take(byWet, SHARE.swamp)) out.set(hexKey(...x.h), 'swamp');
-  for (const x of take(byWet.slice(Math.round(n * SHARE.swamp)), SHARE.forest)) out.set(hexKey(...x.h), 'forest');
-  if (maps.size > 50) maps.clear();
-  maps.set(seed, out);
-  return out;
-}
-export const biomeAt = (seed, h) => biomeMap(seed).get(hexKey(...h)) || 'meadow';
-
-// The eggs a hex can give: its biome's species whose rarity is allowed that far from the nest (a lair
-// counts 2 hexes farther, and legendaries are only found in lairs), each with its rarity's weight.
+// The eggs a hex can give: its biome's species, each with its rarity's weight (legendaries are only
+// found in lairs).
 export function eggKinds(biome, d, lair) {
   return BIOMES[biome].eggs
     .map(type => ({ type, r: RARITIES[SPECIES[type].rarity] }))
-    .filter(({ r }) => d + (lair ? 2 : 0) >= r.minDist && (!r.lairOnly || lair))
+    .filter(({ r }) => !r.lairOnly || lair)
     .map(({ type, r }) => ({ type, weight: r.weight }));
 }
 function pickWeighted(list, rand) {
@@ -90,25 +55,40 @@ function pickWeighted(list, rand) {
   return list[list.length - 1].type;
 }
 
-// lairs: a few hexes 3+ away where an animal always waits, stronger
-export const isLair = (seed, h) => hexDist(h) >= LAIR_MIN_DIST && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
-// what waits in a hex: one of its biome's wild animals (WILD), the same every time, how likely a
-// fight is, and whether it is a lair. foe is the unit it fights as; id names it (a species or a creature).
+// lairs: a few hexes away from the nest where an animal always waits, stronger
+export const isLair = (seed, h) => hexDist(h) > NEST_CALM && !isWater(seed, h) && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
+const isPredatorEntry = e => (e.creature ? true : (SPECIES[e.species].role || 'attacker') === 'attacker');
+// the wild animals of a hex's biome that can live there (no predators near the nest)
+const wildFor = (seed, h) => {
+  const list = BIOMES[biomeAt(seed, h)].wild;
+  if (hexDist(h) > NEST_CALM) return list;
+  // (a biome of nothing but predators: the meadow's small ones wander in instead)
+  const calm = list.filter(e => !isPredatorEntry(e));
+  return calm.length ? calm : BIOMES.meadow.wild.filter(e => !isPredatorEntry(e));
+};
+// what waits in a hex: one of its biome's wild animals (WILD), the same every time, how old it is (AGES:
+// a lair holds an Alpha), how likely a fight is (the biome's density), and whether it is a lair. foe is
+// the unit it fights as; id names it (a species or a creature); step is its strength (AGES).
 export function threatAt(seed, h) {
   const lair = isLair(seed, h);
-  const list = BIOMES[biomeAt(seed, h)].wild;
+  const list = wildFor(seed, h);
   let x = cell(seed, 0x165667b1, ...h) * list.reduce((t, e) => t + e.weight, 0);
   const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
-  const foe = encounterUnit(entry, hexDist(h), lair);
+  let y = cell(seed, 0x7f4a7c15, ...h) * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
+  const age = lair ? 'alpha' : Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult';
+  const step = lair ? ALPHA_STEP : AGES[age].step;
+  const unit = encounterUnit(entry, step, lair);
+  const label = lair ? '' : AGES[age].name;
+  const foe = label ? { ...unit, name: `${label} ${unit.name}` } : unit;
   return {
-    id: entry.species || entry.creature, entry, lair, chance: lair ? 1 : ENCOUNTER_CHANCE(hexDist(h)), foe,
+    id: entry.species || entry.creature, entry, lair, age, step, chance: lair ? 1 : BIOMES[biomeAt(seed, h)].density, foe,
     power: foe.members.reduce((t, m) => t + m.power, 0),
   };
 }
 
 export function newWorld(seed) {
   const home = [0, 0];
-  return { seed, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [], sightings: [] };
+  return { seed, map: MAP_VERSION, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [], sightings: [] };
 }
 
 // a seed for saves made before the world existed: taken from the save itself, so the browser and
@@ -123,11 +103,11 @@ export const isRevealed = (s, key) => W(s).revealed.includes(key);
 // hexes an expedition can go to: revealed ones and the fog right next to them (not the nest itself)
 export function canReach(s, key) {
   const h = parseKey(key);
-  if (!inWorld(h) || hexDist(h) === 0) return false;
+  if (!inWorld(h) || hexDist(h) === 0 || isWater(W(s).seed, h) || travelCost(W(s).seed, h) === Infinity) return false;
   return isRevealed(s, key) || neighbors(h).some(n => isRevealed(s, hexKey(...n)));
 }
-// minutes for a trip there and back
-export const tripMins = key => hexDist(parseKey(key)) * TRIP_MINS_PER_HEX;
+// minutes for a trip there and back, the easiest way (TRAVEL)
+export const tripMins = (key, seed) => Math.max(1, Math.round(travelCost(seed, parseKey(key)) * TRAVEL.mins));
 
 // a scout (ROLES) in a team leads it: faster trips, fewer fights outside lairs, more eggs
 export const hasScout = (s, members) => members.some(id => {
@@ -145,7 +125,7 @@ export const allRunners = (s, members) => {
   const dinos = members.filter(id => id !== PLAYER_ID);
   return dinos.length > 0 && dinos.every(id => bodyOf(s, id).runner);
 };
-export const teamTripMins = (s, members, key) => tripMins(key) * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1);
+export const teamTripMins = (s, members, key) => tripMins(key, W(s).seed) * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1);
 
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
@@ -193,9 +173,7 @@ export const isAway = (s, id) => !!expeditionOf(s, id);
 // the items a hex can give, with quantities already scaled by its distance
 export function lootTable(s, key) {
   const h = parseKey(key);
-  const mult = 1 + (hexDist(h) - 1) * LOOT_PER_HEX;
-  return BIOMES[biomeAt(W(s).seed, h)].loot.map(([id, min, max, chance = 1]) =>
-    ({ id, min: Math.max(1, Math.round(min * mult)), max: Math.max(1, Math.round(max * mult)), chance }));
+  return BIOMES[biomeAt(W(s).seed, h)].loot.map(([id, min, max, chance = 1]) => ({ id, min, max, chance }));
 }
 
 // why this explorer can't go to this hex now, or null when it can
@@ -206,7 +184,7 @@ export function memberProblem(s, id, key, now) {
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
-  if (stage === 'juvenile' && hexDist(parseKey(key)) > JUVENILE_RANGE) return 'too-far';
+  if (stage === 'juvenile' && travelCost(W(s).seed, parseKey(key)) > JUVENILE_RANGE) return 'too-far';
   if (isAway(s, id)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
@@ -239,6 +217,7 @@ export function exploreProblem(s, team, key, now) {
   const h = parseKey(key);
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
+  if (isWater(W(s).seed, h)) return 'water';
   if (!canReach(s, key)) return 'unreachable';
   const members = units.flatMap(u => u.members);
   if (new Set(members).size !== members.length) return 'twice';
@@ -442,14 +421,16 @@ export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
 // same whenever it is worked out. { hunter, prey: { name, species, count, entry }, hunterFoe, preyFoe:
 // the two as they fight, outcome: how it ends if the team lets it be ('kill', 'escaped' or 'repelled') }
 export function witnessOf(s, exp) {
-  const w = W(s), h = parseKey(exp.hex), d = hexDist(h);
+  const w = W(s), h = parseKey(exp.hex);
   const rand = seededRand(`witness:${w.seed}:${exp.trip}`);
   if (rand() >= WITNESS.chance) return null;
   const biome = biomeAt(w.seed, h), threat = threatAt(w.seed, h);
-  const list = BIOMES[biome].wild;
+  const list = wildFor(w.seed, h);
   let x = rand() * list.reduce((t, e) => t + e.weight, 0);
   const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
-  const visitor = { entry, foe: encounterUnit(entry, d, false) };
+  let y = rand() * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
+  const age = AGES[Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult'];
+  const visitor = { entry, foe: (u => (age.name ? { ...u, name: `${age.name} ${u.name}` } : u))(encounterUnit(entry, age.step, false)) };
   const resident = { entry: threat.entry, foe: threat.foe };
   const hunts = (a, b) => (a.foe.members[0].role || 'attacker') === 'attacker' && isPrey(a.foe.members[0], b.foe.members[0]);
   const [hunter, prey] = hunts(resident, visitor) ? [resident, visitor] : hunts(visitor, resident) ? [visitor, resident] : [];
@@ -618,12 +599,12 @@ export function collectExpedition(s, id, now, choice = {}) {
   if (meets && keepsAway(threat, teamUnits(s, units))) {
     const odds = huntOdds(teamUnits(s, units), threat.foe.members[0]);
     if (odds) {
-      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      const mult = 1 + (threat.step - 1) * LOOT_PER_HEX;
       sighting = {
         id: `sight-${w.seed}-${exp.trip}`, trip: exp.trip, hex: exp.hex, species: threat.entry.species, name: threat.foe.name,
         count: threat.foe.members.length, hunter: odds.hunter, chance: Math.round(odds.chance * 1000) / 1000,
         loot: threat.entry.loot.map(([item, min, max]) => [item, Math.round(min * mult), Math.round(max * mult)]),
-        coins: d * WIN_COINS_PER_HEX * (threat.lair ? 2 : 1),
+        coins: threat.step * WIN_COINS_PER_HEX * (threat.lair ? 2 : 1),
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
@@ -742,34 +723,36 @@ export function collectExpedition(s, id, now, choice = {}) {
     for (const id of exp.members) for (const [item, min, max, chance = 1] of bodyOf(s, id).forage || []) {
       if (rand() < chance) give(item, min + Math.floor(rand() * (max - min + 1)));
     }
+    // (what it brings scales with the strength of what was beaten: AGES)
+    const step = threat.step;
     if (battle && battle.win) {
-      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      const mult = 1 + (step - 1) * LOOT_PER_HEX;
       // a predator that got away badly hurt leaves no carcass
       // (a hunt the team stepped into pays below)
       if (!witness && !battle.foeFled) for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
-      coins += d * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
+      coins += step * WIN_COINS_PER_HEX * (battle.lair ? 2 : 1);
       // a fight that went into a frenzy drops what nothing else gives, more with more of them in it
       if (battle.frenzy.length) {
         const n = battle.frenzyCount;
         for (const drop of FRENZY_DROPS) if (rand() < drop.chance(n)) give(drop.id, roll({ min: drop.min(n), max: drop.max(n) }));
       }
       // equipment that drops is the kind sold in the Shop; forged pieces only come from the Forge
-      if (rand() < GEAR_DROP(d, battle.lair)) {
+      if (rand() < GEAR_DROP(step, battle.lair)) {
         const gear = Object.keys(ITEMS).filter(id => ITEMS[id].kind === 'gear' && ITEMS[id].price);
         give(gear[Math.floor(rand() * gear.length)], 1);
       }
     }
     // what the team won stepping into a hunt it watched: the prey it ran down, the hunter it killed
     if (witnessLoot.length) {
-      const mult = 1 + (d - 1) * LOOT_PER_HEX;
+      const mult = 1 + (step - 1) * LOOT_PER_HEX;
       for (const e of witnessLoot) for (const [item, min, max] of e.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));
-      if (!battle) coins += d * WIN_COINS_PER_HEX;
+      if (!battle) coins += step * WIN_COINS_PER_HEX;
     }
     // an egg of one of the biome's species, for the egg tray
     const lair = !!(battle && battle.win && battle.lair);
-    const kinds = eggKinds(biomeAt(w.seed, h), d, lair);
-    if (kinds.length && rand() < EGG_CHANCE(d, lair) * (scout ? SCOUT.egg : 1)) {
-      const [lo, hi] = EGG_GENES(d, lair);
+    const kinds = eggKinds(biomeAt(w.seed, h), EGG_STEP, lair);
+    if (kinds.length && rand() < EGG_CHANCE(EGG_STEP, lair) * (scout ? SCOUT.egg : 1)) {
+      const [lo, hi] = EGG_GENES(EGG_STEP, lair);
       const egg = {
         id: `egg-${w.seed}-${exp.trip}`, type: pickWeighted(kinds, rand), gen: 1, parents: [], laidAt: now,
         genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
@@ -779,7 +762,7 @@ export function collectExpedition(s, id, now, choice = {}) {
       else foundEgg = { ...egg, lost: true };
     }
     discovered = !w.visited.includes(exp.hex);
-    if (discovered) { coins += d * DISCOVERY_COINS_PER_HEX; w.visited.push(exp.hex); }
+    if (discovered) { coins += Math.min(d, 10) * DISCOVERY_COINS_PER_HEX; w.visited.push(exp.hex); }
     if (coins) earn(s, coins);
   }
   // even a beaten explorer saw the land
@@ -800,7 +783,10 @@ export function collectExpedition(s, id, now, choice = {}) {
 
 // keeps a loaded world inside the rules whatever produced it
 export function cleanWorld(world, s) {
-  const w = world && typeof world === 'object' ? world : newWorld(seedFor(s));
+  let w = world && typeof world === 'object' ? world : newWorld(seedFor(s));
+  // a world made before the map it is played on: the new map starts unexplored (the same seed, the
+  // trips counted on), and teams out on the old one are home
+  if (w.map !== MAP_VERSION) w = { ...newWorld(Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s)), trips: Math.max(0, Math.floor(Number(w.trips) || 0)) };
   const keys = list => [...new Set((Array.isArray(list) ? list : []).filter(k => inWorld(parseKey(k))))];
   const home = newWorld(1);
   const ids = new Set([PLAYER_ID, ...s.hatched.map(b => b.id)]);
@@ -817,6 +803,7 @@ export function cleanWorld(world, s) {
   };
   return {
     seed: Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s),
+    map: MAP_VERSION,
     revealed: keys([...home.revealed, ...keys(w.revealed)]),
     visited: keys([...home.visited, ...keys(w.visited)]),
     trips: Math.max(0, Math.floor(Number(w.trips) || 0)),
@@ -831,7 +818,7 @@ export function cleanWorld(world, s) {
         coins: Math.max(0, Math.floor(Number(x.coins) || 0)),
       })),
     expeditions: (Array.isArray(w.expeditions) ? w.expeditions : [])
-      .filter(e => e && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0)
+      .filter(e => e && inWorld(parseKey(e.hex)) && hexDist(parseKey(e.hex)) > 0 && !isWater(w.seed, parseKey(e.hex)))
       .map(e => ({ ...e, team: cleanTeam(e) }))
       .filter(e => e.team.length)
       .slice(0, EXPEDITION_SLOTS)

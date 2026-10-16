@@ -39,7 +39,7 @@ test('trips that come home can find an egg of the biome, with genes for its dist
     champ.lastFed = t; delete champ.injuredUntil;
     const r = applyAction(s, 'explore', { babyId: 'c', hex: key }, t);
     assert.equal(r.ok, true, r.reason);
-    t += tripMins(key) * 60000;
+    t += tripMins(key, 42) * 60000;
     egg = applyAction(s, 'collectTrip', { id: r.expedition.id }, t).egg;
   }
   assert.ok(egg, 'an egg within 60 trips');
@@ -99,15 +99,16 @@ test('rarer species have higher base totals, and every species has a diet and eg
   }
 });
 
-test('eggs near the nest are common; rare ones need distance; legendaries only lairs', async () => {
+test("eggs come by their biome and rarity, wherever they are found; legendaries only in lairs", async () => {
   const { eggKinds } = await import('../js/world.js');
-  const { SPECIES } = await import('../js/config.js');
-  const rarities = (b, d, lair) => [...new Set(eggKinds(b, d, lair).map(k => SPECIES[k.type].rarity))].sort();
-  assert.deepEqual(rarities('meadow', 1, false), ['Common', 'Starter']);
-  assert.deepEqual(rarities('forest', 2, false), ['Common', 'Starter']);
-  assert.ok(rarities('forest', 5, false).includes('Rare'));
-  assert.ok(!rarities('volcano', 7, false).includes('Legendary'));
-  assert.ok(rarities('volcano', 5, true).includes('Legendary'));
+  const { SPECIES, RARITIES } = await import('../js/config.js');
+  const rarities = (b, lair) => [...new Set(eggKinds(b, 0, lair).map(k => SPECIES[k.type].rarity))].sort();
+  assert.ok(rarities('forest', false).includes('Rare'));
+  assert.ok(!rarities('volcano', false).includes('Legendary'));
+  assert.ok(rarities('volcano', true).includes('Legendary'));
+  // rarer kinds are just rarer
+  const w = Object.fromEntries(eggKinds('forest', 0, false).map(k => [SPECIES[k.type].rarity, k.weight]));
+  assert.ok(w.Common > w.Rare && RARITIES.Common.weight > RARITIES.Rare.weight);
 });
 
 test('a meal uses the favourite food in the inventory; omnivores eat almost anything', async () => {

@@ -347,6 +347,13 @@ export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 // Each player's map is generated from their own seed. Distance from the nest sets how long a trip
 // takes and how much it brings back.
 export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
+// The world: a supercontinent on a rectangle of hexes (cols x rows, pointy-top), north at the top,
+// the nest north rows below the top and west columns from the left. land: the share of it that is
+// land; hills, mountains: the share of the land above those heights; volcanoes: hot spots; rivers:
+// springs high in the wet hills. Near the nest (calm, in hexes) the land is a lowland of ferns.
+// MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
+export const MAP_VERSION = 2;
+export const MAP = { cols: 80, rows: 56, north: 15, west: 40, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 4, rivers: 26, lakes: 6, calm: 3 };
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
@@ -379,7 +386,10 @@ export const PACK_MIN = 2;
 export const PACK_BONUS = 0.05;              // +5% damage for each other member striking with it, +5% dodge for each other one standing
 // how many can get at a foe at once, by its size: the rest wait their turn (and step in when one falls)
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
-export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes away; adults anywhere
+// Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
+// terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
+export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, badlands: 1, forest: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
+export const JUVENILE_RANGE = 6;             // juveniles explore up to this far (in travel cost); adults anywhere
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
@@ -398,11 +408,11 @@ export const WILD = {
 // wild: the animals met there (WILD); eggs: the species whose eggs can be found there
 // (which of them turn up depends on rarity and distance, see RARITIES)
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
-  swamp:    { name: 'Swamp', color: '#6f8f7a', wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', wild: WILD.badlands, eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
-  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', density: 0.5, wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  swamp:    { name: 'Swamp', color: '#6f8f7a', density: 0.45, wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
+  badlands: { name: 'Badlands', color: '#d2b07a', density: 0.3, wild: WILD.badlands, eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
+  volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
 // Wild animals that aren't dinosaurs (fear: the biggest it takes on, as BODY). stats are at full strength; one met d hexes from the nest has
@@ -417,6 +427,20 @@ export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are 
 export const LAIR_MIN_DIST = 3;
 export const LAIR_LEVEL = 1.25;
 export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
+// How old the animal living in a hex is (fixed for the hex): its strength step (as CREATURE_LEVEL takes
+// it: young ones, step 3 or less, are a size smaller) and how often. A lair's Alpha is at its prime and
+// stronger still (LAIR_LEVEL). Its loot and the coins and equipment it brings scale with the step.
+export const AGES = {
+  young: { step: 2, weight: 25, name: 'Young' },
+  old:   { step: 4, weight: 15, name: 'Old' },
+  adult: { step: 6, weight: 45, name: '' },
+  prime: { step: 8, weight: 15, name: 'Prime' },
+};
+export const ALPHA_STEP = 7;
+// eggs are found at this step's genes and chance (no longer by distance: rarer kinds are just rarer)
+export const EGG_STEP = 5;
+// near the nest (hexes): no predators live there
+export const NEST_CALM = 4;
 // size in a fight: each size step bigger than the target hits this much harder, each step smaller
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];

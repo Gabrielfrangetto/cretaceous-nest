@@ -71,7 +71,7 @@ test('a team comes home together: everyone hungry, the downed ones injured', () 
   const key = '7,0';
   const r = applyAction(s, 'explore', { team: [{ kind: 'pack', id: p.id }], hex: key }, T0);
   assert.equal(r.ok, true, r.reason);
-  const back = T0 + tripMins(key) * 60000;
+  const back = T0 + tripMins(key, 42) * 60000;
   const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, back);
   assert.equal(c.ok, true);
   if (c.battle) {
@@ -125,11 +125,11 @@ test('older saves turn a one-explorer trip into a team of one', () => {
 });
 
 test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
-  // a hex 4 away where grown raptors wait (they hunt a Protoceratops; other theropods aren't on their
-  // menu, and young ones nearer the nest only take smaller prey)
+  // a hex where grown raptors wait (they hunt a Protoceratops; other theropods aren't on their menu,
+  // and young ones only take smaller prey)
   const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
     const t = threatAt(42, parseKey(k));
-    return hexDist(parseKey(k)) === 4 && !t.lair && t.id === 'raptor';
+    return hexDist(parseKey(k)) > 4 && !t.lair && t.id === 'raptor' && ['adult', 'prime'].includes(t.age);
   });
   const trips = (team, g) => {
     const s = game(dino('d1', 'proto', g), dino('c1', 'compy', g));
@@ -150,9 +150,9 @@ test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
     return { fights, eggs, mins };
   };
   const without = trips(['d1'], 100), led = trips(['d1', 'c1'], 100);
-  assert.equal(without.mins, tripMins(key));
+  assert.equal(without.mins, tripMins(key, 42));
   // too small to ride: no shorter trip
-  assert.equal(led.mins, tripMins(key));
+  assert.equal(led.mins, tripMins(key, 42));
   assert.ok(led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
   assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });
@@ -198,9 +198,8 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
 });
 
 test('only a won fight that went into a frenzy drops Allosaurus teeth and blood, more with more Allosaurus', () => {
-  // a lair whose animal doesn't keep away from Allosaurus
-  const shows = k => { const e = threatAt(42, parseKey(k)).entry; return !e.species || !['tiny', 'small', 'medium'].includes(SPECIES[e.species].fear); };
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 4 && threatAt(42, parseKey(k)).lair && shows(k));
+  // the nearest lair of an Allosaurus (one goes for its own kind)
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, parseKey(k)).lair && threatAt(42, parseKey(k)).id === 'allo');
   const haul = n => {
     const ids = Array.from({ length: n }, (_, i) => 'a' + i);
     const s = game(...ids.map(id => dino(id, 'allo', 80)));
