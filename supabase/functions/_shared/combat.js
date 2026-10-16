@@ -23,10 +23,15 @@ export function fighterOf(baby, extra = []) {
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
 
-// a dodge against an attacker: smaller targets are harder to hit (SIZE_DODGE a size step)
-export const dodgeVs = (dodge, size, attSize) => {
+// a dodge against an attacker. Speed against speed: from the share of agility the target has of the
+// two (agi / (agi + attacker's)), two equally quick ones keep half their dodge and hit each other as
+// readily as two slow ones; a target three times as quick keeps all of it, one a third as quick
+// none. Then smaller targets are harder to hit (SIZE_DODGE a size step).
+export const dodgeVs = (dodge, agi, size, attAgi, attSize) => {
+  const share = agi > 0 ? agi / (agi + Math.max(0, attAgi || 0)) : 0;
+  const quick = Math.max(0, Math.min(1, 2 * share - 0.5));
   const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
-  return steps ? Math.min(SIZE_DODGE_MAX, dodge + SIZE_DODGE * steps) : Math.min(DODGE_MAX, dodge);
+  return steps ? Math.min(SIZE_DODGE_MAX, dodge * quick + SIZE_DODGE * steps) : Math.min(DODGE_MAX, dodge * quick);
 };
 
 // how much a wound bleeds when an attacker of attSize opens it on a target of size
@@ -103,7 +108,7 @@ export function fight(a, b, rand) {
   const log = [];
   for (let i = 0; i < FIGHT_SAFETY && hp.a > 0 && hp.b > 0; i++) {
     const att = side[turn], other = turn === 'a' ? 'b' : 'a', def = side[other];
-    if (rand() < dodgeVs(def.dodge, def.size, att.size)) log.push({ by: turn, miss: true });
+    if (rand() < dodgeVs(def.dodge, def.agi, def.size, att.agi, att.size)) log.push({ by: turn, miss: true });
     else {
       const dmg = rounded(hitOf(att, def, 0.75 + rand() * 0.5));
       hp[other] = Math.max(0, hp[other] - dmg);
@@ -256,7 +261,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       const held = extra.slash || extra.hold;
       const member = held ? extra.member : alive[Math.floor(rand() * alive.length)];
       // a pinned or held foe can't dodge
-      if (!held && !pinned(member) && rand() < dodgeVs(unitPower(foe, foeHp).dodge, foe.members[member].size, biggest(units[who]))) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
+      if (!held && !pinned(member) && rand() < dodgeVs(unitPower(foe, foeHp).dodge, unitPower(foe, foeHp).agi, foe.members[member].size, unitPower(units[who], hp[who]).agi, biggest(units[who]))) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
       // a tail club swung back (a counter or a charge)
       const swung = units[who].members[0].club && (extra.counter || extra.charge);
       // a tail club swung back lands harder than a bite
@@ -386,7 +391,7 @@ export function teamFight(units, foe, rand, opts = {}) {
           // clinging to the foe's body, out of its reach
           const clung = latches.get(to);
           if (clinging.has(to) || (clung && clung.mode === 'cling' && clung.holder === member)) { log.push({ by: 'foe', to, member, dmg: 0, left: hp[to][member], immune: true }); continue; }
-          if (rand() < dodgeVs(unitPower(units[to], hp[to]).dodge, units[to].members[member].size, biggest(foe))) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
+          if (rand() < dodgeVs(unitPower(units[to], hp[to]).dodge, unitPower(units[to], hp[to]).agi, units[to].members[member].size, unitPower(foe, foeHp).agi, biggest(foe))) { log.push({ by: 'foe', to, member, miss: true }); afterAttack(to); continue; }
           // a defender caught out of its guard by its own charge takes more
           const open = exposed.delete(to) ? CHARGE_EXPOSED : 1;
           const roll = 0.75 + rand() * 0.5;
