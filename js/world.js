@@ -11,7 +11,7 @@ import {
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
-import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees } from './combat.js';
+import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey } from './combat.js';
 import { hashId } from './util.js';
 
 // ---------- hex geometry ----------
@@ -297,10 +297,18 @@ export function encounterChance(threat, units, biome, scout) {
 
 // ---------- keeping away and hunting ----------
 const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
+// a wild predator that has nothing to hunt in this team (fighters, from teamUnits): all of it is out of
+// its food chain (isPrey), too big or too well armored for it
+export function passesBy(threat, team) {
+  const pred = threat.foe.members[0];
+  return (pred.role || 'attacker') === 'attacker' && !team.some(u => u.members.some(m => isPrey(pred, m)));
+}
 // a wild animal that doesn't show itself to this team (fighters, from teamUnits): a prey animal always
 // does; others keep away from
 // anything bigger than its fear, and a predator smaller than a sail's owner (Spinosaurus) keeps away from it
 export function keepsAway(threat, team) {
+  // a predator with nothing in the team it could hunt passes it by
+  if (passesBy(threat, team)) return true;
   const sp = threat.entry.species && SPECIES[threat.entry.species];
   if (!sp || !sp.fear) return false;
   // prey animals (noncombatants) run from any team: they can only be spotted and hunted
@@ -328,7 +336,7 @@ export function sailBackOff(threat, team, biome) {
 export function huntOdds(team, prey) {
   let best = null;
   team.forEach((u, i) => {
-    const able = u.members.filter(m => m.type && SPECIES[m.type] && SPECIES[m.type].hunt && sizeRank(m.size) >= sizeRank(prey.size));
+    const able = u.members.filter(m => m.type && SPECIES[m.type] && SPECIES[m.type].hunt && sizeRank(m.size) >= sizeRank(prey.size) && isPrey({ ...m, fear: undefined }, prey));
     if (!able.length) return;
     const top = able.reduce((b, m) => m.agi + SPECIES[m.type].hunt > b.agi + SPECIES[b.type].hunt ? m : b);
     const score = (top.agi + SPECIES[top.type].hunt) * (1 + PACK_BONUS * (u.pack ? u.members.length - 1 : 0));
@@ -421,7 +429,7 @@ export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
   let slow = null;
   team.forEach((u, i) => u.members.forEach((f, j) => {
     const id = units[i].members[j];
-    if ((id === PLAYER_ID && sc.mounted) || top - sizeRank(f.size) > CHASE.maxSteps) return;
+    if ((id === PLAYER_ID && sc.mounted) || top - sizeRank(f.size) > CHASE.maxSteps || !isPrey(foe.members[0], f)) return;
     if (!slow || flee(f) < flee(slow.fighter)) slow = { id, unit: i, fighter: f };
   }));
   if (!slow) return null;
@@ -463,7 +471,7 @@ export function chaseOf(team, foe) {
   const flee = f => f.agi * (f.zigzag ? ZIGZAG.flee : 1), top = sizeRank(quickest(foe).size);
   let slow = null;
   team.forEach((u, i) => u.members.forEach((f, j) => {
-    if (f.type && top - sizeRank(f.size) <= CHASE.maxSteps && (!slow || flee(f) < flee(slow.fighter))) slow = { unit: i, member: j, fighter: f };
+    if (f.type && top - sizeRank(f.size) <= CHASE.maxSteps && isPrey(foe.members[0], f) && (!slow || flee(f) < flee(slow.fighter))) slow = { unit: i, member: j, fighter: f };
   }));
   if (!slow) return null;
   const f = slow.fighter;

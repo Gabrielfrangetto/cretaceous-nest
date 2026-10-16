@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, encounterChance,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -144,7 +144,7 @@ function threatHTML(h, units, scout) {
     const hunt = huntOdds(units, th.foe.members[0]);
     return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
-    <p class="hint">It keeps away from a team like yours: there will be no fight.</p>
+    <p class="hint">${passesBy(th, units) ? 'Nothing in your team is prey to it: it will pass you by.' : 'It keeps away from a team like yours: there will be no fight.'}</p>
     <p class="hint">${hunt ? `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to spot it at a distance; ${esc(hunt.hunter)} would catch one about ${Math.round(hunt.chance * 100)}% of the time.` : 'Nobody in this team could hunt it.'}</p>
   </div>`;
   }

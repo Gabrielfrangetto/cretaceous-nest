@@ -393,11 +393,11 @@ export const BIOMES = {
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
-// Wild animals that aren't dinosaurs. stats are at full strength; one met d hexes from the nest has
+// Wild animals that aren't dinosaurs (fear: the biggest it takes on, as BODY). stats are at full strength; one met d hexes from the nest has
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
 // art, recoloured with the CSS filter tint.
 export const CREATURES = {
-  deinosuchus:  { name: 'Deinosuchus', size: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
+  deinosuchus:  { name: 'Deinosuchus', size: 'huge', fear: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
 };
 // (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
 export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge

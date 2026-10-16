@@ -106,7 +106,7 @@ export function creatureFighter(id, dist, lair = false) {
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
   const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
   return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, res: stats.res, power, level, size,
-    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker' };
+    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear };
 }
 
 // log: [{ by: 'a' | 'b', miss } | { by, dmg, left }], left being the target's health after the blow
@@ -155,12 +155,19 @@ const roleOf = u => u.members[0].role || 'attacker';
 export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
 // a unit that runs from this foe: the player never does
 export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
+// The food chain: what a wild predator hunts. Only an animal no bigger than what it stands up to (its
+// fear) that it can hurt at all; anything else it passes by (and anything bigger it runs from).
+export const isPrey = (pred, m) => (!pred.fear || sizeRank(m.size) <= sizeRank(pred.fear))
+  && !(m.plated && sizeRank(pred.size) <= sizeRank(ARMOR.ignores)) && hitOf(pred, m, 1.25) > 0;
+const isPredator = foe => (foe.members[0].role || 'attacker') === 'attacker';
 // which units flee before the fight: those afraid of it, and every noncombatant (prey animals: the
-// urge to run wins out, trained or not); all of them when nobody left would fight
+// urge to run wins out, trained or not); all of them when nobody left would fight, or, against a
+// predator, when nobody left is prey to it (it goes after those who ran, or passes by)
 export function whoFlees(units, foe) {
   const fled = units.flatMap((u, i) => fears(u, foe) || roleOf(u) === 'noncombatant' ? [i] : []);
   const stay = units.flatMap((_, i) => fled.includes(i) ? [] : [i]);
-  const nobody = !stay.some(i => roleOf(units[i]) !== 'noncombatant');
+  const hunted = i => !isPredator(foe) || units[i].members.some(m => isPrey(foe.members[0], m));
+  const nobody = !stay.some(i => roleOf(units[i]) !== 'noncombatant' && hunted(i));
   return { fled: nobody ? units.map((_, i) => i) : fled, escaped: nobody };
 }
 
@@ -312,6 +319,12 @@ export function teamFight(units, foe, rand, opts = {}) {
   const frustrated = new Map();
   // the hunkered-down ones each wild predator gave up on: it goes for anyone else first
   const ignored = new Map();
+  // a wild predator never goes for what isn't prey to it (out of its food chain)
+  if (isPredator(foe)) {
+    const out = new Set();
+    units.forEach((u, v) => u.members.forEach((m, j) => { if (!isPrey(foe.members[0], m)) out.add(E(0, v, j)); }));
+    if (out.size) ignored.set(0, out);
+  }
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
@@ -622,7 +635,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         const ign = ignored.get(u) || new Set();
         const open = (x, y) => roomOf(x, y) > 0 && !(s === 1 && ign.has(E(t, x, y)));
         const anyOpen = (o.to !== undefined ? [o.to] : active[t]).some(x => active[t].includes(x) && alive(t, x).some(y => open(x, y)));
-        const usable = (x, y) => anyOpen ? open(x, y) : roomOf(x, y) > 0;
+        const usable = (x, y) => anyOpen ? open(x, y) : roomOf(x, y) > 0 && !(s === 1 && ign.has(E(t, x, y)));
         const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => usable(x, y)));
         if (!targets.length) continue;
         // camouflaged in this biome, it is hard to pick out
@@ -742,6 +755,11 @@ export function teamFight(units, foe, rand, opts = {}) {
       else crouched.delete(E(s, u, m));
     }
     if (!unit.pack && crouched.has(E(s, u, 0))) return;
+    // a wild predator with no prey left in reach leaves: the rest is out of its food chain
+    if (s === 1 && roleOf(unit) === 'attacker') {
+      const ign = ignored.get(u) || new Set();
+      if (!active[t].some(v => alive(t, v).some(m => !ign.has(E(t, v, m))))) { runOff(s, u, { fled: true, passed: true }); return; }
+    }
     // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it
     if (s === 1 && roleOf(unit) === 'attacker') {
       const left = hp[s][u].reduce((a, h) => a + h, 0) / unitHp(unit);

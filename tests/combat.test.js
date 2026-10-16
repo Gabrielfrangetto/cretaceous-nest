@@ -159,7 +159,8 @@ test('who is afraid runs before the fight: a Gallimimus leaves the player alone 
 });
 
 test('a defender charges now and then, otherwise holds its ground and strikes back', () => {
-  const foe = encounterUnit({ species: 'dilo', loot: [] }, 5);
+  // (an Allosaurus: a Triceratops is prey to it, a Dilophosaurus would leave it alone)
+  const foe = encounterUnit({ species: 'allo', loot: [] }, 5);
   const trike = unitOf('t', [fighterOf(dino('t', 50, 'trike'))]);
   let charges = 0, counters = 0;
   for (let i = 0; i < 20; i++) {
@@ -170,7 +171,8 @@ test('a defender charges now and then, otherwise holds its ground and strikes ba
 });
 
 test('the foe goes for defenders more and noncombatants less', () => {
-  const foe = encounterUnit({ species: 'dilo', loot: [] }, 3);
+  // (a grown one: a young Dilophosaurus is too small to get through a Scelidosaurus' scutes)
+  const foe = encounterUnit({ species: 'dilo', loot: [] }, 5);
   const hits = { attacker: 0, defender: 0, noncombatant: 0 };
   for (let i = 0; i < 40; i++) {
     const team = [unitOf('a', [fighterOf(dino('a', 50, 'dilo'))]), unitOf('d', [fighterOf(dino('d', 50, 'scelido'))]), unitOf('n', [fighterOf(dino('n', 50, 'para'))])];
@@ -356,10 +358,14 @@ test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pi
 });
 
 test("an Ankylosaurus' tail club kills anything small it lands on", () => {
+  // raptors never go for an Ankylosaurus (it isn't prey to them): they go for the player beside it, and
+  // its charges crush them
   const ankylo = () => unitOf('a', [{ ...fighterOf(dino('a', 50, 'ankylo')), fear: undefined }]);
+  const me = () => unitOf('You', [fighterOf(freshState().player)]);
   let swings = 0, landed = 0, kills = 0;
-  for (let i = 0; i < 40; i++) {
-    for (const e of teamFight([ankylo()], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 5), seededRand('c' + i)).log) {
+  for (let i = 0; i < 80; i++) {
+    for (const e of teamFight([ankylo(), me()], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 5), seededRand('c' + i)).log) {
+      assert.ok(!(e.by === 'foe' && e.to === 0 && e.dmg !== undefined));
       if (e.by !== 0 || !(e.counter || e.charge)) continue;
       swings++;
       // whatever it lands on dies, crushed outright or from the blow itself
@@ -585,7 +591,9 @@ test('an Argentinosaurus only strikes back: a slow stomp that crushes, a heavy t
   const giant = () => unitOf('g', [{ ...fighterOf(dino('g', 60, 'argent')), fear: undefined }]);
   const seen = { stomps: 0, crushed: 0, swipes: 0, own: 0, neck: 0, lame: 0 };
   for (let i = 0; i < 40; i++) {
-    for (const foe of [wildFighter('rex', 6), encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), wildFighter('allo', 6)]) {
+    // (nothing hunts a grown giant: these are made desperate enough to try, to see what happens)
+    for (const foe0 of [wildFighter('rex', 6), encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), wildFighter('allo', 6)]) {
+      const foe = foe0.members ? { ...foe0, members: foe0.members.map(f => ({ ...f, fear: undefined })) } : { ...foe0, fear: undefined };
       const r = teamFight([giant()], foe, seededRand('ar' + foe.name + i));
       for (const e of r.log) {
         if (e.by === 0 && e.dmg !== undefined || e.by === 0 && e.miss) {
@@ -1050,17 +1058,41 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   assert.ok((forced || preyCaught) && away, JSON.stringify({ forced, preyCaught, away }));
 });
 
-test('armor is beyond anything small or tiny: raptors do nothing to a Scelidosaurus and give up on it', () => {
-  let gaveUp = 0;
+test('the food chain: raptors pass an armored Scelidosaurus by, go for the player beside it, and armor is beyond them anyway', async () => {
+  const { passesBy, teamUnits } = await import('../js/world.js');
+  const { isPrey } = await import('../js/combat.js');
+  const raptors = encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6);
+  const sc = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
+  assert.equal(isPrey(raptors.members[0], sc().members[0]), false);
+  // alone, it isn't prey to them: they pass it by
+  const s = game(dino('s', 60, 'scelido'));
+  const team = teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }]);
+  assert.equal(passesBy({ entry: { species: 'raptor' }, foe: raptors }, team), true);
+  // with the player beside it they go for the player only
+  const me = unitOf('You', [fighterOf(freshState().player)]);
   for (let i = 0; i < 20; i++) {
-    const sc = unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
-    const r = teamFight([sc], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), seededRand('arm' + i));
-    for (const e of r.log) if (e.by === 'foe' && e.to === 0 && !e.miss && e.dmg !== undefined) { assert.equal(e.dmg, 0); assert.ok(e.shrugged || e.immune); }
-    assert.equal(r.hp[0][0], sc.members[0].hp);
-    if (r.win && r.foeFled) gaveUp++;
+    const r = teamFight([sc(), me], raptors, seededRand('arm' + i));
+    assert.ok(!r.log.some(e => e.by === 'foe' && e.to === 0 && e.dmg !== undefined));
   }
-  assert.ok(gaveUp > 0);
-  // something bigger still gets through
-  const allo = teamFight([unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }])], wildFighter('allo', 5), seededRand('arm-a'));
-  assert.ok(allo.log.some(e => e.by === 'foe' && e.dmg > 0));
+  // and armor stays beyond anything small even when one does strike it
+  const desperate = { ...raptors, members: raptors.members.map(f => ({ ...f, fear: undefined, plated: false })) };
+  const blow = fighterOf(dino('r', 60, 'raptor'));
+  assert.ok(blow);
+  const r = teamFight([sc()], { ...desperate, members: desperate.members }, seededRand('arm-x'));
+  for (const e of r.log) if (e.by === 'foe' && e.dmg !== undefined) assert.equal(e.dmg, 0);
+});
+
+test('the food chain: a predator passes by what it can neither hunt nor hurt, and only chases its prey', async () => {
+  const { passesBy, teamUnits, chaseOf } = await import('../js/world.js');
+  const s = game(dino('a', 60, 'argent'), dino('k', 60, 'ankylo'), dino('h', 60, 'hypsi'));
+  const of = ids => teamUnits(s, ids.map(id => ({ kind: 'dino', id, members: [id] })));
+  // a Deinosuchus doesn't go for a grown Argentinosaurus; raptors don't go for an Ankylosaurus
+  assert.equal(passesBy({ entry: { creature: 'deinosuchus' }, foe: encounterUnit({ creature: 'deinosuchus' }, 6) }, of(['a'])), true);
+  const raptors = encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 6);
+  assert.equal(passesBy({ entry: { species: 'raptor' }, foe: raptors }, of(['k'])), true);
+  // with a Hypsilophodon along they do come: it runs, and it is the one they chase (never the Ankylosaurus)
+  assert.equal(passesBy({ entry: { species: 'raptor' }, foe: raptors }, of(['k', 'h'])), false);
+  const r = teamFight(of(['k', 'h']), raptors, seededRand('fc'));
+  assert.equal(r.escaped, true);
+  assert.equal(chaseOf(of(['k', 'h']), raptors).unit, 1);
 });
