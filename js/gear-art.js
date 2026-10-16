@@ -25,14 +25,14 @@ export const ANCHORS = {
   },
 };
 // species without anchors of their own yet start from a species with a similar body
-const LIKE_BUILD = { theropod: 'raptor', hadrosaur: 'hypa', ceratopsian: 'proto', armored: 'proto', sauropod: 'hypa' };
+const LIKE_BUILD = { theropod: 'raptor', ornithopod: 'hypa', pachycephalosaur: 'hypa', ceratopsian: 'proto', armored: 'proto', sauropod: 'hypa' };
 for (const [type, sp] of Object.entries(SPECIES)) {
   if (!ANCHORS[type]) ANCHORS[type] = JSON.parse(JSON.stringify(ANCHORS[LIKE_BUILD[sp.build] || 'proto']));
 }
 
 
 // Hand-drawn pictures of the equipment as worn (transparent PNGs drawn facing right). One picture
-// for every build, or one per build: { theropod: '...', hadrosaur: '...', ceratopsian: '...' }.
+// for every build, or one per build: { theropod: '...', ornithopod: '...', ceratopsian: '...' }.
 // A build with no picture of its own uses `all` if given, otherwise the item's icon.
 export const GEAR_ART = {
   leaf_crown: 'sprites/gear/leaf_crown.png',

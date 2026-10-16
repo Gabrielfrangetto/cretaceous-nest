@@ -21,16 +21,16 @@ const SPECIES_LIST = {
   // common
   coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
              'Banded Egg', '#efd9c8', '#a4553b', 'stripes', '#c27a52', '#4a4640', 'Dash', 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.'),
-  hypsi:   S_('Hypsilophodon', 'hadrosaur', 'Starter', ['leaf'], { str: 45, agi: 55, vit: 50, res: 50 },
+  hypsi:   S_('Hypsilophodon', 'ornithopod', 'Starter', ['leaf'], { str: 45, agi: 55, vit: 50, res: 50 },
              'Mossy Egg', '#d9e3c6', '#4f7a4a', 'stripes', '#6f9b6a', '#c9d38a', 'Hop', 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.'),
   // uncommon
   proto:   S_('Protoceratops', 'ceratopsian', 'Starter', ['leaf'], { str: 45, agi: 30, vit: 50, res: 75 },
              'Spotted Egg', '#eadcbf', '#8b6a44', 'spots', '#c79d63', '#d9662f', 'Popcorn', 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.'),
   galli:   S_('Gallimimus', 'theropod', 'Uncommon', ['leaf', 'insect', 'raw_egg', 'meat'], { str: 40, agi: 95, vit: 50, res: 45 },
              'Speedy Egg', '#ece4d2', '#8a7a5a', 'speckle', '#c8a56a', '#6f5a3a', 'Zippy', 'Gallimimus was built like an ostrich and may have run at more than 40 km/h. It ate almost anything.'),
-  hypa:    S_('Hypacrosaurus', 'hadrosaur', 'Uncommon', ['leaf'], { str: 45, agi: 50, vit: 85, res: 50 },
+  hypa:    S_('Hypacrosaurus', 'ornithopod', 'Uncommon', ['leaf'], { str: 45, agi: 50, vit: 85, res: 50 },
              'Striped Egg', '#d6e2cc', '#5c7b4f', 'stripes', '#78a463', '#d8bd3e', 'Sprout', 'Teeth from Hypacrosaurus embryos suggest almost 6 months inside the egg.'),
-  pachy:   S_('Pachycephalosaurus', 'hadrosaur', 'Uncommon', ['leaf'], { str: 80, agi: 50, vit: 55, res: 45 },
+  pachy:   S_('Pachycephalosaurus', 'pachycephalosaur', 'Uncommon', ['leaf'], { str: 80, agi: 50, vit: 55, res: 45 },
              'Domed Egg', '#e4d8c4', '#7a5a8a', 'spots', '#9a7fae', '#e3c9a0', 'Bonk', 'Pachycephalosaurus had a skull dome up to 25 cm thick, perhaps for head-butting rivals.'),
   // rare
   raptor:  S_('Velociraptor', 'theropod', 'Rare', ['meat'], { str: 65, agi: 100, vit: 50, res: 45 },
@@ -39,7 +39,7 @@ const SPECIES_LIST = {
              'Plated Egg', '#dfe0c8', '#8a5a3a', 'stripes', '#7e9a6a', '#d0663a', 'Spike', 'Stegosaurus swung a tail tipped with four long spikes, and its brain was about the size of a walnut.'),
   bary:    S_('Baryonyx', 'theropod', 'Rare', ['fish', 'meat'], { str: 90, agi: 55, vit: 65, res: 50 },
              'River Egg', '#d4e0de', '#3f6a6a', 'speckle', '#6a8a7a', '#c9b06a', 'Hook', 'Baryonyx had a huge hooked claw on each thumb and a long snout for catching fish.'),
-  para:    S_('Parasaurolophus', 'hadrosaur', 'Rare', ['leaf'], { str: 50, agi: 55, vit: 100, res: 55 },
+  para:    S_('Parasaurolophus', 'ornithopod', 'Rare', ['leaf'], { str: 50, agi: 55, vit: 100, res: 55 },
              'Horned Egg', '#e6dccb', '#a0553a', 'stripes', '#c97a4a', '#e8d27a', 'Toot', 'Parasaurolophus had a long hollow head crest that may have worked like a trumpet.'),
   // epic
   trike:   S_('Triceratops', 'ceratopsian', 'Epic', ['leaf'], { str: 90, agi: 35, vit: 70, res: 90 },
@@ -197,7 +197,7 @@ export const ROLES = {
 export const SCOUT = { trip: 0.75, encounter: 0.5, egg: 1.5 };
 
 // Body builds: species of one build share equipment art (each sprite still gets its own anchors).
-export const BUILDS = { theropod: 'Theropod', hadrosaur: 'Hadrosaur', ceratopsian: 'Ceratopsian', armored: 'Armored', sauropod: 'Sauropod' };
+export const BUILDS = { theropod: 'Theropod', ornithopod: 'Ornithopod', pachycephalosaur: 'Pachycephalosaur', ceratopsian: 'Ceratopsian', armored: 'Armored', sauropod: 'Sauropod' };
 
 export const SEX = { m: { word: 'Male', sym: '♂' }, f: { word: 'Female', sym: '♀' } };
 
