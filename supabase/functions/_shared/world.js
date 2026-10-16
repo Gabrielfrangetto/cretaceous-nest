@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -389,6 +389,26 @@ export function tripStandoff(s, id) {
 const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
 // whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
 const runnersSpot = (s, members, rand) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye);
+// a predator giving chase: its quickest runs down prey (a fighter) this often (CHASE)
+const quickest = foe => foe.members.reduce((a, f) => (f.agi > a.agi ? f : a));
+export const catchChance = (foe, prey) => {
+  const hunter = quickest(foe), agi = prey.agi * (prey.zigzag ? ZIGZAG.flee : 1);
+  return hunter.agi / (hunter.agi + CHASE.lead * agi);
+};
+// When a whole team (fighters, from teamUnits) runs from a predator, the one it gives chase to: the
+// slowest to get away, never the player. null when it won't chase (it isn't a predator) or nobody can be
+// caught. { unit, member, fighter, chance, cornered: the unit it fights alone, cornered }
+export function chaseOf(team, foe) {
+  if (foe.members[0].role && foe.members[0].role !== 'attacker') return null;
+  const flee = f => f.agi * (f.zigzag ? ZIGZAG.flee : 1), top = sizeRank(quickest(foe).size);
+  let slow = null;
+  team.forEach((u, i) => u.members.forEach((f, j) => {
+    if (f.type && top - sizeRank(f.size) <= CHASE.maxSteps && (!slow || flee(f) < flee(slow.fighter))) slow = { unit: i, member: j, fighter: f };
+  }));
+  if (!slow) return null;
+  const f = slow.fighter;
+  return { ...slow, chance: catchChance(foe, f), cornered: unitOf(f.name, [{ ...f, role: 'defender', fear: undefined }]) };
+}
 // whether a team's watchful ones (Hypsilophodon) see a predator first: more eyes, likelier (EYES)
 export const eyesChance = (s, members) => Math.min(EYES.max, EYES.perOne * members.filter(id => bodyOf(s, id).eyes).length);
 // how a group that stood its ground is told: its species, how many, and whether it's a herd or a pack
@@ -442,9 +462,9 @@ export function collectExpedition(s, id, now, choice = {}) {
     const ids = units.flatMap(u => u.members), fighters = teamUnits(s, units).flatMap(u => u.members);
     const runners = fighters.map((f, i) => ({ f, id: ids[i] })).filter(x => x.f.type && SPECIES[x.f.type].runner);
     const slow = runners.reduce((a, x) => (!a || x.f.agi < a.f.agi ? x : a), null);
-    const hunter = threat.foe.members.reduce((a, f) => (f.agi > a.agi ? f : a));
+    const hunter = quickest(threat.foe);
     let caught = null;
-    if (slow && fightRand() < hunter.agi / (hunter.agi + 2 * slow.f.agi)) {
+    if (slow && fightRand() < catchChance(threat.foe, slow.f)) {
       caught = explorerOf(s, slow.id);
       // caught: the bigger the predator, the likelier it doesn't get away
       const step = SIZE_ORDER.indexOf(hunter.size) - SIZE_ORDER.indexOf(slow.f.size);
@@ -460,13 +480,23 @@ export function collectExpedition(s, id, now, choice = {}) {
     standoff = { ...standoffOf(threat), fought: false };
   } else if (meets) {
     if (standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
-    const team = teamUnits(s, units), foe = threat.foe;
-    const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h) });
+    const foe = threat.foe, opts = { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h) };
+    // who fought: the team, or the one a predator ran down when everyone ran
+    let team = teamUnits(s, units), fought = units, cornered = null;
+    let result = teamFight(team, foe, fightRand, opts);
+    const chased = result.escaped ? chaseOf(team, foe) : null;
+    if (chased && fightRand() < chased.chance) {
+      // it caught the slowest: cornered, it fights for its life alone
+      cornered = units[chased.unit].members[chased.member];
+      fought = [{ kind: 'dino', id: cornered, members: [cornered] }];
+      team = [chased.cornered];
+      result = teamFight(team, foe, fightRand, opts);
+    }
     // a dinosaur that went down is critically injured (the player just injured); the rest are
     // bruised by how much health they lost, and everyone is injured when the team loses
     const injured = [];
     // those who ran before the fight come home unhurt
-    units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
+    fought.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const left = result.hp[i][j] / result.teamHps[i][j];
       // brought down: killed outright, or it may not survive (its resistance), or comes home critical
       if (left <= 0 && id !== PLAYER_ID) {
@@ -488,21 +518,22 @@ export function collectExpedition(s, id, now, choice = {}) {
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }));
     // a frill keeps the damage it took until it is mended
-    units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
+    fought.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const f = result.frill[i] && result.frill[i][j];
       if (f !== null && f !== undefined && !dead.includes(id)) explorerOf(s, id).frill = f;
     }));
     battle = {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
-      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: result.teamHps[i], power: t.members.reduce((x, m) => x + m.power, 0),
+      team: team.map((t, i) => ({ name: t.name, kind: fought[i].kind, members: fought[i].members, hp: result.teamHps[i], power: t.members.reduce((x, m) => x + m.power, 0),
         ...(t.members.some(m => m.frill !== undefined) ? { frill: t.members.map(m => m.frill ?? null) } : {}) })),
-      ...result, injured,
+      ...result, injured, ...(cornered ? { cornered } : {}),
       // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
       frenzyCount: exp.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length,
     };
   }
   // a team that ran off still looked around the hex, but the animal's loot is not theirs
-  const won = !battle || battle.win || battle.escaped;
+  // (the others got away from one that ran one of them down)
+  const won = !battle || battle.win || battle.escaped || !!battle.cornered;
 
   let coins = 0, discovered = false, foundEgg = null;
   if (won) {

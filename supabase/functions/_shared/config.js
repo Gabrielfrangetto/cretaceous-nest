@@ -566,7 +566,12 @@ export const RUNNER = { trip: 0.5, eye: 0.25 };
 export const SAIL = { land: 0.35, water: 0.55, ratio: [0.5, 1.5], max: 0.85 };
 // zigzag running (Hypsilophodon): this much more dodge a size step the attacker is bigger (within the
 // usual cap), and a hunter needs this much more to run one down
-export const ZIGZAG = { perStep: 0.06, hunt: 1.3 };
+export const ZIGZAG = { perStep: 0.06, hunt: 1.3, flee: 1.5 };
+// a predator everyone ran from gives chase to the slowest: it runs it down hunter agility /
+// (hunter agility + lead × its agility) of the time (a zigzag runner counts ZIGZAG.flee as quick),
+// and the one caught is cornered and fights for its life. It doesn't bother with prey more than
+// maxSteps sizes smaller than itself (a Tyrannosaurus won't run after a Compsognathus).
+export const CHASE = { lead: 2, maxSteps: 3 };
 // many eyes (Hypsilophodon): each one in a team sees a predator first this often (up to max); the
 // group scatters in zigzags and nobody is caught
 export const EYES = { perOne: 0.05, max: 0.3 };

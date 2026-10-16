@@ -921,3 +921,36 @@ test('Hypsilophodon: zigzags away from bigger attackers, forages on any trip, an
   }
   assert.ok(scattered > 0 && leaves > 0, JSON.stringify({ scattered, leaves }));
 });
+
+test('a predator everyone ran from gives chase: it may corner the slowest, who fights for its life; zigzags help get away', async () => {
+  const { chaseOf, catchChance, teamUnits } = await import('../js/world.js');
+  const s = game(dino('h', 60, 'hypsi'), dino('p', 60, 'psitta'));
+  const raptors = wildFighter('raptor', 5);
+  const foe = { name: 'Velociraptor', pack: false, members: [raptors] };
+  const hTeam = teamUnits(s, [{ kind: 'dino', id: 'h', members: ['h'] }]);
+  const h = hTeam[0].members[0];
+  // zigzags make it harder to run down
+  assert.ok(catchChance(foe, h) < catchChance(foe, { ...h, zigzag: false }));
+  // the slowest is chased; a defender doesn't chase at all
+  const both = teamUnits(s, [{ kind: 'dino', id: 'h', members: ['h'] }, { kind: 'dino', id: 'p', members: ['p'] }]);
+  assert.equal(chaseOf(both, foe).unit, 1);
+  assert.equal(chaseOf(both, { ...foe, members: [{ ...raptors, role: 'defender' }] }), null);
+  // a Tyrannosaurus won't run after a Compsognathus
+  const tiny = teamUnits(game(dino('c', 60, 'compy')), [{ kind: 'dino', id: 'c', members: ['c'] }]);
+  assert.equal(chaseOf(tiny, { name: 'T. rex', pack: false, members: [wildFighter('rex', 6)] }), null);
+  assert.ok(chaseOf(tiny, foe));
+  // trips: a lone Psittacosaurus into a raptor lair is sometimes run down and cornered
+  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  let cornered = 0, away = 0;
+  for (let trip = 0; trip < 40; trip++) {
+    const s2 = game(dino('p', 60, 'psitta'));
+    s2.world.trips = trip;
+    const c = trip0(s2, 'p', lair);
+    if (c.battle && c.battle.cornered) {
+      cornered++;
+      assert.equal(c.battle.cornered, 'p');
+      assert.equal(c.battle.escaped, false);
+    } else if (c.battle && c.battle.escaped) away++;
+  }
+  assert.ok(cornered > 0 && away > 0, JSON.stringify({ cornered, away }));
+});
