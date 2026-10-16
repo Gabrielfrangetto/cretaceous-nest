@@ -1,7 +1,7 @@
 // Packs: dinosaurs of a pack-hunting species grouped to go out as one unit (PACK_LIMITS in config.js).
 // Pure rules on the state passed in, shared by the browser and the server.
 // s.packs = [{ id, type, name, members: [babyId] }]
-import { PACK_LIMITS, PACK_MIN, SPECIES } from './config.js';
+import { PACK_LIMITS, PACK_MIN, SPECIES, HERDS } from './config.js';
 import { stageOf } from './economy.js';
 import { isAway } from './world.js';
 
@@ -25,7 +25,7 @@ export function packProblem(s, type, members, packId = null) {
   return null;
 }
 
-const cleanName = (name, type) => String(name ?? '').trim().slice(0, 24) || `${SPECIES[type].species} pack`;
+const cleanName = (name, type) => String(name ?? '').trim().slice(0, 24) || `${SPECIES[type].species} ${HERDS.includes(type) ? 'herd' : 'pack'}`;
 
 export function formPack(s, { type, members, name }) {
   const problem = packProblem(s, type, members);

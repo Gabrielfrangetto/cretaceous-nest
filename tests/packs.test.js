@@ -282,3 +282,7 @@ test('a pack or herd that loses half its members runs off', () => {
   const lone = teamFight([pack('coelo', 15, 50)], wildFighter('proto', 4), seededRand('lone'));
   assert.equal(lone.foeRouted, false);
 });
+
+test('Parasaurolophus can be formed into a herd of up to six', () => {
+  assert.equal(PACK_LIMITS.para, 6);
+});

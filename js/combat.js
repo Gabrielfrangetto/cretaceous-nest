@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -80,7 +80,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: !!sp.armor, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -217,6 +217,8 @@ function withRoles(u, swamp) {
 //   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
 //   A giant's blow back adds stomp (a kill when it lands on anything short of colossal: stomped) or
 //   swipe (its tail).
+//   A blow that would have brought down a Parasaurolophus may add escaped: it ran (left 0 for the fight;
+//   one of ours comes home with 1).
 //   { by, alert: true } | { by: 'foe', alert: true }: a Parasaurolophus' call warned its side of a
 //   predator (alerted: 'team' | 'foe'): readied, it acts first. teamHps: our members' full health for
 //   the fight (a readied team has a little more).
@@ -281,6 +283,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   // Animals knocked down (a butt to the flank, a fall): on its own agility (RISE) it gets straight back
   // up; otherwise it loses its next action. Returns whether it rose.
   const knocked = new Set();
+  // animals that broke away and ran instead of going down: out of the fight, home with a little health
+  const brokeAway = new Set();
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
@@ -500,6 +504,11 @@ export function teamFight(units, foe, rand, opts = {}) {
       const small = sizeRank(prey.size) < sizeRank(att.size);
       beaks.set(key, { s, u, at, t, v, m, small, hpAt: hp[s][u][at] });
       grab = { ...grab, beak: small ? 'pin' : 'hold' };
+    }
+    // brought down, it may break away and run instead (out of the fight, hurt but not critically)
+    if (hp[t][v][m] <= 0 && prey.escape && !pinned(t, v, m) && !heldBy(holding, t, v, m) && rand() < Math.min(ESCAPE.max, prey.agi / 100)) {
+      brokeAway.add(E(t, v, m));
+      bone = { ...bone, escaped: true };
     }
     // a giant's stomp and tail find one target
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
@@ -738,6 +747,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
   }
   // only those who stayed count for the result
+  for (const e of brokeAway) { const [s, v, m] = e.split(':').map(Number); if (s === 0) hp[0][v][m] = 1; }
   const teamMax = stayed.reduce((t, i) => t + unitHp(units[i]), 0);
   const teamLeft = stayed.reduce((t, i) => t + hp[0][i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();

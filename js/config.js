@@ -101,6 +101,7 @@ const SIZE = {
 //   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
 //   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
 //   alert: a deep call through its hollow crest that warns its group of a predator (ALERT)
+//   escape: may get away from a blow that would bring it down (ESCAPE)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -130,7 +131,7 @@ export const BODY = {
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
-  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, role: 'noncombatant', fear: 'large' },
+  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
@@ -320,7 +321,9 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. Each member still fights as itself, with its
 // own stats: a pack's turn is all of them striking at once (as many on one foe as can reach it), each
 // PACK_BONUS harder for every other one striking with it.
-export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8 };
+export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6 };
+// species whose groups are herds rather than packs (only the name changes)
+export const HERDS = ['para'];
 // a species with fullPack: a pack of it at its limit gives every member this much more of every stat
 // (Coelophysis: hundreds were found together at Ghost Ranch)
 
@@ -485,6 +488,10 @@ export const RISE = { max: 0.95 };
 // (an attacker) it warns them. The whole group is readied (every stat bonus higher for the fight) and
 // strikes first, every unit of it before the predator.
 export const ALERT = { bonus: 0.05 };
+// Hadrosaurs turn up with healed tyrannosaur bites on their tails: they got away. A blow that would bring
+// one down may instead see it break away and run, its agility as a percentage of the time (never more
+// than max), unless it is pinned or held: it leaves the fight and comes home hurt, not critically.
+export const ESCAPE = { max: 0.95 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.

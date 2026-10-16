@@ -623,3 +623,17 @@ test('a Parasaurolophus warns its group of a predator: readied, every one of it 
   assert.equal(teamFight([dilo, para], wildFighter('pachy', 4), seededRand('herb')).alerted, null);
   assert.equal(teamFight([dilo], raptors, seededRand('none')).alerted, null);
 });
+
+test('a Parasaurolophus brought down may break away instead: home hurt, not critically', () => {
+  let ran = 0, down = 0;
+  for (let i = 0; i < 60; i++) {
+    // (a noncombatant alone would just run before the fight: a Dilophosaurus fights alongside it)
+    const para = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined }]);
+    const dilo = unitOf('d', [{ ...fighterOf(dino('d', 60, 'dilo')), fear: undefined }]);
+    const r = teamFight([dilo, para], wildFighter('rex', 6), seededRand('run' + i));
+    const away = r.log.find(e => e.by === 'foe' && e.to === 1 && e.escaped);
+    if (away) { ran++; assert.equal(away.left, 0); assert.equal(r.hp[1][0], 1); }
+    else if (r.hp[1][0] === 0) down++;
+  }
+  assert.ok(ran > 0 && down > 0, `${ran} got away, ${down} went down`);
+});

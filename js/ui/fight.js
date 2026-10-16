@@ -237,6 +237,7 @@ export function playFight(battle, summary, who) {
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(target, 'Armor!', 'mad');
         else if (blow.tough) pop(target, 'Still standing!', 'mad');
+        else if (blow.escaped) pop(target, 'Got away!', 'miss');
         else if (blow.part === 'belly') pop(target, 'Belly!', 'mad');
         else if (blow.throat) pop(target, 'Throat guarded!', 'mad');
         if (blow.also) pop(target, `×${blow.also.length + 1}`, 'mad');
