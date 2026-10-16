@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -79,7 +79,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: !!sp.armor, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -211,6 +211,8 @@ function withRoles(u, swamp) {
 //   A Stegosaurus' tail adds spiked to its counters and charges (impaled with lame when it goes
 //   through a leg); a blow it turns aside is { ..., dmg: 0, guarded: true }, answered at once by a
 //   counter with guard: true; a blow on its covered throat adds throat.
+//   A Pachycephalosaurus' charge lands on the flank and may add knocked (it loses its next action:
+//   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
 //   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
 //   (the foe's running off is a win).
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); routed: the
@@ -260,6 +262,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   const clinging = new Map(), holding = new Map(), latches = new Map(), beaks = new Map();
   // units that lost their footing (they miss their next turn), and defenders out of their guard
   const stunned = new Set(), exposed = new Set();
+  // animals knocked down: they lose their next action
+  const knocked = new Set();
   const holderUp = h => hp[h.s][h.u][h.at] > 0;
   const heldBy = (map, t, v, m) => [...map.values()].find(h => h.t === t && h.v === v && h.m === m && holderUp(h));
   // pinned under a claw or in a beak, it can't strike or dodge
@@ -380,23 +384,32 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (!part) part = rollPart(ARMOR.parts, prey);
       cut = ARMOR.armored.includes(part) ? 1 - ARMOR.cut : part === 'belly' ? ARMOR.belly : 1;
     }
+    // a dome's charge butts the flank; on a domed head the part matters wherever the blow lands
+    const butt = att.dome && extra.charge && !held;
+    if (butt && !part) part = rand() < DOME.back ? 'back' : 'belly';
+    if (!part && !onHead && prey.dome) part = rollPart(HIT_PARTS, prey);
     // a bone-breaking bite picks its part before it lands (a covered throat can take some of it)
     if (!part && !onHead && S[s][u].members[0].boneBreaker && sizeRank(prey.size) > sizeRank(BONE_BREAKER.oneBite)) part = rollPart(BONE_BREAKER.parts, prey);
     // a throat covered in small bones: nothing from something smaller, half from one its size, a
     // little less from anything bigger
     const step = sizeRank(att.size) - sizeRank(prey.size);
     const throat = part === 'neck' && prey.throat ? (step < 0 ? 0 : step === 0 ? THROAT.same : THROAT.bigger) : 1;
+    // a domed head shrugs off anything no bigger than itself
+    const domed = (part === 'head' || onHead) && prey.dome && step <= 0;
     // a tail club swung (a counter or a charge) lands harder than a bite; a spiked tail pierces
     const swung = att.club && (extra.counter || extra.charge);
     const spiked = att.spikes && (extra.counter || extra.charge);
     const buff = o.buff || 1;
     const weapon = neck ? { ...att, crush: 1 } : spiked ? { ...att, crush: Math.max(att.crush || 0, SPIKES.pierce) } : att;
-    const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * open * head * throat;
+    const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * open * head * throat * (domed ? 0 : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     let bone = neck ? { part: 'neck' } : dmg > 0 && !onHead ? breakBones(s, u, t, v, m, part) : onHead ? { part: 'head' } : part ? { part } : {};
     if (prey.armor && !neck && ARMOR.armored.includes(part)) bone.armored = true;
     if (throat < 1) bone.throat = true;
+    if (domed) bone = { part: 'head', dome: true };
+    // butted in the flank, it may go down and lose its next action
+    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) { knocked.add(E(t, v, m)); bone = { ...bone, knocked: true }; }
     // the spikes leave a wound that bleeds, and may go through a leg
     if (spiked && dmg > 0 && hp[t][v][m] > 0) {
       const wounds = spikeWounds.get(E(t, v, m)) || 0;
@@ -447,7 +460,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       grab = { ...grab, beak: small ? 'pin' : 'hold' };
     }
     const also = sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
-    log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(also.length ? { also } : {}), ...extra }));
+    log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(also.length ? { also } : {}), ...extra }));
     // the plates on its back hurt whatever bit them
     if (part === 'back' && prey.armor && raw > 0 && hp[s][u][at] > 0) {
       const back = Math.max(1, Math.round(raw * ARMOR.thorns));
@@ -469,6 +482,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     let free = 0;
     for (const at of alive(s, u)) {
       if (at === o.skip || (o.only !== undefined && at !== o.only) || pinned(s, u, at)) continue;
+      // knocked down: it gets up instead
+      if (knocked.delete(E(s, u, at))) continue;
       free++;
       const bk = heldBy(beaks, s, u, at);
       let v, m, part;
@@ -578,6 +593,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
     // knocked off its feet: it misses this turn
     if (stunned.delete(key)) { log.push(selfEntry(s, u, { recovering: true })); return; }
+    // knocked down, a lone animal spends its turn getting up
+    if (!unit.pack && knocked.delete(E(s, u, 0))) { log.push(selfEntry(s, u, { recovering: true })); return; }
     // pinned under a claw or in a beak, a lone animal can do nothing
     if (!unit.pack && pinned(s, u, 0)) { log.push(selfEntry(s, u, { pinned: true })); return; }
     let busy = -1;

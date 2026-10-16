@@ -98,6 +98,7 @@ const SIZE = {
 //   spikes: a spiked tail that pierces when it strikes back or charges (SPIKES)
 //   guard: a fighting stance that may turn a blow aside and strike back at once (SPIKES)
 //   throat: small bones covering the throat (THROAT)
+//   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
@@ -120,7 +121,7 @@ export const BODY = {
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
-  pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
+  pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
@@ -457,6 +458,15 @@ export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bon
 // Bony disks covered its throat: a blow on the neck from something smaller does nothing, from one its
 // size half (same), from something bigger kills nothing outright and is cut a little (bigger).
 export const THROAT = { same: 0.5, bigger: 0.9 };
+// Pachycephalosaurus' dome, up to 25 cm of bone (about a fifth of the domes found carry healed combat
+// wounds; its rounded shape suits butting an opponent's flank more than head-on clashes). Its charge
+// lands on the flank (the back back of the time, else the belly) and may knock the target down: it
+// loses its next action (strength against strength; nothing more than maxStep sizes bigger falls).
+// Blows land all over it (HIT_PARTS), and one on the head from anything no bigger than itself does
+// nothing.
+export const DOME = { back: 0.7, maxStep: 1 };
+// where a blow lands on an animal when it matters and nothing else decided it
+export const HIT_PARTS = [['head', 0.15], ['neck', 0.1], ['back', 0.4], ['belly', 0.1], ['limbs', 0.25]];
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor.
 // The claw was made to grip and pin prey no bigger than itself: on those a blow can land up to bite
 // (its own bite stays the limit on anything bigger, where the claw only cuts shallow)

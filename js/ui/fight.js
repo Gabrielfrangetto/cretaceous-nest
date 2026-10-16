@@ -217,11 +217,11 @@ export function playFight(battle, summary, who) {
       const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!'
         : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!'
         : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!'
-        : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.guard ? 'Tail swing!' : (blow.counter || blow.charge) && blow.spiked ? 'Tail spikes!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+        : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.butt ? 'Headbutt!' : blow.guard ? 'Tail swing!' : (blow.counter || blow.charge) && blow.spiked ? 'Tail spikes!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(actor, move, 'mad');
       if (blow.miss) pop(target, 'Miss', 'miss');
       // a blow its hide stops, or a throat covered in bone
-      else if (!blow.dmg) pop(target, blow.throat ? 'Throat guarded!' : 'No effect', 'miss');
+      else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : 'No effect', 'miss');
       else {
         pop(target, '−' + blow.dmg, 'dmg');
         strike(target);
@@ -230,6 +230,7 @@ export function playFight(battle, summary, who) {
         if (blow.kill) pop(target, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(target, blow.impaled ? 'Impaled!' : blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
         else if (blow.armBroken) pop(target, 'Arm broken!', 'mad');
+        else if (blow.knocked) pop(target, 'Knocked down!', 'mad');
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(target, 'Armor!', 'mad');
         else if (blow.tough) pop(target, 'Still standing!', 'mad');
