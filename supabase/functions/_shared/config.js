@@ -485,12 +485,15 @@ export const RISE = { max: 0.95 };
 // smaller can reach its neck, break its legs, or knock it down. Against anything tinyStep or more sizes
 // smaller (small and tiny ones) its blows hardly find their target: dodged up to tinyDodge.
 // Parasaurolophus' crest, a hollow tube that made deep calls carry far: when its group meets a predator
-// (an attacker) it warns them. The whole group is readied (every stat bonus higher for the fight) and
-// strikes first, every unit of it before the predator.
-export const ALERT = { bonus: 0.05 };
+// (an attacker) it may warn them. One alone notices chance of the time, each more of them in the team
+// perEye more (many eyes), up to always. The whole group is then readied (every stat bonus higher for
+// the fight, perCall more for each more of them: louder calls) and strikes first, every unit of it
+// before the predator.
+export const ALERT = { chance: 0.6, perEye: 0.08, bonus: 0.05, perCall: 0.01, maxBonus: 0.1 };
 // Hadrosaurs turn up with healed tyrannosaur bites on their tails: they got away. A blow that would bring
 // one down may instead see it break away and run, its agility as a percentage of the time (never more
-// than max), unless it is pinned or held: it leaves the fight and comes home hurt, not critically.
+// than max), unless it is pinned or held: it leaves the fight and comes home hurt, not critically. Its
+// whole herd runs with it.
 export const ESCAPE = { max: 0.95 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped

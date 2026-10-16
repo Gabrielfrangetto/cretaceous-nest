@@ -233,12 +233,16 @@ export function teamFight(units, foe, rand, opts = {}) {
   units = units.map(u => withRoles(u, opts.swamp));
   foe = withRoles(foe, opts.swamp);
   // an alarm call (Parasaurolophus): a side with one that meets a predator is warned and readied
+  // (more of them notice more often and call louder)
   const caller = list => list.findIndex(u => u.members.some(m => m.alert));
+  const callers = list => list.reduce((n, u) => n + u.members.filter(m => m.alert).length, 0);
   const preys = list => list.some(u => (u.members[0].role || 'attacker') === 'attacker');
-  const alerted = caller(units) >= 0 && preys([foe]) ? 'team' : caller([foe]) >= 0 && preys(units) ? 'foe' : null;
+  const hears = list => rand() < Math.min(1, ALERT.chance + ALERT.perEye * (callers(list) - 1));
+  const alerted = caller(units) >= 0 && preys([foe]) && hears(units) ? 'team' : caller([foe]) >= 0 && preys(units) && hears([foe]) ? 'foe' : null;
+  const bonus = 1 + Math.min(ALERT.maxBonus, ALERT.bonus + ALERT.perCall * (callers(alerted === 'foe' ? [foe] : units) - 1));
   const readied = u => ({ ...u, members: u.members.map(m => ({
-    ...m, hp: Math.round(m.hp * (1 + ALERT.bonus)), damage: m.damage * (1 + ALERT.bonus), agi: m.agi * (1 + ALERT.bonus), str: m.str * (1 + ALERT.bonus),
-    res: m.res * (1 + ALERT.bonus), dodge: Math.min(DODGE_MAX, m.dodge * (1 + ALERT.bonus)), reduction: m.reduction * (1 + ALERT.bonus) })) });
+    ...m, hp: Math.round(m.hp * bonus), damage: m.damage * bonus, agi: m.agi * bonus, str: m.str * bonus,
+    res: m.res * bonus, dodge: Math.min(DODGE_MAX, m.dodge * bonus), reduction: m.reduction * bonus })) });
   if (alerted === 'team') units = units.map(readied);
   if (alerted === 'foe') foe = readied(foe);
   const { fled, escaped } = whoFlees(units, foe);
@@ -505,14 +509,18 @@ export function teamFight(units, foe, rand, opts = {}) {
       beaks.set(key, { s, u, at, t, v, m, small, hpAt: hp[s][u][at] });
       grab = { ...grab, beak: small ? 'pin' : 'hold' };
     }
-    // brought down, it may break away and run instead (out of the fight, hurt but not critically)
+    // brought down, it may break away and run instead (out of the fight, hurt but not critically), and
+    // its herd runs with it
+    let herdRuns = false;
     if (hp[t][v][m] <= 0 && prey.escape && !pinned(t, v, m) && !heldBy(holding, t, v, m) && rand() < Math.min(ESCAPE.max, prey.agi / 100)) {
       brokeAway.add(E(t, v, m));
       bone = { ...bone, escaped: true };
+      herdRuns = true;
     }
     // a giant's stomp and tail find one target
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
     log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
+    if (herdRuns && S[t][v].pack && alive(t, v).length && active[t].includes(v)) runOff(t, v);
     // the plates on its back hurt whatever bit them
     if (part === 'back' && prey.armor && raw > 0 && hp[s][u][at] > 0) {
       const back = Math.max(1, Math.round(raw * ARMOR.thorns));
@@ -601,15 +609,19 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (b.hpAt - hp[b.s][b.u][b.at] >= BEAK.release * holder.hp) { beaks.delete(k); log.push(entry(b.t, b.v, b.m, b.u, b.at, { loose: true })); }
     }
   };
+  // a unit leaving the fight: ours that ran off, or the foe's (a win)
+  const runOff = (s, u) => {
+    active[s].splice(active[s].indexOf(u), 1);
+    if (s === 0) routed.push(u); else foeRouted = true;
+    for (const map of [clinging, holding, latches, beaks]) for (const [k, h] of map) if ((h.s === s && h.u === u) || (h.t === s && h.v === u)) map.delete(k);
+    log.push(selfEntry(s, u, { rout: true }));
+  };
   // morale: a pack or herd that has lost ROUT of its members runs off, ours as well as the foe's
   const routs = list => list.length >= 2 && list.length - standing(list).length >= list.length * ROUT;
   const checkRouts = () => {
     for (const s of [0, 1]) for (const u of [...active[s]]) {
       if (over() || !routs(hp[s][u]) || !alive(s, u).length) continue;
-      active[s].splice(active[s].indexOf(u), 1);
-      if (s === 0) routed.push(u); else foeRouted = true;
-      for (const map of [clinging, holding, latches, beaks]) for (const [k, h] of map) if ((h.s === s && h.u === u) || (h.t === s && h.v === u)) map.delete(k);
-      log.push(selfEntry(s, u, { rout: true }));
+      runOff(s, u);
     }
   };
 

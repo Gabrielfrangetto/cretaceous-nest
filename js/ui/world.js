@@ -431,7 +431,13 @@ function bindTrips(box) {
     const ran = r.battle ? r.battle.fled.map(i => r.battle.team[i].name) : [];
     const runText = !ran.length || (r.battle && r.battle.escaped) ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
     // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
-    const broke = r.battle && r.battle.routed && r.battle.routed.length ? ` ${esc(listNames(r.battle.routed.map(i => r.battle.team[i].name)))} lost half the pack and ran off.` : '';
+    // (a Parasaurolophus herd runs as soon as one of it breaks away)
+    const herdRan = i => r.battle.log.some(e => e.by === 'foe' && e.to === i && e.escaped);
+    const routs = r.battle && r.battle.routed ? r.battle.routed : [];
+    const broke = [
+      ...routs.filter(i => !herdRan(i)).length ? [` ${esc(listNames(routs.filter(i => !herdRan(i)).map(i => r.battle.team[i].name)))} lost half the pack and ran off.`] : [],
+      ...routs.filter(herdRan).map(i => ` One of ${esc(r.battle.team[i].name)} broke away and the whole herd ran with it.`),
+    ].join('');
     const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
     // a Parasaurolophus heard the predator coming
     const call = r.battle && r.battle.alerted === 'team' ? r.battle.log.find(e => e.alert) : null;

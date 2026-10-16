@@ -608,7 +608,8 @@ test('a giant sauropod in the team: twice the trip, more of what the hex has', a
 });
 
 test('a Parasaurolophus warns its group of a predator: readied, every one of it strikes first', () => {
-  const para = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined }]);
+  // a herd of six always notices (one alone only sometimes)
+  const para = unitOf('pa', Array.from({ length: 6 }, (_, i) => ({ ...fighterOf(dino('pa' + i, 60, 'para')), fear: undefined })), true);
   const dilo = unitOf('d', [fighterOf(dino('d', 60, 'dilo'))]);
   const raptors = encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 6);
   const r = teamFight([dilo, para], raptors, seededRand('call'));
@@ -617,8 +618,14 @@ test('a Parasaurolophus warns its group of a predator: readied, every one of it 
   // the team acts before the foe in the first round, though Velociraptors are quicker
   const firstFoe = r.log.findIndex(e => e.by === 'foe');
   assert.ok(r.log.slice(1, firstFoe).some(e => e.by === 0));
-  // readied: a little more of everything for the fight
-  assert.ok(r.teamHps[0][0] > dilo.members[0].hp);
+  // readied: a little more of everything for the fight (10% for a herd of six)
+  assert.equal(r.teamHps[0][0], Math.round(dilo.members[0].hp * 1.1));
+  // one alone notices only some of the time, and calls for 5%
+  const lone = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined }]);
+  const calls = Array.from({ length: 60 }, (_, i) => teamFight([dilo, lone], raptors, seededRand('lone' + i)));
+  const heard = calls.filter(x => x.alerted === 'team');
+  assert.ok(heard.length > 20 && heard.length < 50, heard.length);
+  assert.equal(heard[0].teamHps[0][0], Math.round(dilo.members[0].hp * 1.05));
   // no call without a predator, or without a Parasaurolophus
   assert.equal(teamFight([dilo, para], wildFighter('pachy', 4), seededRand('herb')).alerted, null);
   assert.equal(teamFight([dilo], raptors, seededRand('none')).alerted, null);
@@ -636,4 +643,18 @@ test('a Parasaurolophus brought down may break away instead: home hurt, not crit
     else if (r.hp[1][0] === 0) down++;
   }
   assert.ok(ran > 0 && down > 0, `${ran} got away, ${down} went down`);
+  // one breaking away takes its whole herd with it
+  let herds = 0;
+  for (let i = 0; i < 60; i++) {
+    const herd = unitOf('h', Array.from({ length: 3 }, (_, k) => ({ ...fighterOf(dino('h' + k, 60, 'para')), fear: undefined })), true);
+    const dilo = unitOf('d', [{ ...fighterOf(dino('d', 60, 'dilo')), fear: undefined }]);
+    const r = teamFight([dilo, herd], wildFighter('rex', 6), seededRand('herd' + i));
+    const at = r.log.findIndex(e => e.by === 'foe' && e.to === 1 && e.escaped);
+    if (at < 0) continue;
+    herds++;
+    assert.ok(r.routed.includes(1));
+    assert.deepEqual(r.log[at + 1], { by: 1, rout: true });
+    assert.ok(!r.log.slice(at + 2).some(e => e.by === 1 || e.to === 1));
+  }
+  assert.ok(herds > 0);
 });
