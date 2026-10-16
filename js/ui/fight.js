@@ -229,6 +229,7 @@ export function playFight(battle, summary, who) {
         // a bone-breaking bite or a club: a lamed leg, a neck, or something small crushed
         if (blow.kill) pop(target, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(target, blow.impaled ? 'Impaled!' : blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
+        else if (blow.armBroken) pop(target, 'Arm broken!', 'mad');
         // armor plates took most of it, or the bare belly was hit
         else if (blow.armored) pop(target, 'Armor!', 'mad');
         else if (blow.tough) pop(target, 'Still standing!', 'mad');

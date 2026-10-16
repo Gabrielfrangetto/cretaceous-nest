@@ -246,7 +246,7 @@ test("a Triceratops' frill takes head blows and gores back; it stays damaged unt
 });
 
 test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, and its club breaks shins', async () => {
-  const { ARMOR, PARTS, BONE_BREAKER } = await import('../js/config.js');
+  const { ARMOR, PARTS, BONE_BREAKER, QUAD_LEGS } = await import('../js/config.js');
   const BONE_BREAKER_PARTS = BONE_BREAKER.parts;
   const rex = wildFighter('rex', 6);
   const parts = {};
@@ -266,9 +266,10 @@ test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, 
       if (e.club) { shins++; assert.ok(e.lame && (e.counter || e.charge)); }
     }
   }
-  for (const [p] of ARMOR.parts) assert.ok(parts[p], `blows land on its ${p}`);
+  // it walks on four legs: blows land on each of them
+  for (const p of ['back', 'belly', 'head', 'neck', ...QUAD_LEGS]) assert.ok(parts[p], `blows land on its ${p}`);
   assert.ok(thorns && shins && bellies, `${thorns} spikes, ${shins} shins, ${bellies} bellies`);
-  for (const [p] of [...ARMOR.parts, ...BONE_BREAKER_PARTS]) assert.ok(PARTS.includes(p), p);
+  for (const [p] of [...ARMOR.parts, ...BONE_BREAKER_PARTS]) assert.ok(p === 'limbs' || PARTS.includes(p), p);
   // the armored parts let much less through than the belly
   const plain = fighterOf(dino('a', 50, 'ankylo'));
   assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
@@ -510,4 +511,24 @@ test('a Stegosaurus: a piercing tail, a stance that turns blows aside, and a thr
   }
   assert.ok(seen.spikes && seen.impaled && seen.guarded && seen.answered && seen.throat, JSON.stringify(seen));
   assert.equal(seen.neckKill, 0);
+});
+
+test('two legs and two arms, or four legs: a low tail blow only finds legs, a bite may break an arm', async () => {
+  const { ARMS, BIPED_LEGS, QUAD_LEGS } = await import('../js/config.js');
+  const seen = { arm: 0, bipedLeg: 0, quadLeg: 0 };
+  for (let i = 0; i < 60; i++) {
+    // a Tyrannosaurus bites an Allosaurus (two arms, two legs) and an Ankylosaurus (four legs)
+    for (const e of teamFight([unitOf('a', [fighterOf(dino('a', 60, 'allo'))])], wildFighter('rex', 6), seededRand('arm' + i)).log) {
+      if (e.by !== 'foe' || !e.part) continue;
+      assert.ok(!QUAD_LEGS.includes(e.part), e.part);
+      if (e.armBroken) { seen.arm++; assert.ok(ARMS.includes(e.part)); assert.ok(!e.lame); }
+      if (e.lame) { seen.bipedLeg++; assert.ok(BIPED_LEGS.includes(e.part)); }
+    }
+    // an Ankylosaurus' club only ever breaks a leg, never a Tyrannosaurus' arm
+    for (const e of teamFight([unitOf('k', [fighterOf(dino('k', 60, 'ankylo'))])], wildFighter('rex', 6), seededRand('club' + i)).log) {
+      if (e.by === 0 && e.club && e.lame) { assert.ok(BIPED_LEGS.includes(e.part), e.part); seen.quadLeg++; }
+      if (e.by === 'foe' && e.part) assert.ok(!ARMS.includes(e.part) && !BIPED_LEGS.includes(e.part), e.part);
+    }
+  }
+  assert.ok(seen.arm && seen.bipedLeg && seen.quadLeg, JSON.stringify(seen));
 });

@@ -101,6 +101,7 @@ const SIZE = {
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
+//   biped:  walks on two legs, with two arms (otherwise on four legs)
 //   hunt:   a carnivore's hunting skill, added to its agility when it hunts what it spotted (HUNT)
 //   weapon: what it fights with, as the Dinopedia will say
 //   bite:   the hardest one blow can land, however strong it is or whatever it carries. Small
@@ -110,25 +111,25 @@ const SIZE = {
 // is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
-  compy:   { weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
-  dilo:    { weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
+  compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
+  dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, role: 'defender', charge: 0.15, fear: 'huge' },
-  psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
-  coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
-  hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
+  psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
+  coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
+  hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
-  galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
+  galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
-  pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
+  pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
+  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
-  bary:    { weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
+  bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'colossal' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'colossal' },
-  allo:    { weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
-  spino:   { weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
-  rex:     { weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'colossal' },
+  allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
+  spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
+  rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'colossal' },
   argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
 };
 // How each role fights:
@@ -391,18 +392,22 @@ export const BLEED_BIGGER = 0.3;
 export const BLEED_SMALLER = 0.25;
 export const BLEED_MIN = 0.25;
 // The parts of a body a blow can land on, the same for every animal: abilities (and, later, armor that
-// covers parts) all name these. The legs are four: front left and right (a biped's arms), hind left and
-// right. A tail may come later.
-export const LEGS = ['legFL', 'legFR', 'legHL', 'legHR'];
-export const PARTS = ['head', 'neck', 'back', 'belly', ...LEGS];
-export const isLeg = part => LEGS.includes(part);
-// where blows land, part by part, with the legs' share split evenly among the four
-const spread = (list, legs) => [...list, ...LEGS.map(l => [l, legs / LEGS.length])];
+// covers parts) all name these. A biped (BODY biped, and the player) has two arms and two legs; anything
+// else four legs, front and hind. A tail may come later.
+export const ARMS = ['armL', 'armR'];
+export const BIPED_LEGS = ['legL', 'legR'];
+export const QUAD_LEGS = ['legFL', 'legFR', 'legHL', 'legHR'];
+export const PARTS = ['head', 'neck', 'back', 'belly', ...ARMS, ...BIPED_LEGS, ...QUAD_LEGS];
+export const isLeg = part => BIPED_LEGS.includes(part) || QUAD_LEGS.includes(part);
+export const isArm = part => ARMS.includes(part);
+// a blow on the limbs ('limbs' in the lists of where blows land) of a biped finds an arm arm of the
+// time (smaller, and held up out of the way), otherwise a leg
+export const LIMBS = { arm: 0.3 };
 // Ankylosaurus' armor: every blow lands on a part. The back (bony plates), the head (fused skull
 // plates, even bony eyelids) and the neck (rings of bone) take cut less damage; a blow on the plated
 // back also hurts the attacker (thorns, of the blow's full damage). The legs have little armor; the
 // bare belly takes belly times as much.
-export const ARMOR = { parts: spread([['back', 0.5], ['belly', 0.05], ['head', 0.15], ['neck', 0.1]], 0.2), armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
+export const ARMOR = { parts: [['back', 0.5], ['belly', 0.05], ['head', 0.15], ['neck', 0.1], ['limbs', 0.2]], armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's
@@ -464,10 +469,11 @@ export const CLAW = { neck: 0.3, bite: 70 };
 // half a head blow through. The frill does not grow back by itself: a Healing Herb mends a point.
 export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.75, bleed: 0.007, maxBleed: 5 };
 // Where a bone-breaking bite lands (Tyrannosaurus: it crushed and swallowed bone). A leg may be
-// lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
+// lamed: half its dodge and agility for the rest of the fight, and it comes home injured. An arm may be
+// broken (the same chance): it can't grab with that hand any more, and it comes home injured. A neck kills
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
 // Anything no bigger than oneBite (up to about 100 kg) dies from any bite that lands.
-export const BONE_BREAKER = { parts: spread([['back', 0.45], ['belly', 0.2], ['neck', 0.08]], 0.27), lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
+export const BONE_BREAKER = { parts: [['back', 0.45], ['belly', 0.2], ['neck', 0.08], ['limbs', 0.27]], lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
 // health grows with the body: a size's share of the health its stats give (medium as it is)
 export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
