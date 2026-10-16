@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, GUARD, THROAT, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -27,10 +27,14 @@ export function fighterOf(baby, extra = []) {
 // only miss MISS_FLOOR of the time; the quicker the target is than its attacker, the more of its
 // dodge it keeps (all of it at twice as quick). Then smaller targets are harder to hit
 // (SIZE_DODGE a size step).
-export const dodgeVs = (dodge, agi, size, attAgi, attSize) => {
+// the dodge left from speed against speed alone (no size): MISS_FLOOR between equals, all of it at twice
+// as quick
+export const quickDodge = (dodge, agi, attAgi) => {
   const share = agi > 0 ? agi / (agi + Math.max(0, attAgi || 0)) : 0;
-  const quick = Math.max(0, Math.min(1, (share - 0.5) * 6));
-  const own = Math.max(MISS_FLOOR, dodge * quick);
+  return Math.max(MISS_FLOOR, dodge * Math.max(0, Math.min(1, (share - 0.5) * 6)));
+};
+export const dodgeVs = (dodge, agi, size, attAgi, attSize) => {
+  const own = quickDodge(dodge, agi, attAgi);
   const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
   return steps ? Math.min(SIZE_DODGE_MAX, own + SIZE_DODGE * steps) : Math.min(DODGE_MAX, own);
 };
@@ -322,7 +326,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       return -1;
     }
     // a fighting stance (Stegosaurus): the blow is turned aside and answered at once with the tail
-    if (!held && prey.guard && !extra.guard && rand() < GUARD.tries && contest(prey.agi, att.agi)) {
+    if (!held && prey.guard && !extra.guard && rand() < quickDodge(dodgeIn(target, hp[t][v], m), prey.agi, att.agi)) {
       log.push(entry(s, u, at, v, m, { dmg: 0, left: hp[t][v][m], guarded: true, ...extra }));
       if (recording) struck.set(E(t, v, m), { at, counter: false });
       if (hp[s][u][at] > 0) {

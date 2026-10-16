@@ -96,7 +96,7 @@ const SIZE = {
 //   claw: a sickle claw that latches on and goes for the neck (LATCH, CLAW)
 //   beak: a hooked beak that clamps on to what it strikes back at (BEAK)
 //   spikes: a spiked tail that pierces when it strikes back or charges (SPIKES)
-//   guard: a fighting stance that may turn a blow aside and strike back at once (GUARD)
+//   guard: a fighting stance that may turn a blow aside and strike back at once (SPIKES)
 //   throat: small bones covering the throat (THROAT)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
@@ -434,10 +434,10 @@ export const BEAK = { hold: 0.5, small: 1.5, release: 0.2 };
 // reduction, leave a wound that bleeds bleed of the health a turn (up to maxBleed wounds), and may
 // impale a leg (impale, plus bonus times its strength against the target's resistance), laming it.
 export const SPIKES = { pierce: 0.5, bleed: 0.008, maxBleed: 3, impale: 0.1, bonus: 0.2 };
-// Its fighting stance, side on with the tail swinging: a blow about to land on it may be turned aside
-// (agility against the attacker's agility, tries of the time it gets the chance) and answered at once
-// with the tail.
-export const GUARD = { tries: 1 };
+// Its fighting stance, side on with the tail swinging (guard): a blow about to land on it may be turned
+// aside, as often as its dodge against that attacker's speed alone (quickDodge in combat.js: only
+// MISS_FLOOR against one as quick, all of its dodge against one half as quick), and answered at once
+// with the tail, a blow the attacker may still dodge.
 // Bony disks covered its throat: a blow on the neck from something smaller does nothing, from one its
 // size half (same), from something bigger kills nothing outright and is cut a little (bigger).
 export const THROAT = { same: 0.5, bigger: 0.9 };
