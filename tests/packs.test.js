@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { fighterOf, creatureFighter, wildFighter, teamFight, teamWinChance, unitOf, sizeEdge, hitOf } from '../js/combat.js';
-import { ALL_HEXES, hexKey, hexDist, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey } from '../js/world.js';
+import { ALL_HEXES, hexKey, hexDist, newWorld, tripMins, isAway, exploreProblem, expeditionOf, injuredLeft, threatAt, parseKey, landHexes } from '../js/world.js';
 import { packOf } from '../js/packs.js';
 import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES, SCOUT } from '../js/config.js';
 
@@ -127,7 +127,7 @@ test('older saves turn a one-explorer trip into a team of one', () => {
 test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
   // a hex where grown raptors wait (they hunt a Protoceratops; other theropods aren't on their menu,
   // and young ones only take smaller prey)
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => {
+  const key = landHexes(42).map(h => hexKey(...h)).find(k => {
     const t = threatAt(42, parseKey(k));
     return hexDist(parseKey(k)) > 4 && !t.lair && t.id === 'raptor' && ['adult', 'prime'].includes(t.age);
   });
@@ -199,7 +199,7 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
 
 test('only a won fight that went into a frenzy drops Allosaurus teeth and blood, more with more Allosaurus', () => {
   // the nearest lair of an Allosaurus (one goes for its own kind)
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, parseKey(k)).lair && threatAt(42, parseKey(k)).id === 'allo');
+  const key = landHexes(42).map(h => hexKey(...h)).find(k => threatAt(42, parseKey(k)).lair && threatAt(42, parseKey(k)).id === 'allo');
   const haul = n => {
     const ids = Array.from({ length: n }, (_, i) => 'a' + i);
     const s = game(...ids.map(id => dino(id, 'allo', 80)));

@@ -6,7 +6,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, BIOMES, EXPEDITION_SLOTS, JUVENILE_RANGE, AGES, NEST_CALM, SPECIES } from '../js/config.js';
+import { MAP, BIOMES, EXPEDITION_SLOTS, JUVENILE_RANGE, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
@@ -133,6 +133,11 @@ test("what lives in a hex is of an age: young, old, adult or in its prime (a lai
   for (const a of [...Object.keys(AGES), 'alpha']) assert.ok(ages.has(a), a);
   const power = age => { const t = land.map(h => threatAt(42, h)).filter(t => t.age === age); return t.reduce((x, y) => x + y.power / y.foe.members.length, 0) / t.length; };
   assert.ok(power('prime') > power('adult') && power('adult') > power('young'));
+  // no big predator nearer than NEST_FAR: a newcomer doesn't run into a Tyrannosaurus by chance
+  for (const h of land) if (hexDist(h) <= NEST_FAR) {
+    const t = threatAt(42, h), size = t.foe.members[0].size;
+    if ((t.foe.members[0].role || 'attacker') === 'attacker') assert.ok(['tiny', 'small', 'medium'].includes(size), `${t.foe.name} at ${hexDist(h)}`);
+  }
   for (const h of land) if (hexDist(h) <= NEST_CALM) {
     const t = threatAt(42, h);
     assert.notEqual(t.entry.species && SPECIES[t.entry.species].role, 'attacker');

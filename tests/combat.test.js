@@ -7,12 +7,12 @@ import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFigh
 // their foes are made hungry enough to go for anything (the food chain has tests of its own, realFight)
 const hungry = f => ({ ...f, hunts: 'any', preyMax: 'colossal' });
 const teamFight = (units, foe, rand, opts) => realFight(units, foe.members ? { ...foe, members: foe.members.map(hungry) } : hungry(foe), rand, opts);
-import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem, keepsAway, teamUnits } from '../js/world.js';
+import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem, keepsAway, teamUnits, landHexes } from '../js/world.js';
 import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER } from '../js/config.js';
 // whether what waits in a hex shows itself to a team whose biggest is size (it keeps away otherwise)
-// whether what waits in a hex comes for a team of one dinosaur of this kind (not keeping away from it,
-// nor passing it by: the food chain)
-const showsTo = (key, type) => { const s = game(dino('x', 50, type)); return !keepsAway(threatAt(42, key.split(',').map(Number)), teamUnits(s, [{ kind: 'dino', id: 'x', members: ['x'] }])); };
+// whether what waits in a hex comes for a team of one dinosaur of this kind: a predator, not keeping
+// away from it, nor passing it by (the food chain)
+const showsTo = (key, type) => { const s = game(dino('x', 50, type)), t = threatAt(42, key.split(',').map(Number)); return (t.foe.members[0].role || 'attacker') === 'attacker' && !keepsAway(t, teamUnits(s, [{ kind: 'dino', id: 'x', members: ['x'] }])); };
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
@@ -58,19 +58,20 @@ test('every biome has its wild animals, stronger and in bigger packs farther out
       if (e.pack) assert.ok(encounterUnit(e, 7).members.length > encounterUnit(e, 1).members.length);
     }
   }
-  const lairs = ALL_HEXES.filter(h => isLair(42, h));
+  const lairs = landHexes(42).filter(h => isLair(42, h));
   assert.ok(lairs.length > 0);
   for (const h of lairs) { assert.ok(hexDist(h) >= LAIR_MIN_DIST); assert.equal(threatAt(42, h).chance, 1); }
 });
 
 // the lairs on the map, weakest creature first
-const lairs = seed => ALL_HEXES.filter(h => isLair(seed, h)).sort((x, y) => threatAt(seed, x).foe.power - threatAt(seed, y).foe.power).map(h => hexKey(...h));
+const lairs = seed => landHexes(42).filter(h => isLair(seed, h)).sort((x, y) => threatAt(seed, x).foe.power - threatAt(seed, y).foe.power).map(h => hexKey(...h));
 // the strongest lair of a Tyrannosaurus (something that hunts a Triceratops, and wins)
 const rexLairTop = () => lairs(42).filter(k => threatAt(42, k.split(',').map(Number)).id === 'rex').at(-1);
 
 test('beating a creature brings its loot and coins on top of the hex', () => {
   const s = game(dino('champ', 100));
-  const key = lairs(42).find(k => showsTo(k, 'rex'));
+  // (a Deinosuchus lair: it goes for anything, a Tyrannosaurus too)
+  const key = lairs(42).find(k => showsTo(k, 'rex') && threatAt(42, k.split(',').map(Number)).id === 'deinosuchus');
   const r = trip(s, 'champ', key);
   assert.equal(r.battle.win, true);
   assert.equal(r.battle.lair, true);
@@ -479,7 +480,7 @@ test('wild animals use every ability of their species, just like ours', () => {
 
 test('a wild defender stands its ground instead of attacking: the player chooses to fight it or leave it be', async () => {
   const { tripStandoff } = await import('../js/world.js');
-  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'proto' && !isLair(42, k.split(',').map(Number)));
+  const key = landHexes(42).map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'proto' && !isLair(42, k.split(',').map(Number)));
   const results = {};
   for (const fight of [false, true]) {
     // a trip that runs into the herd (the trip number seeds whether it does)
@@ -502,7 +503,7 @@ test('a wild defender stands its ground instead of attacking: the player chooses
   assert.equal(results.true.standoff.fought, true);
   // a predator gives no choice
   const s = game(dino('d', 60, 'dilo'));
-  const raptors = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  const raptors = landHexes(42).map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   const r = applyAction(s, 'explore', { babyId: 'd', hex: raptors }, T0);
   assert.equal(tripStandoff(s, r.expedition.id), null);
 });
@@ -762,7 +763,7 @@ test('the bigger the team, the sooner a predator notices it; Psittacosaurus vani
   const { freshState } = await import('../js/state.js');
   const me = unitOf('You', [fighterOf(freshState().player)]);
   const one = t => unitOf(t, [fighterOf(dino(t, 60, t))]);
-  const raptorHex = ALL_HEXES.find(h => threatAt(42, h).id === 'raptor' && !threatAt(42, h).lair);
+  const raptorHex = landHexes(42).find(h => threatAt(42, h).id === 'raptor' && !threatAt(42, h).lair);
   const th = threatAt(42, raptorHex);
   const alone = encounterChance(th, [me], 'forest', false);
   const withDilo = encounterChance(th, [me, one('dilo')], 'forest', false);
@@ -775,7 +776,7 @@ test('the bigger the team, the sooner a predator notices it; Psittacosaurus vani
   assert.equal(teamVisibility(psittas, 'forest'), teamVisibility([me], 'forest'));
   assert.ok(teamVisibility(psittas, 'meadow') > teamVisibility([me], 'meadow'));
   // what doesn't hunt doesn't care, and lairs are always met
-  const herd = threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === 'proto' && !threatAt(42, h).lair));
+  const herd = threatAt(42, landHexes(42).find(h => threatAt(42, h).id === 'proto' && !threatAt(42, h).lair));
   assert.equal(encounterChance(herd, [me], 'badlands', false), herd.chance);
 });
 
@@ -889,7 +890,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   const s = game(dino('s', 60, 'spino'), dino('a', 60, 'stego'));
   const sTeam = teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }]), aTeam = teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }]);
   // (grown ones, past the young near the nest)
-  const at = (id, lair) => threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair && hexDist(h) > 3));
+  const at = (id, lair) => threatAt(42, landHexes(42).find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair && hexDist(h) > 3));
   assert.equal(keepsAway(at('allo', false), sTeam), true);
   assert.equal(keepsAway(at('allo', false), aTeam), false);
   const rex = at('rex', false);
@@ -903,7 +904,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
 });
 
 test('a Baryonyx brings home fish from the swamp', () => {
-  const swamp = ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return threatAt(42, h).id === 'deinosuchus' && !threatAt(42, h).lair; });
+  const swamp = landHexes(42).map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return threatAt(42, h).id === 'deinosuchus' && !threatAt(42, h).lair; });
   let checked = 0;
   for (let trip = 0; trip < 30; trip++) {
     const s = game(dino('b', 90, 'bary'));
@@ -1029,7 +1030,7 @@ test('prey animals never fight: they run from any predator, even with the player
   }
   // a wild one (a Compsognathus) never shows itself, even to a team no bigger than it
   const s = game(dino('c', 60, 'compy'));
-  const hex = ALL_HEXES.find(h => threatAt(42, h).id === 'compy' && !threatAt(42, h).lair);
+  const hex = landHexes(42).find(h => threatAt(42, h).id === 'compy' && !threatAt(42, h).lair);
   assert.equal(keepsAway(threatAt(42, hex), teamUnits(s, [{ kind: 'dino', id: 'c', members: ['c'] }])), true);
 });
 
@@ -1128,7 +1129,7 @@ test('an Allosaurus goes for its own kind (cannibalism), but no other theropod',
 
 test('wild against wild: the team watches a hunt, and may step in after the prey or the hunter', async () => {
   const { tripWitness, tripScatter } = await import('../js/world.js');
-  const hexOf = id => ALL_HEXES.map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 4 && !threatAt(42, h).lair && threatAt(42, h).id === id; });
+  const hexOf = id => landHexes(42).map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 4 && !threatAt(42, h).lair && threatAt(42, h).id === id; });
   const run = (key, types, pick) => {
     const seen = [];
     for (let trip = 0; trip < 300 && seen.length < 12; trip++) {

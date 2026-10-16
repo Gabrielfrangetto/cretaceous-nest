@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, cellAt, neighbors, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripWitness, encounterChance,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripWitness, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -207,7 +207,7 @@ function bindMap(box) {
 function threatHTML(h, units, scout) {
   if (!isRevealed(S, hexKey(...h))) return '<p class="hint">Unknown dangers.</p>';
   const th = threatAt(S.world.seed, h);
-  const swamp = biomeAt(S.world.seed, h) === 'swamp';
+  const swamp = watery(S.world.seed, h);
   // it keeps away from a team with anything bigger than it stands up to: no fight, but it may be hunted
   if (units.length && keepsAway(th, units)) {
     const hunt = huntOdds(units, th.foe.members[0]);
@@ -228,7 +228,7 @@ function threatHTML(h, units, scout) {
   // everyone would run: a predator gives chase and may catch the slowest, who may not survive
   const chased = units.length && run.escaped ? chaseOf(units, th.foe) : null;
   // a rival as big as a Spinosaurus in the team may back off from its sail
-  const sail = units.length ? sailBackOff(th, units, biomeAt(S.world.seed, h)) : 0;
+  const sail = units.length ? sailBackOff(th, units, swamp) : 0;
   // watchful ones (Hypsilophodon) may see a predator first and the team scatters
   const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0));
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
@@ -352,7 +352,7 @@ function standoffHTML(e) {
   if (!st) return '';
   if (!standoffOdds.has(e.id)) {
     const units = teamUnits(S, e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length));
-    const swamp = biomeAt(S.world.seed, parseKey(e.hex)) === 'swamp';
+    const swamp = watery(S.world.seed, parseKey(e.hex));
     standoffOdds.set(e.id, { ...teamOdds(units, st.foe, 120, { swamp, biome: biomeAt(S.world.seed, parseKey(e.hex)) }), units });
   }
   const { win: odds, death, units } = standoffOdds.get(e.id);
@@ -371,7 +371,7 @@ function scatterHTML(e) {
   if (!sc) return '';
   if (!scatterOdds.has(e.id)) {
     const biome = biomeAt(S.world.seed, parseKey(e.hex));
-    scatterOdds.set(e.id, teamOdds(sc.units, sc.foe, 120, { swamp: biome === 'swamp', biome }));
+    scatterOdds.set(e.id, teamOdds(sc.units, sc.foe, 120, { swamp: watery(S.world.seed, parseKey(e.hex)), biome }));
   }
   const { win, death } = scatterOdds.get(e.id);
   const stay = e.team.filter((u, i) => u.kind !== 'player' && !sc.fled.includes(i)).map(unitName);
@@ -398,7 +398,7 @@ function witnessHTML(e) {
   const biome = biomeAt(S.world.seed, parseKey(e.hex));
   const fightOdds = id => {
     const k = e.id + ':' + id;
-    if (!witnessOdds.has(k)) witnessOdds.set(k, teamOdds(teamUnits(S, live.filter(u => u.kind === 'player' || u.id === id)), wt.hunterFoe, 120, { swamp: biome === 'swamp', biome, defend: true }));
+    if (!witnessOdds.has(k)) witnessOdds.set(k, teamOdds(teamUnits(S, live.filter(u => u.kind === 'player' || u.id === id)), wt.hunterFoe, 120, { swamp: watery(S.world.seed, parseKey(e.hex)), biome, defend: true }));
     return witnessOdds.get(k);
   };
   const buttons = [], cant = [];

@@ -398,11 +398,49 @@ export const LOOT_PER_HEX = 0.25;            // each hex of distance past the fi
 // pack[0] next to the nest up to pack[1] at the edge); creature is an animal that isn't a dinosaur
 // (CREATURES). loot is extra, on top of the hex's, when it is beaten.
 export const WILD = {
-  meadow:   [{ species: 'compy', weight: 2, loot: [['meat', 1, 2]] }, { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] }],
-  forest:   [{ species: 'raptor', pack: [2, 4], weight: 2, loot: [['feather', 2, 3], ['meat', 1, 2]] }, { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] }],
-  swamp:    [{ creature: 'deinosuchus', weight: 2, loot: [['clay', 2, 3], ['meat', 2, 3]] }, { species: 'bary', weight: 1, loot: [['fish', 2, 3], ['bone', 1, 2]] }],
-  badlands: [{ species: 'proto', pack: [2, 3], herd: true, weight: 2, loot: [['bone', 2, 3]] }, { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] }],
-  volcano:  [{ species: 'rex', weight: 1, loot: [['obsidian', 2, 3], ['meat', 2, 3]] }],
+  // the Fern Meadow: small and middling animals; the Dilophosaurus hunts them (and the small armored
+  // Scelidosaurus, as its relative Scutellosaurus was hunted)
+  meadow: [
+    { species: 'compy', weight: 2, loot: [['meat', 1, 1]] },
+    { species: 'psitta', pack: [2, 5], herd: true, weight: 2, loot: [['meat', 1, 2], ['feather', 1, 1, 0.3]] },
+    { species: 'galli', pack: [3, 6], herd: true, weight: 1.5, loot: [['meat', 1, 2], ['feather', 1, 2]] },
+    { species: 'scelido', weight: 1.5, loot: [['bone', 1, 2], ['meat', 1, 2]] },
+    { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] },
+  ],
+  // the Conifer Forest: Allosaurus and Stegosaurus, raptor and Coelophysis packs after Hypsilophodon
+  forest: [
+    { species: 'hypsi', pack: [2, 6], herd: true, weight: 2, loot: [['meat', 1, 2]] },
+    { species: 'stego', weight: 1.5, loot: [['meat', 2, 4], ['bone', 2, 3]] },
+    { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] },
+    { species: 'raptor', pack: [2, 4], weight: 1.5, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+    { species: 'coelo', pack: [3, 8], weight: 1, loot: [['meat', 1, 2], ['feather', 1, 1, 0.5]] },
+    { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] },
+  ],
+  // the Swamp: hadrosaur herds at the water's edge, where the Deinosuchus waits; the fishers fish
+  swamp: [
+    { species: 'para', pack: [3, 6], herd: true, weight: 2, loot: [['meat', 2, 4]] },
+    { species: 'hypa', pack: [3, 8], herd: true, weight: 2, loot: [['meat', 2, 4]] },
+    { creature: 'deinosuchus', weight: 2, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+    { species: 'bary', weight: 1, loot: [['fish', 2, 3], ['bone', 1, 2]] },
+    { species: 'spino', weight: 0.7, loot: [['fish', 2, 4], ['bone', 1, 2]] },
+  ],
+  // the Badlands: raptors and Protoceratops (the Fighting Dinosaurs of the Gobi), the great armored
+  // and horned plant eaters, now and then a Tyrannosaurus (it lived beside Triceratops)
+  badlands: [
+    { species: 'proto', pack: [2, 5], herd: true, weight: 2, loot: [['bone', 2, 3]] },
+    { species: 'galli', pack: [3, 6], herd: true, weight: 1.5, loot: [['meat', 1, 2], ['feather', 1, 2]] },
+    { species: 'trike', weight: 1, loot: [['meat', 3, 4], ['bone', 2, 3]] },
+    { species: 'ankylo', weight: 1, loot: [['bone', 2, 4], ['meat', 2, 3]] },
+    { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] },
+    { species: 'raptor', pack: [2, 4], weight: 1.5, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+    { species: 'rex', weight: 0.4, loot: [['meat', 2, 4], ['bone', 2, 3]] },
+  ],
+  // the Volcanic Slopes: Tyrannosaurus and Allosaurus; herds of giant sauropods nothing hunts
+  volcano: [
+    { species: 'argent', pack: [2, 4], herd: true, weight: 1.5, loot: [['meat', 4, 6], ['bone', 3, 5]] },
+    { species: 'rex', weight: 1, loot: [['obsidian', 2, 3], ['meat', 2, 3]] },
+    { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] },
+  ],
 };
 
 // wild: the animals met there (WILD); eggs: the species whose eggs can be found there
@@ -439,8 +477,9 @@ export const AGES = {
 export const ALPHA_STEP = 7;
 // eggs are found at this step's genes and chance (no longer by distance: rarer kinds are just rarer)
 export const EGG_STEP = 5;
-// near the nest (hexes): no predators live there
+// near the nest (hexes): no predators live there, and no big ones (large or bigger) nearer than far
 export const NEST_CALM = 4;
+export const NEST_FAR = 10;
 // size in a fight: each size step bigger than the target hits this much harder, each step smaller
 // this much softer, so a Tyrannosaurus brings down a Compsognathus in a bite or two
 export const SIZE_ORDER = ['tiny', 'small', 'medium', 'large', 'huge', 'colossal'];

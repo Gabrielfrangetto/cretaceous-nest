@@ -7,9 +7,10 @@
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
   BIOMES, ITEMS, MAP_VERSION, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
-  LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
+  LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
 } from './config.js';
+import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
 import { hashId } from './util.js';
@@ -40,6 +41,9 @@ function mix(x) {
 const cell = (seed, salt, q, r) => mix(mix(mix(seed + salt) + q * 73856093) + r * 19349663) / 4294967296;
 // a hex's biome (water has none: it reads as Swamp, though no one goes there)
 export const biomeAt = (seed, h) => (cellAt(seed, h) || {}).biome || 'swamp';
+// whether a hex is by the water, for fishers (Baryonyx, Spinosaurus): a swamp, a river, or the shore
+// of a lake or the sea
+export const watery = (seed, h) => WATER_BIOMES.includes(biomeAt(seed, h)) || !!(cellAt(seed, h) || {}).river || neighbors(h).some(n => isWater(seed, n));
 
 // The eggs a hex can give: its biome's species, each with its rarity's weight (legendaries are only
 // found in lairs).
@@ -58,9 +62,12 @@ function pickWeighted(list, rand) {
 // lairs: a few hexes away from the nest where an animal always waits, stronger
 export const isLair = (seed, h) => hexDist(h) > NEST_CALM && !isWater(seed, h) && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
 const isPredatorEntry = e => (e.creature ? true : (SPECIES[e.species].role || 'attacker') === 'attacker');
-// the wild animals of a hex's biome that can live there (no predators near the nest)
+const isBigPredator = e => isPredatorEntry(e) && sizeRank(e.creature ? CREATURES[e.creature].size : SPECIES[e.species].size) >= sizeRank('large');
+// the wild animals of a hex's biome that can live there: no predators near the nest, no big ones
+// within NEST_FAR of it (a newcomer doesn't run into a Tyrannosaurus by chance)
 const wildFor = (seed, h) => {
-  const list = BIOMES[biomeAt(seed, h)].wild;
+  const all = BIOMES[biomeAt(seed, h)].wild;
+  const list = hexDist(h) > NEST_FAR ? all : all.filter(e => !isBigPredator(e)).length ? all.filter(e => !isBigPredator(e)) : all;
   if (hexDist(h) > NEST_CALM) return list;
   // (a biome of nothing but predators: the meadow's small ones wander in instead)
   const calm = list.filter(e => !isPredatorEntry(e));
@@ -299,11 +306,12 @@ export function keepsAway(threat, team) {
 
 // the chance a wild predator as big as a sail's owner backs off after sizing it up (SAIL), or 0: none
 // in the team, not a predator, or a lair's Alpha. The strongest sail counts.
-export function sailBackOff(threat, team, biome) {
+// (where: by the water, or the biome)
+export function sailBackOff(threat, team, where) {
   const sp = threat.entry.species && SPECIES[threat.entry.species];
   const foe = threat.foe.members[0];
   if (!sp || sp.role !== 'attacker' || threat.lair) return 0;
-  const base = WATER_BIOMES.includes(biome) ? SAIL.water : SAIL.land;
+  const base = (typeof where === 'string' ? WATER_BIOMES.includes(where) : where) ? SAIL.water : SAIL.land;
   const [lo, hi] = SAIL.ratio;
   return team.reduce((best, u) => u.members.reduce((b, m) => {
     if (!m.type || !SPECIES[m.type].sail || sizeRank(m.size) !== sizeRank(foe.size)) return b;
@@ -436,7 +444,7 @@ export function witnessOf(s, exp) {
   const [hunter, prey] = hunts(resident, visitor) ? [resident, visitor] : hunts(visitor, resident) ? [visitor, resident] : [];
   if (!hunter) return null;
   const who = u => ({ name: u.foe.name, species: u.entry.species || u.entry.creature, count: u.foe.members.length, entry: u.entry });
-  const r = teamFight([prey.foe], hunter.foe, rand, { biome, swamp: biome === 'swamp' });
+  const r = teamFight([prey.foe], hunter.foe, rand, { biome, swamp: watery(w.seed, h) });
   let outcome;
   if (r.escaped) {
     // it ran: the hunter goes after the slowest
@@ -498,7 +506,7 @@ export function tripScatter(s, id) {
   if (witnessOf(s, exp)) return null;
   if (!units.length || rand() >= encounterChance(threat, team, biomeAt(w.seed, h), hasScout(s, exp.members))) return null;
   if (keepsAway(threat, team)) return null;
-  const back = sailBackOff(threat, team, biomeAt(w.seed, h));
+  const back = sailBackOff(threat, team, watery(w.seed, h));
   if (back && rand() < back) return null;
   const sc = scatterOf(s, units, threat);
   return sc && { ...sc, foe: threat.foe, run: runOf(s, units, threat, sc), units: team };
@@ -608,7 +616,7 @@ export function collectExpedition(s, id, now, choice = {}) {
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
-  } else if (meets && (backChance = sailBackOff(threat, teamUnits(s, units), biomeAt(w.seed, h))) && fightRand() < backChance) {
+  } else if (meets && (backChance = sailBackOff(threat, teamUnits(s, units), watery(w.seed, h))) && fightRand() < backChance) {
     // a rival as big as the team's Spinosaurus sized up its sail and backed off: no fight
     const sail = teamUnits(s, units).flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
     backedOff = { name: threat.foe.name, count: threat.foe.members.length, by: sail.name };
@@ -654,7 +662,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (!how.foe && standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
     // (how.units: those who fight, the team by default; how.defend: the team went for it, so it defends
     // itself whatever it would hunt)
-    const foe = how.foe || threat.foe, opts = { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h), ...(how.defend ? { defend: true } : {}) };
+    const foe = how.foe || threat.foe, opts = { swamp: watery(w.seed, h), biome: biomeAt(w.seed, h), ...(how.defend ? { defend: true } : {}) };
     const fought = how.units || units, team = teamUnits(s, fought);
     const result = teamFight(team, foe, fightRand, opts);
     // everyone ran from a predator: it gives chase, and may catch the slowest, who may not survive
@@ -715,7 +723,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     const haul = teamHaul(s, exp.members);
     for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, Math.round(roll(l) * haul));
     // a fisher with a thumb claw (Baryonyx) brings home fish from the water
-    if (WATER_BIOMES.includes(biomeAt(w.seed, h))) for (const id of exp.members) {
+    if (watery(w.seed, h)) for (const id of exp.members) {
       const f = bodyOf(s, id).fishing;
       if (f) give('fish', f[0] + Math.floor(rand() * (f[1] - f[0] + 1)));
     }
