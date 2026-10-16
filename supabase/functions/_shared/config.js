@@ -127,13 +127,15 @@ const SIZE = {
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
 //   hunts:  a predator's diet, from fossil evidence (bite marks, stomach contents, fossils locked in
-//           combat): the body plans (SPECIES build, 'human' for the player) it hunts, 'any' for all;
+//           combat): the body plans (SPECIES build, 'human' for the player) or single species it hunts,
+//           'any' for all;
 //           preyMax the biggest it takes on (no bigger than itself; a size more for a pack hunter).
 //           Compsognathus: a lizard in its stomach. Coelophysis: crocodile-line reptiles and lizards.
 //           Dilophosaurus: small ornithischians such as Scutellosaurus (a small armored one), and fish.
 //           Velociraptor: Protoceratops (the Fighting Dinosaurs, tooth marks). Baryonyx: fish and a young
 //           Iguanodon in its stomach. Spinosaurus: mostly fish. Allosaurus: Stegosaurus (a vertebra
-//           pierced by a thagomizer, bitten plates), ornithopods. Tyrannosaurus: Triceratops (bones
+//           pierced by a thagomizer, bitten plates), ornithopods, its own kind (Allosaurus tooth marks
+//           on Allosaurus bones, Mygatt-Moore Quarry). Tyrannosaurus: Triceratops (bones
 //           covered in bites), hadrosaurs (a healed bite on an Edmontosaurus tail), its own kind. The
 //           player is prey to anything big enough: no animal has ever been seen to pass a person by.
 //   biped:  walks on two legs, with two arms (otherwise on four legs)
@@ -162,7 +164,7 @@ export const BODY = {
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: 'heavy', crouch: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
-  allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, hunts: ['armored', 'ornithopod', 'pachycephalosaur', 'human'], preyMax: 'large', role: 'attacker', hunt: 15, fear: 'huge' },
+  allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, hunts: ['armored', 'ornithopod', 'pachycephalosaur', 'allo', 'human'], preyMax: 'large', role: 'attacker', hunt: 15, fear: 'huge' },
   spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: { water: 1.5, land: 1, landAgi: 0.6 }, sail: true, hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'huge' },
   rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, hunts: ['ceratopsian', 'ornithopod', 'pachycephalosaur', 'theropod', 'human'], preyMax: 'huge', role: 'attacker', hunt: 10, fear: 'huge' },
   argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal' },

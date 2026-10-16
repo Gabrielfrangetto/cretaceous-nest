@@ -160,7 +160,7 @@ export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) >
 // anything else it passes by.
 const familyOf = m => (m.type && SPECIES[m.type] ? SPECIES[m.type].build : 'human');
 export const isPrey = (pred, m) => {
-  if (!pred.hunts || !(pred.hunts === 'any' || pred.hunts.includes(familyOf(m)))) return false;
+  if (!pred.hunts || !(pred.hunts === 'any' || pred.hunts.includes(familyOf(m)) || (m.type && pred.hunts.includes(m.type)))) return false;
   const most = sizeRank(pred.preyMax || pred.size) - (pred.young ? 1 : 0);
   return sizeRank(m.size) <= most && !(m.plated && sizeRank(pred.size) <= sizeRank(ARMOR.ignores)) && hitOf(pred, m, 1.25) > 0;
 };

@@ -1107,3 +1107,11 @@ test('the food chain: a predator passes by what it can neither hunt nor hurt, an
   assert.equal(r.escaped, true);
   assert.equal(chaseOf(of(['k', 'h']), raptors).unit, 1);
 });
+
+test('an Allosaurus goes for its own kind (cannibalism), but no other theropod', async () => {
+  const { isPrey } = await import('../js/combat.js');
+  const wild = wildFighter('allo', 6);
+  assert.equal(isPrey(wild, fighterOf(dino('a', 60, 'allo'))), true);
+  assert.equal(isPrey(wild, fighterOf(dino('d', 60, 'dilo'))), false);
+  assert.equal(isPrey(wild, fighterOf(dino('s', 60, 'stego'))), true);
+});
