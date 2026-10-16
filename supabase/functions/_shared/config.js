@@ -303,9 +303,9 @@ export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
 
 // Packs: species that hunted or lived in groups can be formed into a pack, which takes one place in a
-// team however many it holds, up to the species' limit. In a fight a pack hits with all its members
-// (not all reach at once: PACK_REACH per extra member, plus PACK_BONUS each for working together),
-// and every blow it takes can bring down at most one member.
+// team however many it holds, up to the species' limit. Each member still fights as itself, with its
+// own stats: a pack's turn is all of them striking at once (as many on one foe as can reach it), each
+// PACK_BONUS harder for every other one striking with it.
 export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8 };
 // a species with fullPack: a pack of it at its limit gives every member this much more of every stat
 // (Coelophysis: hundreds were found together at Ghost Ranch)
@@ -325,8 +325,7 @@ export const FRENZY_DROPS = [
   { id: 'allo_blood', chance: n => Math.min(1, 0.5 * (n - 1)), min: n => n - 1, max: n => 2 * (n - 1) },
 ];
 export const PACK_MIN = 2;
-export const PACK_REACH = 0.3;              // each member after the first adds this share of its damage
-export const PACK_BONUS = 0.05;              // +5% damage and dodge for each member after the first that can reach
+export const PACK_BONUS = 0.05;              // +5% damage for each other member striking with it, +5% dodge for each other one standing
 // how many can get at a foe at once, by its size: the rest wait their turn (and step in when one falls)
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
 export const JUVENILE_RANGE = 3;             // juveniles explore up to 3 hexes away; adults anywhere

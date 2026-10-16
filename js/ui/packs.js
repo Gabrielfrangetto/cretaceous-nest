@@ -1,6 +1,6 @@
 // Packs, under the babies in the Nest tab: dinosaurs of a pack-hunting species grouped into one unit
 // that takes a single place in an expedition team (rules in packs.js).
-import { SPECIES, SEX, PACK_LIMITS, PACK_MIN, PACK_REACH } from '../config.js';
+import { SPECIES, SEX, PACK_LIMITS, PACK_MIN, PACK_BONUS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf } from '../economy.js';
 import { act } from '../actions.js';
@@ -61,7 +61,7 @@ function render() {
         <button class="btn small" type="button" data-pack-form="${t}">Form pack</button></div>
     </div>`).join('');
   box.innerHTML = `<div class="collection-head"><h2>Packs</h2><span class="count">${packs.length ? packs.length + (packs.length === 1 ? ' pack' : ' packs') : ''}</span></div>
-    <p class="hint">Some species hunted together. Group them into a pack and it takes a single place in an expedition team, however many run in it. A pack hits harder the more of it stands (each one past the first adds about ${Math.round(PACK_REACH * 100)}% of its bite), and every blow it takes brings down at most one of them. Packs: ${Object.entries(PACK_LIMITS).map(([t, n]) => `${esc(SPECIES[t].species)} up to ${n}`).join(', ')}.</p>
+    <p class="hint">Some species hunted together. Group them into a pack and it takes a single place in an expedition team, however many run in it. Each one still fights as itself: on the pack's turn they all strike at once (as many as fit around the foe), each ${Math.round(PACK_BONUS * 100)}% harder for every other one striking with it. Packs: ${Object.entries(PACK_LIMITS).map(([t, n]) => `${esc(SPECIES[t].species)} up to ${n}`).join(', ')}.</p>
     ${packCards}${forms || (packs.length ? '' : `<p class="hint">Raise at least ${PACK_MIN} juveniles or adults of one of these species to form a pack.</p>`)}
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}`;
   const chosen = group => [...box.querySelectorAll(`input[data-group="${CSS.escape(group)}"]:checked`)].map(x => x.value);
