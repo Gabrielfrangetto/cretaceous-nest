@@ -471,7 +471,7 @@ export const DOME = { back: 0.7, maxStep: 1 };
 export const RISE = { max: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.
-export const STANCE = { stable: 1.5 };
+export const STANCE = { stable: 2.5 };
 // where a blow lands on an animal when it matters and nothing else decided it
 export const HIT_PARTS = [['head', 0.15], ['neck', 0.1], ['back', 0.4], ['belly', 0.1], ['limbs', 0.25]];
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor.
