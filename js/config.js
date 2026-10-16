@@ -378,8 +378,8 @@ export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['l
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's
-// resistance (bonus x str / (str + res)).
-export const CLUB = { lame: 0.15, bonus: 0.35, damage: 1.2 };
+// resistance (bonus x str / (str + res)). Anything no bigger than crushes that it lands on dies outright.
+export const CLUB = { lame: 0.15, bonus: 0.35, damage: 1.2, crushes: 'small' };
 // Dilophosaurus' grasping hands, settled by contests (one value against another: a / (a + b) to win).
 // When a blow lands on a foe with no armor on its body, it tries to get hold of it tries of the time. A bigger foe: agility against agility to
 // climb on to it. Clinging, nothing can reach it; each of its turns, its strength against the foe's

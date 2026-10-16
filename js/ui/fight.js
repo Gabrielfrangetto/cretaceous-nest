@@ -210,7 +210,7 @@ export function playFight(battle, summary, who) {
         strike(foeBox);
         foeHp[blow.member] = blow.left;
         for (const x of blow.also || []) foeHp[x.member] = x.left;
-        if (blow.kill) pop(foeBox, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
+        if (blow.kill) pop(foeBox, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
         else if (blow.lame) pop(foeBox, blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
         setHp(foeBox, blow.foeLeft, battle.foeMax);
         foeBox.querySelector('.pack-left').textContent = foeNote();

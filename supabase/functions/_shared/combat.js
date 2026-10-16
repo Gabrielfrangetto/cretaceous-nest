@@ -246,8 +246,10 @@ export function teamFight(units, foe, rand, opts = {}) {
       const member = held ? extra.member : alive[Math.floor(rand() * alive.length)];
       // a pinned or held foe can't dodge
       if (!held && !pinned(member) && rand() < unitPower(foe, foeHp).dodge) { log.push({ by: who, member, miss: true, ...extra }); return -1; }
+      // a tail club swung back (a counter or a charge)
+      const swung = units[who].members[0].club && (extra.counter || extra.charge);
       // a tail club swung back lands harder than a bite
-      const club = units[who].members[0].club && (extra.counter || extra.charge) ? CLUB.damage : 1;
+      const club = swung ? CLUB.damage : 1;
       // a sickle claw driven into the neck from below goes through any armor
       const clawed = units[who].members.some(m => m.claw);
       const neck = clawed && rand() < CLAW.neck;
@@ -256,7 +258,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       let bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
       // a tail club swung back (a counter or a charge) may break the foe's shin
       const clubber = units[who].members[0], shin = foe.members[member];
-      if (dmg > 0 && clubber.club && (extra.counter || extra.charge) && foeHp[member] > 0 && !shin.lame
+      // a tail club that lands on something small kills it outright
+      if (swung && foeHp[member] > 0 && sizeRank(shin.size) <= sizeRank(CLUB.crushes)) { foeHp[member] = 0; bone = { part: 'whole', kill: true, club: true }; }
+      else if (dmg > 0 && clubber.club && (extra.counter || extra.charge) && foeHp[member] > 0 && !shin.lame
         && rand() < CLUB.lame + CLUB.bonus * clubber.str / (clubber.str + shin.res)) {
         lameMember(foe, member, 'foe');
         bone = { part: 'leg', lame: true, club: true };

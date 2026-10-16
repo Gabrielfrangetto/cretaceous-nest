@@ -339,3 +339,17 @@ test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pi
   // never on an armored body
   for (let i = 0; i < 20; i++) assert.ok(!teamFight([raptor()], { ...wildFighter('proto', 5), plated: true }, seededRand('b' + i)).log.some(e => e.latch));
 });
+
+test("an Ankylosaurus' tail club kills anything small it lands on", () => {
+  const ankylo = () => unitOf('a', [{ ...fighterOf(dino('a', 50, 'ankylo')), fear: undefined }]);
+  let swings = 0, landed = 0, kills = 0;
+  for (let i = 0; i < 40; i++) {
+    for (const e of teamFight([ankylo()], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 5), seededRand('c' + i)).log) {
+      if (e.by !== 0 || !(e.counter || e.charge)) continue;
+      swings++;
+      // whatever it lands on dies, crushed outright or from the blow itself
+      if (!e.miss) { landed++; assert.equal(e.left, 0); if (e.kill && e.club) kills++; }
+    }
+  }
+  assert.ok(swings && kills, `${swings} swings, ${landed} landed`);
+});
