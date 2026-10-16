@@ -246,29 +246,32 @@ test("a Triceratops' frill takes head blows and gores back; it stays damaged unt
 });
 
 test('an Ankylosaurus is armored blow by blow, spikes hurt what bites its back, and its club breaks shins', async () => {
-  const { ARMOR } = await import('../js/config.js');
+  const { ARMOR, PARTS, BONE_BREAKER } = await import('../js/config.js');
+  const BONE_BREAKER_PARTS = BONE_BREAKER.parts;
   const rex = wildFighter('rex', 6);
   const parts = {};
-  let thorns = 0, shins = 0;
+  let thorns = 0, shins = 0, bellies = 0;
   for (let i = 0; i < 40; i++) {
     const r = teamFight([unitOf('a', [fighterOf(dino('a', 50, 'ankylo'))])], rex, seededRand('k' + i));
     let lastFoeBlow = null;
     for (const e of r.log) {
       if (e.by === 'foe' && !e.miss) {
         parts[e.part] = (parts[e.part] || 0) + 1;
-        assert.equal(!!e.armored, ARMOR.armored.includes(e.part));
+        assert.equal(!!e.armored, ARMOR.armored.includes(e.part) && !e.belly);
+        if (e.belly) bellies++;
         assert.ok(!e.kill, 'its neck is never bitten through');
         lastFoeBlow = e;
       }
-      if (e.thorns) { thorns++; assert.equal(lastFoeBlow.part, 'back'); }
+      if (e.thorns) { thorns++; assert.equal(lastFoeBlow.part, 'body'); assert.ok(!lastFoeBlow.belly); }
       if (e.club) { shins++; assert.ok(e.lame && (e.counter || e.charge)); }
     }
   }
   for (const [p] of ARMOR.parts) assert.ok(parts[p], `blows land on its ${p}`);
-  assert.ok(thorns && shins, `${thorns} spikes, ${shins} shins`);
+  assert.ok(thorns && shins && bellies, `${thorns} spikes, ${shins} shins, ${bellies} bellies`);
+  for (const [p] of [...ARMOR.parts, ...BONE_BREAKER_PARTS]) assert.ok(PARTS.includes(p), p);
   // the armored parts let much less through than the belly
   const plain = fighterOf(dino('a', 50, 'ankylo'));
-  assert.ok(1 - ARMOR.cut < 1 && ARMOR.belly > 1 && plain.armor && plain.club);
+  assert.ok(1 - ARMOR.cut < 1 && ARMOR.bellyHit > 1 && plain.armor && plain.club);
 });
 
 test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller ones in its grip', async () => {

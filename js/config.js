@@ -390,10 +390,14 @@ export const SIZE_DODGE_MAX = 0.85;
 export const BLEED_BIGGER = 0.3;
 export const BLEED_SMALLER = 0.25;
 export const BLEED_MIN = 0.25;
-// Ankylosaurus' armor: every blow lands on a part. The back, the head (fused skull plates, even bony
-// eyelids) and the neck (rings of bone) take cut less damage; a blow on the back also hurts the
-// attacker (thorns, of the blow's full damage). The legs have little armor; the belly none (belly times).
-export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['legs', 0.2], ['belly', 0.05]], armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
+// The parts of a body a blow can land on, the same for every animal: abilities (and, later, armor that
+// covers parts) all name these. A tail, and each of the four legs on its own, may come later.
+export const PARTS = ['head', 'neck', 'body', 'legs'];
+// Ankylosaurus' armor: every blow lands on a part. The body (bony plates over the back), the head (fused
+// skull plates, even bony eyelids) and the neck (rings of bone) take cut less damage; a blow on the
+// plated body also hurts the attacker (thorns, of the blow's full damage). The legs have little armor.
+// A blow on the body finds the bare belly belly of the time, and lands bellyHit times as hard there.
+export const ARMOR = { parts: [['body', 0.55], ['head', 0.15], ['neck', 0.1], ['legs', 0.2]], armored: ['body', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 0.09, bellyHit: 1.5 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's
@@ -458,7 +462,7 @@ export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.7
 // lamed: half its dodge and agility for the rest of the fight, and it comes home injured. A neck kills
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
 // Anything no bigger than oneBite (up to about 100 kg) dies from any bite that lands.
-export const BONE_BREAKER = { parts: [['body', 0.65], ['leg', 0.27], ['neck', 0.08]], lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
+export const BONE_BREAKER = { parts: [['body', 0.65], ['legs', 0.27], ['neck', 0.08]], lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
 // health grows with the body: a size's share of the health its stats give (medium as it is)
 export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
