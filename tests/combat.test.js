@@ -606,3 +606,20 @@ test('a giant sauropod in the team: twice the trip, more of what the hex has', a
   assert.equal(teamHaul(s, ['g', 'd']), SPECIES.argent.haul);
   assert.equal(teamHaul(s, ['d']), 1);
 });
+
+test('a Parasaurolophus warns its group of a predator: readied, every one of it strikes first', () => {
+  const para = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined }]);
+  const dilo = unitOf('d', [fighterOf(dino('d', 60, 'dilo'))]);
+  const raptors = encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 6);
+  const r = teamFight([dilo, para], raptors, seededRand('call'));
+  assert.equal(r.alerted, 'team');
+  assert.deepEqual(r.log[0], { by: 1, alert: true });
+  // the team acts before the foe in the first round, though Velociraptors are quicker
+  const firstFoe = r.log.findIndex(e => e.by === 'foe');
+  assert.ok(r.log.slice(1, firstFoe).some(e => e.by === 0));
+  // readied: a little more of everything for the fight
+  assert.ok(r.teamHps[0][0] > dilo.members[0].hp);
+  // no call without a predator, or without a Parasaurolophus
+  assert.equal(teamFight([dilo, para], wildFighter('pachy', 4), seededRand('herb')).alerted, null);
+  assert.equal(teamFight([dilo], raptors, seededRand('none')).alerted, null);
+});

@@ -100,6 +100,7 @@ const SIZE = {
 //   throat: small bones covering the throat (THROAT)
 //   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
 //   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
+//   alert: a deep call through its hollow crest that warns its group of a predator (ALERT)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -129,7 +130,7 @@ export const BODY = {
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: true, role: 'attacker', hunt: 5, fear: 'large' },
-  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, role: 'noncombatant', fear: 'large' },
+  para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, role: 'noncombatant', fear: 'large' },
   trike:   { weapon: 'Three horns and a shield of a frill', bite: 170, hide: 20, frill: true, role: 'defender', charge: 0.35, fear: 'huge' },
   ankylo:  { weapon: 'Bony tail club; armored all over', bite: 160, hide: 35, armor: true, club: true, role: 'defender', charge: 0.15, fear: 'huge' },
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
@@ -480,6 +481,10 @@ export const RISE = { max: 0.95 };
 // speed more (as a spiked tail), and lands tail times as hard, on that one target alone. Nothing
 // smaller can reach its neck, break its legs, or knock it down. Against anything tinyStep or more sizes
 // smaller (small and tiny ones) its blows hardly find their target: dodged up to tinyDodge.
+// Parasaurolophus' crest, a hollow tube that made deep calls carry far: when its group meets a predator
+// (an attacker) it warns them. The whole group is readied (every stat bonus higher for the fight) and
+// strikes first, every unit of it before the predator.
+export const ALERT = { bonus: 0.05 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.

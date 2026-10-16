@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -80,7 +80,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: !!sp.armor, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -217,6 +217,9 @@ function withRoles(u, swamp) {
 //   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
 //   A giant's blow back adds stomp (a kill when it lands on anything short of colossal: stomped) or
 //   swipe (its tail).
+//   { by, alert: true } | { by: 'foe', alert: true }: a Parasaurolophus' call warned its side of a
+//   predator (alerted: 'team' | 'foe'): readied, it acts first. teamHps: our members' full health for
+//   the fight (a readied team has a little more).
 //   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
 //   (the foe's running off is a win).
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); routed: the
@@ -227,6 +230,15 @@ export function teamFight(units, foe, rand, opts = {}) {
   if (!foe.members) foe = unitOf(foe.name, [foe]);
   units = units.map(u => withRoles(u, opts.swamp));
   foe = withRoles(foe, opts.swamp);
+  // an alarm call (Parasaurolophus): a side with one that meets a predator is warned and readied
+  const caller = list => list.findIndex(u => u.members.some(m => m.alert));
+  const preys = list => list.some(u => (u.members[0].role || 'attacker') === 'attacker');
+  const alerted = caller(units) >= 0 && preys([foe]) ? 'team' : caller([foe]) >= 0 && preys(units) ? 'foe' : null;
+  const readied = u => ({ ...u, members: u.members.map(m => ({
+    ...m, hp: Math.round(m.hp * (1 + ALERT.bonus)), damage: m.damage * (1 + ALERT.bonus), agi: m.agi * (1 + ALERT.bonus), str: m.str * (1 + ALERT.bonus),
+    res: m.res * (1 + ALERT.bonus), dodge: Math.min(DODGE_MAX, m.dodge * (1 + ALERT.bonus)), reduction: m.reduction * (1 + ALERT.bonus) })) });
+  if (alerted === 'team') units = units.map(readied);
+  if (alerted === 'foe') foe = readied(foe);
   const { fled, escaped } = whoFlees(units, foe);
   // The two sides follow the same rules: side 0 is the team (its units), side 1 the foe (one unit). A
   // unit is (side, index), one of its animals (side, index, member).
@@ -707,8 +719,10 @@ export function teamFight(units, foe, rand, opts = {}) {
   };
 
   if (!escaped) {
-    // the order is set by agility at the start; the team goes first on a tie
-    const order = [...active[0].map(i => ({ s: 0, u: i, agi: unitPower(units[i]).agi })), { s: 1, u: 0, agi: unitPower(foe).agi - 0.001 }]
+    // the order is set by agility at the start; the team goes first on a tie; a warned side goes first
+    if (alerted) log.push(alerted === 'team' ? { by: caller(units), alert: true } : { by: 'foe', alert: true });
+    const first = s => alerted === (s === 0 ? 'team' : 'foe') ? 1e6 : 0;
+    const order = [...active[0].map(i => ({ s: 0, u: i, agi: unitPower(units[i]).agi + first(0) })), { s: 1, u: 0, agi: unitPower(foe).agi - 0.001 + first(1) }]
       .sort((a, b) => b.agi - a.agi);
     for (let round = 0; round < FIGHT_SAFETY && !over(); round++) {
       for (const { s, u } of order) {
@@ -728,7 +742,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamLeft = stayed.reduce((t, i) => t + hp[0][i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
   const win = !escaped && (left <= 0 || foeRouted);
-  return { win, escaped, fled, routed, foeRouted, log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
+  return { win, escaped, fled, routed, foeRouted, alerted, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
 }
 
 export function teamWinChance(units, foe, runs = 120, opts = {}) {

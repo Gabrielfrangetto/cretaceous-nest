@@ -154,7 +154,10 @@ export function playFight(battle, summary, who) {
         foeBox.querySelector('.pack-left').textContent = foeNote();
       }
     };
-    if (blow.rout) {
+    if (blow.alert) {
+      // a Parasaurolophus' call warned its group of the predator
+      pop(actor, 'Warning call!', 'mad');
+    } else if (blow.rout) {
       // a pack or herd that lost half its members runs off
       if (blow.by === 'foe') { pop(foeBox, 'Ran off!', 'miss'); foeBox.classList.add('fled'); }
       else { fled.add(blow.by); pop(boxes[blow.by], 'Ran off!', 'miss'); boxes[blow.by].classList.add('fled'); boxes[blow.by].querySelector('.pack-left').textContent = packNote(blow.by); }

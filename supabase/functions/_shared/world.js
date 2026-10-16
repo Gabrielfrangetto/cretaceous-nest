@@ -395,7 +395,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     const injured = [];
     // those who ran before the fight come home unhurt
     units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
-      const left = result.hp[i][j] / team[i].members[j].hp;
+      const left = result.hp[i][j] / result.teamHps[i][j];
       const critical = left <= 0 && id !== PLAYER_ID;
       // a leg lamed by a bone-breaking bite comes home injured at least
       const lame = result.lamed.some(([a, b]) => a === i && b === j);
@@ -415,7 +415,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     }));
     battle = {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
-      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: t.members.map(m => m.hp), power: t.members.reduce((x, m) => x + m.power, 0),
+      team: team.map((t, i) => ({ name: t.name, kind: units[i].kind, members: units[i].members, hp: result.teamHps[i], power: t.members.reduce((x, m) => x + m.power, 0),
         ...(t.members.some(m => m.frill !== undefined) ? { frill: t.members.map(m => m.frill ?? null) } : {}) })),
       ...result, injured,
       // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
