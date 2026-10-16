@@ -33,10 +33,11 @@ export const quickDodge = (dodge, agi, attAgi) => {
   const share = agi > 0 ? agi / (agi + Math.max(0, attAgi || 0)) : 0;
   return Math.max(MISS_FLOOR, dodge * Math.max(0, Math.min(1, (share - 0.5) * 6)));
 };
-export const dodgeVs = (dodge, agi, size, attAgi, attSize) => {
+// cap: how high it may go against a bigger attacker (SIZE_DODGE_MAX unless said otherwise)
+export const dodgeVs = (dodge, agi, size, attAgi, attSize, cap = SIZE_DODGE_MAX) => {
   const own = quickDodge(dodge, agi, attAgi);
   const steps = Math.max(0, SIZE_ORDER.indexOf(attSize || 'small') - SIZE_ORDER.indexOf(size || 'small'));
-  return steps ? Math.min(SIZE_DODGE_MAX, own + SIZE_DODGE * steps) : Math.min(DODGE_MAX, own);
+  return steps ? Math.min(cap, own + SIZE_DODGE * steps) : Math.min(DODGE_MAX, own);
 };
 
 // how much a wound bleeds when an attacker of attSize opens it on a target of size
@@ -359,7 +360,9 @@ export function teamFight(units, foe, rand, opts = {}) {
     // it coming
     const slowSwing = (extra.counter || extra.charge) && (att.spikes ? SPIKES.slow : swipe ? GIANT.slow : 0);
     const tail = slowSwing ? slowSwing * lead : 0;
-    if (!held && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
+    // a giant hardly finds anything far smaller than itself
+    const cap = att.giant && sizeRank(att.size) - sizeRank(prey.size) >= GIANT.tinyStep ? GIANT.tinyDodge : SIZE_DODGE_MAX;
+    if (!held && !pinned(t, v, m) && rand() < Math.min(cap, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size, cap) + tail)) {
       log.push(entry(s, u, at, v, m, { miss: true, ...extra }));
       return -1;
     }

@@ -478,8 +478,9 @@ export const RISE = { max: 0.95 };
 // on something as slow as itself, down to hit[0] on something twice as quick or more; then the target
 // still gets its dodge. One that lands crushes anything short of colossal outright. The tail is slow, dodged slow times the target's lead in
 // speed more (as a spiked tail), and lands tail times as hard, on that one target alone. Nothing
-// smaller can reach its neck, break its legs, or knock it down.
-export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1 };
+// smaller can reach its neck, break its legs, or knock it down. Against anything tinyStep or more sizes
+// smaller (small and tiny ones) its blows hardly find their target: dodged up to tinyDodge.
+export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.
 export const STANCE = { stable: 4 };
