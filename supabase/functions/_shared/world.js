@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -139,7 +139,9 @@ export const hasScout = (s, members) => members.some(id => {
 const bodyOf = (s, id) => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && b.type ? SPECIES[b.type] : {}; };
 export const teamSlow = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).slow || 1));
 export const teamHaul = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).haul || 1));
-export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1) * teamSlow(s, members);
+// a team of nothing but runners (Gallimimus) goes twice as fast
+export const allRunners = (s, members) => members.length > 0 && members.every(id => bodyOf(s, id).runner);
+export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1) * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1);
 
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
@@ -357,6 +359,8 @@ export function tripStandoff(s, id) {
   return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
 }
 const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
+// whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
+const runnersSpot = (s, members, rand) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye);
 // how a group that stood its ground is told: its species, how many, and whether it's a herd or a pack
 const standoffOf = threat => ({
   name: threat.foe.name, species: SPECIES[threat.entry.species].species, count: threat.foe.members.length,
@@ -382,7 +386,7 @@ export function collectExpedition(s, id, now, choice = {}) {
   let battle = null;
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
-  let sighting = null, standoff = null;
+  let sighting = null, standoff = null, chase = null, spotted = false;
   const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
   // what keeps away from the team may still be spotted at a distance, and hunted
   if (meets && keepsAway(threat, teamUnits(s, units))) {
@@ -397,6 +401,19 @@ export function collectExpedition(s, id, now, choice = {}) {
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
+  } else if (meets && !standsGround(threat.foe) && (spotted = runnersSpot(s, exp.members, fightRand))) {
+    // runners (Gallimimus) saw the predator first: the team runs, and it may catch the slowest of them
+    const ids = units.flatMap(u => u.members), fighters = teamUnits(s, units).flatMap(u => u.members);
+    const runners = fighters.map((f, i) => ({ f, id: ids[i] })).filter(x => x.f.type && SPECIES[x.f.type].runner);
+    const slow = runners.reduce((a, x) => (!a || x.f.agi < a.f.agi ? x : a), null);
+    const hunter = threat.foe.members.reduce((a, f) => (f.agi > a.agi ? f : a));
+    let caught = null;
+    if (slow && fightRand() < hunter.agi / (hunter.agi + 2 * slow.f.agi)) {
+      caught = explorerOf(s, slow.id);
+      caught.injuredUntil = now + CRITICAL_MINS * 60000;
+      caught.critical = true;
+    }
+    chase = { name: threat.foe.name, count: threat.foe.members.length, caught: caught ? caught.id : null };
   } else if (meets && standsGround(threat.foe) && !choice.fight) {
     // it stood its ground and the team left it in peace
     standoff = { ...standoffOf(threat), fought: false };
@@ -485,7 +502,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     const b = explorerOf(s, id);
     if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   }
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

@@ -767,3 +767,27 @@ test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small f
   }
   assert.ok(cracked > 0);
 });
+
+test('Gallimimus: twice as fast alone, they see predators first and run, and one may be caught', async () => {
+  const { teamTripMins } = await import('../js/world.js');
+  const { RUNNER } = await import('../js/config.js');
+  const s0 = game(dino('g1', 60, 'galli'), dino('g2', 60, 'galli'), dino('d', 60, 'dilo'));
+  const key = '2,0';
+  assert.equal(teamTripMins(s0, ['g1', 'g2'], key), teamTripMins(s0, ['d'], key) * RUNNER.trip);
+  assert.equal(teamTripMins(s0, ['g1', 'd'], key), teamTripMins(s0, ['d'], key));
+  // a raptor pack lair: always met, and fought or run from
+  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  let ran = 0, caught = 0, fought = 0;
+  for (let trip = 0; trip < 60; trip++) {
+    const s = game(...['g1', 'g2', 'g3', 'g4'].map(id => dino(id, 60, 'galli')));
+    s.world.trips = trip;
+    const r = applyAction(s, 'explore', { team: ['g1', 'g2', 'g3', 'g4'].map(id => ({ kind: 'dino', id })), hex: lair }, T0);
+    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    if (c.chase) {
+      ran++;
+      assert.equal(c.battle, null);
+      if (c.chase.caught) { caught++; assert.equal(s.hatched.find(b => b.id === c.chase.caught).critical, true); }
+    } else if (c.battle) fought++;
+  }
+  assert.ok(ran > 0 && caught > 0 && fought > 0, JSON.stringify({ ran, caught, fought }));
+});

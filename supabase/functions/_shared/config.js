@@ -110,6 +110,8 @@ const SIZE = {
 //   digest: gets hungry this many times more slowly (gizzard stones)
 //   crack:  a nut-cracking beak that may break a small foe's limb when it strikes back (CRACK)
 //   creche: an adult in the nest raises its hatchlings with a strong stomach (CRECHE)
+//   runner: a fast runner with wide-set eyes (RUNNER)
+//   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -133,7 +135,7 @@ export const BODY = {
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
-  galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
+  galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, role: 'attacker', hunt: 25, fear: 'medium' },
@@ -541,6 +543,12 @@ export const CRACK = { chance: 0.2 };
 // hatches with an adult Psittacosaurus in the nest (not out exploring) grows a strong stomach: it gets
 // hungry stomach times more slowly, for life.
 export const CRECHE = { stomach: 1.25 };
+// Gallimimus: long legs (an ostrich of 450 kg) and wide-set eyes. An expedition of nothing but
+// Gallimimus takes trip of the time. When a predator would fall on a team, each Gallimimus in it may
+// see it first (eye of the time, each on its own): then the team runs instead of fighting, keeping
+// what the hex gave. The predator may still catch one of them: its agility against twice the slowest
+// one's; the one caught comes home critically injured.
+export const RUNNER = { trip: 0.5, eye: 0.25 };
 export const NURSE = { hatch: 0.25, perOne: 0.01, max: 0.1 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped

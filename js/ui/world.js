@@ -4,7 +4,7 @@ import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDI
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, hasScout, lootTable, exploreProblem, expeditionOf,
+  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
@@ -222,7 +222,7 @@ function sideHTML(t) {
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${scout ? ' (a scout leads the way)' : ''}${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${scout ? ' (a scout leads the way)' : ''}${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (Gallimimus alone: twice as fast)' : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
@@ -444,12 +444,14 @@ function bindTrips(box) {
     // a Parasaurolophus heard the predator coming
     const call = r.battle && r.battle.alerted === 'team' ? r.battle.log.find(e => e.alert) : null;
     const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';
+    // runners saw a predator first and the team ran
+    const ran2 = r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(hurtName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'} and is critically injured.` : ' Everyone got away.'}` : '';
     const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));

@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -80,7 +80,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -472,7 +472,9 @@ export function teamFight(units, foe, rand, opts = {}) {
     const spiked = att.spikes && (extra.counter || extra.charge);
     const buff = o.buff || 1;
     const weapon = neck ? { ...att, crush: 1 } : spiked ? { ...att, crush: Math.max(att.crush || 0, SPIKES.pierce) } : att;
-    const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? 0 : 1);
+    // a long-legged kick back lands harder (Gallimimus)
+    const kick = extra.counter && att.kick > 1 ? att.kick : 1;
+    const raw = hitOf(weapon, prey, roll) * buff * boost * kick * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? 0 : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     // what this turn's blows did to hunkered-down armor (a frustrated predator gives up)
