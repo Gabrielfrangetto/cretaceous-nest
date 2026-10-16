@@ -223,7 +223,8 @@ function withRoles(u, swamp) {
 //   predator (it stays down, its belly and legs out of reach, while one is there);
 //   { by: 'foe', fled: true }: a wild predator badly hurt got away (foeFled; a win with no carcass), or
 //   { by: 'foe', caught: true }: it tried and was caught, losing its turn; { by: 'foe', fled: true,
-//   gaveUp: true }: it gave up on hunkered-down armor it couldn't hurt (GIVE_UP).
+//   gaveUp: true }: it gave up on hunkered-down armor it couldn't hurt and had nobody else to go for
+//   (GIVE_UP); { by: 'foe', turned: true }: it gave up on them and turned on the rest of the group.
 //   { by, alert: true } | { by: 'foe', alert: true }: a Parasaurolophus' call warned its side of a
 //   predator (alerted: 'team' | 'foe'): readied, it acts first. teamHps: our members' full health for
 //   the fight (a readied team has a little more).
@@ -300,6 +301,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   // and whether any went on something that wasn't hunkered down; and each wild predator's frustrated turns
   let turnHits = { dmg: 0, hp: 0, open: false };
   const frustrated = new Map();
+  // the hunkered-down ones each wild predator gave up on: it goes for anyone else first
+  const ignored = new Map();
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
@@ -573,14 +576,19 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (o.to !== undefined && bk.u !== o.to) continue;
         v = bk.u; m = bk.at; part = 'head';
       } else {
-        const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => roomOf(x, y) > 0));
+        // a predator that gave up on some hunkered-down ones goes for the others
+        const ign = ignored.get(u) || new Set();
+        const open = (x, y) => roomOf(x, y) > 0 && !(s === 1 && ign.has(E(t, x, y)));
+        const anyOpen = (o.to !== undefined ? [o.to] : active[t]).some(x => active[t].includes(x) && alive(t, x).some(y => open(x, y)));
+        const usable = (x, y) => anyOpen ? open(x, y) : roomOf(x, y) > 0;
+        const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => usable(x, y)));
         if (!targets.length) continue;
         const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])]);
         let pick = rand() * weights.reduce((a, w) => a + w, 0);
         v = targets[targets.length - 1];
         for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { v = targets[k]; break; } }
-        const open = alive(t, v).filter(y => roomOf(v, y) > 0);
-        m = o.target !== undefined && v === o.to && hp[t][v][o.target] > 0 ? o.target : open[Math.floor(rand() * open.length)];
+        const free = alive(t, v).filter(y => usable(v, y));
+        m = o.target !== undefined && v === o.to && hp[t][v][o.target] > 0 ? o.target : free[Math.floor(rand() * free.length)];
       }
       room.set(E(t, v, m), roomOf(v, m) - 1);
       blows.push({ at, v, m, part });
@@ -802,7 +810,17 @@ export function teamFight(units, foe, rand, opts = {}) {
           const scraped = turnHits.hp > 0 && !turnHits.open && turnHits.dmg < GIVE_UP.perTurn * turnHits.hp;
           const n = scraped ? (frustrated.get(u) || 0) + 1 : 0;
           frustrated.set(u, n);
-          if (n >= GIVE_UP.turns) runOff(1, u, { fled: true, gaveUp: true });
+          if (n >= GIVE_UP.turns) {
+            // it gives up on the hunkered-down ones and turns on the rest of the group; with nobody else
+            // left to go for, it leaves
+            const ign = ignored.get(u) || new Set();
+            for (const v of active[0]) for (const m of alive(0, v)) if (crouched.has(E(0, v, m))) ign.add(E(0, v, m));
+            ignored.set(u, ign);
+            frustrated.set(u, 0);
+            const others = active[0].some(v => alive(0, v).some(m => !ign.has(E(0, v, m))));
+            if (others) log.push({ by: 'foe', turned: true });
+            else runOff(1, u, { fled: true, gaveUp: true });
+          }
         }
         counters(s, u);
       }

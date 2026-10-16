@@ -161,6 +161,9 @@ export function playFight(battle, summary, who) {
       // a wild predator badly hurt got away
       pop(foeBox, blow.gaveUp ? 'Gave up!' : 'Fled!', 'miss');
       foeBox.classList.add('fled');
+    } else if (blow.turned) {
+      // it gave up on the hunkered-down armor and turns on someone else
+      pop(foeBox, 'Gave up on the armor!', 'miss');
     } else if (blow.caught) {
       pop(foeBox, 'Tried to flee!', 'miss');
     } else if (blow.alert) {

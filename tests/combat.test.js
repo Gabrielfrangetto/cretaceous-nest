@@ -710,3 +710,23 @@ test('a predator that only scrapes hunkered-down armor gives up', () => {
   }
   assert.ok(gave > 0);
 });
+
+test('a predator that gives up on hunkered-down armor turns on the rest of the group before leaving', async () => {
+  const { freshState } = await import('../js/state.js');
+  const me = unitOf('You', [fighterOf(freshState().player)]);
+  const sc = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
+  const weak = { ...wildFighter('allo', 4), damage: 15 };
+  let turned = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = teamFight([me, sc()], weak, seededRand('tu' + i));
+    const at = r.log.findIndex(e => e.turned);
+    if (at < 0) continue;
+    turned++;
+    // from then on it goes for the player, not the hunkered-down Scelidosaurus (while the player stands)
+    for (const e of r.log.slice(at + 1)) if (e.by === 'foe' && e.to !== undefined && (e.dmg !== undefined || e.miss) && !e.counter) {
+      if (r.log.slice(at + 1, r.log.indexOf(e)).some(x => x.by === 'foe' && x.to === 0 && x.left === 0)) break;
+      assert.equal(e.to, 0);
+    }
+  }
+  assert.ok(turned > 0);
+});

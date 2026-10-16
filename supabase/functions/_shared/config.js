@@ -437,7 +437,8 @@ export const ARMOR = {
 export const FLIGHT = { below: 0.25, base: 100 };
 // Hunkering down works because the predator gives up: a wild predator whose every blow of a turn went
 // on hunkered-down armor and did less than perTurn of that one's health in all is frustrated; after
-// turns such turns in a row it leaves (no carcass, as one that fled). A turn that hurts resets it.
+// turns such turns in a row it gives up on them and goes for the rest of the group, or, with nobody
+// else left, leaves (no carcass, as one that fled). A turn that hurts resets it.
 export const GIVE_UP = { perTurn: 0.05, turns: 3 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
