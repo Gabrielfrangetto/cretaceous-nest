@@ -346,10 +346,20 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (recording) struck.delete(E(t, v, m));
       return -1;
     }
-    // a pinned or held one can't dodge; a spiked tail's swing is slow, and the quicker one sees it coming
-    const slowSwing = (extra.counter || extra.charge) && (att.spikes ? SPIKES.slow : att.giant ? GIANT.slow : 0);
-    const tail = slowSwing ? slowSwing * Math.max(0, 2 * prey.agi / (prey.agi + att.agi) - 1) : 0;
-    if (!held && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
+    // a giant strikes back with a stomp or its tail; a stomp lands only a flat few times in a hundred,
+    // fewer on something quicker
+    const stomp = att.giant && (extra.counter || extra.charge) && rand() < GIANT.stomp;
+    const swipe = att.giant && (extra.counter || extra.charge) && !stomp;
+    const lead = Math.max(0, Math.min(1, 2 * prey.agi / (prey.agi + att.agi) - 1));
+    if (stomp && rand() >= GIANT.hit[1] - (GIANT.hit[1] - GIANT.hit[0]) * lead) {
+      log.push(entry(s, u, at, v, m, { miss: true, stomp: true, ...extra }));
+      return -1;
+    }
+    // a pinned or held one can't dodge; a spiked or giant's tail swings slow, and the quicker one sees
+    // it coming
+    const slowSwing = (extra.counter || extra.charge) && (att.spikes ? SPIKES.slow : swipe ? GIANT.slow : 0);
+    const tail = slowSwing ? slowSwing * lead : 0;
+    if (!held && !stomp && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
       log.push(entry(s, u, at, v, m, { miss: true, ...extra }));
       return -1;
     }
@@ -390,9 +400,6 @@ export function teamFight(units, foe, rand, opts = {}) {
     }
     // a giant's neck is out of reach of anything smaller
     const below = prey.giant && sizeRank(att.size) < sizeRank(prey.size);
-    // a giant strikes back with a stomp or its tail
-    const stomp = att.giant && (extra.counter || extra.charge) && rand() < GIANT.stomp;
-    const swipe = att.giant && (extra.counter || extra.charge) && !stomp;
     // a sickle claw driven into the neck from below goes through any armor
     const neck = att.claw && !held && !o.part && !below && rand() < CLAW.neck;
     // armor: the part the blow lands on decides how much gets through
