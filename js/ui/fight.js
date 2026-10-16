@@ -157,6 +157,9 @@ export function playFight(battle, summary, who) {
       // it wrenched free of the hold
       lunge(foeBox);
       pop(boxes[blow.to], 'Broke free!', 'miss');
+    } else if (blow.loose) {
+      // a Protoceratops hurt enough to let go of what it held in its beak
+      pop(boxes[blow.to], 'Let go!', 'miss');
     } else if (blow.shake) {
       // the foe threw off a claw latched on to it
       lunge(foeBox);
@@ -206,7 +209,7 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(boxes[blow.by]);
       // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.hold ? 'Holding on!' : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!' : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(boxes[blow.by], move, 'mad');
       if (blow.miss) pop(foeBox, 'Miss', 'miss');
       // a bite its hide stops

@@ -400,3 +400,27 @@ test('a wild animal keeps away from anything bigger than its fear: it can only b
   assert.equal(t.battle, null);
   assert.equal(t.sighting, null);
 });
+
+test('a Protoceratops striking back may clamp its beak on: a smaller foe is pinned, one its size can only bite its head', () => {
+  const proto = () => unitOf('p', [fighterOf(dino('p', 70, 'proto'))]);
+  let pins = 0, holds = 0, loose = 0;
+  for (let i = 0; i < 60; i++) {
+    for (const [foe, mode] of [[wildFighter('raptor', 4), 'pin'], [wildFighter('dilo', 4), 'hold']]) {
+      const r = teamFight([proto()], foe, seededRand('beak' + mode + i));
+      let gripping = false;
+      for (const e of r.log) {
+        if (e.by === 0 && e.beak) { assert.equal(e.beak, mode); gripping = true; mode === 'pin' ? pins++ : holds++; }
+        else if (e.loose) { gripping = false; loose++; }
+        else if (e.by === 0 && e.gripped) assert.ok(gripping);
+        // pinned in the beak it can't strike; held, it can only go for the head
+        else if (gripping && e.by === 'foe' && (e.dmg !== undefined || e.miss)) {
+          assert.notEqual(mode, 'pin');
+          if (e.dmg) assert.equal(e.part, 'head');
+        }
+      }
+    }
+  }
+  assert.ok(pins > 0 && holds > 0 && loose > 0, JSON.stringify({ pins, holds, loose }));
+  // nothing bigger than itself
+  for (let i = 0; i < 20; i++) assert.ok(!teamFight([proto()], wildFighter('allo', 4), seededRand('big' + i)).log.some(e => e.beak));
+});

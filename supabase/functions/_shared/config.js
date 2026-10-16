@@ -94,6 +94,7 @@ const SIZE = {
 //   grab: clings to a bigger foe's body to slash it (GRAB)
 //   tough: shrugs off one deadly blow a fight and heals fast (TOUGH)
 //   claw: a sickle claw that latches on and goes for the neck (LATCH, CLAW)
+//   beak: a hooked beak that clamps on to what it strikes back at (BEAK)
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
 //           at a distance and hunted (hunt)
@@ -112,7 +113,7 @@ export const BODY = {
   psitta:  { weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
   coelo:   { weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
-  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, role: 'defender', charge: 0.3, fear: 'large' },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { weapon: 'Toothless beak and kicks', bite: 20, hide: 2, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, role: 'noncombatant', fear: 'large' },
   pachy:   { weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, role: 'defender', charge: 0.35, fear: 'large' },
@@ -418,6 +419,13 @@ export const TOUGH = { heal: 0.5 };
 // bleeds bleed more of the foe's health a turn (up to maxStacks wounds), until the foe shakes it off:
 // each of the foe's turns, agility against agility (clinging) or strength against strength (pinned).
 export const LATCH = { tries: 0.2, bleed: 0.005, maxStacks: 5 };
+// Protoceratops' beak (the "Fighting Dinosaurs" fossil: one locked on a Velociraptor's arm). When it
+// strikes back at something no bigger than itself, it may clamp on (agility against agility; nothing
+// bigger). Each of its turns the grip crushes the held one for hold of a bite (a blunt blow that can't
+// be dodged; small times that on anything smaller). One its size can only strike the head of the one
+// holding it; a smaller one can't strike at all. It lets go once it has taken release of its own
+// health since it clamped on, from the held one or anyone else.
+export const BEAK = { hold: 0.5, small: 1.5, release: 0.2 };
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor.
 // The claw was made to grip and pin prey no bigger than itself: on those a blow can land up to bite
 // (its own bite stays the limit on anything bigger, where the claw only cuts shallow)
