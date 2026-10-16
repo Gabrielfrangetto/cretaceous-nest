@@ -466,8 +466,9 @@ export const THROAT = { same: 0.5, bigger: 0.9 };
 // nothing.
 export const DOME = { back: 0.7, maxStep: 1 };
 // Knocked down (a butt to the flank, a fall), an animal gets straight back up on its own agility alone:
-// agility / (agility + base) of the time (half at base agility); otherwise it loses its next action.
-export const RISE = { base: 50 };
+// its agility as a percentage (26 agility, 26% of the time), never more than max; otherwise it loses
+// its next action. The slow stay down.
+export const RISE = { max: 0.95 };
 // where a blow lands on an animal when it matters and nothing else decided it
 export const HIT_PARTS = [['head', 0.15], ['neck', 0.1], ['back', 0.4], ['belly', 0.1], ['limbs', 0.25]];
 // it drives the claw in from below, so a share of its blows land on the neck, through any armor.

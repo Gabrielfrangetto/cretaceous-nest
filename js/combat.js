@@ -267,7 +267,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   // up; otherwise it loses its next action. Returns whether it rose.
   const knocked = new Set();
   const knockDown = (t, v, m) => {
-    if (contest(S[t][v].members[m].agi, RISE.base)) return true;
+    if (rand() < Math.min(RISE.max, S[t][v].members[m].agi / 100)) return true;
     knocked.add(E(t, v, m));
     return false;
   };
