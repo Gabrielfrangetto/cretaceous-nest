@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -294,13 +294,26 @@ export function encounterChance(threat, units, biome, scout) {
 // ---------- keeping away and hunting ----------
 const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 // a wild animal that doesn't show itself to this team (fighters, from teamUnits): it keeps away from
-// anything bigger than its fear
+// anything bigger than its fear, and a predator smaller than a sail's owner (Spinosaurus) keeps away from it
 export function keepsAway(threat, team) {
   const sp = threat.entry.species && SPECIES[threat.entry.species];
   if (!sp || !sp.fear) return false;
-  // (a sail, Spinosaurus, intimidates anything no bigger than its owner)
-  const size = sizeRank(threat.foe.members[0].size);
-  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear) || (m.type && SPECIES[m.type].sail && size <= sizeRank(m.size))));
+  const size = sizeRank(threat.foe.members[0].size), predator = sp.role === 'attacker';
+  return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
+}
+
+// the chance a wild predator as big as a sail's owner backs off after sizing it up (SAIL), or 0: none
+// in the team, not a predator, or a lair's Alpha. The strongest sail counts.
+export function sailBackOff(threat, team, biome) {
+  const sp = threat.entry.species && SPECIES[threat.entry.species];
+  const foe = threat.foe.members[0];
+  if (!sp || sp.role !== 'attacker' || threat.lair) return 0;
+  const base = WATER_BIOMES.includes(biome) ? SAIL.water : SAIL.land;
+  const [lo, hi] = SAIL.ratio;
+  return team.reduce((best, u) => u.members.reduce((b, m) => {
+    if (!m.type || !SPECIES[m.type].sail || sizeRank(m.size) !== sizeRank(foe.size)) return b;
+    return Math.max(b, Math.min(SAIL.max, base * Math.min(hi, Math.max(lo, m.power / foe.power))));
+  }, best), 0);
 }
 
 // the team's best chance to hunt one of these (prey: one of them as a fighter), or null when nobody
@@ -400,7 +413,7 @@ export function collectExpedition(s, id, now, choice = {}) {
   let battle = null;
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
-  let sighting = null, standoff = null, chase = null, spotted = false;
+  let sighting = null, standoff = null, chase = null, spotted = false, backedOff = null, backChance = 0;
   // the dinosaurs that died on this trip
   const dead = [];
   const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
@@ -417,6 +430,10 @@ export function collectExpedition(s, id, now, choice = {}) {
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
+  } else if (meets && (backChance = sailBackOff(threat, teamUnits(s, units), biomeAt(w.seed, h))) && fightRand() < backChance) {
+    // a rival as big as the team's Spinosaurus sized up its sail and backed off: no fight
+    const sail = teamUnits(s, units).flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
+    backedOff = { name: threat.foe.name, count: threat.foe.members.length, by: sail.name };
   } else if (meets && !standsGround(threat.foe) && (spotted = runnersSpot(s, exp.members, fightRand))) {
     // runners (Gallimimus) saw the predator first: the team runs, and it may catch the slowest of them
     const ids = units.flatMap(u => u.members), fighters = teamUnits(s, units).flatMap(u => u.members);
@@ -533,7 +550,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   }
   const died = dead.map(id => bury(s, id)).filter(Boolean);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, died, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, died, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

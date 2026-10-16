@@ -113,7 +113,8 @@ const SIZE = {
 //   fisher: at home in the water: { water, land } its blows' times, landAgi its agility kept on land
 //   hook:   a thumb claw that may hook what it strikes (HOOK)
 //   fishing: [min, max] fish it brings home from a water hex
-//   sail:   a sail that intimidates: wild animals no bigger than it keep away from its team
+//   sail:   a sail that intimidates: smaller wild predators keep away from its team, and one as big may
+//           back off after sizing it up (SAIL)
 //   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
@@ -556,6 +557,10 @@ export const RUNNER = { trip: 0.5, eye: 0.25 };
 // Baryonyx' huge thumb claw, a gaff for fish: a blow that lands may hook (chance of the time): it goes
 // through pierce of hide and damage reduction and leaves a wound that bleeds bleed of the health a turn
 // (up to maxBleed wounds).
+// a sail (Spinosaurus) against a wild predator as big as its owner: the rival sizes it up and may back
+// off, likelier in the water (where its owner is at home) and the stronger its owner is next to it
+// (power ratio, clamped); a lair's Alpha defends its ground and never backs off
+export const SAIL = { land: 0.35, water: 0.55, ratio: [0.5, 1.5], max: 0.85 };
 export const HOOK = { chance: 0.3, pierce: 0.5, bleed: 0.006, maxBleed: 3 };
 // Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
 // neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,

@@ -837,7 +837,7 @@ test('the risk of death before a fight: high against a killer, none for the play
   assert.equal(safe.death[0][0], 0);
 });
 
-test('Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and strong in the water, and its sail keeps rivals away', async () => {
+test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and strong in the water, and its sail keeps rivals away", async () => {
   const { keepsAway, teamUnits } = await import('../js/world.js');
   const bary = () => unitOf('b', [{ ...fighterOf(dino('b', 60, 'bary')), fear: undefined }]);
   let hooked = 0, bled = 0;
@@ -851,12 +851,22 @@ test('Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   const foe = wildFighter('rex', 6);
   const { teamWinChance } = await import('../js/combat.js');
   assert.ok(teamWinChance([spino()], foe, 200, { biome: 'swamp' }) > teamWinChance([spino()], foe, 200, { biome: 'badlands' }));
-  // its sail: a Tyrannosaurus (as big as it) keeps away; without it, it doesn't
+  // its sail: a smaller predator (Allosaurus) keeps away; a Tyrannosaurus (as big as it) doesn't, but
+  // may back off after sizing it up, likelier in the water; a lair's Alpha never does
+  const { sailBackOff } = await import('../js/world.js');
   const s = game(dino('s', 60, 'spino'), dino('a', 60, 'allo'));
-  const rexHex = ALL_HEXES.find(h => threatAt(42, h).id === 'rex' && !threatAt(42, h).lair);
-  const th = threatAt(42, rexHex);
-  assert.equal(keepsAway(th, teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }])), true);
-  assert.equal(keepsAway(th, teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }])), false);
+  const sTeam = teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }]), aTeam = teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }]);
+  const at = (id, lair) => threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair));
+  assert.equal(keepsAway(at('allo', false), sTeam), true);
+  assert.equal(keepsAway(at('allo', false), aTeam), false);
+  const rex = at('rex', false);
+  assert.equal(keepsAway(rex, sTeam), false);
+  assert.ok(sailBackOff(rex, sTeam, 'badlands') > 0);
+  assert.ok(sailBackOff(rex, sTeam, 'swamp') > sailBackOff(rex, sTeam, 'badlands'));
+  assert.equal(sailBackOff(rex, aTeam, 'swamp'), 0);
+  assert.equal(sailBackOff({ ...rex, lair: true }, sTeam, 'swamp'), 0);
+  // a herbivore as big (Triceratops) is not a rival: no sizing up
+  assert.equal(sailBackOff({ ...rex, entry: { ...rex.entry, species: 'trike' } }, sTeam, 'swamp'), 0);
 });
 
 test('a Baryonyx brings home fish from the swamp', () => {

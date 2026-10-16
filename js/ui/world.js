@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff, encounterChance,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, sailBackOff, huntOdds, tripStandoff, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -156,6 +156,8 @@ function threatHTML(h, units, scout) {
   const who = units.length === 1 && !units[0].pack ? esc(units[0].name) : run.fled.length ? 'Who stays' : 'Your team';
   const danger = odds == null ? '' : dangerOf(odds);
   const runners = run.fled.map(i => units[i].name);
+  // a rival as big as a Spinosaurus in the team may back off from its sail
+  const sail = units.length ? sailBackOff(th, units, biomeAt(S.world.seed, h)) : 0;
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>`
@@ -163,6 +165,7 @@ function threatHTML(h, units, scout) {
     <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
+    ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off: about ${Math.round(sail * 100)}% of the time.</p>` : ''}
     ${fight ? riskHTML(units, fight.death) : ''}
     ${units.some(u => u.members.some(m => m.type && SPECIES[m.type].runner)) && (th.foe.members[0].role || 'attacker') === 'attacker' ? '<p class="hint warn-text">If your Gallimimus see it first the team runs, but it may catch the slowest one, and the one caught may not survive.</p>' : ''}
   </div>`;
@@ -461,12 +464,14 @@ function bindTrips(box) {
     // the dead, from the fight
     const lost = (r.died || []).filter(x => !r.chase || x.id !== r.chase.caught);
     const mourn = lost.length ? ` ${esc(listNames(lost.map(x => x.name)))} did not survive the fight.` : '';
+    // a rival as big as the team's Spinosaurus sized up its sail and backed off
+    const sailed = r.backedOff ? ` On the way, ${/^[AEIOU]/.test(r.backedOff.name) ? 'an' : 'a'} ${esc(r.backedOff.name)} sized up ${esc(r.backedOff.by)}'s sail and backed off.` : '';
     const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${mourn}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${sailed}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));
