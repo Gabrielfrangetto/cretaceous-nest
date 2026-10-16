@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -222,7 +222,8 @@ function withRoles(u, swamp) {
 //   { by, crouch: true } | { by: 'foe', crouch: true }: an armored one hunkers down before a bigger
 //   predator (it stays down, its belly and legs out of reach, while one is there);
 //   { by: 'foe', fled: true }: a wild predator badly hurt got away (foeFled; a win with no carcass), or
-//   { by: 'foe', caught: true }: it tried and was caught, losing its turn.
+//   { by: 'foe', caught: true }: it tried and was caught, losing its turn; { by: 'foe', fled: true,
+//   gaveUp: true }: it gave up on hunkered-down armor it couldn't hurt (GIVE_UP).
 //   { by, alert: true } | { by: 'foe', alert: true }: a Parasaurolophus' call warned its side of a
 //   predator (alerted: 'team' | 'foe'): readied, it acts first. teamHps: our members' full health for
 //   the fight (a readied team has a little more).
@@ -295,6 +296,10 @@ export function teamFight(units, foe, rand, opts = {}) {
   const brokeAway = new Set();
   // armored ones hunkered down before a bigger predator, till their next turn (CROUCH in config.js)
   const crouched = new Set();
+  // the blows of the turn being played on hunkered-down armor: damage, the biggest health among them,
+  // and whether any went on something that wasn't hunkered down; and each wild predator's frustrated turns
+  let turnHits = { dmg: 0, hp: 0, open: false };
+  const frustrated = new Map();
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
@@ -467,6 +472,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? 0 : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
+    // what this turn's blows did to hunkered-down armor (a frustrated predator gives up)
+    if (recording) { if (low) { turnHits.dmg += dmg; turnHits.hp = Math.max(turnHits.hp, prey.hp); } else turnHits.open = true; }
     let bone = neck ? { part: 'neck' } : dmg > 0 && !onHead ? breakBones(s, u, t, v, m, part) : onHead ? { part: 'head' } : part ? { part } : {};
     if (plates && !neck && plates.armored.includes(part)) bone.armored = true;
     if (throat < 1) bone.throat = true;
@@ -787,8 +794,16 @@ export function teamFight(units, foe, rand, opts = {}) {
         if (over()) break;
         if (!active[s].includes(u) || !alive(s, u).length) continue;
         recording = true;
+        turnHits = { dmg: 0, hp: 0, open: false };
         turn(s, u);
         recording = false;
+        // a wild predator that only scraped hunkered-down armor this turn grows frustrated, and gives up
+        if (s === 1 && active[1].includes(u) && roleOf(S[1][u]) === 'attacker' && !over()) {
+          const scraped = turnHits.hp > 0 && !turnHits.open && turnHits.dmg < GIVE_UP.perTurn * turnHits.hp;
+          const n = scraped ? (frustrated.get(u) || 0) + 1 : 0;
+          frustrated.set(u, n);
+          if (n >= GIVE_UP.turns) runOff(1, u, { fled: true, gaveUp: true });
+        }
         counters(s, u);
       }
     }

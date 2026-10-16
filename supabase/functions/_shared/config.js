@@ -435,6 +435,10 @@ export const ARMOR = {
 // it (no predator, no player) it always gets away; caught, it loses its turn. One that got away leaves no
 // carcass: a win without its loot.
 export const FLIGHT = { below: 0.25, base: 100 };
+// Hunkering down works because the predator gives up: a wild predator whose every blow of a turn went
+// on hunkered-down armor and did less than perTurn of that one's health in all is frustrated; after
+// turns such turns in a row it leaves (no carcass, as one that fled). A turn that hurts resets it.
+export const GIVE_UP = { perTurn: 0.05, turns: 3 };
 // A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
 // shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
 // "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's

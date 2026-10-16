@@ -694,3 +694,19 @@ test("a wild predator badly hurt runs: always from those who can't chase it, and
   for (let i = 0; i < 40; i++) if (teamFight([rex()], wildFighter('allo', 6), seededRand('ca' + i)).log.some(e => e.caught)) caught++;
   assert.ok(caught > 0);
 });
+
+test('a predator that only scrapes hunkered-down armor gives up', () => {
+  const sc = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'scelido')), fear: undefined }]);
+  let gave = 0;
+  // an Allosaurus too weak to get through: it scrapes the scutes and gives up
+  const weak = { ...wildFighter('allo', 4), damage: 15 };
+  for (let i = 0; i < 40; i++) for (const [team, foe] of [[sc(), weak]]) {
+    const r = teamFight([team], foe, seededRand('gu' + i));
+    const e = r.log.find(x => x.gaveUp);
+    if (!e) continue;
+    gave++;
+    assert.equal(r.foeFled, true);
+    assert.equal(r.win, true);
+  }
+  assert.ok(gave > 0);
+});

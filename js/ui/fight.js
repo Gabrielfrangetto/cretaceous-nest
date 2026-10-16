@@ -159,7 +159,7 @@ export function playFight(battle, summary, who) {
       pop(actor, 'Hunkered down!', 'mad');
     } else if (blow.fled) {
       // a wild predator badly hurt got away
-      pop(foeBox, 'Fled!', 'miss');
+      pop(foeBox, blow.gaveUp ? 'Gave up!' : 'Fled!', 'miss');
       foeBox.classList.add('fled');
     } else if (blow.caught) {
       pop(foeBox, 'Tried to flee!', 'miss');
