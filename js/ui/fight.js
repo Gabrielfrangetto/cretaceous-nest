@@ -138,91 +138,98 @@ export function playFight(battle, summary, who) {
   const step = () => {
     if (i >= battle.log.length) { finish(); return; }
     const blow = battle.log[i++];
+    // the same kinds of blows come from both sides: the one acting, and the one it acts on
+    const actor = blow.by === 'foe' ? foeBox : boxes[blow.by];
+    const target = blow.by === 'foe' ? boxes[blow.to] : foeBox;
+    // health after a blow, with whoever else a stomp caught
+    const landed = () => {
+      if (blow.by === 'foe') {
+        hp[blow.to][blow.member] = blow.left;
+        for (const x of blow.also || []) hp[blow.to][x.member] = x.left;
+        showUnit(blow.to);
+      } else {
+        foeHp[blow.member] = blow.left;
+        for (const x of blow.also || []) foeHp[x.member] = x.left;
+        setHp(foeBox, blow.foeLeft, battle.foeMax);
+        foeBox.querySelector('.pack-left').textContent = foeNote();
+      }
+    };
     if (blow.rout) {
       // a pack or herd that lost half its members runs off
       if (blow.by === 'foe') { pop(foeBox, 'Ran off!', 'miss'); foeBox.classList.add('fled'); }
       else { fled.add(blow.by); pop(boxes[blow.by], 'Ran off!', 'miss'); boxes[blow.by].classList.add('fled'); boxes[blow.by].querySelector('.pack-left').textContent = packNote(blow.by); }
     } else if (blow.by === 'bleed') {
-      // a gored foe bleeding
-      pop(foeBox, '−' + blow.dmg + ' bleeding', 'dmg');
-      foeHp[blow.member] = blow.left;
-      setHp(foeBox, blow.foeLeft, battle.foeMax);
-      foeBox.querySelector('.pack-left').textContent = foeNote();
+      // a wound bleeding, on the foe or on one of ours
+      if (blow.to !== undefined) {
+        pop(boxes[blow.to], '−' + blow.dmg + ' bleeding', 'dmg');
+        hp[blow.to][blow.member] = blow.left;
+        showUnit(blow.to);
+      } else {
+        pop(foeBox, '−' + blow.dmg + ' bleeding', 'dmg');
+        foeHp[blow.member] = blow.left;
+        setHp(foeBox, blow.foeLeft, battle.foeMax);
+        foeBox.querySelector('.pack-left').textContent = foeNote();
+      }
     } else if (blow.fell) {
-      // fell off the foe it clung to: on its feet, or knocked down for a turn
-      pop(boxes[blow.by], blow.landed ? 'Fell off, landed!' : 'Fell off!', 'miss');
+      // fell off the one it clung to: on its feet, or knocked down for a turn
+      pop(actor, blow.landed ? 'Fell off, landed!' : 'Fell off!', 'miss');
     } else if (blow.recovering) {
-      pop(boxes[blow.by], 'Getting up…', 'miss');
+      pop(actor, 'Getting up…', 'miss');
+    } else if (blow.pinned) {
+      // pinned down, it can't strike
+      pop(actor, 'Pinned down!', 'mad');
     } else if (blow.broke) {
-      // it wrenched free of the hold
-      lunge(foeBox);
-      pop(boxes[blow.to], 'Broke free!', 'miss');
+      // it wrenched free of a hold
+      lunge(actor);
+      pop(target, 'Broke free!', 'miss');
     } else if (blow.loose) {
       // a Protoceratops hurt enough to let go of what it held in its beak
-      pop(boxes[blow.to], 'Let go!', 'miss');
+      pop(target, 'Let go!', 'miss');
     } else if (blow.shake) {
-      // the foe threw off a claw latched on to it
-      lunge(foeBox);
-      pop(boxes[blow.to], 'Shaken off!', 'miss');
-    } else if (blow.pinned) {
-      // pinned to the ground, it can't strike
-      pop(foeBox, 'Pinned down!', 'mad');
+      // a claw latched on was thrown off
+      lunge(actor);
+      pop(target, 'Shaken off!', 'miss');
     } else if (blow.immune) {
-      // clinging to the foe's body, out of its reach
-      lunge(foeBox);
-      pop(boxes[blow.to], 'Out of reach!', 'miss');
+      // clinging to the other's body, out of its reach
+      lunge(actor);
+      pop(target, 'Out of reach!', 'miss');
     } else if (blow.blocked) {
       // the frill took it
-      lunge(foeBox);
-      pop(boxes[blow.to], 'Blocked by the frill!', 'miss');
-      frillBar(blow.to, blow.frill);
-    } else if (blow.by === 'foe') {
-      lunge(foeBox);
-      const box = boxes[blow.to];
-      if (blow.miss) pop(box, 'Miss', 'miss');
-      else if (!blow.dmg) pop(box, 'No effect', 'miss');
-      else {
-        pop(box, '−' + blow.dmg, 'dmg');
-        strike(box);
-        hp[blow.to][blow.member] = blow.left;
-        // a stomp or a swipe that caught more of a pack
-        for (const x of blow.also || []) hp[blow.to][x.member] = x.left;
-        // a bone-breaking bite: a lamed leg or a neck
-        if (blow.kill) pop(box, blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
-        else if (blow.lame) pop(box, 'Leg broken!', 'mad');
-        // armor plates took most of it, or the bare belly was hit
-        else if (blow.armored) pop(box, 'Armor!', 'mad');
-        else if (blow.tough) pop(box, 'Still standing!', 'mad');
-        else if (blow.part === 'belly') pop(box, 'Belly!', 'mad');
-        if (blow.also) pop(box, `×${blow.also.length + 1}`, 'mad');
-        showUnit(blow.to);
-      }
+      lunge(actor);
+      pop(target, 'Blocked by the frill!', 'miss');
+      if (blow.by === 'foe') frillBar(blow.to, blow.frill);
     } else if (blow.ally !== undefined) {
       // a rival biting one of its own team, or a frenzied one lashing out
       lunge(boxes[blow.by]);
       const box = boxes[blow.ally];
-      if (blow.clash) for (const i of [blow.by, blow.ally]) { boxes[i].classList.add('frenzy'); pop(boxes[i], 'Frenzy!', 'mad'); }
+      if (blow.clash) for (const k of [blow.by, blow.ally]) { boxes[k].classList.add('frenzy'); pop(boxes[k], 'Frenzy!', 'mad'); }
       pop(box, '−' + blow.dmg, 'dmg');
       strike(box);
       hp[blow.ally][blow.member] = blow.left;
       showUnit(blow.ally);
     } else {
-      lunge(boxes[blow.by]);
-      // a defender's charge, striking back when attacked, or a noncombatant's blow through an opening
-      const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!' : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!' : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
-      if (move) pop(boxes[blow.by], move, 'mad');
-      if (blow.miss) pop(foeBox, 'Miss', 'miss');
-      // a bite its hide stops
-      else if (!blow.dmg) pop(foeBox, 'No effect', 'miss');
+      lunge(actor);
+      // what it did: a hold, a claw, a charge, striking back, a blow through an opening...
+      const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!'
+        : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!'
+        : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!'
+        : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
+      if (move) pop(actor, move, 'mad');
+      if (blow.miss) pop(target, 'Miss', 'miss');
+      // a blow its hide stops
+      else if (!blow.dmg) pop(target, 'No effect', 'miss');
       else {
-        pop(foeBox, '−' + blow.dmg, 'dmg');
-        strike(foeBox);
-        foeHp[blow.member] = blow.left;
-        for (const x of blow.also || []) foeHp[x.member] = x.left;
-        if (blow.kill) pop(foeBox, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
-        else if (blow.lame) pop(foeBox, blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
-        setHp(foeBox, blow.foeLeft, battle.foeMax);
-        foeBox.querySelector('.pack-left').textContent = foeNote();
+        pop(target, '−' + blow.dmg, 'dmg');
+        strike(target);
+        landed();
+        // a bone-breaking bite or a club: a lamed leg, a neck, or something small crushed
+        if (blow.kill) pop(target, blow.club ? 'Crushed!' : blow.part === 'neck' ? 'Neck bite!' : 'One bite!', 'mad');
+        else if (blow.lame) pop(target, blow.club ? 'Shin broken!' : 'Leg broken!', 'mad');
+        // armor plates took most of it, or the bare belly was hit
+        else if (blow.armored) pop(target, 'Armor!', 'mad');
+        else if (blow.tough) pop(target, 'Still standing!', 'mad');
+        else if (blow.part === 'belly') pop(target, 'Belly!', 'mad');
+        if (blow.also) pop(target, `×${blow.also.length + 1}`, 'mad');
       }
     }
     // bigger teams trade more blows, so they go a little faster

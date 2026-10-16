@@ -274,7 +274,8 @@ test('a pack or herd that loses half its members runs off', () => {
     if (!r.routed.length) continue;
     broke++;
     assert.equal(r.win, false);
-    assert.equal(r.hp[0].filter(h => h <= 0).length, 2);
+    // it breaks at the first turn after half of it is down (a herd's charge can take more at once)
+    assert.ok(r.hp[0].filter(h => h <= 0).length >= 2);
   }
   assert.ok(broke > 0);
   // a lone animal has no pack to lose

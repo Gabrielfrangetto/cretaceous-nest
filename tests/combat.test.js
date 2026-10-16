@@ -324,7 +324,8 @@ test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pi
   const raptor = () => unitOf('r', [{ ...fighterOf(dino('r', 50, 'raptor')), fear: undefined }]);
   const modes = new Set();
   let claws = 0, shakes = 0, immune = 0, pinnedTurns = 0, necks = 0;
-  for (const foe of [wildFighter('dilo', 5), wildFighter('compy', 5)]) for (let i = 0; i < 40; i++) {
+  // (a wild Compsognathus never strikes on its own, so another Velociraptor shows the pin)
+  for (const foe of [wildFighter('dilo', 5), wildFighter('raptor', 5)]) for (let i = 0; i < 40; i++) {
     const r = teamFight([raptor()], foe, seededRand('v' + i));
     let latched = null;
     for (const e of r.log) {
@@ -362,7 +363,7 @@ test('wild animals fight by their role: a herd of defenders only charges or stri
   let charges = 0, counters = 0;
   for (let i = 0; i < 20; i++) {
     const r = teamFight([raptors], herd, seededRand('herd' + i));
-    for (const e of r.log.filter(e => e.by === 'foe' && (e.dmg !== undefined || e.miss))) {
+    for (const e of r.log.filter(e => e.by === 'foe' && (e.dmg !== undefined || e.miss) && !e.gripped)) {
       assert.ok(e.charge || e.counter);
       if (e.charge) charges++; else counters++;
     }
@@ -423,4 +424,27 @@ test('a Protoceratops striking back may clamp its beak on: a smaller foe is pinn
   assert.ok(pins > 0 && holds > 0 && loose > 0, JSON.stringify({ pins, holds, loose }));
   // nothing bigger than itself
   for (let i = 0; i < 20; i++) assert.ok(!teamFight([proto()], wildFighter('allo', 4), seededRand('big' + i)).log.some(e => e.beak));
+});
+
+test('wild animals use every ability of their species, just like ours', () => {
+  const ours = type => unitOf(type, [{ ...fighterOf(dino(type, 60, type)), fear: undefined }]);
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) {
+    // wild Velociraptors latch on to a bigger one of ours and its wounds bleed; it shakes them off
+    for (const e of teamFight([ours('dilo')], encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 4), seededRand('w' + i)).log) {
+      if (e.by === 'foe' && e.latch) seen.add('latch');
+      if (e.by === 'foe' && e.latched) seen.add('claw');
+      if (e.by === 'bleed' && e.to === 0) seen.add('we bleed');
+      if (e.by === 0 && e.shake) seen.add('shake');
+    }
+    // a wild Triceratops' frill takes our blows on its head and gores back
+    for (const e of teamFight([ours('rex')], wildFighter('trike', 6), seededRand('t' + i)).log) {
+      if (e.by === 0 && e.blocked) seen.add('frill');
+      if (e.by === 'foe' && e.gore) seen.add('gore');
+    }
+    // a wild Dilophosaurus grabs; a wild Protoceratops clamps its beak on
+    for (const e of teamFight([ours('dilo')], wildFighter('dilo', 4), seededRand('d' + i)).log) if (e.by === 'foe' && e.grab) seen.add('grab');
+    for (const e of teamFight([ours('raptor')], wildFighter('proto', 4), seededRand('p' + i)).log) if (e.by === 'foe' && e.beak) seen.add('beak');
+  }
+  assert.deepEqual([...seen].sort(), ['beak', 'claw', 'frill', 'gore', 'grab', 'latch', 'shake', 'we bleed']);
 });
