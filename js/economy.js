@@ -662,9 +662,10 @@ export const ACTIONS = {
   recall(s, { id }) {
     return recallExpedition(s, id);
   },
-  // fight: fight what stood its ground on the way (a wild defender or noncombatant), or leave it be
-  collectTrip(s, { id, fight }, now) {
-    return collectExpedition(s, id, now, { fight: !!fight });
+  // fight: fight what stood its ground on the way (a wild defender), or leave it be; flee: when a
+  // predator scattered the player's group, run too instead of facing it
+  collectTrip(s, { id, fight, flee }, now) {
+    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee });
   },
   // a group the team spotted at a distance: go after one of them (go: true), or let them be
   hunt(s, { id, go }) {

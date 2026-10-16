@@ -11,7 +11,7 @@ import {
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
-import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
+import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees } from './combat.js';
 import { hashId } from './util.js';
 
 // ---------- hex geometry ----------
@@ -394,6 +394,56 @@ export function tripStandoff(s, id) {
   return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
 }
 const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
+
+// With the player along, a predator met makes those who run from it (prey animals, the afraid) scatter,
+// and the player decides: face it with whoever stays, or run too. null when it isn't that: no player,
+// not a predator, or nobody runs. { name, count, prey: the names of those who ran, mounted: the player
+// rides one of them (a team of Gallimimus), alone: nobody stays with the player }
+export function scatterOf(s, units, threat) {
+  if (standsGround(threat.foe) || !units.some(u => u.kind === 'player')) return null;
+  const team = teamUnits(s, units);
+  const { fled } = whoFlees(team, threat.foe);
+  if (!fled.length) return null;
+  const stay = units.flatMap((u, i) => fled.includes(i) || u.kind === 'player' ? [] : [i]);
+  return {
+    name: threat.foe.name, count: threat.foe.members.length, prey: fled.map(i => team[i].name),
+    mounted: allRunners(s, units.flatMap(u => u.members)), alone: !stay.length, fled,
+  };
+}
+// Everyone running from it: the predator goes for the slowest (the player too, unless riding), as with
+// anyone running (CHASE); watchful ones (Hypsilophodon) may see it coming in time (safe). null when it
+// can't catch anyone. { id, unit, fighter, chance, death, safe, fights: caught, it (or the player) turns
+// to fight instead of going down }
+export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
+  if (!sc) return null;
+  const team = teamUnits(s, units), foe = threat.foe, top = sizeRank(quickest(foe).size);
+  const flee = f => f.agi * (f.zigzag ? ZIGZAG.flee : 1);
+  let slow = null;
+  team.forEach((u, i) => u.members.forEach((f, j) => {
+    const id = units[i].members[j];
+    if ((id === PLAYER_ID && sc.mounted) || top - sizeRank(f.size) > CHASE.maxSteps) return;
+    if (!slow || flee(f) < flee(slow.fighter)) slow = { id, unit: i, fighter: f };
+  }));
+  if (!slow) return null;
+  return { ...slow, chance: catchChance(foe, slow.fighter), death: caughtDeath(foe, slow.fighter), safe: eyesChance(s, units.flatMap(u => u.members)),
+    fights: slow.id === PLAYER_ID || !sc.fled.includes(slow.unit) };
+}
+// the scatter a trip that is back would run into, rolled as collecting it does (null: none)
+export function tripScatter(s, id) {
+  const w = W(s);
+  const exp = w.expeditions.find(e => e.id === id);
+  if (!exp) return null;
+  const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
+  const h = parseKey(exp.hex), threat = threatAt(w.seed, h);
+  const rand = seededRand(`fight:${w.seed}:${exp.trip}`);
+  const team = teamUnits(s, units);
+  if (!units.length || rand() >= encounterChance(threat, team, biomeAt(w.seed, h), hasScout(s, exp.members))) return null;
+  if (keepsAway(threat, team)) return null;
+  const back = sailBackOff(threat, team, biomeAt(w.seed, h));
+  if (back && rand() < back) return null;
+  const sc = scatterOf(s, units, threat);
+  return sc && { ...sc, foe: threat.foe, run: runOf(s, units, threat, sc), units: team };
+}
 // whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
 const runnersSpot = (s, members, rand) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye);
 // a predator giving chase: its quickest runs down prey (a fighter) this often (CHASE)
@@ -446,7 +496,7 @@ export function collectExpedition(s, id, now, choice = {}) {
   let battle = null;
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
-  let sighting = null, standoff = null, chase = null, spotted = false, backedOff = null, backChance = 0;
+  let sighting = null, standoff = null, chase = null, spotted = false, backedOff = null, backChance = 0, scatter = null;
   // the dinosaurs that died on this trip
   const dead = [];
   const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
@@ -467,6 +517,24 @@ export function collectExpedition(s, id, now, choice = {}) {
     // a rival as big as the team's Spinosaurus sized up its sail and backed off: no fight
     const sail = teamUnits(s, units).flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
     backedOff = { name: threat.foe.name, count: threat.foe.members.length, by: sail.name };
+  } else if (meets && (scatter = scatterOf(s, units, threat))) {
+    // the player was along: those who ran scattered, and the player chose to face it or run too
+    if (!choice.flee) { scatter = { ...scatter, choice: 'fight' }; fightIt({ thrown: scatter.mounted }); }
+    else {
+      scatter = { ...scatter, choice: 'flee' };
+      const run = runOf(s, units, threat, scatter);
+      const safe = run && run.safe && fightRand() < run.safe;
+      if (run && !safe && fightRand() < run.chance) {
+        // caught: the player (or one who'd fight) turns to fight; one of those who ran may not survive
+        if (run.fights) fightIt({ forced: run.id });
+        else {
+          const b = explorerOf(s, run.id);
+          if (fightRand() < run.death) dead.push(run.id);
+          else { b.injuredUntil = now + CRITICAL_MINS * 60000; b.critical = true; }
+          chase = { name: threat.foe.name, count: threat.foe.members.length, caught: run.id, died: dead.includes(run.id) };
+        }
+      } else chase = { name: threat.foe.name, count: threat.foe.members.length, caught: null, died: false, ...(safe ? { scattered: true } : {}) };
+    }
   } else if (meets && !standsGround(threat.foe) && (spotted = runnersSpot(s, exp.members, fightRand))) {
     // runners (Gallimimus) saw the predator first: the team runs, and as with anyone running from a
     // predator it gives chase to the slowest (chaseOf), who may not survive
@@ -484,7 +552,10 @@ export function collectExpedition(s, id, now, choice = {}) {
   } else if (meets && standsGround(threat.foe) && !choice.fight) {
     // it stood its ground and the team left it in peace
     standoff = { ...standoffOf(threat), fought: false };
-  } else if (meets) {
+  } else if (meets) fightIt();
+  // the fight with what the team met (how: thrown, the player came off its mount; forced, the one caught
+  // running that turned to fight)
+  function fightIt(how = {}) {
     if (standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
     const foe = threat.foe, opts = { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h) };
     const team = teamUnits(s, units), fought = units;
@@ -532,7 +603,7 @@ export function collectExpedition(s, id, now, choice = {}) {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
       team: team.map((t, i) => ({ name: t.name, kind: fought[i].kind, members: fought[i].members, hp: result.teamHps[i], power: t.members.reduce((x, m) => x + m.power, 0),
         ...(t.members.some(m => m.frill !== undefined) ? { frill: t.members.map(m => m.frill ?? null) } : {}) })),
-      ...result, injured, ...(caught ? { caught } : {}),
+      ...result, injured, ...(caught ? { caught } : {}), ...(how.thrown ? { thrown: true } : {}), ...(how.forced ? { forced: how.forced } : {}),
       // how many of a rival species (Allosaurus) were in the team, for the frenzy drops
       frenzyCount: exp.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length,
     };
@@ -601,7 +672,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     else b.lastFed = now - hungerEvery(b);
   }
   const died = dead.map(id => bury(s, id)).filter(Boolean);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, died, fedSelf, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, scatter: scatter && { name: scatter.name, prey: scatter.prey, mounted: scatter.mounted, alone: scatter.alone, choice: scatter.choice }, died, fedSelf, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

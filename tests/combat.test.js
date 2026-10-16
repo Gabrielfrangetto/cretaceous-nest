@@ -1009,3 +1009,43 @@ test('prey animals never fight: they run from any predator, even with the player
   const hex = ALL_HEXES.find(h => threatAt(42, h).id === 'compy' && !threatAt(42, h).lair);
   assert.equal(keepsAway(threatAt(42, hex), teamUnits(s, [{ kind: 'dino', id: 'c', members: ['c'] }])), true);
 });
+
+test("a predator scatters the player's group: face it with whoever stays, or run too and maybe be caught", async () => {
+  const { tripScatter } = await import('../js/world.js');
+  const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  const go = (ids, trip, choice) => {
+    const s = game(...ids.filter(id => id !== 'player').map(id => dino(id, 60, id.startsWith('g') ? 'galli' : 'psitta')));
+    s.world.trips = trip;
+    const team = ids.map(id => id === 'player' ? { kind: 'player' } : { kind: 'dino', id });
+    const r = applyAction(s, 'explore', { team, hex: lair }, T0);
+    assert.equal(r.ok, true, r.reason);
+    const sc = tripScatter(s, r.expedition.id);
+    return { s, sc, c: applyAction(s, 'collectTrip', { id: r.expedition.id, ...choice }, r.expedition.returnAt) };
+  };
+  // without the player there is nothing to decide
+  assert.equal(go(['p1'], 1, {}).sc, null);
+  // riding a Gallimimus: face it on foot, thrown off; or ride off, and only the Gallimimus may be caught
+  const faced = go(['player', 'g1'], 1, { fight: true });
+  assert.ok(faced.sc && faced.sc.mounted);
+  assert.equal(faced.c.scatter.choice, 'fight');
+  assert.ok(faced.c.battle.thrown);
+  assert.deepEqual(faced.c.battle.fled, [1]);
+  let rodeOff = 0, galliCaught = 0;
+  for (let trip = 0; trip < 40; trip++) {
+    const { c } = go(['player', 'g1'], trip, { flee: true });
+    assert.equal(c.battle, null);
+    rodeOff++;
+    if (c.chase.caught) { galliCaught++; assert.equal(c.chase.caught, 'g1'); }
+  }
+  assert.ok(rodeOff && galliCaught, JSON.stringify({ rodeOff, galliCaught }));
+  // on foot with a Psittacosaurus: running, the slowest may be caught; the player caught has to fight
+  let forced = 0, preyCaught = 0, away = 0;
+  for (let trip = 0; trip < 80; trip++) {
+    const { sc, c } = go(['player', 'p1'], trip, { flee: true });
+    assert.ok(sc && !sc.mounted && sc.alone);
+    if (c.battle) { forced++; assert.equal(c.battle.forced, sc.run.id); assert.ok(sc.run.fights); }
+    else if (c.chase.caught) { preyCaught++; assert.equal(c.chase.caught, 'p1'); }
+    else away++;
+  }
+  assert.ok((forced || preyCaught) && away, JSON.stringify({ forced, preyCaught, away }));
+});

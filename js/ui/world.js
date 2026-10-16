@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, sailBackOff, chaseOf, huntOdds, tripStandoff, encounterChance,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -293,6 +293,31 @@ function standoffHTML(e) {
     ${riskHTML(units, death)}`;
 }
 
+// a predator that scattered the player's group on the way: face it with whoever stayed, or run too (the
+// odds are worked out once per trip)
+const scatterOdds = new Map();
+const article = name => (/^[AEIOU]/.test(name) ? 'an' : 'a');
+function scatterHTML(e) {
+  const sc = tripScatter(S, e.id);
+  if (!sc) return '';
+  if (!scatterOdds.has(e.id)) {
+    const biome = biomeAt(S.world.seed, parseKey(e.hex));
+    scatterOdds.set(e.id, teamOdds(sc.units, sc.foe, 120, { swamp: biome === 'swamp', biome }));
+  }
+  const { win, death } = scatterOdds.get(e.id);
+  const stay = e.team.filter((u, i) => u.kind !== 'player' && !sc.fled.includes(i)).map(unitName);
+  const run = sc.run, p = run ? Math.round(run.chance * (1 - run.safe) * 100) : 0;
+  const runner = run && (run.id === PLAYER_ID ? 'you' : esc(run.fighter.name));
+  const runText = !run || !p ? 'It can\'t catch any of you.'
+    : run.fights ? `It may catch ${runner} (about ${p}%), and then there's no escaping the fight.`
+    : `It may catch ${runner} (about ${p}%), who may not survive (risk of death ~${Math.round(run.chance * (1 - run.safe) * run.death * 100)}%).`;
+  return `<p class="hint">On the way, ${esc(listNames(sc.prey))} ${sc.prey.length > 1 ? 'spot' : 'spots'} ${article(sc.name)} <strong>${esc(sc.name)}</strong> charging the group and ${sc.prey.length > 1 ? 'scatter' : 'bolts'}. ${sc.mounted ? 'You are still riding one of them.' : sc.alone ? 'You are on your own.' : `You stand with ${esc(listNames(stay))}.`}</p>
+    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">${sc.mounted ? 'Jump down and face it' : 'Face it'} <span class="hint">(${dangerOf(win)}, ${Math.round(win * 100)}%)</span></button>
+    <button class="ghost" type="button" data-collect="${esc(e.id)}" data-flee="1">${sc.mounted ? 'Ride off' : 'Run for it'}</button>
+    <p class="hint">${runText}</p>
+    ${riskHTML(sc.units, death)}`;
+}
+
 function tripsHTML(t) {
   const list = S.world.expeditions;
   if (!list.length) return `<p class="hint">No one is exploring. ${EXPEDITION_SLOTS} teams can be out at the same time.</p>`;
@@ -303,7 +328,7 @@ function tripsHTML(t) {
     return `<li class="trip-row">
       <div><strong>${esc(listNames(e.team.map(unitName)))}</strong> <span class="hint">→ ${esc(biome)}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
-      <div class="row">${back ? (standoffHTML(e) ||
+      <div class="row">${back ? (standoffHTML(e) || scatterHTML(e) ||
         `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`)
         : `<span class="hint">Back in ${fmt(e.returnAt - t)}</span><button class="ghost" type="button" data-recall="${esc(e.id)}">Call back</button>`}</div>
     </li>`;
@@ -427,7 +452,7 @@ let shownBack = '';
 function bindTrips(box) {
   shownBack = backKey(now());
   box.querySelectorAll('[data-collect]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1' });
+    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1', flee: btn.dataset.flee === '1' });
     if (!r.ok) { message = 'Not back yet.'; render(); return; }
     // the player alone is "you": "You are back", not "You is back"
     const names = r.team.map(unitName);
@@ -448,7 +473,7 @@ function bindTrips(box) {
     const mad = r.battle && r.battle.frenzy.length
       ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy.` : '';
     const ran = r.battle ? r.battle.fled.map(i => r.battle.team[i].name) : [];
-    const runText = !ran.length || (r.battle && r.battle.escaped) ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
+    const runText = !ran.length || (r.battle && r.battle.escaped) || r.scatter ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
     // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
     // (a Parasaurolophus herd runs as soon as one of it breaks away)
     const herdRan = i => r.battle.log.some(e => e.by === 'foe' && e.to === i && e.escaped);
@@ -465,7 +490,15 @@ function bindTrips(box) {
     const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';
     // runners saw a predator first and the team ran
     const deadName = id => ((r.died || []).find(x => x.id === id) || {}).name || hurtName(id);
-    const ran2 = r.chase && r.chase.scattered ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group before it struck. Everyone scattered in zigzags and got away.`
+    // the player's group scattered before a predator: how it went, told before the rest
+    const sc = r.scatter;
+    const forcedName = r.battle && r.battle.forced ? (r.battle.forced === PLAYER_ID ? 'you' : esc(hurtName(r.battle.forced))) : '';
+    const scatterText = !sc ? '' : `On the way, ${esc(listNames(sc.prey))} spotted ${article(sc.name)} ${esc(sc.name)} charging the group and ${sc.prey.length > 1 ? 'scattered' : 'bolted'}. `
+      + (sc.choice === 'fight' ? (sc.mounted ? 'You were thrown in the scramble and stayed to fight. ' : sc.alone ? 'You stayed to face it alone. ' : 'You stayed to face it with the rest. ')
+        : r.battle ? `You ran too, but it caught up with ${forcedName} and there was no escaping the fight. `
+        : r.chase && r.chase.caught ? `You ran too. In the escape, ${esc(deadName(r.chase.caught))} was caught${r.chase.died ? ' and did not survive. ' : ' and is critically injured. '}`
+        : r.chase && r.chase.scattered ? 'You ran too, and it never got close: everyone regrouped. ' : 'You ran too, and everyone got away and regrouped. ');
+    const ran2 = sc ? '' : r.chase && r.chase.scattered ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group before it struck. Everyone scattered in zigzags and got away.`
       : r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
     // the dead, from the fight
     const lost = (r.died || []).filter(x => !r.chase || x.id !== r.chase.caught);
@@ -477,13 +510,13 @@ function bindTrips(box) {
     const c = r.battle && r.battle.caught;
     const caughtText = c ? ` In the escape, ${esc(deadName(c.id))} was caught${c.died ? ' and did not survive.' : ' and is critically injured.'}` : '';
     const fed = (r.fedSelf || []).length ? ` ${esc(listNames(r.fedSelf.map(hurtName)))} hunted lizards and insects on the way and came home fed.` : '';
-    message = c && c.died && r.members.length === 1
+    message = scatterText + (c && c.died && r.members.length === 1
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran, but was caught and did not survive.${mapped}`
       : r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off.${caughtText} ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${fed}${follow}${mapped}`
       : r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${mourn}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${sailed}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${fed}${follow}${mapped}`;
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${sailed}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${fed}${follow}${mapped}`);
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));
