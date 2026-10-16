@@ -115,6 +115,7 @@ const SIZE = {
 //   fishing: [min, max] fish it brings home from a water hex
 //   zigzag: runs in zigzags: harder to hit for anything bigger than it (ZIGZAG), and to run down
 //   forage: self-sharpening teeth: brings home plants from any trip, [item, min, max, chance] each
+//   selfFeed: hunts small prey (lizards, insects) on a trip and comes home fed, a meal it ate
 //   eyes:   lived in groups: each one in a team may see a predator first, and the team scatters (EYES)
 //   sail:   a sail that intimidates: smaller wild predators keep away from its team, and one as big may
 //           back off after sizing it up (SAIL)
@@ -135,7 +136,7 @@ const SIZE = {
 // is every Compsognathus, Gallimimus, Hypsilophodon, Psittacosaurus and Scelidosaurus; a
 // Velociraptor or Coelophysis only scratches it. COMBAT.md lists who can hurt whom.
 export const BODY = {
-  compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
+  compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, selfFeed: true, forage: [['insect', 1, 2, 0.5]], role: 'noncombatant', hunt: 10, fear: 'tiny' },
   dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
   psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, creche: true, role: 'noncombatant', fear: 'small' },
@@ -190,7 +191,7 @@ export const STARTERS = ['dilo', 'proto', 'compy', 'hypsi'];
 export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
   proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
-  compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs.' },
+  compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals, but a team it leads travels faster, sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
   hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, darting in zigzags that bigger animals struggle to follow. A team it leads travels faster, keeps clear of danger and finds more eggs; it browses on the way and brings plants home, and in a herd its many eyes often spot a predator in time for everyone to scatter.' },
 };
 // a team with a scout in it
@@ -339,7 +340,7 @@ export const TEAM_SLOTS = 5;                 // places in one expedition's team:
 // team however many it holds, up to the species' limit. Each member still fights as itself, with its
 // own stats: a pack's turn is all of them striking at once (as many on one foe as can reach it), each
 // PACK_BONUS harder for every other one striking with it.
-export const PACK_LIMITS = { compy: 10, coelo: 15, raptor: 4, galli: 8, para: 6, hypa: 10, hypsi: 6 };
+export const PACK_LIMITS = { coelo: 15, raptor: 4, galli: 8, para: 6, hypa: 10, hypsi: 6 };
 // species whose groups are herds rather than packs (only the name changes)
 export const HERDS = ['para', 'hypa', 'hypsi'];
 // a species with fullPack: a pack of it at its limit gives every member this much more of every stat
@@ -372,7 +373,7 @@ export const LOOT_PER_HEX = 0.25;            // each hex of distance past the fi
 // pack[0] next to the nest up to pack[1] at the edge); creature is an animal that isn't a dinosaur
 // (CREATURES). loot is extra, on top of the hex's, when it is beaten.
 export const WILD = {
-  meadow:   [{ species: 'compy', pack: [2, 5], weight: 2, loot: [['meat', 1, 2]] }, { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] }],
+  meadow:   [{ species: 'compy', weight: 2, loot: [['meat', 1, 2]] }, { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] }],
   forest:   [{ species: 'raptor', pack: [2, 4], weight: 2, loot: [['feather', 2, 3], ['meat', 1, 2]] }, { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] }],
   swamp:    [{ creature: 'deinosuchus', weight: 2, loot: [['clay', 2, 3], ['meat', 2, 3]] }, { species: 'bary', weight: 1, loot: [['fish', 2, 3], ['bone', 1, 2]] }],
   badlands: [{ species: 'proto', pack: [2, 3], herd: true, weight: 2, loot: [['bone', 2, 3]] }, { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] }],

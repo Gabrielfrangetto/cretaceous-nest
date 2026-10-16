@@ -10,7 +10,8 @@ import { PACK_LIMITS, PACK_MIN, TEAM_SLOTS, INJURY_MINS, SPECIES, SCOUT } from '
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
 const dino = (id, type = 'compy', g = 50, fed = 30) => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed, lastFed: T0, genes: genes(g), equip: {} });
-const compys = (n, g = 50) => Array.from({ length: n }, (_, i) => dino(`c${i}`, 'compy', g));
+// a herd of up to 10 (Hypacrosaurus)
+const compys = (n, g = 50) => Array.from({ length: n }, (_, i) => dino(`c${i}`, 'hypa', g));
 function game(...babies) {
   const s = freshState();
   s.world = newWorld(42);
@@ -22,27 +23,29 @@ const pack = (type, n, g) => unitOf('pack', Array.from({ length: n }, (_, i) => 
 const solo = (type, g = 50) => unitOf(type, [fighterOf(dino(type, type, g))]);
 
 test('only pack species form packs, from 2 up to their limit, one pack each, never babies', () => {
-  const s = game(...compys(12), dino('rex1', 'rex'), dino('tiny', 'compy', 50, 0));
+  const s = game(...compys(12), dino('rex1', 'rex'), dino('tiny', 'hypa', 50, 0));
   assert.equal(applyAction(s, 'formPack', { type: 'rex', members: ['rex1'] }).reason, 'not-pack-species');
-  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: ['c0'] }).reason, 'too-few');
-  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: s.hatched.slice(0, 11).map(b => b.id) }).reason, 'too-many');
-  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: ['c0', 'tiny'] }).reason, 'too-young');
-  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: ['c0', 'rex1'] }).reason, 'bad-members');
-  const r = applyAction(s, 'formPack', { type: 'compy', members: ['c0', 'c1', 'c2'], name: '  Biters ' });
+  assert.equal(applyAction(s, 'formPack', { type: 'hypa', members: ['c0'] }).reason, 'too-few');
+  assert.equal(applyAction(s, 'formPack', { type: 'hypa', members: s.hatched.slice(0, 11).map(b => b.id) }).reason, 'too-many');
+  assert.equal(applyAction(s, 'formPack', { type: 'hypa', members: ['c0', 'tiny'] }).reason, 'too-young');
+  assert.equal(applyAction(s, 'formPack', { type: 'hypa', members: ['c0', 'rex1'] }).reason, 'bad-members');
+  const r = applyAction(s, 'formPack', { type: 'hypa', members: ['c0', 'c1', 'c2'], name: '  Biters ' });
   assert.equal(r.ok, true);
   assert.equal(r.pack.name, 'Biters');
   assert.equal(packOf(s, 'c1').id, r.pack.id);
-  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: ['c2', 'c3'] }).reason, 'in-other-pack');
+  assert.equal(applyAction(s, 'formPack', { type: 'hypa', members: ['c2', 'c3'] }).reason, 'in-other-pack');
   assert.equal(applyAction(s, 'setPackMembers', { id: r.pack.id, members: ['c0', 'c1', 'c2', 'c3'] }).ok, true);
   // fewer than the minimum breaks it up
   assert.equal(applyAction(s, 'setPackMembers', { id: r.pack.id, members: ['c0'] }).disbanded, true);
   assert.equal(s.packs.length, 0);
-  assert.ok(PACK_MIN === 2 && PACK_LIMITS.compy === 10);
+  assert.ok(PACK_MIN === 2 && PACK_LIMITS.hypa === 10);
+  // a Compsognathus lived alone: no packs of it
+  assert.equal(applyAction(s, 'formPack', { type: 'compy', members: ['x', 'y'] }).reason, 'not-pack-species');
 });
 
 test('a team of up to 5 places goes out together; a pack takes one place', () => {
   const s = game(...compys(10), dino('r1', 'raptor'), dino('r2', 'raptor'), dino('d1', 'dilo'), dino('d2', 'dilo'), dino('d3', 'dilo'), dino('d4', 'dilo'));
-  const p = applyAction(s, 'formPack', { type: 'compy', members: compys(10).map(b => b.id) }).pack;
+  const p = applyAction(s, 'formPack', { type: 'hypa', members: compys(10).map(b => b.id) }).pack;
   const team = [{ kind: 'pack', id: p.id }, { kind: 'player' }, { kind: 'dino', id: 'd1' }, { kind: 'dino', id: 'd2' }, { kind: 'dino', id: 'd3' }];
   assert.equal(exploreProblem(s, [...team, { kind: 'dino', id: 'd4' }], '1,0', T0), 'team-full');
   assert.equal(exploreProblem(s, [{ kind: 'pack', id: p.id }, { kind: 'dino', id: 'c3' }], '1,0', T0), 'twice');
@@ -63,7 +66,7 @@ test('a team of up to 5 places goes out together; a pack takes one place', () =>
 
 test('a team comes home together: everyone hungry, the downed ones injured', () => {
   const s = game(...compys(3, 10));
-  const p = applyAction(s, 'formPack', { type: 'compy', members: ['c0', 'c1', 'c2'] }).pack;
+  const p = applyAction(s, 'formPack', { type: 'hypa', members: ['c0', 'c1', 'c2'] }).pack;
   // a far hex with a fight the small pack loses
   const key = '7,0';
   const r = applyAction(s, 'explore', { team: [{ kind: 'pack', id: p.id }], hex: key }, T0);
@@ -226,7 +229,7 @@ test('a full Coelophysis pack (the biggest of all) fights with more of every sta
   assert.equal(PACK_LIMITS.coelo, Math.max(...Object.values(PACK_LIMITS)));
   assert.deepEqual(fullPackMods('coelo', PACK_LIMITS.coelo - 1), []);
   assert.equal(fullPackMods('coelo', PACK_LIMITS.coelo).length, 4);
-  assert.deepEqual(fullPackMods('compy', PACK_LIMITS.compy), []);
+  assert.deepEqual(fullPackMods('hypa', PACK_LIMITS.hypa), []);
   const b = dino('c', 'coelo');
   const plain = fighterOf(b), full = fighterOf(b, fullPackMods('coelo', PACK_LIMITS.coelo));
   assert.ok(full.hp > plain.hp && full.damage > plain.damage && full.agi > plain.agi);

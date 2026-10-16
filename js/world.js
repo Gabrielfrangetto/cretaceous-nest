@@ -586,12 +586,16 @@ export function collectExpedition(s, id, now, choice = {}) {
   const newly = [exp.hex, ...neighbors(h).map(n => hexKey(...n))].filter(k => !w.revealed.includes(k));
   w.revealed.push(...newly);
   w.expeditions = w.expeditions.filter(e => e.id !== id);
+  // a trip leaves everyone hungry, but a small hunter (Compsognathus) fed itself on the way: a meal
+  const fedSelf = [];
   for (const id of exp.members) {
     const b = explorerOf(s, id);
-    if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
+    if (!b || id === PLAYER_ID || dead.includes(id)) continue;
+    if (won && SPECIES[b.type].selfFeed && !b.critical) { b.lastFed = now; b.fed = (b.fed || 0) + 1; fedSelf.push(id); }
+    else b.lastFed = now - hungerEvery(b);
   }
   const died = dead.map(id => bury(s, id)).filter(Boolean);
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, died, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, backedOff, died, fedSelf, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

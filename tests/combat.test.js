@@ -815,11 +815,11 @@ test('death: a deadly blow kills, one brought down may not survive (its resistan
   }
   assert.ok(died > 0 && critical > 0, JSON.stringify({ died, critical }));
   // the dead leave the nest and their pack; what they wore comes back
-  const s = game(dino('a', 60, 'compy'), dino('b', 60, 'compy'));
-  s.packs = [{ id: 'pack-a', type: 'compy', name: 'p', members: ['a', 'b'] }];
+  const s = game(dino('a', 60, 'hypsi'), dino('b', 60, 'hypsi'));
+  s.packs = [{ id: 'pack-a', type: 'hypsi', name: 'p', members: ['a', 'b'] }];
   s.hatched[0].equip = { head: 'leaf_crown' };
   assert.equal(countItem(s, 'leaf_crown'), 0);
-  assert.deepEqual(bury(s, 'a'), { id: 'a', name: 'a', type: 'compy' });
+  assert.deepEqual(bury(s, 'a'), { id: 'a', name: 'a', type: 'hypsi' });
   assert.equal(s.hatched.length, 1);
   assert.deepEqual(s.packs, []);
   assert.equal(countItem(s, 'leaf_crown'), 1);
@@ -954,4 +954,29 @@ test('a predator everyone ran from gives chase: it may catch the slowest, who ma
     else assert.equal(s2.hatched.find(x => x.id === 'p').critical, true);
   }
   assert.ok(caught > 0 && died > 0 && away > 0, JSON.stringify({ caught, died, away }));
+});
+
+test('a Compsognathus hunts on the way and comes home fed, with insects now and then; it lives alone', async () => {
+  const { PACK_LIMITS } = await import('../js/config.js');
+  const { cleanPacks } = await import('../js/packs.js');
+  const { isHungry } = await import('../js/economy.js');
+  assert.equal(PACK_LIMITS.compy, undefined);
+  // an old save's pack of them breaks up
+  const old = game(dino('a', 60, 'compy'), dino('b', 60, 'compy'));
+  assert.deepEqual(cleanPacks([{ id: 'p', type: 'compy', name: 'p', members: ['a', 'b'] }], old), []);
+  let fed = 0, insects = 0;
+  for (let trip = 0; trip < 20; trip++) {
+    const s = game(dino('c', 60, 'compy'), dino('d', 60, 'dilo'));
+    s.world.trips = trip;
+    const c = trip0(s, 'c', '1,0');
+    const back = T0 + tripMins('1,0') * 60000;
+    if (!c.fedSelf.includes('c')) continue;
+    fed++;
+    assert.equal(isHungry(s.hatched.find(b => b.id === 'c'), back), false);
+    if (c.loot.some(l => l.id === 'insect')) insects++;
+    // the others come home hungry
+    const d = trip0(s, 'd', '1,0');
+    assert.equal(d.fedSelf.length, 0);
+  }
+  assert.ok(fed > 10 && insects > 0, JSON.stringify({ fed, insects }));
 });
