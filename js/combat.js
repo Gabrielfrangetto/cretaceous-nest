@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -212,7 +212,7 @@ function withRoles(u, swamp) {
 //   through a leg); a blow it turns aside is { ..., dmg: 0, guarded: true }, answered at once by a
 //   counter with guard: true; a blow on its covered throat adds throat.
 //   A Pachycephalosaurus' charge lands on the flank and may add knocked, with rose when the one knocked
-//   down won agility against it and got straight back up (otherwise it loses its next action:
+//   down got straight back up on its own agility (otherwise it loses its next action:
 //   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
 //   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
 //   (the foe's running off is a win).
@@ -263,11 +263,11 @@ export function teamFight(units, foe, rand, opts = {}) {
   const clinging = new Map(), holding = new Map(), latches = new Map(), beaks = new Map();
   // units that lost their footing (they miss their next turn), and defenders out of their guard
   const exposed = new Set();
-  // Animals knocked down (a butt to the flank, a fall): one that wins agility against the one that
-  // floored it gets straight back up; otherwise it loses its next action. Returns whether it rose.
+  // Animals knocked down (a butt to the flank, a fall): on its own agility (RISE) it gets straight back
+  // up; otherwise it loses its next action. Returns whether it rose.
   const knocked = new Set();
-  const knockDown = (t, v, m, agi) => {
-    if (contest(S[t][v].members[m].agi, agi)) return true;
+  const knockDown = (t, v, m) => {
+    if (contest(S[t][v].members[m].agi, RISE.base)) return true;
     knocked.add(E(t, v, m));
     return false;
   };
@@ -416,7 +416,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (throat < 1) bone.throat = true;
     if (domed) bone = { part: 'head', dome: true };
     // butted in the flank, it may go down and lose its next action
-    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) bone = { ...bone, knocked: true, rose: knockDown(t, v, m, att.agi) };
+    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, prey.str)) bone = { ...bone, knocked: true, rose: knockDown(t, v, m) };
     // the spikes leave a wound that bleeds, and may go through a leg
     if (spiked && dmg > 0 && hp[t][v][m] > 0) {
       const wounds = spikeWounds.get(E(t, v, m)) || 0;
@@ -619,7 +619,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (hd && hp[t][hd.v][hd.m] <= 0) holding.delete(key);
     else if (hd) { if (blow(s, u, hd.at, hd.v, hd.m, 0.75 + rand() * 0.5, 1, { hold: true }) >= 0) slashWound(s, u, t, hd.v, hd.m); return; }
     // clinging on: it holds on (strength against the other's agility) and slashes, or falls off; a
-    // bad fall (agility against agility) costs it its next turn
+    // bad fall (it gets up on its own agility, RISE) costs it its next turn
     const cl = clinging.get(key);
     if (cl) {
       const lead = unit.members[cl.at], prey = S[t][cl.v].members[cl.m];
@@ -627,8 +627,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       else if (contest(lead.str, prey.agi)) { if (blow(s, u, cl.at, cl.v, cl.m, 0.75 + rand() * 0.5, 1, { slash: true }) >= 0) slashWound(s, u, t, cl.v, cl.m); return; }
       else {
         clinging.delete(key);
-        const landed = contest(lead.agi, prey.agi);
-        if (!landed) knocked.add(E(s, u, cl.at));
+        const landed = knockDown(s, u, cl.at);
         log.push(entry(s, u, cl.at, cl.v, cl.m, { fell: true, landed }));
         return;
       }
