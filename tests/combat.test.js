@@ -151,14 +151,11 @@ test('who is afraid runs before the fight: a Gallimimus leaves the player alone 
   assert.equal(alone.escaped, true);
   assert.equal(alone.win, false);
   assert.deepEqual(alone.log, []);
-  // against a small pack it stays and never attacks on its own: it strikes back when attacked, or
-  // through an opening while the pack goes for someone else
+  // a prey animal: even against a small pack, and with the player fighting, it runs (trained or not)
   const raptors = encounterUnit({ species: 'raptor', pack: [3, 3], loot: [] }, 2);
   const f = teamFight([me, galli], raptors, seededRand('stay'));
-  assert.deepEqual(f.fled, []);
-  const its = f.log.filter(e => e.by === 1);
-  assert.ok(its.length && its.every(e => e.counter || e.opening));
-  assert.ok(its.some(e => e.opening));
+  assert.deepEqual(f.fled, [1]);
+  assert.ok(f.log.every(e => e.by !== 1 && e.to !== 1));
 });
 
 test('a defender charges now and then, otherwise holds its ground and strikes back', () => {
@@ -645,8 +642,8 @@ test('a Parasaurolophus warns its group of a predator: readied, every one of it 
 test('a Parasaurolophus brought down may break away instead: home hurt, not critically', () => {
   let ran = 0, down = 0;
   for (let i = 0; i < 60; i++) {
-    // (a noncombatant alone would just run before the fight: a Dilophosaurus fights alongside it)
-    const para = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined }]);
+    // (a prey animal runs before any fight: the rule is for one cornered, so it stands here as a defender)
+    const para = unitOf('pa', [{ ...fighterOf(dino('pa', 60, 'para')), fear: undefined, role: 'defender' }]);
     const dilo = unitOf('d', [{ ...fighterOf(dino('d', 60, 'dilo')), fear: undefined }]);
     const r = teamFight([dilo, para], wildFighter('rex', 6), seededRand('run' + i));
     const away = r.log.find(e => e.by === 'foe' && e.to === 1 && e.escaped);
@@ -657,7 +654,7 @@ test('a Parasaurolophus brought down may break away instead: home hurt, not crit
   // one breaking away takes its whole herd with it
   let herds = 0;
   for (let i = 0; i < 60; i++) {
-    const herd = unitOf('h', Array.from({ length: 3 }, (_, k) => ({ ...fighterOf(dino('h' + k, 60, 'para')), fear: undefined })), true);
+    const herd = unitOf('h', Array.from({ length: 3 }, (_, k) => ({ ...fighterOf(dino('h' + k, 60, 'para')), fear: undefined, role: 'defender' })), true);
     const dilo = unitOf('d', [{ ...fighterOf(dino('d', 60, 'dilo')), fear: undefined }]);
     const r = teamFight([dilo, herd], wildFighter('rex', 6), seededRand('herd' + i));
     const at = r.log.findIndex(e => e.by === 'foe' && e.to === 1 && e.escaped);
@@ -771,7 +768,8 @@ test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small f
   assert.ok(SPECIES.psitta.digest > 1);
   let cracked = 0;
   for (let i = 0; i < 80; i++) {
-    const ps = unitOf('p', [{ ...fighterOf(dino('p', 70, 'psitta')), fear: undefined }]);
+    // (a prey animal runs before any fight: the rule is for one cornered, so it stands here as a defender)
+    const ps = unitOf('p', [{ ...fighterOf(dino('p', 70, 'psitta')), fear: undefined, role: 'defender' }]);
     const me = unitOf('m', [{ ...fighterOf(dino('m', 70, 'dilo')), fear: undefined }]);
     for (const e of teamFight([me, ps], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 3), seededRand('cr' + i)).log)
       if (e.by === 1 && e.cracked) { cracked++; assert.ok(e.counter); }
@@ -993,4 +991,21 @@ test('a Compsognathus hunts on the way and comes home fed, with insects now and 
     assert.equal(d.fedSelf.length, 0);
   }
   assert.ok(fed > 10 && insects > 0, JSON.stringify({ fed, insects }));
+});
+
+test('prey animals never fight: they run from any predator, even with the player fighting, and wild ones keep away', async () => {
+  const { keepsAway, teamUnits } = await import('../js/world.js');
+  const { freshState } = await import('../js/state.js');
+  const me = unitOf('You', [fighterOf(freshState().player)]);
+  for (const t of ['compy', 'psitta', 'hypsi', 'galli', 'hypa', 'para']) {
+    const herd = unitOf('h', [fighterOf(dino('h', 90, t))]);
+    const r = teamFight([me, herd], encounterUnit({ species: 'dilo', loot: [] }, 2), seededRand('prey' + t));
+    assert.deepEqual(r.fled, [1], t);
+    // (a Parasaurolophus may still call a warning before it runs)
+    assert.ok(r.log.every(e => e.alert || (e.by !== 1 && e.to !== 1)), t);
+  }
+  // a wild one (a Compsognathus) never shows itself, even to a team no bigger than it
+  const s = game(dino('c', 60, 'compy'));
+  const hex = ALL_HEXES.find(h => threatAt(42, h).id === 'compy' && !threatAt(42, h).lair);
+  assert.equal(keepsAway(threatAt(42, hex), teamUnits(s, [{ kind: 'dino', id: 'c', members: ['c'] }])), true);
 });

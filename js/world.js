@@ -297,11 +297,14 @@ export function encounterChance(threat, units, biome, scout) {
 
 // ---------- keeping away and hunting ----------
 const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
-// a wild animal that doesn't show itself to this team (fighters, from teamUnits): it keeps away from
+// a wild animal that doesn't show itself to this team (fighters, from teamUnits): a prey animal always
+// does; others keep away from
 // anything bigger than its fear, and a predator smaller than a sail's owner (Spinosaurus) keeps away from it
 export function keepsAway(threat, team) {
   const sp = threat.entry.species && SPECIES[threat.entry.species];
   if (!sp || !sp.fear) return false;
+  // prey animals (noncombatants) run from any team: they can only be spotted and hunted
+  if (sp.role === 'noncombatant') return true;
   const size = sizeRank(threat.foe.members[0].size), predator = sp.role === 'attacker';
   return team.some(u => u.members.some(m => sizeRank(m.size) > sizeRank(sp.fear) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
 }

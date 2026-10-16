@@ -155,9 +155,10 @@ const roleOf = u => u.members[0].role || 'attacker';
 export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
 // a unit that runs from this foe: the player never does
 export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
-// which units flee before the fight; all of them when nobody left would fight
+// which units flee before the fight: those afraid of it, and every noncombatant (prey animals: the
+// urge to run wins out, trained or not); all of them when nobody left would fight
 export function whoFlees(units, foe) {
-  const fled = units.flatMap((u, i) => fears(u, foe) ? [i] : []);
+  const fled = units.flatMap((u, i) => fears(u, foe) || roleOf(u) === 'noncombatant' ? [i] : []);
   const stay = units.flatMap((_, i) => fled.includes(i) ? [] : [i]);
   const nobody = !stay.some(i => roleOf(units[i]) !== 'noncombatant');
   return { fled: nobody ? units.map((_, i) => i) : fled, escaped: nobody };

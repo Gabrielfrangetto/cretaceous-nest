@@ -163,9 +163,11 @@ export const BODY = {
 //             Each turn it either charges (its charge chance: CHARGE_DAMAGE times its blow, but
 //             CHARGE_EXPOSED more damage from the next blow it takes), or holds its ground and
 //             strikes back at whatever attacks it.
-//   noncombatant: never attacks. Struck, it lashes back; and when the foe goes for someone else it
-//             may land a blow through the opening (OPENING a time). Only when it stays: anything
-//             bigger than its fear and it has run. A team of only noncombatants runs off.
+//   noncombatant: prey animals (as ostriches, horses or zebras today): the urge to run wins out, trained
+//             or not, so it never fights. It runs before any fight; with nobody left to fight, the
+//             whole team runs (and a predator gives chase, CHASE). A wild one runs from any team: it can
+//             only be spotted and hunted. (Its rules for lashing back and openings stay for a cornered
+//             one: OPENING.)
 // fishers (Baryonyx, Spinosaurus) are attackers at home in the water (BODY fisher).
 export const ROLE_TARGET = { attacker: 1, defender: 3, noncombatant: 0.3 };
 export const CHARGE_DAMAGE = 2;
