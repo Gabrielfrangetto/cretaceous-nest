@@ -786,8 +786,41 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
     if (c.chase) {
       ran++;
       assert.equal(c.battle, null);
-      if (c.chase.caught) { caught++; assert.equal(s.hatched.find(b => b.id === c.chase.caught).critical, true); }
+      // caught: dead (gone from the nest) or critically injured
+      if (c.chase.caught) {
+        caught++;
+        const b = s.hatched.find(x => x.id === c.chase.caught);
+        if (c.chase.died) { assert.equal(b, undefined); assert.ok(c.died.some(x => x.id === c.chase.caught)); }
+        else assert.equal(b.critical, true);
+      }
     } else if (c.battle) fought++;
   }
   assert.ok(ran > 0 && caught > 0 && fought > 0, JSON.stringify({ ran, caught, fought }));
+});
+
+test('death: a deadly blow kills, one brought down may not survive (its resistance), the player never dies', async () => {
+  const { bury } = await import('../js/world.js');
+  const lair = lairs(42).at(-1);
+  let died = 0, critical = 0;
+  for (let trip = 0; trip < 40; trip++) {
+    // a Triceratops stands up to the strongest lair and goes down
+    const s = game(dino('t', 20, 'trike'));
+    s.world.trips = trip;
+    const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 't' }, { kind: 'player', id: 'player' }], hex: lair }, T0);
+    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    if (!c.battle || c.battle.win) continue;
+    if (c.died.some(x => x.id === 't')) { died++; assert.equal(s.hatched.some(b => b.id === 't'), false); }
+    else if (s.hatched.find(b => b.id === 't').critical) critical++;
+    assert.ok(s.player);
+  }
+  assert.ok(died > 0 && critical > 0, JSON.stringify({ died, critical }));
+  // the dead leave the nest and their pack; what they wore comes back
+  const s = game(dino('a', 60, 'compy'), dino('b', 60, 'compy'));
+  s.packs = [{ id: 'pack-a', type: 'compy', name: 'p', members: ['a', 'b'] }];
+  s.hatched[0].equip = { head: 'leaf_crown' };
+  assert.equal(countItem(s, 'leaf_crown'), 0);
+  assert.deepEqual(bury(s, 'a'), { id: 'a', name: 'a', type: 'compy' });
+  assert.equal(s.hatched.length, 1);
+  assert.deepEqual(s.packs, []);
+  assert.equal(countItem(s, 'leaf_crown'), 1);
 });

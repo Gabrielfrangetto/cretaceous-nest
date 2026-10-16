@@ -295,6 +295,8 @@ export function teamFight(units, foe, rand, opts = {}) {
   const knocked = new Set();
   // animals that broke away and ran instead of going down: out of the fight, home with a little health
   const brokeAway = new Set();
+  // our members killed outright by a deadly blow (a bite that swallows, a neck, a stomp, a club, a grip)
+  const slain = [];
   // armored ones hunkered down before a bigger predator, till their next turn (CROUCH in config.js)
   const crouched = new Set();
   // the blows of the turn being played on hunkered-down armor: damage, the biggest health among them,
@@ -554,6 +556,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
     log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
     if (herdRuns && S[t][v].pack && alive(t, v).length && active[t].includes(v)) runOff(t, v);
+    // ours killed outright (not just brought down)
+    if (t === 0 && hp[t][v][m] <= 0 && (bone.kill || grab.grab === 'kill') && !slain.some(([a, b]) => a === v && b === m)) slain.push([v, m]);
     // the plates hurt whatever bit them
     if (plates && plates.thornsOn.includes(part) && raw > 0 && hp[s][u][at] > 0) {
       const back = Math.max(1, Math.round(raw * plates.thorns));
@@ -841,7 +845,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamLeft = stayed.reduce((t, i) => t + hp[0][i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
   const win = !escaped && (left <= 0 || foeRouted);
-  return { win, escaped, fled, routed, foeRouted, foeFled, alerted, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
+  return { win, escaped, fled, routed, foeRouted, foeFled, alerted, slain, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
 }
 
 export function teamWinChance(units, foe, runs = 120, opts = {}) {

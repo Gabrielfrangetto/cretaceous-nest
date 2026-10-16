@@ -445,13 +445,17 @@ function bindTrips(box) {
     const call = r.battle && r.battle.alerted === 'team' ? r.battle.log.find(e => e.alert) : null;
     const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';
     // runners saw a predator first and the team ran
-    const ran2 = r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(hurtName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'} and is critically injured.` : ' Everyone got away.'}` : '';
+    const deadName = id => ((r.died || []).find(x => x.id === id) || {}).name || hurtName(id);
+    const ran2 = r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
+    // the dead, from the fight
+    const lost = (r.died || []).filter(x => !r.chase || x.id !== r.chase.caught);
+    const mourn = lost.length ? ` ${esc(listNames(lost.map(x => x.name)))} did not survive the fight.` : '';
     const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
+      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${mourn}${hurt}${critical}${mapped}`
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));

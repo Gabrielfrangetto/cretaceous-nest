@@ -549,6 +549,12 @@ export const CRECHE = { stomach: 1.25 };
 // what the hex gave. The predator may still catch one of them: its agility against twice the slowest
 // one's; the one caught comes home critically injured.
 export const RUNNER = { trip: 0.5, eye: 0.25 };
+// Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
+// neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,
+// critically injured, resistance / (resistance + resBase) of the time (between min and max), and dies
+// otherwise. A runner caught in the escape dies as often as caught says by how much bigger the predator
+// is ([size steps or more, chance]). The dead are gone from the nest; what they wore comes back.
+export const DEATH = { resBase: 30, min: 0.3, max: 0.95, caught: [[2, 0.85], [1, 0.65], [-Infinity, 0.25]] };
 export const NURSE = { hatch: 0.25, perOne: 0.01, max: 0.1 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped

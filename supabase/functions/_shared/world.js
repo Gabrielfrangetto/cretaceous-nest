@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -334,6 +334,18 @@ export function huntSighting(s, { id, go }) {
   return { ok: true, hunted: true, caught: true, sighting: sight, loot, coins: sight.coins };
 }
 
+// a dinosaur that died: gone from the nest and its pack (a pack left too small breaks up), and what it
+// wore back in the inventory (lost if there is no room)
+export function bury(s, id) {
+  const b = s.hatched.find(x => x.id === id);
+  if (!b || id === PLAYER_ID) return null;
+  for (const item of Object.values(b.equip || {})) if (item) addItem(s, item, 1);
+  s.hatched = s.hatched.filter(x => x.id !== id);
+  s.packs = (s.packs || []).map(p => ({ ...p, members: p.members.filter(m => m !== id) })).filter(p => p.members.length >= PACK_MIN);
+  if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) s.breeding = null;
+  return { id, name: b.name, type: b.type };
+}
+
 // calls the dinosaur back early: no loot, no new map, but it is free again right away
 export function recallExpedition(s, id) {
   const w = W(s);
@@ -387,6 +399,8 @@ export function collectExpedition(s, id, now, choice = {}) {
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
   let sighting = null, standoff = null, chase = null, spotted = false;
+  // the dinosaurs that died on this trip
+  const dead = [];
   const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
   // what keeps away from the team may still be spotted at a distance, and hunted
   if (meets && keepsAway(threat, teamUnits(s, units))) {
@@ -410,10 +424,12 @@ export function collectExpedition(s, id, now, choice = {}) {
     let caught = null;
     if (slow && fightRand() < hunter.agi / (hunter.agi + 2 * slow.f.agi)) {
       caught = explorerOf(s, slow.id);
-      caught.injuredUntil = now + CRITICAL_MINS * 60000;
-      caught.critical = true;
+      // caught: the bigger the predator, the likelier it doesn't get away
+      const step = SIZE_ORDER.indexOf(hunter.size) - SIZE_ORDER.indexOf(slow.f.size);
+      if (fightRand() < DEATH.caught.find(([n]) => step >= n)[1]) dead.push(caught.id);
+      else { caught.injuredUntil = now + CRITICAL_MINS * 60000; caught.critical = true; }
     }
-    chase = { name: threat.foe.name, count: threat.foe.members.length, caught: caught ? caught.id : null };
+    chase = { name: threat.foe.name, count: threat.foe.members.length, caught: caught ? caught.id : null, died: !!caught && dead.includes(caught.id) };
   } else if (meets && standsGround(threat.foe) && !choice.fight) {
     // it stood its ground and the team left it in peace
     standoff = { ...standoffOf(threat), fought: false };
@@ -427,6 +443,13 @@ export function collectExpedition(s, id, now, choice = {}) {
     // those who ran before the fight come home unhurt
     units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const left = result.hp[i][j] / result.teamHps[i][j];
+      // brought down: killed outright, or it may not survive (its resistance), or comes home critical
+      if (left <= 0 && id !== PLAYER_ID) {
+        const slain = result.slain.some(([a, b]) => a === i && b === j);
+        const res = team[i].members[j].res;
+        const lives = Math.min(DEATH.max, Math.max(DEATH.min, res / (res + DEATH.resBase)));
+        if (slain || fightRand() >= lives) { dead.push(id); return; }
+      }
       const critical = left <= 0 && id !== PLAYER_ID;
       // a leg lamed by a bone-breaking bite comes home injured at least
       const lame = result.lamed.some(([a, b]) => a === i && b === j);
@@ -442,7 +465,7 @@ export function collectExpedition(s, id, now, choice = {}) {
     // a frill keeps the damage it took until it is mended
     units.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
       const f = result.frill[i] && result.frill[i][j];
-      if (f !== null && f !== undefined) explorerOf(s, id).frill = f;
+      if (f !== null && f !== undefined && !dead.includes(id)) explorerOf(s, id).frill = f;
     }));
     battle = {
       creature: threat.id, lair: threat.lair, foe: { name: foe.name, power: threat.power, hp: result.foeMax, count: foe.members.length, pack: foe.pack },
@@ -502,7 +525,8 @@ export function collectExpedition(s, id, now, choice = {}) {
     const b = explorerOf(s, id);
     if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   }
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, egg: foundEgg };
+  const died = dead.map(id => bury(s, id)).filter(Boolean);
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, chase, died, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

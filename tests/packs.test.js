@@ -132,7 +132,9 @@ test('a Compsognathus scouts for its team: shorter trips, fewer fights, more egg
     let fights = 0, eggs = 0, mins = 0;
     for (let i = 0; i < 300; i++) {
       s.world.expeditions = [];
-      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; });
+      // (one that died comes back for the next try)
+      for (const [id, t] of [['d1', 'dilo'], ['c1', 'compy']]) if (!s.hatched.some(b => b.id === id)) s.hatched.push(dino(id, t, g));
+      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; delete b.critical; });
       const r = applyAction(s, 'explore', { team: team.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);
       mins = (r.expedition.returnAt - T0) / 60000;
@@ -200,7 +202,9 @@ test('only a won fight that went into a frenzy drops Allosaurus teeth and blood,
     const got = { allo_tooth: 0, allo_blood: 0, frenzyWins: 0 };
     for (let i = 0; i < 150; i++) {
       s.world.expeditions = [];
-      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; });
+      // (one that died comes back for the next try)
+      for (const id of ids) if (!s.hatched.some(b => b.id === id)) s.hatched.push(dino(id, 'allo', 80));
+      s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; delete b.critical; });
       const r = applyAction(s, 'explore', { team: ids.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);
       const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
