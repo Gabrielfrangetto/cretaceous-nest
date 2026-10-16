@@ -135,7 +135,11 @@ export const hasScout = (s, members) => members.some(id => {
   return !!b && (ROLES[b.type] || {}).ability === 'scout' && stageOf(b).id !== 'baby';
 });
 // a team's trip there and back, in minutes
-export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1);
+// the slowest in the team sets its pace (BODY slow), and its best hauler how much it brings (BODY haul)
+const bodyOf = (s, id) => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && b.type ? SPECIES[b.type] : {}; };
+export const teamSlow = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).slow || 1));
+export const teamHaul = (s, members) => Math.max(1, ...members.map(id => bodyOf(s, id).haul || 1));
+export const teamTripMins = (s, members, key) => tripMins(key) * (hasScout(s, members) ? SCOUT.trip : 1) * teamSlow(s, members);
 
 // injured dinosaurs heal with time; a Healing Herb speeds it up
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
@@ -423,7 +427,9 @@ export function collectExpedition(s, id, now, choice = {}) {
 
   let coins = 0, discovered = false, foundEgg = null;
   if (won) {
-    for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, roll(l));
+    // a hauler (a giant sauropod) brings home more of what the hex has
+    const haul = teamHaul(s, exp.members);
+    for (const l of lootTable(s, exp.hex)) if (rand() < l.chance) give(l.id, Math.round(roll(l) * haul));
     if (battle && battle.win) {
       const mult = 1 + (d - 1) * LOOT_PER_HEX;
       for (const [item, min, max] of threat.entry.loot) give(item, roll({ min: Math.round(min * mult), max: Math.round(max * mult) }));

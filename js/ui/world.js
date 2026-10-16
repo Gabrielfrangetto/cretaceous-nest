@@ -4,7 +4,7 @@ import { SCOUT, FRENZY_DAMAGE, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDI
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, hasScout, lootTable, exploreProblem, expeditionOf,
+  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff,
 } from '../world.js';
 import { packOf } from '../packs.js';
@@ -222,7 +222,7 @@ function sideHTML(t) {
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
   return `<h3>${seen ? esc(biome.name) : 'Unexplored hex'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${scout ? ' (a scout leads the way)' : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${scout ? ' (a scout leads the way)' : ''}${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${first ? ` · first visit pays ${d * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>

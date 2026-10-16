@@ -99,6 +99,9 @@ const SIZE = {
 //   guard: a fighting stance that may turn a blow aside and strike back at once (SPIKES)
 //   throat: small bones covering the throat (THROAT)
 //   dome: a thick bony skull dome that butts flanks and shrugs off blows to the head (DOME)
+//   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
+//   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
+//   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
 //           Nothing short of a giant sauropod stands up to one: colossal is theirs alone. A
 //           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
@@ -132,7 +135,7 @@ export const BODY = {
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, role: 'attacker', hunt: 15, fear: 'huge' },
   spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: true, role: 'attacker', hunt: 5, fear: 'huge' },
   rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, role: 'attacker', hunt: 10, fear: 'huge' },
-  argent:  { weapon: 'Its sheer weight: stomps and a whip-like tail', bite: 200, hide: 30, role: 'defender', charge: 0.25, fear: 'colossal' },
+  argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal' },
 };
 // How each role fights:
 //   attacker: the hunters. Strikes the foe every turn.
@@ -470,6 +473,12 @@ export const DOME = { back: 0.7, maxStep: 1 };
 // its agility as a percentage (26 agility, 26% of the time), never more than max; otherwise it loses
 // its next action. The slow stay down.
 export const RISE = { max: 0.95 };
+// A giant sauropod (Argentinosaurus) never starts a fight; it strikes back. Each blow back is a stomp
+// (stomp of the time) or a swing of its heavy tail. Both are slow: a target dodges them slow times its
+// lead in speed more (as a spiked tail). A stomp that lands crushes anything short of colossal
+// outright; the tail lands tail times as hard, on that one target alone. Nothing smaller can reach its
+// neck, break its legs, or knock it down.
+export const GIANT = { stomp: 0.5, tail: 3, slow: 1.1 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped
 // stands with its strength times stable.
 export const STANCE = { stable: 4 };

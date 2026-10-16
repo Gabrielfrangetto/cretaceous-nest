@@ -28,7 +28,7 @@ Role: attacker (goes for the foe), defender (charges or holds its ground and str
 | Allosaurus | large | Blade-like teeth, slashing bites | 160 | 12 | attacker | huge |
 | Spinosaurus | huge | Long jaws and big claws | 180 | 18 | attacker | huge |
 | Tyrannosaurus | huge | The strongest bite of any land animal | 260 | 25 | attacker | huge |
-| Argentinosaurus | colossal | Its sheer weight: stomps and a whip-like tail | 200 | 30 | defender | colossal |
+| Argentinosaurus | colossal | Its sheer weight: stomps and a heavy tail | 200 | 30 | defender | colossal |
 
 ## Who each one can't hurt
 

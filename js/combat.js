@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -79,7 +79,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: !!sp.armor, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -214,6 +214,8 @@ function withRoles(u, swamp) {
 //   A Pachycephalosaurus' charge lands on the flank and may add knocked, with rose when the one knocked
 //   down got straight back up on its own agility (otherwise it loses its next action:
 //   { by, recovering: true } for a lone one); a blow its dome shrugs off adds dome (dmg 0).
+//   A giant's blow back adds stomp (a kill when it lands on anything short of colossal: stomped) or
+//   swipe (its tail).
 //   { by, rout: true } | { by: 'foe', rout: true }: a pack or herd that lost half its members runs off
 //   (the foe's running off is a win).
 // fled: the units that ran before the fight (escaped: everyone did, so there was none); routed: the
@@ -269,7 +271,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   // how firmly it stands against being knocked down: four feet on the ground hold better than two
   const footing = f => f.str * (f.biped ? 1 : STANCE.stable);
   const knockDown = (t, v, m) => {
-    if (rand() < Math.min(RISE.max, S[t][v].members[m].agi / 100)) return true;
+    if (S[t][v].members[m].giant || rand() < Math.min(RISE.max, S[t][v].members[m].agi / 100)) return true;
     knocked.add(E(t, v, m));
     return false;
   };
@@ -306,7 +308,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (sizeRank(hit.size) <= sizeRank(BONE_BREAKER.oneBite)) { hp[t][v][m] = 0; return { part: 'whole', kill: true }; }
     if (!part) part = rollPart(BONE_BREAKER.parts, hit);
     if (part === 'neck' && sizeRank(hit.size) <= sizeRank(BONE_BREAKER.neckMax) && !hit.throat) { hp[t][v][m] = 0; return { part, kill: true }; }
-    if (isLeg(part) && !hit.lame && rand() < BONE_BREAKER.lame) { lameMember(t, v, m); return { part, lame: true }; }
+    if (isLeg(part) && !hit.lame && !(hit.giant && sizeRank(S[s][u].members[0].size) < sizeRank(hit.size)) && rand() < BONE_BREAKER.lame) { lameMember(t, v, m); return { part, lame: true }; }
     if (isArm(part) && !hit.armBroken && rand() < BONE_BREAKER.lame) { breakArm(t, v, m); return { part, armBroken: true }; }
     return { part };
   };
@@ -345,7 +347,8 @@ export function teamFight(units, foe, rand, opts = {}) {
       return -1;
     }
     // a pinned or held one can't dodge; a spiked tail's swing is slow, and the quicker one sees it coming
-    const tail = att.spikes && (extra.counter || extra.charge) ? SPIKES.slow * Math.max(0, 2 * prey.agi / (prey.agi + att.agi) - 1) : 0;
+    const slowSwing = (extra.counter || extra.charge) && (att.spikes ? SPIKES.slow : att.giant ? GIANT.slow : 0);
+    const tail = slowSwing ? slowSwing * Math.max(0, 2 * prey.agi / (prey.agi + att.agi) - 1) : 0;
     if (!held && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
       log.push(entry(s, u, at, v, m, { miss: true, ...extra }));
       return -1;
@@ -385,8 +388,13 @@ export function teamFight(units, foe, rand, opts = {}) {
       }
       head = FRILL.broken;
     }
+    // a giant's neck is out of reach of anything smaller
+    const below = prey.giant && sizeRank(att.size) < sizeRank(prey.size);
+    // a giant strikes back with a stomp or its tail
+    const stomp = att.giant && (extra.counter || extra.charge) && rand() < GIANT.stomp;
+    const swipe = att.giant && (extra.counter || extra.charge) && !stomp;
     // a sickle claw driven into the neck from below goes through any armor
-    const neck = att.claw && !held && !o.part && rand() < CLAW.neck;
+    const neck = att.claw && !held && !o.part && !below && rand() < CLAW.neck;
     // armor: the part the blow lands on decides how much gets through
     let part = neck ? 'neck' : o.part || null, cut = 1;
     if (prey.armor && !neck) {
@@ -399,6 +407,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (!part && !onHead && prey.dome) part = rollPart(HIT_PARTS, prey);
     // a bone-breaking bite picks its part before it lands (a covered throat can take some of it)
     if (!part && !onHead && S[s][u].members[0].boneBreaker && sizeRank(prey.size) > sizeRank(BONE_BREAKER.oneBite)) part = rollPart(BONE_BREAKER.parts, prey);
+    if (below && part === 'neck') part = rollPart(HIT_PARTS.filter(([p]) => p !== 'neck'), prey);
     // a throat covered in small bones: nothing from something smaller, half from one its size, a
     // little less from anything bigger
     const step = sizeRank(att.size) - sizeRank(prey.size);
@@ -410,24 +419,26 @@ export function teamFight(units, foe, rand, opts = {}) {
     const spiked = att.spikes && (extra.counter || extra.charge);
     const buff = o.buff || 1;
     const weapon = neck ? { ...att, crush: 1 } : spiked ? { ...att, crush: Math.max(att.crush || 0, SPIKES.pierce) } : att;
-    const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * open * head * throat * (domed ? 0 : 1);
+    const raw = hitOf(weapon, prey, roll) * buff * boost * (swung ? CLUB.damage : 1) * (swipe ? GIANT.tail : 1) * open * head * throat * (domed ? 0 : 1);
     const dmg = rounded(raw * cut);
     hp[t][v][m] = Math.max(0, hp[t][v][m] - dmg);
     let bone = neck ? { part: 'neck' } : dmg > 0 && !onHead ? breakBones(s, u, t, v, m, part) : onHead ? { part: 'head' } : part ? { part } : {};
     if (prey.armor && !neck && ARMOR.armored.includes(part)) bone.armored = true;
     if (throat < 1) bone.throat = true;
     if (domed) bone = { part: 'head', dome: true };
-    // butted in the flank, it may go down and lose its next action
-    if (butt && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, footing(prey))) bone = { ...bone, knocked: true, rose: knockDown(t, v, m) };
+    // a giant's stomp crushes anything short of colossal
+    if (stomp && hp[t][v][m] > 0 && sizeRank(prey.size) < sizeRank('colossal')) { hp[t][v][m] = 0; bone = { part: 'whole', kill: true, stomped: true }; }
+    // butted in the flank, it may go down and lose its next action (never a giant)
+    if (butt && !prey.giant && dmg > 0 && hp[t][v][m] > 0 && step >= -DOME.maxStep && contest(att.str, footing(prey))) bone = { ...bone, knocked: true, rose: knockDown(t, v, m) };
     // the spikes leave a wound that bleeds, and may go through a leg
     if (spiked && dmg > 0 && hp[t][v][m] > 0) {
       const wounds = spikeWounds.get(E(t, v, m)) || 0;
       if (wounds < SPIKES.maxBleed) { spikeWounds.set(E(t, v, m), wounds + 1); bleed(t, v, m, bleedVs(SPIKES.bleed, att.size, prey.size)); }
-      if (!prey.lame && !bone.kill && rand() < SPIKES.impale + SPIKES.bonus * att.str / (att.str + prey.res)) { lameMember(t, v, m); bone = { ...bone, part: legOf(prey), lame: true, impaled: true }; }
+      if (!prey.lame && !below && !bone.kill && rand() < SPIKES.impale + SPIKES.bonus * att.str / (att.str + prey.res)) { lameMember(t, v, m); bone = { ...bone, part: legOf(prey), lame: true, impaled: true }; }
     }
     // a tail club that lands on something small kills it outright; otherwise it may break the shin
     if (swung && hp[t][v][m] > 0 && sizeRank(prey.size) <= sizeRank(CLUB.crushes)) { hp[t][v][m] = 0; bone = { part: 'whole', kill: true, club: true }; }
-    else if (dmg > 0 && swung && hp[t][v][m] > 0 && !prey.lame && rand() < CLUB.lame + CLUB.bonus * att.str / (att.str + prey.res)) {
+    else if (dmg > 0 && swung && hp[t][v][m] > 0 && !prey.lame && !below && rand() < CLUB.lame + CLUB.bonus * att.str / (att.str + prey.res)) {
       lameMember(t, v, m);
       bone = { part: legOf(prey), lame: true, club: true };
     }
@@ -468,8 +479,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       beaks.set(key, { s, u, at, t, v, m, small, hpAt: hp[s][u][at] });
       grab = { ...grab, beak: small ? 'pin' : 'hold' };
     }
-    const also = sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
-    log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(also.length ? { also } : {}), ...extra }));
+    // a giant's stomp and tail find one target
+    const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
+    log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
     // the plates on its back hurt whatever bit them
     if (part === 'back' && prey.armor && raw > 0 && hp[s][u][at] > 0) {
       const back = Math.max(1, Math.round(raw * ARMOR.thorns));

@@ -572,3 +572,37 @@ test('four feet stand firmer than two: a quadruped is harder to knock down', () 
   const two = { ...wildFighter('proto', 4), biped: true, beak: false, name: 'two' }, four = { ...two, biped: false, name: 'four' };
   assert.ok(rate(four) < rate(two), `${rate(four)} vs ${rate(two)}`);
 });
+
+test('an Argentinosaurus only strikes back: a slow stomp that crushes, a heavy tail; nothing smaller reaches its neck or brings it down', () => {
+  const giant = () => unitOf('g', [{ ...fighterOf(dino('g', 60, 'argent')), fear: undefined }]);
+  const seen = { stomps: 0, crushed: 0, swipes: 0, own: 0, neck: 0, lame: 0 };
+  for (let i = 0; i < 40; i++) {
+    for (const foe of [wildFighter('rex', 6), encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), wildFighter('allo', 6)]) {
+      const r = teamFight([giant()], foe, seededRand('ar' + foe.name + i));
+      for (const e of r.log) {
+        if (e.by === 0 && e.dmg !== undefined || e.by === 0 && e.miss) {
+          // it never starts a fight: every blow of its own is a blow back
+          if (!e.counter) seen.own++;
+          if (e.stomp) seen.stomps++;
+          if (e.stomped) { seen.crushed++; assert.equal(e.left, 0); }
+          if (e.swipe) { seen.swipes++; assert.ok(!e.also); }
+        }
+        if (e.by === 'foe' && e.part === 'neck') seen.neck++;
+        if (e.by === 'foe' && e.lame) seen.lame++;
+      }
+    }
+  }
+  assert.equal(seen.own, 0);
+  assert.equal(seen.neck, 0);
+  assert.equal(seen.lame, 0);
+  assert.ok(seen.stomps && seen.crushed && seen.swipes, JSON.stringify(seen));
+});
+
+test('a giant sauropod in the team: twice the trip, more of what the hex has', async () => {
+  const { teamTripMins, teamHaul } = await import('../js/world.js');
+  const s = game(dino('g', 60, 'argent'), dino('d', 60, 'dilo'));
+  const key = '1,0';
+  assert.equal(teamTripMins(s, ['g', 'd'], key), 2 * teamTripMins(s, ['d'], key));
+  assert.equal(teamHaul(s, ['g', 'd']), SPECIES.argent.haul);
+  assert.equal(teamHaul(s, ['d']), 1);
+});
