@@ -320,8 +320,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       if (recording) struck.delete(E(t, v, m));
       return -1;
     }
-    // a pinned or held one can't dodge
-    if (!held && !pinned(t, v, m) && rand() < dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size)) {
+    // a pinned or held one can't dodge; a spiked tail's swing is slow, and the quicker one sees it coming
+    const tail = att.spikes && (extra.counter || extra.charge) ? SPIKES.slow * Math.max(0, 2 * prey.agi / (prey.agi + att.agi) - 1) : 0;
+    if (!held && !pinned(t, v, m) && rand() < Math.min(SIZE_DODGE_MAX, dodgeVs(dodgeIn(target, hp[t][v], m), prey.agi, prey.size, att.agi, att.size) + tail)) {
       log.push(entry(s, u, at, v, m, { miss: true, ...extra }));
       return -1;
     }
