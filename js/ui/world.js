@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamWinChance, dangerOf, whoFlees } from '../combat.js';
@@ -145,7 +145,7 @@ function threatHTML(h, units, scout) {
     return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     <p class="hint">It keeps away from a team like yours: there will be no fight.</p>
-    <p class="hint">${hunt ? `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to spot it at a distance; ${esc(hunt.hunter)} would catch one about ${Math.round(hunt.chance * 100)}% of the time.` : 'Nobody in this team could hunt it.'}</p>
+    <p class="hint">${hunt ? `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to spot it at a distance; ${esc(hunt.hunter)} would catch one about ${Math.round(hunt.chance * 100)}% of the time.` : 'Nobody in this team could hunt it.'}</p>
   </div>`;
   }
   // who would run from it before the fight, and how the rest would do
@@ -159,7 +159,7 @@ function threatHTML(h, units, scout) {
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
-    <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}`}</p>
+    <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(encounterChance(th, units, biomeAt(S.world.seed, h), scout) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
   </div>`;

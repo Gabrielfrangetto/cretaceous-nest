@@ -279,7 +279,8 @@ export function hatchEgg(s, now, rand = Math.random) {
 // babies from before sexes existed get a stable one from their id
 export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id) % 2 ? 'm' : 'f');
 
-export const hungerEvery = b => (HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000;
+// (gizzard stones: a species that digests well gets hungry more slowly)
+export const hungerEvery = b => Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000 * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1));
 export const isHungry = (b, now) => now - (b.lastFed || b.at) >= hungerEvery(b);
 
 // the meal a species would eat now: its favourite food that is in the inventory, or null

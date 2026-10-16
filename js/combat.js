@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, FISHER,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
@@ -18,7 +18,7 @@ export function fighterOf(baby, extra = []) {
   // the player's blows come from weapons, so no jaws hold them back
   const body = me ? { size: PLAYER_SIZE, bite: Infinity, hide: 0, role: 'attacker', biped: true }
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
-        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, plated: sp.build === 'armored',
+        grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
   return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
@@ -80,7 +80,7 @@ export function wildFighter(type, dist, lair = false) {
   return {
     name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
-    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
+    grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
 }
@@ -527,6 +527,12 @@ export function teamFight(units, foe, rand, opts = {}) {
         grab = { ...grab, latch: mode };
       }
     }
+    // a nut-cracking beak striking back may break a small foe's limb
+    if (dmg > 0 && att.crack && extra.counter && hp[t][v][m] > 0 && sizeRank(prey.size) <= sizeRank(att.size) && rand() < CRACK.chance) {
+      const limb = limbOf(prey);
+      if (isArm(limb) && !prey.armBroken) { breakArm(t, v, m); bone = { ...bone, part: limb, armBroken: true, cracked: true }; }
+      else if (isLeg(limb) && !prey.lame) { lameMember(t, v, m); bone = { ...bone, part: limb, lame: true, cracked: true }; }
+    }
     // a hooked beak striking back may clamp on to something no bigger than itself
     if (dmg > 0 && att.beak && extra.counter && !beaks.has(key) && !heldBy(beaks, t, v, m) && hp[t][v][m] > 0
       && sizeRank(prey.size) <= sizeRank(att.size) && contest(att.agi, prey.agi)) {
@@ -583,7 +589,8 @@ export function teamFight(units, foe, rand, opts = {}) {
         const usable = (x, y) => anyOpen ? open(x, y) : roomOf(x, y) > 0;
         const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => usable(x, y)));
         if (!targets.length) continue;
-        const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])]);
+        // camouflaged in this biome, it is hard to pick out
+        const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])] * (opts.biome && S[t][x].members.every(f => f.camo === opts.biome) ? CAMO.target : 1));
         let pick = rand() * weights.reduce((a, w) => a + w, 0);
         v = targets[targets.length - 1];
         for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { v = targets[k]; break; } }

@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, WORLD_RADIUS, TRIP_MINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, JUVENILE_RANGE, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, ENCOUNTER_CHANCE, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, HUNT_SIGHTINGS, VISIBILITY, PLAYER_SIZE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf } from './combat.js';
@@ -275,6 +275,20 @@ export function teamUnits(s, units) {
   }).filter(u => u.members.length);
 }
 
+// ---------- being noticed ----------
+// how much a team (fighters, from teamUnits) stands out in a biome: every member by its size, nothing for
+// one camouflaged there
+export const teamVisibility = (units, biome) => units.reduce((t, u) => t + u.members.reduce((x, m) =>
+  x + (m.type && SPECIES[m.type] && SPECIES[m.type].camo === biome ? 0 : VISIBILITY.size[m.size || PLAYER_SIZE] || 1), 0), 0);
+// the chance a trip meets what waits in its hex: a scout leads the team around it, and a predator
+// notices a team that stands out more often (lairs are always met)
+export function encounterChance(threat, units, biome, scout) {
+  if (threat.lair) return threat.chance;
+  const predator = (threat.foe.members[0].role || 'attacker') === 'attacker';
+  const seen = predator && units.length ? Math.min(VISIBILITY.max, Math.max(VISIBILITY.min, teamVisibility(units, biome) / VISIBILITY.base)) : 1;
+  return Math.min(1, threat.chance * (scout ? SCOUT.encounter : 1) * seen);
+}
+
 // ---------- keeping away and hunting ----------
 const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 // a wild animal that doesn't show itself to this team (fighters, from teamUnits): it keeps away from
@@ -338,7 +352,7 @@ export function tripStandoff(s, id) {
   const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
   const threat = threatAt(w.seed, parseKey(exp.hex));
   const scout = hasScout(s, exp.members);
-  const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
+  const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, parseKey(exp.hex)), scout);
   if (!meets || !standsGround(threat.foe) || keepsAway(threat, teamUnits(s, units))) return null;
   return { ...standoffOf(threat), power: threat.power, foe: threat.foe };
 }
@@ -369,7 +383,7 @@ export function collectExpedition(s, id, now, choice = {}) {
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
   let sighting = null, standoff = null;
-  const meets = units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
+  const meets = units.length && fightRand() < encounterChance(threat, teamUnits(s, units), biomeAt(w.seed, h), scout);
   // what keeps away from the team may still be spotted at a distance, and hunted
   if (meets && keepsAway(threat, teamUnits(s, units))) {
     const odds = huntOdds(teamUnits(s, units), threat.foe.members[0]);
@@ -389,7 +403,7 @@ export function collectExpedition(s, id, now, choice = {}) {
   } else if (meets) {
     if (standsGround(threat.foe)) standoff = { ...standoffOf(threat), fought: true };
     const team = teamUnits(s, units), foe = threat.foe;
-    const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp' });
+    const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp', biome: biomeAt(w.seed, h) });
     // a dinosaur that went down is critically injured (the player just injured); the rest are
     // bruised by how much health they lost, and everyone is injured when the team loses
     const injured = [];

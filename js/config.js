@@ -106,6 +106,9 @@ const SIZE = {
 //   escape: may get away from a blow that would bring it down (ESCAPE)
 //   growth: grows up this many times as fast (needs that many times fewer meals for each stage)
 //   nurse:  cares for the nest's eggs and hatchlings (NURSE)
+//   camo:   the biome it blends into (VISIBILITY, CAMO)
+//   digest: gets hungry this many times more slowly (gizzard stones)
+//   crack:  a nut-cracking beak that may break a small foe's limb when it strikes back (CRACK)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
 //   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
@@ -125,7 +128,7 @@ export const BODY = {
   compy:   { biped: true, weapon: 'Tiny pointed teeth', bite: 30, hide: 0, role: 'noncombatant', hunt: 10, fear: 'tiny' },
   dilo:    { biped: true, weapon: 'Long jaws and clawed hands', bite: 120, hide: 2, grab: true, tough: true, role: 'attacker', hunt: 15, fear: 'large' },
   scelido: { weapon: 'Small beak; rows of bony plates', bite: 30, hide: 10, armor: 'light', collar: true, crouch: true, role: 'defender', charge: 0.15, fear: 'huge' },
-  psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, role: 'noncombatant', fear: 'small' },
+  psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, role: 'noncombatant', fear: 'small' },
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, role: 'attacker', hunt: 15, fear: 'medium' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
@@ -522,6 +525,17 @@ export const ESCAPE = { max: 0.95 };
 // With an adult one in the nest when an egg goes into the incubator, the egg hatches hatch faster. Every
 // Hypacrosaurus in the nest (not out exploring) when a baby hatches gives it perOne more of every stat
 // for life, up to max.
+// How much a team stands out: every member adds its size's share (a camouflaged one in its own biome
+// nothing). A predator's chance to notice the team is its usual chance times that total over base
+// (a player and a medium dinosaur: as usual), between min and max times. Lairs are always met.
+export const VISIBILITY = { size: { tiny: 0.3, small: 0.6, medium: 1, large: 1.6, huge: 2.5, colossal: 4 }, base: 1.6, min: 0.25, max: 2 };
+// Psittacosaurus was countershaded, dark above and pale below, for the soft light under a forest
+// canopy: there it doesn't add to how much its team stands out, and a predator goes for it target
+// times as often.
+export const CAMO = { target: 0.4 };
+// Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow
+// that lands may break a limb chance of the time.
+export const CRACK = { chance: 0.2 };
 export const NURSE = { hatch: 0.25, perOne: 0.01, max: 0.1 };
 export const GIANT = { stomp: 0.5, hit: [0.05, 0.1], tail: 3, slow: 1.1, tinyStep: 3, tinyDodge: 0.95 };
 // Four feet on the ground and a low body: in a contest to knock it down, an animal that isn't a biped

@@ -730,3 +730,40 @@ test('a predator that gives up on hunkered-down armor turns on the rest of the g
   }
   assert.ok(turned > 0);
 });
+
+test('the bigger the team, the sooner a predator notices it; Psittacosaurus vanish in the forest', async () => {
+  const { encounterChance, teamVisibility } = await import('../js/world.js');
+  const { freshState } = await import('../js/state.js');
+  const me = unitOf('You', [fighterOf(freshState().player)]);
+  const one = t => unitOf(t, [fighterOf(dino(t, 60, t))]);
+  const raptorHex = ALL_HEXES.find(h => threatAt(42, h).id === 'raptor' && !threatAt(42, h).lair);
+  const th = threatAt(42, raptorHex);
+  const alone = encounterChance(th, [me], 'forest', false);
+  const withDilo = encounterChance(th, [me, one('dilo')], 'forest', false);
+  const withAnkylo = encounterChance(th, [me, one('ankylo')], 'forest', false);
+  assert.ok(alone < withDilo && withDilo < withAnkylo);
+  // a player and a medium dinosaur meet it as often as ever
+  assert.ok(Math.abs(withDilo - th.chance) < 1e-9);
+  // Psittacosaurus count for nothing in the forest, as much as any small one elsewhere
+  const psittas = [me, one('psitta'), one('psitta'), one('psitta')];
+  assert.equal(teamVisibility(psittas, 'forest'), teamVisibility([me], 'forest'));
+  assert.ok(teamVisibility(psittas, 'meadow') > teamVisibility([me], 'meadow'));
+  // what doesn't hunt doesn't care, and lairs are always met
+  const herd = threatAt(42, ALL_HEXES.find(h => threatAt(42, h).id === 'proto' && !threatAt(42, h).lair));
+  assert.equal(encounterChance(herd, [me], 'badlands', false), herd.chance);
+});
+
+test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small foe's limb", async () => {
+  const { hungerEvery } = await import('../js/economy.js');
+  const { SPECIES } = await import('../js/config.js');
+  assert.ok(hungerEvery({ id: 'x', type: 'psitta' }) > hungerEvery({ id: 'x', type: 'hypsi' }));
+  assert.ok(SPECIES.psitta.digest > 1);
+  let cracked = 0;
+  for (let i = 0; i < 80; i++) {
+    const ps = unitOf('p', [{ ...fighterOf(dino('p', 70, 'psitta')), fear: undefined }]);
+    const me = unitOf('m', [{ ...fighterOf(dino('m', 70, 'dilo')), fear: undefined }]);
+    for (const e of teamFight([me, ps], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 3), seededRand('cr' + i)).log)
+      if (e.by === 1 && e.cracked) { cracked++; assert.ok(e.counter); }
+  }
+  assert.ok(cracked > 0);
+});
