@@ -6,7 +6,8 @@ import {
   OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
 } from './config.js';
 import { hashId, newId } from './util.js';
-import { isAway, startExpedition, recallExpedition, collectExpedition, huntSighting, healBaby, transfuse, mendFrill } from './world.js';
+import { isAway, healBaby, transfuse, mendFrill } from './world.js';
+import { startExpedition, orderParty, recallParty, journeyStep } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 
 // running totals the achievements read; older saves get them from their migration
@@ -659,19 +660,21 @@ export const ACTIONS = {
   explore(s, { team, babyId, hex }, now) {
     return startExpedition(s, team || babyId, hex, now);
   },
-  recall(s, { id }) {
-    return recallExpedition(s, id);
+  // a party out is called home: from where it waits, or from where it is by now on its way out
+  recall(s, { id }, now) {
+    return recallParty(s, String(id), now);
   },
-  // fight: fight what stood its ground on the way (a wild defender), or leave it be; flee: when a
-  // predator scattered the player's group, run too instead of facing it
-  // witness: a hunt watched on the way, stepped into: { act: 'prey' | 'predator', hunter: a unit's id }
-  collectTrip(s, { id, fight, flee, witness }, now) {
+  // a party waiting at a hex is sent on: to another hex, or home ('0,0')
+  order(s, { id, hex }, now) {
+    return orderParty(s, String(id), String(hex), now);
+  },
+  // what happened on a party's leg, told up to the next decision, which choice answers: fight (what
+  // stood its ground), flee (a predator scattered the player's group: run too), hunt (one spotted at a
+  // distance), back (turn back home instead of going on), witness (a hunt watched, stepped into:
+  // { act: 'prey' | 'predator', hunter: a unit's id })
+  journey(s, { id, fight, flee, hunt, back, witness }, now) {
     const w = witness && typeof witness === 'object' && ['prey', 'predator'].includes(witness.act) ? { act: witness.act, hunter: String(witness.hunter || '') } : null;
-    return collectExpedition(s, id, now, { fight: !!fight, flee: !!flee, witness: w });
-  },
-  // a group the team spotted at a distance: go after one of them (go: true), or let them be
-  hunt(s, { id, go }) {
-    return huntSighting(s, { id, go: !!go });
+    return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w }, now);
   },
   equipArms(s, { index }) {
     return equipArms(s, index);

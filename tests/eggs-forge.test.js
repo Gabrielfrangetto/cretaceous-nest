@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { collect } from './journey-helper.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, isAdult } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
@@ -40,11 +41,12 @@ test('trips that come home can find an egg of the biome, with genes for its dist
     const r = applyAction(s, 'explore', { babyId: 'c', hex: key }, t);
     assert.equal(r.ok, true, r.reason);
     t += tripMins(key, 42) * 60000;
-    egg = applyAction(s, 'collectTrip', { id: r.expedition.id }, t).egg;
+    egg = collect(s, { id: r.expedition.id }, t).egg;
   }
   assert.ok(egg, 'an egg within 60 trips');
   assert.ok(BIOMES.forest.eggs.includes(egg.type));
-  const [lo, hi] = EGG_GENES(4, false);
+  const { EGG_STEP } = await import('../js/config.js');
+  const [lo, hi] = EGG_GENES(EGG_STEP, false);
   for (const { id } of STATS) assert.ok(egg.genes[id] >= lo && egg.genes[id] <= hi);
   assert.ok(s.eggs.some(e => e.id === egg.id));
   // and it hatches in the incubator like any other egg

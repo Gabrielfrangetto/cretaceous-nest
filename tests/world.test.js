@@ -1,10 +1,12 @@
 import { test } from 'node:test';
+import { collect } from './journey-helper.js';
+import { legMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, hungerEvery, feedBaby, breedProblem } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import {
-  ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, landHexes, threatAt, parseKey,
+  ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
 import { MAP, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
 
@@ -97,36 +99,131 @@ test('a dinosaur away can be neither fed nor paired', () => {
   assert.equal(breedProblem(s, 'ad', 'ad2'), 'away');
 });
 
-test('coming back reveals the map, brings loot and discovery coins, and leaves it hungry', () => {
+test('a journey: out to a hex where the party waits, everything carried until it comes home hungry', () => {
   const s = game(dino('ad', 30));
   const r = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, T0);
   const id = r.expedition.id;
-  assert.equal(applyAction(s, 'collectTrip', { id }, T0 + 60000).reason, 'not-back');
-  const back = T0 + tripMins('2,0') * 60000;
+  assert.equal(applyAction(s, 'journey', { id }, T0 + 1000).reason, 'not-back');
+  // a leg is half a trip there and back
+  const there = T0 + legMins(s, ['ad'], '0,0', '2,0') * 60000;
+  assert.equal(r.expedition.returnAt, there);
+  assert.ok(legMins(s, ['ad'], '0,0', '3,0') > legMins(s, ['ad'], '0,0', '1,0'));
   const before = s.coins, leaves = countItem(s, 'leaf');
-  const done = applyAction(s, 'collectTrip', { id }, back);
-  assert.equal(done.ok, true);
-  assert.equal(done.discovered, true);
-  assert.equal(done.coins, 10);
-  assert.equal(s.coins, before + 10);
-  assert.ok(done.loot.length > 0);
-  for (const { id: item, n } of done.loot) assert.ok(n >= 1 && BIOMES[done.biome].loot.some(l => l[0] === item));
-  if (done.loot.some(l => l.id === 'leaf')) assert.ok(countItem(s, 'leaf') > leaves);
+  const out = applyAction(s, 'journey', { id }, there);
+  assert.equal(out.ok, true);
+  assert.equal(out.pending, null);
+  const arrived = out.story.find(e => e.kind === 'arrived');
+  assert.equal(arrived.discovered, true);
+  assert.equal(arrived.coins, 10);
+  assert.ok(arrived.found.length > 0);
+  for (const { id: item, n } of arrived.found) assert.ok(n >= 1 && BIOMES[arrived.biome].loot.some(l => l[0] === item));
+  // it waits there, carrying what it found; nothing is home yet
+  const p = s.world.expeditions[0];
+  assert.equal(p.at, '2,0');
+  assert.equal(p.leg, null);
+  assert.equal(p.carry.coins, 10);
+  assert.equal(s.coins, before);
+  assert.equal(countItem(s, 'leaf'), leaves);
+  assert.equal(isAway(s, 'ad'), true);
   assert.ok(s.world.revealed.includes('3,0'));
-  assert.equal(canReach(s, '4,0'), true);
+  assert.equal(applyAction(s, 'journey', { id }, there).reason, 'waiting');
+  // sent on to another hex, then home
+  assert.equal(applyAction(s, 'order', { id, hex: '2,0' }, there).reason, 'there');
+  assert.equal(applyAction(s, 'order', { id, hex: '3,0' }, there).ok, true);
+  assert.equal(applyAction(s, 'order', { id, hex: '0,0' }, there).reason, 'on-the-way');
+  const t2 = p.leg.arriveAt;
+  assert.equal(t2, there + legMins(s, ['ad'], '2,0', '3,0') * 60000);
+  applyAction(s, 'journey', { id }, t2);
+  assert.equal(p.at, '3,0');
+  assert.equal(applyAction(s, 'order', { id, hex: '0,0' }, t2).ok, true);
+  const t3 = p.leg.arriveAt;
+  let home = null;
+  for (let i = 0; i < 20 && !home; i++) {
+    const step = applyAction(s, 'journey', { id }, t3);
+    home = step.story.find(e => e.kind === 'home');
+  }
+  assert.ok(home);
   assert.equal(s.world.expeditions.length, 0);
-  assert.equal(s.hatched[0].lastFed, back - hungerEvery(s.hatched[0]));
+  assert.equal(s.coins, before + home.coins);
+  assert.ok(home.coins >= 10 + 15);
+  if (home.loot.some(l => l.id === 'leaf')) assert.ok(countItem(s, 'leaf') > leaves);
+  assert.equal(s.hatched[0].lastFed, t3 - hungerEvery(s.hatched[0]));
   // a second visit pays no discovery coins
-  s.hatched[0].lastFed = back;
-  const again = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, back);
-  assert.equal(applyAction(s, 'collectTrip', { id: again.expedition.id }, back + tripMins('2,0') * 60000).coins, 0);
+  s.hatched[0].lastFed = t3;
+  const again = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, t3);
+  const second = collect(s, { id: again.expedition.id }, again.expedition.returnAt);
+  assert.equal(second.story.find(e => e.kind === 'arrived').coins, 0);
 });
 
-test('the loot of a trip is the same in the browser and on the server', () => {
+test('after something on the way out the player may go on or turn back; the way back has its dangers too', () => {
+  const far = hexKey(...landHexes(42).filter(h => threatAt(42, h).id === 'rex').at(-1));
+  let turned = 0;
+  for (let trip = 0; trip < 40 && !turned; trip++) {
+    const s = game(dino('p', 60, 'proto'));
+    s.world.trips = trip;
+    const r = applyAction(s, 'explore', { babyId: 'p', hex: far }, T0);
+    const id = r.expedition.id, leg = { ...r.expedition.leg };
+    let step = applyAction(s, 'journey', { id }, leg.arriveAt);
+    // answer anything but the choice to go on (leave it be, fight what stands)
+    while (step.pending && step.pending.kind !== 'go-on') step = applyAction(s, 'journey', { id, fight: true }, leg.arriveAt);
+    if (!step.pending || !s.hatched.length) continue;
+    assert.ok(step.pending.idx < leg.path.length - 1);
+    const at = step.pending.hex;
+    const back = applyAction(s, 'journey', { id, back: true }, leg.arriveAt);
+    assert.ok(back.story.some(e => e.kind === 'turned' && e.hex === at));
+    const p = s.world.expeditions[0];
+    if (p) {
+      // heading home from where it turned, from when it was there: sooner than the whole way
+      assert.equal(p.leg.from, at);
+      assert.equal(p.leg.to, '0,0');
+      assert.ok(p.leg.startedAt < leg.arriveAt && p.leg.startedAt > leg.startedAt);
+    }
+    turned++;
+  }
+  assert.ok(turned);
+});
+
+test('calling a party back: from its way out it turns home from where it is by now', () => {
+  const far = hexKey(...landHexes(42).filter(h => hexDist(h) > 12).at(-1));
+  const s = game(dino('ad', 30));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: far }, T0);
+  const leg = { ...r.expedition.leg, path: [...r.expedition.leg.path] };
+  const half = Math.round((leg.startedAt + leg.arriveAt) / 2);
+  assert.equal(applyAction(s, 'recall', { id: r.expedition.id }, half).ok, true);
+  const p = s.world.expeditions[0];
+  assert.ok(p.leg.recalled && p.leg.path.length < leg.path.length && p.leg.arriveAt === half);
+  assert.equal(applyAction(s, 'recall', { id: r.expedition.id }, half).reason, 'homeward');
+  // one called back before it left is simply home, with nothing
+  const s2 = game(dino('ad', 30));
+  const r2 = applyAction(s2, 'explore', { babyId: 'ad', hex: far }, T0);
+  assert.equal(applyAction(s2, 'recall', { id: r2.expedition.id }, T0).ok, true);
+  assert.equal(isAway(s2, 'ad'), false);
+  assert.equal(s2.world.revealed.length, 7);
+});
+
+test('wounds carry from one fight to the next: one down is carried and does not fight', async () => {
+  const { teamFight, unitOf, fighterOf, encounterUnit } = await import('../js/combat.js');
+  const { seededRand } = await import('../js/economy.js');
+  const me = () => unitOf('d', [fighterOf(dino('d', 30))]);
+  const foe = encounterUnit({ species: 'raptor', pack: [2, 2], loot: [] }, 6);
+  const full = teamFight([me()], foe, seededRand('w'));
+  const hurt = teamFight([me()], foe, seededRand('w'), { hp: [[0.2]] });
+  assert.equal(full.teamHps[0][0], hurt.teamHps[0][0]);
+  assert.ok(hurt.teamLeft <= full.teamLeft);
+  const { standingUnits } = await import('../js/journey.js');
+  const s = game(dino('a', 30), dino('b', 30));
+  const p = { team: [{ kind: 'dino', id: 'a', members: ['a'] }, { kind: 'dino', id: 'b', members: ['b'] }], down: ['b'] };
+  assert.deepEqual(standingUnits(s, p).map(u => u.id), ['a']);
+});
+
+test('the same journey is told the same in the browser and on the server', () => {
+  const far = hexKey(...landHexes(42).filter(h => hexDist(h) > 8)[5]);
   const a = game(dino('ad', 30)), b = game(dino('ad', 30));
-  for (const s of [a, b]) applyAction(s, 'explore', { babyId: 'ad', hex: '1,0' }, T0);
-  const back = T0 + tripMins('1,0') * 60000;
-  assert.deepEqual(applyAction(a, 'collectTrip', { id: 't1' }, back).loot, applyAction(b, 'collectTrip', { id: 't1' }, back).loot);
+  const tell = s => {
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far }, T0);
+    return collect(s, { id: r.expedition.id, fight: true }, r.expedition.returnAt).story;
+  };
+  assert.deepEqual(tell(a), tell(b));
 });
 
 test("what lives in a hex is of an age: young, old, adult or in its prime (a lair's Alpha the strongest); no predators near the nest", () => {
@@ -151,14 +248,6 @@ test("what lives in a hex is of an age: young, old, adult or in its prime (a lai
   assert.deepEqual(lootTable(s, hexKey(...meadows[0])), lootTable(s, hexKey(...meadows.at(-1))));
 });
 
-test('recalling brings the dinosaur home with nothing', () => {
-  const s = game(dino('ad', 30));
-  const r = applyAction(s, 'explore', { babyId: 'ad', hex: '1,0' }, T0);
-  assert.equal(applyAction(s, 'recall', { id: r.expedition.id }, T0).ok, true);
-  assert.equal(isAway(s, 'ad'), false);
-  assert.equal(s.world.revealed.length, 7);
-});
-
 test('older saves get a world from their own contents, and loaded worlds are cleaned', () => {
   const old = freshState();
   delete old.world;
@@ -172,12 +261,22 @@ test('older saves get a world from their own contents, and loaded worlds are cle
   const s = game(dino('ad', 30));
   s.world.revealed.push('99,99', 'junk');
   s.world.expeditions.push({ id: 'x', babyId: 'ghost', hex: '1,0', trip: 1, startedAt: T0, returnAt: T0 });
-  s.world.expeditions.push({ id: 'y', babyId: 'ad', hex: '1,0', trip: 1, startedAt: T0, returnAt: T0 });
+  s.world.expeditions.push({ id: 'y', babyId: 'ad', hex: '3,0', trip: 1, startedAt: T0, returnAt: T0 });
   const clean = migrate(s);
   assert.ok(!clean.world.revealed.includes('99,99') && !clean.world.revealed.includes('junk'));
   assert.equal(clean.world.expeditions.length, 1);
-  // a trip can't be made shorter than it really is
-  assert.equal(clean.world.expeditions[0].returnAt, T0 + tripMins('1,0') * 60000);
+  // a trip from before journeys is a leg from the nest, never shorter than it really is
+  const p = clean.world.expeditions[0];
+  assert.deepEqual([p.at, p.leg.from, p.leg.to, p.leg.step], ['0,0', '0,0', '3,0', 0]);
+  assert.equal(p.leg.arriveAt, T0 + legMins(clean, ['ad'], '0,0', '3,0') * 60000);
+  assert.deepEqual(p.leg.path, travelPath(42, [3, 0]).map(h => hexKey(...h)));
+  // what a party carries must exist, and its decision belongs to its leg
+  s.world = clean.world;
+  Object.assign(p, { carry: { items: { leaf: 3, junk: 9 }, coins: -5, eggs: [{ type: 'nope' }] }, pending: { kind: 'go-on', idx: 5 }, health: { ad: 7 } });
+  const again = migrate(s).world.expeditions[0];
+  assert.deepEqual(again.carry, { items: { leaf: 3 }, coins: 0, eggs: [] });
+  assert.equal(again.pending, null);
+  assert.equal(again.health.ad, 1);
 });
 
 test('a guest game brought into an account loses trips in progress', () => {

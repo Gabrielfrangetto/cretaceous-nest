@@ -661,12 +661,12 @@ export const CHASE = { lead: 2, maxSteps: 3 };
 // many eyes (Hypsilophodon): each one in a team sees a predator first this often (up to max); the
 // group scatters in zigzags and nobody is caught
 export const EYES = { perOne: 0.05, max: 0.3 };
-// Wild against wild: now and then (chance of a trip) a second animal of the hex's biome turns up beside
+// Wild against wild: now and then (chance at a journey's end, way at each hex on the way) a second animal of the hex's biome turns up beside
 // the one that lives there, and the team watches from a distance instead of meeting either. If one of
 // them hunts the other (BODY hunts) it goes for it, and the team may step in with one of its hunters:
 // run the prey down (the hunter may come for the kill; missed, it may turn on the team) or go after the
 // hunter (the prey runs; one that fears the team's hunter runs too, and is chased, otherwise a fight).
-export const WITNESS = { chance: 0.15 };
+export const WITNESS = { chance: 0.15, way: 0.03 };
 export const HOOK = { chance: 0.3, pierce: 0.5, bleed: 0.006, maxBleed: 3 };
 // Death. A dinosaur (never the player) killed outright in a fight (swallowed in one bite, a bitten
 // neck, crushed by a club or a stomp, killed in a grip) is dead. One brought down by blows survives,

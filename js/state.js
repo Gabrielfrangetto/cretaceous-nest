@@ -4,6 +4,7 @@
 import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, seedFor, cleanWorld } from './world.js';
+import { cleanParties } from './journey.js';
 import { cleanPacks } from './packs.js';
 
 export const SAVE_VERSION = 12;
@@ -165,6 +166,7 @@ function sanitize(s) {
   s.tutorial = { seen: [...new Set((s.tutorial && Array.isArray(s.tutorial.seen) ? s.tutorial.seen : []).filter(id => GUIDE[id]))] };
   s.packs = cleanPacks(s.packs, s);
   s.world = cleanWorld(s.world, s);
+  s.world.expeditions = cleanParties(s, s.world);
   s.starter = s.starter === true || s.hatched.length > 0;
   s.updatedAt = Number(s.updatedAt) || 0;
   s.owner = typeof s.owner === 'string' ? s.owner : null;   // account id, or null for a guest game

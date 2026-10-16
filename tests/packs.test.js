@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { collect } from './journey-helper.js';
+import { legMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, seededRand } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
@@ -72,7 +74,7 @@ test('a team comes home together: everyone hungry, the downed ones injured', () 
   const r = applyAction(s, 'explore', { team: [{ kind: 'pack', id: p.id }], hex: key }, T0);
   assert.equal(r.ok, true, r.reason);
   const back = T0 + tripMins(key, 42) * 60000;
-  const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, back);
+  const c = collect(s, { id: r.expedition.id }, back);
   assert.equal(c.ok, true);
   if (c.battle) {
     assert.equal(c.battle.team.length, 1);
@@ -142,7 +144,7 @@ test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
       const r = applyAction(s, 'explore', { team: team.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);
       mins = (r.expedition.returnAt - T0) / 60000;
-      const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+      const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
       if (c.battle) fights++;
       if (c.egg) eggs++;
       s.eggs = [];
@@ -150,9 +152,9 @@ test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
     return { fights, eggs, mins };
   };
   const without = trips(['d1'], 100), led = trips(['d1', 'c1'], 100);
-  assert.equal(without.mins, tripMins(key, 42));
+  assert.equal(without.mins, legMins(game(dino('d1', 'proto', 1)), ['d1'], '0,0', key));
   // too small to ride: no shorter trip
-  assert.equal(led.mins, tripMins(key, 42));
+  assert.equal(led.mins, without.mins);
   assert.ok(led.fights < without.fights * 0.75, `${led.fights} vs ${without.fights}`);
   assert.ok(led.eggs > without.eggs, `${led.eggs} vs ${without.eggs}`);
 });
@@ -211,7 +213,7 @@ test('only a won fight that went into a frenzy drops Allosaurus teeth and blood,
       s.hatched.forEach(b => { b.lastFed = T0; delete b.injuredUntil; delete b.critical; });
       const r = applyAction(s, 'explore', { team: ids.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);
-      const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+      const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
       const drops = c.loot.filter(l => l.id in got);
       if (!c.battle || !c.battle.win || !c.battle.frenzy.length) assert.deepEqual(drops, []);
       else got.frenzyWins++;

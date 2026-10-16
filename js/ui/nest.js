@@ -81,7 +81,9 @@ function checkHunger() {
     const fed = document.querySelector(`.fed[data-id="${b.id}"]`);
     if (fed) {
       const hurt = injuredLeft(b, now);
-      fed.textContent = trip ? (now >= trip.returnAt ? 'Back from exploring! See the World tab' : 'Exploring · back in ' + fmt(trip.returnAt - now))
+      fed.textContent = trip ? (!trip.leg ? 'Out in the world, waiting for orders · see the World tab'
+          : now >= trip.leg.arriveAt ? 'A journey to tell! See the World tab'
+          : (trip.leg.to === '0,0' ? 'On the way home · back in ' : 'Exploring · there in ') + fmt(trip.leg.arriveAt - now))
         : hungry ? 'Hungry!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt) : 'Ate ' + plural(b.fed || 0, 'time', 'times');
       fed.classList.toggle('hungry', hungry);
     }

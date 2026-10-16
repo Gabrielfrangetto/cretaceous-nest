@@ -56,7 +56,7 @@ function foeArt(battle) {
   return group;
 }
 
-// battle: what collectTrip returned; who(id) finds a team member
+// battle: a fight on a journey (journey.js); who(id) finds a team member
 export function playFight(battle, summary, who) {
   const dialog = document.getElementById('fightDialog');
   const body = document.getElementById('fightBody');
@@ -73,7 +73,8 @@ export function playFight(battle, summary, who) {
   const arena = body.querySelector('.arena');
   const side = arena.querySelector('.team-side');
   // every member's health as the fight goes, per unit
-  const hp = team.map(u => [...u.hp]);
+  // (a team on a journey starts with the wounds it carries: start, a share per member)
+  const hp = team.map(u => u.hp.map((h, j) => (u.start && u.start[j] != null ? Math.max(1, Math.round(h * Math.min(1, u.start[j]))) : h)));
   const sum = list => list.reduce((t, h) => t + h, 0);
   const standing = i => hp[i].filter(h => h > 0).length;
   const fled = new Set(battle.fled || []);
@@ -258,6 +259,7 @@ export function playFight(battle, summary, who) {
     // bigger teams trade more blows, so they go a little faster
     timer = setTimeout(step, team.length > 2 ? STEP_MS * 0.6 : STEP_MS);
   };
+  team.forEach((_, i) => showUnit(i));
   body.querySelector('#fightSkip').addEventListener('click', finish);
   body.querySelector('#fightClose').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => clearTimeout(timer), { once: true });

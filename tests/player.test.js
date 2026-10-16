@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { collect } from './journey-helper.js';
 import assert from 'node:assert/strict';
 import { applyAction, statSheet, buyGear, countItem, addItem } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
@@ -33,7 +34,7 @@ test('the player explores anywhere without a dinosaur and never gets hungry', ()
   const r = applyAction(s, 'explore', { babyId: PLAYER_ID, hex: '1,0' }, T0);
   assert.equal(r.ok, true);
   assert.equal(isAway(s, PLAYER_ID), true);
-  const back = applyAction(s, 'collectTrip', { id: r.expedition.id }, T0 + tripMins('1,0') * 60000);
+  const back = collect(s, { id: r.expedition.id }, T0 + tripMins('1,0') * 60000);
   assert.equal(back.ok, true);
   assert.equal(s.player.lastFed, undefined);
 });

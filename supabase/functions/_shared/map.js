@@ -192,12 +192,13 @@ export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.
 // terrain's or its biome's, whichever is more, plus a river to cross. Water can't be crossed.
 const costs = new Map();
 export const stepCost = c => Math.max(TRAVEL.terrain[c.terrain] || 1, TRAVEL.biome[c.biome] || 1) + (c.river ? TRAVEL.river : 0);
-// { best: cost to each hex, prev: the hex it is reached from }
-function routes(seed) {
-  if (costs.has(seed)) return costs.get(seed);
-  const map = worldMap(seed), best = new Map([[key(0, 0), 0]]), prev = new Map();
+// { best: cost to each hex, prev: the hex it is reached from }, from a hex (the nest by default)
+function routes(seed, from = [0, 0]) {
+  const id = `${seed}|${key(...from)}`;
+  if (costs.has(id)) return costs.get(id);
+  const map = worldMap(seed), best = new Map([[key(...from), 0]]), prev = new Map();
   // a small binary heap of [cost, hex]
-  const heap = [[0, [0, 0]]];
+  const heap = [[0, from]];
   const push = x => { heap.push(x); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
   while (heap.length) {
@@ -210,18 +211,21 @@ function routes(seed) {
       if (nc < (best.get(key(...n)) ?? Infinity)) { best.set(key(...n), nc); prev.set(key(...n), h); push([nc, n]); }
     }
   }
-  if (costs.size > 8) costs.clear();
-  const out = { best, prev };
-  costs.set(seed, out);
+  if (costs.size > 24) costs.clear();
+  const out = { best, prev, from };
+  costs.set(id, out);
   return out;
 }
 export const travelCosts = seed => routes(seed).best;
 // the cost of the easiest way from the nest to a hex (Infinity: there is none)
 export const travelCost = (seed, h) => routes(seed).best.get(key(...h)) ?? Infinity;
-// the easiest way from the nest to a hex: the hexes crossed, the hex itself last (not the nest)
-export function travelPath(seed, h) {
-  const { prev } = routes(seed), path = [];
+// the easiest way from one hex to another (from the nest by default): the hexes crossed, the hex itself
+// last (not the one it starts from); [] when there is none
+export function travelPath(seed, h, from = [0, 0]) {
+  const { prev } = routes(seed, from), path = [];
   if (!prev.has(key(...h))) return [];
-  for (let x = h; x && key(...x) !== key(0, 0); x = prev.get(key(...x))) path.unshift(x);
+  for (let x = h; x && key(...x) !== key(...from); x = prev.get(key(...x))) path.unshift(x);
   return path;
 }
+// the cost of the easiest way from one hex to another (Infinity: there is none)
+export const routeCost = (seed, from, to) => routes(seed, from).best.get(key(...to)) ?? Infinity;

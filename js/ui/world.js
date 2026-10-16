@@ -1,13 +1,15 @@
-// World tab: the hex map around the nest under its fog, and the expeditions that explore it.
-// Pick a hex, put a team together, send it; when it comes back, collect what it found.
+// World tab: the map of the continent around the nest, and the parties out exploring it.
+// Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
 import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, SIZE_ORDER } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, cellAt, neighbors, isRevealed, canReach, teamTripMins, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, tripStandoff, tripScatter, tripWitness, encounterChance,
+  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, cellAt, neighbors, isRevealed, canReach, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
+import { legMins, positionOf } from '../journey.js';
+import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
@@ -16,36 +18,8 @@ import { ITEM_ICONS, playerArt } from '../art.js';
 import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
-
-const SIZE = 30;                 // hex radius in map units
-const SQ3 = Math.sqrt(3);
-const center = ([q, r]) => [SIZE * SQ3 * (q + r / 2), SIZE * 1.5 * r];
-const corners = ([x, y], k = 1) => Array.from({ length: 6 }, (_, i) => {
-  const a = Math.PI / 180 * (60 * i - 30);
-  return `${(x + SIZE * k * Math.cos(a)).toFixed(1)},${(y + SIZE * k * Math.sin(a)).toFixed(1)}`;
-}).join(' ');
-
-// a small drawing for each biome, centred on 0,0
-const GLYPH = {
-  meadow: '<path d="M-9 6 l3 -9 l2 9 M-2 6 l3 -11 l2 11 M5 6 l3 -8 l2 8" fill="#7f9c55"/>',
-  forest: '<path d="M-8 8 L-3 -6 L2 8Z M0 8 L6 -10 L12 8Z" fill="#2f5a2c" transform="translate(-2 0)"/>',
-  swamp: '<path d="M-11 0 q3 -3 6 0 t6 0 t6 0 t6 0 M-9 6 q3 -3 6 0 t6 0 t6 0" stroke="#3f5d4d" stroke-width="2" fill="none"/>',
-  badlands: '<path d="M-12 8 L-8 -3 L-2 -3 L1 2 L5 -6 L10 -6 L13 8Z" fill="#a9824e"/>',
-  volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
-};
-// terrain drawn over the biome: hills, mountains, a volcano's peak, a river; water has its own colour
-const TERRAIN = {
-  hill: '<path d="M-13 9 q6 -10 12 0 q5 -8 12 0" fill="none" stroke="#5b4a32" stroke-width="2" opacity=".7"/>',
-  mountain: '<path d="M-14 10 L-5 -9 L1 2 L5 -4 L14 10Z" fill="#6e6458"/><path d="M-5 -9 L-2 -3 L-7 -3Z" fill="#f2efe6"/>',
-  volcano: '<path d="M-14 10 L-4 -8 L4 -8 L14 10Z" fill="#4a3028"/><path d="M-4 -8 L-1 -13 L2 -9 L4 -12 L4 -8Z" fill="#e2643a"/>',
-};
-const RIVER = '<path d="M-22 -6 C-8 -14 -6 8 8 0 S 18 -4 24 6" fill="none" stroke="#4f8fcf" stroke-width="4" stroke-linecap="round"/>';
-const WATER = { ocean: '#3b6e9e', lake: '#5b95c8' };
-const fillOf = c => WATER[c.terrain] || BIOMES[c.biome].color;
-const glyphOf = c => WATER[c.terrain] ? '' : (TERRAIN[c.terrain] || GLYPH[c.biome]) + (c.river ? RIVER : '');
-const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
-const placeName = c => WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
-const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
+import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
+import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
 export function sampleMapSVG(seed, seen = 3) {
@@ -93,8 +67,6 @@ function unitName(u) {
   return b ? name(b) : '?';
 }
 const membersOf = u => u.kind === 'pack' ? (packById(u.id) || { members: [] }).members : [u.kind === 'player' ? PLAYER_ID : u.id];
-// "A", "A and B", "A, B and C"
-const listNames = list => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 
 // everyone who could join a team: you, each pack, each dinosaur old enough and not in a pack
 function unitChoices() {
@@ -125,7 +97,12 @@ let view = null;
 const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = SIZE * SQ3 * 60;
 function mapSVG(t) {
   const w = S.world;
-  const away = new Map(w.expeditions.map(e => [e.hex, e]));
+  // where each party is by now: waiting somewhere, or along its way
+  const away = new Map(w.expeditions.map(e => {
+    if (!e.leg) return [e.at, e];
+    const i = positionOf(S, e, t);
+    return [i < 0 ? e.leg.from : e.leg.path[i], e];
+  }));
   // the whole continent is drawn (its lie is known); what lives in a hex is known once it was seen
   if (!view) view = { x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 };
   const cells = ALL_HEXES.map(h => {
@@ -137,7 +114,7 @@ function mapSVG(t) {
     const label = home ? 'Your nest' : `${placeName(cell)}${lair ? ', a lair' : ''}${!known && !water ? ', unexplored' : ''}`;
     const glyph = home ? NEST : glyphOf(cell) + (lair ? LAIR : '');
     const exp = away.get(key);
-    const marker = exp ? `<g class="trip ${t >= exp.returnAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc(exp.team.length > 1 ? String(exp.team.length) : (unitName(exp.team[0])[0] || '?'))}</text></g>` : '';
+    const marker = exp ? `<g class="trip ${exp.leg && t >= exp.leg.arriveAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc(exp.team.length > 1 ? String(exp.team.length) : (unitName(exp.team[0])[0] || '?'))}</text></g>` : '';
     return `<g class="${cls}" data-key="${key}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" ${go || home ? `tabindex="0" role="button" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>
       <polygon points="${corners([0, 0], 0.96)}" style="fill:${fillOf(cell)}"/>${glyph}${marker}</g>`;
   }).join('');
@@ -232,7 +209,7 @@ function threatHTML(h, units, scout) {
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase, with ${chanceOf(chased.chance)} chance of catching ${esc(chased.fighter.name)}, who would be ${riskOf(chased.chance * chased.death)}.</p>` : ''}`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
     <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${cap(often(encounterChance(th, units, biomeAt(S.world.seed, h), scout)))} met here.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
-    ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
+    ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when you see the journey.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} ${winOf(odds)} (Power ${power})</span></p>`}
     ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off, as it ${often(sail)} does.</p>` : ''}
     ${fight ? riskHTML(units, fight.death) : ''}
@@ -298,9 +275,9 @@ function rivalsHTML(members) {
 
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. Dinosaurs come home hungry.</p>`;
+    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home, and dinosaurs come home hungry.</p>`;
   const h = parseKey(selected), d = hexDist(h);
-  if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every trip starts and ends here.</p>`;
+  if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
   // the team: kept between hexes; when empty, the first one free to go is suggested
@@ -327,7 +304,7 @@ function sideHTML(t) {
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · trip ${teamTripMins(S, team.flatMap(membersOf), selected)} min there and back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected)} min to get there, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
@@ -345,117 +322,30 @@ function sideHTML(t) {
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
 }
 
-// groups a team spotted at a distance: hunt one of them, or let them be
-function sightingsHTML() {
-  const list = S.world.sightings || [];
-  if (!list.length) return '';
-  return `<ul class="sightings">${list.map(x => `<li class="sighting">
-    <p>Your team spotted ${/^[AEIOU]/.test(x.name) ? 'an' : 'a'} <strong>${esc(x.name)}</strong> at a distance${isRevealed(S, x.hex) ? `, in the ${esc(BIOMES[biomeAt(S.world.seed, parseKey(x.hex))].name)}` : ''}. Hunt one of them?</p>
-    <div class="row"><button class="btn small" type="button" data-hunt="${esc(x.id)}">Hunt <span class="hint">(${esc(x.hunter)}: ${chanceOf(x.chance)} chance)</span></button>
-      <button class="ghost" type="button" data-let="${esc(x.id)}">Let them be</button></div>
-  </li>`).join('')}</ul>`;
-}
-
-// a wild defender or noncombatant that stood its ground on the way: fight it, or leave it be (the
-// odds are worked out once per trip)
-const standoffOdds = new Map();
-// "On the way, a Protoceratops herd spots you and 2 stay their ground to drive you off.": happening
-// now, on the trip, while the choice is open; told in the past in the trip report
-const standText = (st, past = false) => {
-  const what = `${st.lair ? 'Alpha ' : ''}${st.species}${st.group ? ' ' + st.group : ''}`;
-  const ground = past ? (st.count > 1 ? `${st.count} stood their ground` : 'stood its ground') : (st.count > 1 ? `${st.count} stay their ground` : 'stays its ground');
-  return `On the way, ${/^[AEIOU]/.test(what) ? 'an' : 'a'} <strong>${esc(what)}</strong> ${past ? 'spotted' : 'spots'} you and ${ground} to drive you off.`;
-};
-function standoffHTML(e) {
-  const st = tripStandoff(S, e.id);
-  if (!st) return '';
-  if (!standoffOdds.has(e.id)) {
-    const units = teamUnits(S, e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length));
-    const swamp = watery(S.world.seed, parseKey(e.hex));
-    standoffOdds.set(e.id, { ...teamOdds(units, st.foe, 120, { swamp, biome: biomeAt(S.world.seed, parseKey(e.hex)) }), units });
-  }
-  const { win: odds, death, units } = standoffOdds.get(e.id);
-  return `<p class="hint">${standText(st)}</p>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight ${st.count > 1 ? 'them' : 'it'} <span class="hint">(${dangerOf(odds)})</span></button>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave ${st.count > 1 ? 'them' : 'it'} be</button>
-    ${riskHTML(units, death)}`;
-}
-
-// Odds are told in words, never in numbers: how often, how good a chance, how grave a risk, how a fight
-// would go.
-const often = p => (p >= 0.9 ? 'almost always' : p >= 0.65 ? 'usually' : p >= 0.4 ? 'often' : p >= 0.2 ? 'sometimes' : p >= 0.07 ? 'now and then' : 'rarely');
-const chanceOf = p => (p >= 0.85 ? 'a near-certain' : p >= 0.6 ? 'a good' : p >= 0.35 ? 'a fair' : p >= 0.12 ? 'a poor' : 'a slim');
-const riskOf = p => (p >= 0.45 ? 'likely to die' : p >= 0.2 ? 'a grave risk of dying' : p >= 0.05 ? 'a real risk of dying' : 'a slight risk of dying');
-const winOf = p => (p >= 0.85 ? 'should win with ease' : p >= 0.6 ? 'should win' : p >= 0.4 ? 'could go either way' : p >= 0.15 ? 'would likely lose' : 'stands almost no chance');
-const cap = t => t[0].toUpperCase() + t.slice(1);
-
-// a predator that scattered the player's group on the way: face it with whoever stayed, or run too (the
-// odds are worked out once per trip)
-const scatterOdds = new Map();
-const article = name => (/^[AEIOU]/.test(name) ? 'an' : 'a');
-function scatterHTML(e) {
-  const sc = tripScatter(S, e.id);
-  if (!sc) return '';
-  if (!scatterOdds.has(e.id)) {
-    const biome = biomeAt(S.world.seed, parseKey(e.hex));
-    scatterOdds.set(e.id, teamOdds(sc.units, sc.foe, 120, { swamp: watery(S.world.seed, parseKey(e.hex)), biome }));
-  }
-  const { win, death } = scatterOdds.get(e.id);
-  const stay = e.team.filter((u, i) => u.kind !== 'player' && !sc.fled.includes(i)).map(unitName);
-  const run = sc.run, p = run ? run.chance * (1 - run.safe) : 0;
-  const runner = run && (run.id === PLAYER_ID ? 'you' : esc(run.fighter.name));
-  const runText = !run || p < 0.01 ? 'It can\'t catch any of you.'
-    : run.fights ? `It has ${chanceOf(p)} chance of catching ${runner}, and then there's no escaping the fight.`
-    : `It has ${chanceOf(p)} chance of catching ${runner}, who would be ${riskOf(p * run.death)}.`;
-  return `<p class="hint">On the way, ${esc(listNames(sc.prey))} ${sc.prey.length > 1 ? 'spot' : 'spots'} ${article(sc.name)} <strong>${esc(sc.name)}</strong> charging the group and ${sc.prey.length > 1 ? 'scatter' : 'bolts'}. ${sc.mounted ? 'You are still riding one of them.' : sc.alone ? 'You are on your own.' : `You stand with ${esc(listNames(stay))}.`}</p>
-    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">${sc.mounted ? 'Jump down and face it' : 'Face it'} <span class="hint">(${dangerOf(win)})</span></button>
-    <button class="ghost" type="button" data-collect="${esc(e.id)}" data-flee="1">${sc.mounted ? 'Ride off' : 'Run for it'}</button>
-    <p class="hint">${runText}</p>
-    ${riskHTML(sc.units, death)}`;
-}
-
-// a hunt the team watches on the way, wild against wild: let it be, or step in with one of its hunters,
-// going after the prey or after the hunter (the odds of a fight are worked out once per trip)
-const witnessOdds = new Map();
-const wildName = x => `${article(x.name)} ${esc(x.name)}`;
-function witnessHTML(e) {
-  const wt = tripWitness(S, e.id);
-  if (!wt) return '';
-  const live = e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length);
-  const biome = biomeAt(S.world.seed, parseKey(e.hex));
-  const fightOdds = id => {
-    const k = e.id + ':' + id;
-    if (!witnessOdds.has(k)) witnessOdds.set(k, teamOdds(teamUnits(S, live.filter(u => u.kind === 'player' || u.id === id)), wt.hunterFoe, 120, { swamp: watery(S.world.seed, parseKey(e.hex)), biome, defend: true }));
-    return witnessOdds.get(k);
-  };
-  const buttons = [], cant = [];
-  for (const o of wt.options) {
-    if (o.prey.ok) buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="prey" data-hunter="${esc(o.id)}">Hunt the ${esc(wt.prey.name)} with ${esc(o.name)} <span class="hint">(${chanceOf(o.prey.chance)} chance${o.prey.backsOff ? '' : ', then the hunter may fight you for it'})</span></button>`);
-    if (o.predator.ok) {
-      const tag = o.predator.chase ? `it runs: ${chanceOf(o.predator.chance)} chance to catch it` : (() => { const f = fightOdds(o.id); return `a fight: ${dangerOf(f.win)}`; })();
-      buttons.push(`<button class="btn small" type="button" data-collect="${esc(e.id)}" data-witness="predator" data-hunter="${esc(o.id)}">Go after the ${esc(wt.hunter.name)} with ${esc(o.name)} <span class="hint">(${tag})</span></button>`);
-    }
-    if (!o.prey.ok && !o.predator.ok) cant.push(`${esc(o.name)} (${esc(o.prey.reason === o.predator.reason ? o.prey.reason : `prey: ${o.prey.reason}; hunter: ${o.predator.reason}`)})`);
-  }
-  return `<p class="hint">On the way, ${wildName(wt.hunter)} ${wt.hunter.count > 1 ? 'are' : 'is'} chasing ${wildName(wt.prey)}. Do you step in?</p>
-    ${buttons.join('')}
-    <button class="ghost" type="button" data-collect="${esc(e.id)}">Let it be</button>
-    ${cant.length ? `<p class="hint">Can't step in: ${cant.join(', ')}.</p>` : ''}`;
-}
-
+// the parties out: where each is, how it is, what it carries, and what can be done with it
 function tripsHTML(t) {
   const list = S.world.expeditions;
-  if (!list.length) return `<p class="hint">No one is exploring. ${EXPEDITION_SLOTS} teams can be out at the same time.</p>`;
-  return `<ul class="trips">${list.map(e => {
-    const back = t >= e.returnAt;
-    const biome = isRevealed(S, e.hex) ? BIOMES[biomeAt(S.world.seed, parseKey(e.hex))].name : 'the fog';
-    const frac = Math.min(1, (t - e.startedAt) / (e.returnAt - e.startedAt));
+  if (!list.length) return `<p class="hint">No one is out. ${EXPEDITION_SLOTS} teams can be out at the same time.</p>`;
+  return `<ul class="trips">${list.map(p => {
+    const names = `<strong>${esc(listNames(p.team.map(unitName)))}</strong>`;
+    if (!p.leg) {
+      // waiting somewhere for orders: home, or on to the hex picked on the map
+      const there = selected && selected !== p.at && canReach(S, selected) ? selected : null;
+      return `<li class="trip-row">
+        <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
+        ${partyStatusHTML(p)}
+        <div class="row"><button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">Come home <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
+        ${there ? `<button class="ghost" type="button" data-order="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))} <span class="hint">(${legMins(S, p.members, p.at, there)} min)</span></button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}</div>
+      </li>`;
+    }
+    const leg = p.leg, done = t >= leg.arriveAt;
+    const where = leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`;
+    const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
     return `<li class="trip-row">
-      <div><strong>${esc(listNames(e.team.map(unitName)))}</strong> <span class="hint">→ ${esc(biome)}</span></div>
+      <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
-      <div class="row">${back ? (standoffHTML(e) || scatterHTML(e) || witnessHTML(e) ||
-        `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`)
-        : `<span class="hint">Back in ${fmt(e.returnAt - t)}</span><button class="ghost" type="button" data-recall="${esc(e.id)}">Call back</button>`}</div>
+      <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
+        : `<span class="hint">${leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -502,7 +392,7 @@ function render() {
         <section class="panel-box"><h3>Expeditions <span class="hint">${S.world.expeditions.length} / ${EXPEDITION_SLOTS}</span></h3>
           <div id="tripsBox">${tripsHTML(t)}</div>
           ${message ? `<p class="hint" role="status">${message}</p>` : ''}
-          <div id="sightBox">${sightingsHTML()}</div></section>
+        </section>
       </div>
     </div>`;
   bindMap(box);
@@ -552,120 +442,36 @@ function render() {
   });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
-    const names = team.map(unitName), mins = teamTripMins(S, team.flatMap(membersOf), selected);
+    const names = team.map(unitName), mins = legMins(S, team.flatMap(membersOf), '0,0', selected);
     const r = act('explore', { team, hex: selected });
-    message = r.ok ? `${esc(listNames(names))} set off. Back in ${mins} min.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    message = r.ok ? `${esc(listNames(names))} set off. There in ${mins} min: then they wait for your orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
     if (r.ok) team = [];   // the next free one is suggested
     render();
   });
   bindTrips(box);
-  box.querySelectorAll('[data-hunt], [data-let]').forEach(btn => btn.addEventListener('click', () => {
-    const go = 'hunt' in btn.dataset;
-    const r = act('hunt', { id: btn.dataset.hunt || btn.dataset.let, go });
-    if (!r.ok) { message = 'They are long gone.'; render(); return; }
-    const name = esc(r.sighting.name);
-    const got = (r.loot || []).map(l => `${l.n} ${itemName(l.id, l.n)}${l.lost ? ` (${l.lost} lost, inventory full)` : ''}`);
-    if (r.coins) got.push(`${r.coins} coins`);
-    message = !go ? `You let the ${name} be.`
-      : r.caught ? `${esc(r.sighting.hunter)} ran one of the ${name} down: ${esc(got.join(', ') || 'nothing')}.`
-      : `${esc(r.sighting.hunter)} gave chase, but the ${name} got away.`;
-    render();
-  }));
 }
 
 let shownBack = '';
-// the list of trips, redrawn on its own every second so the map and the form are left alone
+// the list of parties, redrawn on its own every second so the map and the form are left alone
 function bindTrips(box) {
   shownBack = backKey(now());
-  box.querySelectorAll('[data-collect]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1', flee: btn.dataset.flee === '1',
-      ...(btn.dataset.witness ? { witness: { act: btn.dataset.witness, hunter: btn.dataset.hunter } } : {}) });
-    if (!r.ok) { message = 'Not back yet.'; render(); return; }
-    // the player alone is "you": "You are back", not "You is back"
-    const names = r.team.map(unitName);
-    const who = esc(listNames(names)), is = r.team.length > 1 || r.team[0].kind !== 'dino' ? 'are' : 'is';
-    const got = r.loot.map(l => `${l.n} ${itemName(l.id, l.n)}${l.lost ? ` (${l.lost} lost, inventory full)` : ''}`);
-    if (r.coins) got.push(`${r.coins} coins`);
-    const mapped = r.revealed ? ` ${plural(r.revealed, 'new hex', 'new hexes')} on the map.` : '';
-    const injured = r.battle ? r.battle.injured : [];
-    const hurtName = id => id === PLAYER_ID ? 'You' : (byId(id) || { name: '?' }).name;
-    const hurt = !injured.length ? ''
-      : injured.length === 1 ? ` ${esc(hurtName(injured[0].id))} ${injured[0].id === PLAYER_ID ? 'are' : 'is'} injured for ${injured[0].mins} min.`
-      : ` ${injured.length} of the team are injured, for up to ${Math.max(...injured.map(x => x.mins))} min.`;
-    const down = injured.filter(x => x.critical).map(x => hurtName(x.id));
-    const critical = !down.length ? '' : ` ${esc(listNames(down))} went down and ${down.length > 1 ? 'are' : 'is'} critically injured: herbs won't help, a Blood Transfusion will.`;
-    const finder = r.team.length === 1 && r.team[0].kind !== 'pack' ? who : 'The team';
-    const follow = !r.egg ? '' : r.egg.lost ? ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} but your egg tray is full, so it stayed behind.`
-      : ` ${finder} found a ${esc(SPECIES[r.egg.type].egg)} (${esc(SPECIES[r.egg.type].species)})! It's waiting in the Incubator.`;
-    const mad = r.battle && r.battle.frenzy.length
-      ? ` ${esc(listNames(r.battle.frenzy.map(i => r.battle.team[i].name)))} turned on each other and fought in a frenzy.` : '';
-    const ran = r.battle ? r.battle.fled.map(i => r.battle.team[i].name) : [];
-    const runText = !ran.length || (r.battle && r.battle.escaped) || r.scatter ? '' : ` ${esc(listNames(ran))} ran from the ${esc(r.battle.foe.name)} and left the others to fight.`;
-    // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
-    // (a Parasaurolophus herd runs as soon as one of it breaks away)
-    const herdRan = i => r.battle.log.some(e => e.by === 'foe' && e.to === i && e.escaped);
-    const routs = r.battle && r.battle.routed ? r.battle.routed : [];
-    const broke = [
-      ...routs.filter(i => !herdRan(i)).length ? [` ${esc(listNames(routs.filter(i => !herdRan(i)).map(i => r.battle.team[i].name)))} lost half the pack and ran off.`] : [],
-      ...routs.filter(herdRan).map(i => ` One of ${esc(r.battle.team[i].name)} broke away and the whole herd ran with it.`),
-    ].join('');
-    const gaveUp = r.battle && r.battle.log.some(e => e.gaveUp);
-    const foeBroke = r.battle && r.battle.foeFled ? (gaveUp ? ` The ${esc(r.battle.foe.name)} couldn't get through the armor and gave up.` : ` Badly hurt, the ${esc(r.battle.foe.name)} fled and left nothing behind.`)
-      : r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
-    // a Parasaurolophus heard the predator coming
-    const call = r.battle && r.battle.alerted === 'team' ? r.battle.log.find(e => e.alert) : null;
-    const warned = call ? ` ${esc(r.battle.team[call.by].name)} warned of the predator, leaving your group ready.` : '';
-    // runners saw a predator first and the team ran
-    const deadName = id => ((r.died || []).find(x => x.id === id) || {}).name || hurtName(id);
-    // the player's group scattered before a predator: how it went, told before the rest
-    const sc = r.scatter;
-    const forcedName = r.battle && r.battle.forced ? (r.battle.forced === PLAYER_ID ? 'you' : esc(hurtName(r.battle.forced))) : '';
-    const scatterText = !sc ? '' : `On the way, ${esc(listNames(sc.prey))} spotted ${article(sc.name)} ${esc(sc.name)} charging the group and ${sc.prey.length > 1 ? 'scattered' : 'bolted'}. `
-      + (sc.choice === 'fight' ? (sc.mounted ? 'You were thrown in the scramble and stayed to fight. ' : sc.alone ? 'You stayed to face it alone. ' : 'You stayed to face it with the rest. ')
-        : r.battle ? `You ran too, but it caught up with ${forcedName} and there was no escaping the fight. `
-        : r.chase && r.chase.caught ? `You ran too. In the escape, ${esc(deadName(r.chase.caught))} was caught${r.chase.died ? ' and did not survive. ' : ' and is critically injured. '}`
-        : r.chase && r.chase.scattered ? 'You ran too, and it never got close: everyone regrouped. ' : 'You ran too, and everyone got away and regrouped. ');
-    // wild against wild, watched on the way
-    const wt = r.witness;
-    const natural = wt && (wt.outcome === 'kill' ? `bring down ${wildName(wt.prey)}. `
-      : `go for ${wildName(wt.prey)}, ${wt.outcome === 'repelled' ? `which drove ${wt.hunter.count > 1 ? 'them' : 'it'} off. ` : 'which got away. '}`);
-    const witnessText = !wt ? '' : wt.act === 'none' ? `On the way, the team watched ${wildName(wt.hunter)} ${natural}`
-      : wt.act === 'prey' ? `On the way, ${wildName(wt.hunter)} was chasing ${wildName(wt.prey)}, and ${esc(wt.by)} went after it too: `
-        + (wt.caught ? (wt.contested ? `it ran the ${esc(wt.prey.name)} down, but the ${esc(wt.hunter.name)} came for the kill. ` : `it ran the ${esc(wt.prey.name)} down, and the ${esc(wt.hunter.name)} let it have it. `)
-          : `the ${esc(wt.prey.name)} got away${wt.turned ? `, and the ${esc(wt.hunter.name)} turned on the team. ` : `, and the ${esc(wt.hunter.name)} left. `}`)
-      : `On the way, ${wildName(wt.hunter)} was chasing ${wildName(wt.prey)}, and ${esc(wt.by)} went after the ${esc(wt.hunter.name)}: the ${esc(wt.prey.name)} ran off, `
-        + (r.battle ? 'and it stood its ground. ' : wt.caught ? `and the ${esc(wt.hunter.name)} ran too, but was caught. ` : `and the ${esc(wt.hunter.name)} ran too, and got away. `);
-    const ran2 = sc ? '' : r.chase && r.chase.scattered ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group before it struck. Everyone scattered in zigzags and got away.`
-      : r.chase ? ` ${/^[AEIOU]/.test(r.chase.name) ? 'An' : 'A'} ${esc(r.chase.name)} was spotted by your group.${r.chase.caught ? ` In the escape, ${esc(deadName(r.chase.caught))} was caught by ${r.chase.count > 1 ? 'them' : 'it'}${r.chase.died ? ' and did not survive.' : ' and is critically injured.'}` : ' Everyone got away.'}` : '';
-    // the dead, from the fight
-    const lost = (r.died || []).filter(x => !r.chase || x.id !== r.chase.caught);
-    const mourn = lost.length ? ` ${esc(listNames(lost.map(x => x.name)))} did not survive the fight.` : '';
-    // a rival as big as the team's Spinosaurus sized up its sail and backed off
-    const sailed = r.backedOff ? ` On the way, ${/^[AEIOU]/.test(r.backedOff.name) ? 'an' : 'a'} ${esc(r.backedOff.name)} sized up ${esc(r.backedOff.by)}'s sail and backed off.` : '';
-    const peace = r.standoff && !r.standoff.fought ? ` ${standText(r.standoff, true)} The team left ${r.standoff.count > 1 ? 'them' : 'it'} in peace.` : '';
-    // a predator gave chase to those who ran and caught one
-    const c = r.battle && r.battle.caught;
-    const caughtText = c ? ` In the escape, ${esc(deadName(c.id))} was caught${c.died ? ' and did not survive.' : ' and is critically injured.'}` : '';
-    const fed = (r.fedSelf || []).length ? ` ${esc(listNames(r.fedSelf.map(hurtName)))} hunted lizards and insects on the way and came home fed.` : '';
-    const ic = r.intercepted;
-    const interceptText = ic ? `On the way, crossing the ${esc(BIOMES[ic.biome].name)}, ${article(ic.name)} ${esc(ic.name)} came for the team. ` : '';
-    message = interceptText + witnessText + scatterText + (c && c.died && r.members.length === 1
-      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran, but was caught and did not survive.${mapped}`
-      : r.battle && r.battle.escaped
-      ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off.${caughtText} ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${fed}${follow}${mapped}`
-      : r.battle && !r.battle.win
-      ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${warned}${runText}${broke}${mad}${mourn}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${ran2}${sailed}${mourn}${warned}${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${fed}${follow}${mapped}`);
+  box.querySelectorAll('[data-journey]').forEach(btn => btn.addEventListener('click', () => {
+    const r = openJourney(btn.dataset.journey, render);
+    if (!r.ok) { message = 'Not there yet.'; render(); }
+  }));
+  box.querySelectorAll('[data-order]').forEach(btn => btn.addEventListener('click', () => {
+    const r = act('order', { id: btn.dataset.order, hex: btn.dataset.hex });
+    message = r.ok ? (btn.dataset.hex === '0,0' ? 'The team set off for home.' : 'The team set off.') : 'The team could not go there.';
     render();
-    if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {
-    act('recall', { id: btn.dataset.recall });
-    message = 'Called back. The team came home with nothing.';
+    const r = act('recall', { id: btn.dataset.recall });
+    message = !r.ok ? 'The team could not be called back.' : r.home ? 'Called back before it got far: the team is home.' : 'Called back. The team turns for home from where it is, and the way back has its dangers too.';
     render();
   }));
 }
-const backKey = t => S.world.expeditions.filter(e => t >= e.returnAt).map(e => e.id).join();
+// parties with a journey to tell
+const backKey = t => S.world.expeditions.filter(e => e.leg && t >= e.leg.arriveAt).map(e => e.id).join();
 function tickTrips() {
   const box = document.getElementById('tripsBox');
   if (!box || !S.world.expeditions.length || document.hidden) return;
@@ -679,10 +485,10 @@ function tickTrips() {
 // the timers and the "back!" badge on the tab keep moving while the page is open
 function updateBadge() {
   const t = now();
-  const back = S.world.expeditions.filter(e => t >= e.returnAt).length;
+  const back = S.world.expeditions.filter(e => e.leg && t >= e.leg.arriveAt).length;
   const pill = document.getElementById('worldPill');
   pill.hidden = back === 0;
-  pill.textContent = back + ' back';
+  pill.textContent = back + ' to tell';
 }
 
 export function initWorld() {

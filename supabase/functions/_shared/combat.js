@@ -273,7 +273,10 @@ export function teamFight(units, foe, rand, opts = {}) {
   // The two sides follow the same rules: side 0 is the team (its units), side 1 the foe (one unit). A
   // unit is (side, index), one of its animals (side, index, member).
   const S = [units, [foe]];
-  const hp = S.map(list => list.map(u => u.members.map(m => m.hp)));
+  // (opts.hp: how much of its health each of ours starts with, a share per unit and member: a team
+  // carries its wounds from one fight to the next on a journey)
+  const start = (i, j) => opts.hp && opts.hp[i] && opts.hp[i][j] != null ? Math.max(1, Math.round(S[0][i].members[j].hp * Math.min(1, opts.hp[i][j]))) : S[0][i].members[j].hp;
+  const hp = S.map((list, s) => list.map((u, i) => u.members.map((m, j) => s === 0 ? start(i, j) : m.hp)));
   const foeLeft = () => hp[1][0].reduce((t, h) => t + h, 0);
   const foeMax = unitHp(foe);
   // the units still fighting on each side; those who stayed to fight; ours that ran off mid-fight

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { collect, reach } from './journey-helper.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from '../js/economy.js';
 import { freshState } from '../js/state.js';
@@ -28,7 +29,7 @@ function game(...babies) {
 function trip(s, id, key) {
   const r = applyAction(s, 'explore', { babyId: id, hex: key }, T0);
   assert.equal(r.ok, true, r.reason);
-  return applyAction(s, 'collectTrip', { id: r.expedition.id }, T0 + tripMins(key, 42) * 60000);
+  return collect(s, { id: r.expedition.id }, T0 + tripMins(key, 42) * 60000);
 }
 
 test('a fight is decided by the stats and replays the same with the same rolls', () => {
@@ -67,6 +68,16 @@ test('every biome has its wild animals, stronger and in bigger packs farther out
 const lairs = seed => landHexes(42).filter(h => isLair(seed, h)).sort((x, y) => threatAt(seed, x).foe.power - threatAt(seed, y).foe.power).map(h => hexKey(...h));
 // the strongest lair of a Tyrannosaurus (something that hunts a Triceratops, and wins)
 const rexLairTop = () => lairs(42).filter(k => threatAt(42, k.split(',').map(Number)).id === 'rex').at(-1);
+// a Triceratops runt sent to a Tyrannosaurus' lair (it stands up to anything, so it fights, and loses)
+// until one comes home alive (one brought down may not survive)
+function lostAtLair() {
+  for (const key of lairs(42).filter(k => threatAt(42, k.split(',').map(Number)).id === 'rex').reverse()) {
+    const s = game(dino('runt', 1, 'trike'));
+    const r = trip(s, 'runt', key);
+    if (s.hatched.length && r.battle && !r.intercepted) return { s, key, r, back: T0 + tripMins(key, 42) * 60000 };
+  }
+  assert.fail('every runt died');
+}
 
 test('beating a creature brings its loot and coins on top of the hex', () => {
   const s = game(dino('champ', 100));
@@ -83,11 +94,8 @@ test('beating a creature brings its loot and coins on top of the hex', () => {
 
 test('losing brings nothing, still maps the land, and leaves the dinosaur injured (critically, as it went down)', () => {
   // a Triceratops stands up to anything, so it fights even a Tyrannosaurus' lair (and loses)
-  const s = game(dino('runt', 1, 'trike'));
-  const key = rexLairTop();
-  const coins = s.coins;
-  const back = T0 + tripMins(key, 42) * 60000;
-  const r = trip(s, 'runt', key);
+  const { s, key, r, back } = lostAtLair();
+  const coins = 0;
   assert.equal(r.battle.win, false);
   assert.deepEqual(r.loot, []);
   assert.equal(r.coins, 0);
@@ -125,15 +133,12 @@ test('equipment cannot change while the dinosaur is away', () => {
 test('a dinosaur brought down is critically injured: herbs do not help, a Blood Transfusion does', async () => {
   const { CRITICAL_MINS } = await import('../js/config.js');
   const { isCritical } = await import('../js/world.js');
-  const s = game(dino('runt', 1, 'trike'));
-  const key = rexLairTop();
-  const back = T0 + tripMins(key, 42) * 60000;
-  const r = trip(s, 'runt', key);
+  const { s, r, back } = lostAtLair();
   assert.equal(r.battle.win, false);
   const b = s.hatched[0];
   assert.equal(isCritical(b, back), true);
   assert.equal(injuredLeft(b, back), CRITICAL_MINS * 60000);
-  assert.ok(r.battle.injured[0].critical);
+  assert.ok(r.injured[0].critical);
   addItem(s, 'herb', 3);
   assert.equal(applyAction(s, 'heal', { babyId: 'runt' }, back).reason, 'critical');
   assert.equal(applyAction(s, 'transfuse', { babyId: 'runt' }, back).reason, 'no-transfusion');
@@ -402,33 +407,33 @@ test('a wild animal keeps away from anything bigger than its fear: it can only b
   // a Compsognathus lair always has its pack there, but they keep away from a Tyrannosaurus
   const key = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'compy');
   const caught = { yes: 0, no: 0 };
-  for (let i = 0; i < 30; i++) {
-    const s = game(dino('rex', 60));
+  // sent with the choice to hunt or not (hunt), what it spotted there
+  const spot = (type, hunt, i = 0) => {
+    const s = game(dino('x', 60, type));
     s.world.trips = i;
-    const r = trip(s, 'rex', key);
+    const r = applyAction(s, 'explore', { babyId: 'x', hex: key }, T0);
+    const c = collect(s, { id: r.expedition.id, hunt }, T0 + tripMins(key, 42) * 60000);
+    return { s, c, there: c.story.filter(e => e.hex === key && e.kind !== 'arrived') };
+  };
+  for (let i = 0; i < 30; i++) {
+    const { s, c, there } = spot('rex', true, i);
     // (a trip that watched wild against wild instead)
-    if (r.witness) continue;
-    assert.equal(r.battle, null);
-    assert.equal(r.sighting.species, 'compy');
-    assert.ok(r.sighting.chance > 0 && r.sighting.chance < 1);
-    assert.deepEqual(s.world.sightings.map(x => x.id), [r.sighting.id]);
-    const meat = countItem(s, 'meat');
-    const h = applyAction(s, 'hunt', { id: r.sighting.id, go: true });
-    assert.equal(h.ok, true);
-    assert.deepEqual(s.world.sightings, []);
-    if (h.caught) { caught.yes++; assert.ok(countItem(s, 'meat') > meat && h.coins > 0); } else { caught.no++; assert.equal(countItem(s, 'meat'), meat); }
-    assert.equal(applyAction(s, 'hunt', { id: r.sighting.id, go: true }).ok, false);
+    if (there.some(e => e.kind === 'witness')) continue;
+    assert.equal(there.some(e => e.kind === 'fight'), false);
+    const sight = there.find(e => e.kind === 'sighting');
+    assert.equal(sight.species, 'compy');
+    assert.equal(sight.hunted, true);
+    if (sight.caught) { caught.yes++; assert.ok(sight.loot.some(l => l.id === 'meat') && sight.coins > 0 && countItem(s, 'meat') > 0); }
+    else { caught.no++; assert.deepEqual(sight.loot, []); }
   }
   assert.ok(caught.yes > 0 && caught.no > 0, JSON.stringify(caught));
   // letting them be brings nothing; a team with no carnivore big enough doesn't even get the chance
-  const s = game(dino('rex', 60));
-  const r = trip(s, 'rex', key);
-  assert.equal(applyAction(s, 'hunt', { id: r.sighting.id, go: false }).caught, undefined);
-  assert.deepEqual(s.world.sightings, []);
-  const herbivore = game(dino('trike', 60, 'trike'));
-  const t = trip(herbivore, 'trike', key);
-  assert.equal(t.battle, null);
-  assert.equal(t.sighting, null);
+  const { there } = spot('rex', false);
+  const sight = there.find(e => e.kind === 'sighting');
+  assert.equal(sight.hunted, false);
+  assert.equal(sight.loot, undefined);
+  const herbivore = spot('trike', true).there;
+  assert.equal(herbivore.some(e => e.kind === 'fight' || e.kind === 'sighting'), false);
 });
 
 test('a Protoceratops striking back may clamp its beak on: a smaller foe is pinned, one its size can only bite its head', () => {
@@ -479,7 +484,6 @@ test('wild animals use every ability of their species, just like ours', () => {
 });
 
 test('a wild defender stands its ground instead of attacking: the player chooses to fight it or leave it be', async () => {
-  const { tripStandoff } = await import('../js/world.js');
   const key = landHexes(42).map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'proto' && !isLair(42, k.split(',').map(Number)));
   const results = {};
   for (const fight of [false, true]) {
@@ -488,11 +492,11 @@ test('a wild defender stands its ground instead of attacking: the player chooses
       const s = game(dino('d', 60, 'dilo'));
       s.world.trips = trip;
       const r = applyAction(s, 'explore', { babyId: 'd', hex: key }, T0);
-      const st = tripStandoff(s, r.expedition.id);
+      const st = reach(s, r.expedition.id, r.expedition.returnAt, p => p.kind === 'standoff' && p.hex === key);
       if (!st) continue;
       assert.equal(st.species, 'Protoceratops');
       assert.equal(st.group, st.count > 1 ? 'herd' : '');
-      results[fight] = applyAction(s, 'collectTrip', { id: r.expedition.id, fight }, r.expedition.returnAt);
+      results[fight] = collect(s, { id: r.expedition.id, fight }, r.expedition.returnAt);
       break;
     }
   }
@@ -505,7 +509,7 @@ test('a wild defender stands its ground instead of attacking: the player chooses
   const s = game(dino('d', 60, 'dilo'));
   const raptors = landHexes(42).map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   const r = applyAction(s, 'explore', { babyId: 'd', hex: raptors }, T0);
-  assert.equal(tripStandoff(s, r.expedition.id), null);
+  assert.equal(reach(s, r.expedition.id, r.expedition.returnAt, p => p.kind === 'standoff' && p.hex === raptors), null);
 });
 
 test('a Stegosaurus: a piercing tail, a stance that turns blows aside, and a throat covered in bone', () => {
@@ -814,7 +818,9 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
     const s = game(...['g1', 'g2', 'g3', 'g4'].map(id => dino(id, 60, 'galli')));
     s.world.trips = trip;
     const r = applyAction(s, 'explore', { team: ['g1', 'g2', 'g3', 'g4'].map(id => ({ kind: 'dino', id })), hex: lair }, T0);
-    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
+    // (something met on the way instead)
+    if (c.intercepted) continue;
     if (c.chase) {
       ran++;
       assert.equal(c.battle, null);
@@ -839,7 +845,7 @@ test('death: a deadly blow kills, one brought down may not survive (its resistan
     const s = game(dino('t', 20, 'trike'));
     s.world.trips = trip;
     const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 't' }, { kind: 'player', id: 'player' }], hex: lair }, T0);
-    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
     if (!c.battle || c.battle.win) continue;
     if (c.died.some(x => x.id === 't')) { died++; assert.equal(s.hatched.some(b => b.id === 't'), false); }
     else if (s.hatched.find(b => b.id === 't').critical) critical++;
@@ -949,7 +955,7 @@ test('Hypsilophodon: zigzags away from bigger attackers, forages on any trip, an
     const s2 = game(...ids.slice(0, 4).map(id => dino(id, 60, 'hypsi')));
     s2.world.trips = trip;
     const r = applyAction(s2, 'explore', { team: ids.slice(0, 4).map(id => ({ kind: 'dino', id })), hex: lair }, T0);
-    const c = applyAction(s2, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
+    const c = collect(s2, { id: r.expedition.id }, r.expedition.returnAt);
     if (c.chase) { scattered++; assert.equal(c.chase.scattered, true); assert.equal(c.chase.caught, null); assert.equal(c.battle, null); assert.equal(c.died.length, 0); }
     if (!c.battle || c.battle.win || c.battle.escaped) leaves += c.loot.filter(l => l.id === 'leaf').length ? 1 : 0;
   }
@@ -1035,7 +1041,6 @@ test('prey animals never fight: they run from any predator, even with the player
 });
 
 test("a predator scatters the player's group: face it with whoever stays, or run too and maybe be caught", async () => {
-  const { tripScatter } = await import('../js/world.js');
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
   // (a Tyrannosaurus hunts Gallimimus; raptors don't)
   const rexLair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'rex');
@@ -1045,8 +1050,9 @@ test("a predator scatters the player's group: face it with whoever stays, or run
     const team = ids.map(id => id === 'player' ? { kind: 'player' } : { kind: 'dino', id });
     const r = applyAction(s, 'explore', { team, hex }, T0);
     assert.equal(r.ok, true, r.reason);
-    const sc = tripScatter(s, r.expedition.id);
-    return { s, sc, c: applyAction(s, 'collectTrip', { id: r.expedition.id, ...choice }, r.expedition.returnAt) };
+    // (the scatter where it went; null when it met nothing there that scattered it)
+    const sc = reach(s, r.expedition.id, r.expedition.returnAt, p => p.kind === 'scatter' && p.hex === hex);
+    return { s, sc, c: sc && collect(s, { id: r.expedition.id, ...choice }, r.expedition.returnAt) };
   };
   // without the player there is nothing to decide
   assert.equal(go(['p1'], 1, {}).sc, null);
@@ -1061,7 +1067,7 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   let rodeOff = 0, galliCaught = 0;
   for (let trip = 0; trip < 40; trip++) {
     const { c } = go(['player', 'g1'], trip, { flee: true }, rexLair);
-    if (c.witness) continue;
+    if (!c) continue;
     assert.equal(c.battle, null);
     rodeOff++;
     if (c.chase.caught) { galliCaught++; assert.equal(c.chase.caught, 'g1'); }
@@ -1071,7 +1077,7 @@ test("a predator scatters the player's group: face it with whoever stays, or run
   let forced = 0, preyCaught = 0, away = 0;
   for (let trip = 0; trip < 80; trip++) {
     const { sc, c } = go(['player', 'p1'], trip, { flee: true });
-    if (c.witness) { assert.equal(sc, null); continue; }
+    if (!sc) continue;
     assert.ok(sc && !sc.mounted && sc.alone);
     if (c.battle) { forced++; assert.equal(c.battle.forced, sc.run.id); assert.ok(sc.run.fights); }
     else if (c.chase.caught) { preyCaught++; assert.equal(c.chase.caught, 'p1'); }
@@ -1128,7 +1134,6 @@ test('an Allosaurus goes for its own kind (cannibalism), but no other theropod',
 });
 
 test('wild against wild: the team watches a hunt, and may step in after the prey or the hunter', async () => {
-  const { tripWitness, tripScatter } = await import('../js/world.js');
   const hexOf = id => landHexes(42).map(h => hexKey(...h)).find(k => { const h = k.split(',').map(Number); return hexDist(h) >= 4 && !threatAt(42, h).lair && threatAt(42, h).id === id; });
   const run = (key, types, pick) => {
     const seen = [];
@@ -1136,12 +1141,11 @@ test('wild against wild: the team watches a hunt, and may step in after the prey
       const s = game(...types.map(([id, t]) => dino(id, 90, t)));
       s.world.trips = trip;
       const r = applyAction(s, 'explore', { team: types.map(([id]) => ({ kind: 'dino', id })), hex: key }, T0);
-      const wt = tripWitness(s, r.expedition.id);
+      // (a hunt watched where it went)
+      const wt = reach(s, r.expedition.id, r.expedition.returnAt, p => p.kind === 'witness' && p.hex === key);
       if (!wt) continue;
-      // the team met neither of them
-      assert.equal(tripScatter(s, r.expedition.id), null);
       const choice = pick(wt);
-      const c = applyAction(s, 'collectTrip', { id: r.expedition.id, ...(choice ? { witness: choice } : {}) }, r.expedition.returnAt);
+      const c = collect(s, { id: r.expedition.id, ...(choice ? { witness: choice } : {}) }, r.expedition.returnAt);
       assert.ok(c.witness);
       seen.push({ wt, c });
     }
@@ -1171,10 +1175,11 @@ test('wild against wild: the team watches a hunt, and may step in after the prey
 });
 
 test('an open world: the way to a far hex crosses danger, and something on it may come for the team first', async () => {
-  const { interceptOf, routeRisk, travelPath, canReach } = await import('../js/world.js');
+  const { routeRisk, travelPath, canReach } = await import('../js/world.js');
   const land = landHexes(42);
   const far = hexKey(...land.filter(h => threatAt(42, h).id === 'rex').at(-1));
   const near = hexKey(...land.find(h => hexDist(h) === 3));
+  const path = travelPath(42, far.split(',').map(Number)).map(h => hexKey(...h));
   let stopped = 0, met = 0;
   for (let trip = 1; trip <= 60; trip++) {
     const s = game(dino('p', 60, 'proto'));
@@ -1182,26 +1187,23 @@ test('an open world: the way to a far hex crosses danger, and something on it ma
     assert.equal(canReach(s, far), true);
     const r = applyAction(s, 'explore', { babyId: 'p', hex: far }, T0);
     assert.equal(r.ok, true, r.reason);
-    const ic = interceptOf(s, r.expedition);
-    const c = applyAction(s, 'collectTrip', { id: r.expedition.id }, r.expedition.returnAt);
-    if (ic) {
+    const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
+    if (c.intercepted) {
       stopped++;
-      assert.equal(c.intercepted.name, ic.foe.name);
       // it met the one on the way, somewhere it crossed
-      assert.ok(travelPath(42, far.split(',').map(Number)).some(h => hexKey(...h) === ic.hex));
-      if (c.battle) met++;
+      assert.ok(path.slice(0, -1).includes(c.intercepted.hex));
+      if (c.story.some(e => e.kind === 'fight' && e.hex !== far)) met++;
     }
-    // the way there is known now
-    assert.ok(travelPath(42, far.split(',').map(Number)).every(h => s.world.revealed.includes(hexKey(...h))));
+    // the way there is known now (unless it never got there)
+    if (s.hatched.length) assert.ok(path.every(k => s.world.revealed.includes(k)));
   }
   assert.ok(stopped > 0 && met > 0, JSON.stringify({ stopped, met }));
   // near the nest the way is calm
-  const s = game(dino('p', 60, 'proto'));
   for (let trip = 1; trip <= 30; trip++) {
+    const s = game(dino('p', 60, 'proto'));
     s.world.trips = trip - 1;
-    s.world.expeditions = [];
     const r = applyAction(s, 'explore', { babyId: 'p', hex: near }, T0);
-    assert.equal(interceptOf(s, r.expedition), null);
+    assert.equal(collect(s, { id: r.expedition.id }, r.expedition.returnAt).intercepted, null);
   }
   // the warning before setting out: from the biomes crossed
   const team = teamUnits(game(dino('p', 60, 'proto')), [{ kind: 'dino', id: 'p', members: ['p'] }]);
