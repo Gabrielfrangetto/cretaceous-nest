@@ -324,7 +324,24 @@ export function recallExpedition(s, id) {
 
 // the dinosaur is back: the hex and its neighbours are revealed, the loot goes to the inventory
 // (what does not fit is lost), a first visit pays discovery coins, and the trip leaves it hungry
-export function collectExpedition(s, id, now) {
+// A wild defender or noncombatant that shows itself doesn't attack: it stands its ground to drive the
+// team off, and the player chooses whether to fight it. What a trip that is back would run into, rolled
+// as collecting it does: null, or { name, power, lair } of one standing its ground.
+export function tripStandoff(s, id) {
+  const w = W(s);
+  const exp = w.expeditions.find(e => e.id === id);
+  if (!exp) return null;
+  const units = exp.team.map(u => ({ ...u, members: u.members.filter(m => explorerOf(s, m)) })).filter(u => u.members.length);
+  const threat = threatAt(w.seed, parseKey(exp.hex));
+  const scout = hasScout(s, exp.members);
+  const meets = units.length && seededRand(`fight:${w.seed}:${exp.trip}`)() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
+  if (!meets || !standsGround(threat.foe) || keepsAway(threat, teamUnits(s, units))) return null;
+  return { name: threat.foe.name, power: threat.power, lair: threat.lair, foe: threat.foe };
+}
+const standsGround = foe => (foe.members[0].role || 'attacker') !== 'attacker';
+
+// choice.fight: fight what stood its ground (tripStandoff) instead of leaving it be
+export function collectExpedition(s, id, now, choice = {}) {
   const w = W(s);
   const exp = w.expeditions.find(e => e.id === id);
   if (!exp) return { ok: false, reason: 'no-expedition' };
@@ -342,7 +359,7 @@ export function collectExpedition(s, id, now) {
   let battle = null;
   const threat = threatAt(w.seed, h);
   const scout = hasScout(s, exp.members);
-  let sighting = null;
+  let sighting = null, standoff = null;
   const meets = units.length && fightRand() < threat.chance * (scout && !threat.lair ? SCOUT.encounter : 1);
   // what keeps away from the team may still be spotted at a distance, and hunted
   if (meets && keepsAway(threat, teamUnits(s, units))) {
@@ -357,7 +374,11 @@ export function collectExpedition(s, id, now) {
       };
       w.sightings = [...(w.sightings || []), sighting].slice(-HUNT_SIGHTINGS);
     }
+  } else if (meets && standsGround(threat.foe) && !choice.fight) {
+    // it stood its ground and the team left it in peace
+    standoff = { name: threat.foe.name, fought: false };
   } else if (meets) {
+    if (standsGround(threat.foe)) standoff = { name: threat.foe.name, fought: true };
     const team = teamUnits(s, units), foe = threat.foe;
     const result = teamFight(team, foe, fightRand, { swamp: biomeAt(w.seed, h) === 'swamp' });
     // a dinosaur that went down is critically injured (the player just injured); the rest are
@@ -438,7 +459,7 @@ export function collectExpedition(s, id, now) {
     const b = explorerOf(s, id);
     if (b && id !== PLAYER_ID) b.lastFed = now - hungerEvery(b);
   }
-  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, egg: foundEgg };
+  return { ok: true, hex: exp.hex, biome: biomeAt(w.seed, h), team: exp.team, members: exp.members, loot, coins, discovered, revealed: newly.length, battle, sighting, standoff, egg: foundEgg };
 }
 
 // keeps a loaded world inside the rules whatever produced it

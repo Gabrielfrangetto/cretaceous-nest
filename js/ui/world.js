@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, isRevealed, canReach, teamTripMins, hasScout, lootTable, exploreProblem, expeditionOf,
-  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds,
+  threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, huntOdds, tripStandoff,
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { teamWinChance, dangerOf, whoFlees } from '../combat.js';
@@ -159,7 +159,8 @@ function threatHTML(h, units, scout) {
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
-    <p class="hint">${th.lair ? 'Always fights here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}`}</p>
+    <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${Math.round(th.chance * (scout ? SCOUT.encounter : 1) * 100)}% chance to meet it.${scout ? ' Your scout leads the team around it when it can.' : ''}`}</p>
+    ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when the team is back.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} wins about ${Math.round(odds * 100)}% of the time (Power ${power})</span></p>`}
   </div>`;
 }
@@ -249,6 +250,23 @@ function sightingsHTML() {
   </li>`).join('')}</ul>`;
 }
 
+// a wild defender or noncombatant that stood its ground on the way: fight it, or leave it be (the
+// odds are worked out once per trip)
+const standoffOdds = new Map();
+function standoffHTML(e) {
+  const st = tripStandoff(S, e.id);
+  if (!st) return '';
+  if (!standoffOdds.has(e.id)) {
+    const units = teamUnits(S, e.team.map(u => ({ ...u, members: u.members.filter(id => explorerOf(S, id)) })).filter(u => u.members.length));
+    const swamp = biomeAt(S.world.seed, parseKey(e.hex)) === 'swamp';
+    standoffOdds.set(e.id, teamWinChance(units, st.foe, 120, { swamp }));
+  }
+  const odds = standoffOdds.get(e.id);
+  return `<p class="hint">Back! On the way, ${/^[AEIOU]/.test(st.name) ? 'an' : 'a'} <strong>${esc(st.name)}</strong> stood its ground to drive the team off.</p>
+    <button class="btn small" type="button" data-collect="${esc(e.id)}" data-fight="1">Fight it <span class="hint">(${dangerOf(odds)}, ${Math.round(odds * 100)}%)</span></button>
+    <button class="ghost" type="button" data-collect="${esc(e.id)}">Leave it be</button>`;
+}
+
 function tripsHTML(t) {
   const list = S.world.expeditions;
   if (!list.length) return `<p class="hint">No one is exploring. ${EXPEDITION_SLOTS} teams can be out at the same time.</p>`;
@@ -259,8 +277,8 @@ function tripsHTML(t) {
     return `<li class="trip-row">
       <div><strong>${esc(listNames(e.team.map(unitName)))}</strong> <span class="hint">→ ${esc(biome)}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
-      <div class="row">${back
-        ? `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`
+      <div class="row">${back ? (standoffHTML(e) ||
+        `<button class="btn small" type="button" data-collect="${esc(e.id)}">Back! Collect</button>`)
         : `<span class="hint">Back in ${fmt(e.returnAt - t)}</span><button class="ghost" type="button" data-recall="${esc(e.id)}">Call back</button>`}</div>
     </li>`;
   }).join('')}</ul>`;
@@ -383,7 +401,7 @@ let shownBack = '';
 function bindTrips(box) {
   shownBack = backKey(now());
   box.querySelectorAll('[data-collect]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('collectTrip', { id: btn.dataset.collect });
+    const r = act('collectTrip', { id: btn.dataset.collect, fight: btn.dataset.fight === '1' });
     if (!r.ok) { message = 'Not back yet.'; render(); return; }
     // the player alone is "you": "You are back", not "You is back"
     const names = r.team.map(unitName);
@@ -408,11 +426,12 @@ function bindTrips(box) {
     // a pack of ours, or the foe's pack or herd, that lost half its members and ran off mid-fight
     const broke = r.battle && r.battle.routed && r.battle.routed.length ? ` ${esc(listNames(r.battle.routed.map(i => r.battle.team[i].name)))} lost half the pack and ran off.` : '';
     const foeBroke = r.battle && r.battle.foeRouted ? ` Half of them down, the rest ran off.` : '';
+    const peace = r.standoff && !r.standoff.fought ? ` On the way, ${/^[AEIOU]/.test(r.standoff.name) ? 'an' : 'a'} ${esc(r.standoff.name)} stood its ground, and the team left it in peace.` : '';
     message = r.battle && r.battle.escaped
       ? `${who} met ${/^[AEIOU]/.test(r.battle.foe.name) ? 'an' : 'a'} ${esc(r.battle.foe.name)} and ran off. ${is === 'is' ? 'It' : 'They'} came back with ${esc(got.join(', ') || 'nothing')}, but nothing of it.${follow}${mapped}`
       : r.battle && !r.battle.win
       ? `${who} lost to the ${esc(r.battle.foe.name)} and came home with nothing.${runText}${broke}${mad}${hurt}${critical}${mapped}`
-      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
+      : `${who} ${is} back from the ${esc(BIOMES[r.biome].name)}${r.battle ? `, victorious over the ${esc(r.battle.foe.name)},` : ''} with ${esc(got.join(', ') || 'nothing')}.${peace}${r.sighting ? ` On the way, the team spotted ${/^[AEIOU]/.test(r.sighting.name) ? 'an' : 'a'} ${esc(r.sighting.name)} keeping its distance.` : ''}${foeBroke}${runText}${broke}${mad}${hurt}${critical}${follow}${mapped}`;
     render();
     if (r.battle && !r.battle.escaped) playFight(r.battle, message, byId);
   }));

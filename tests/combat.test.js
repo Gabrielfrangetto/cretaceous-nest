@@ -448,3 +448,32 @@ test('wild animals use every ability of their species, just like ours', () => {
   }
   assert.deepEqual([...seen].sort(), ['beak', 'claw', 'frill', 'gore', 'grab', 'latch', 'shake', 'we bleed']);
 });
+
+test('a wild defender stands its ground instead of attacking: the player chooses to fight it or leave it be', async () => {
+  const { tripStandoff } = await import('../js/world.js');
+  const key = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'proto' && !isLair(42, k.split(',').map(Number)));
+  const results = {};
+  for (const fight of [false, true]) {
+    // a trip that runs into the herd (the trip number seeds whether it does)
+    for (let trip = 0; trip < 40; trip++) {
+      const s = game(dino('d', 60, 'dilo'));
+      s.world.trips = trip;
+      const r = applyAction(s, 'explore', { babyId: 'd', hex: key }, T0);
+      const st = tripStandoff(s, r.expedition.id);
+      if (!st) continue;
+      assert.match(st.name, /Protoceratops/);
+      results[fight] = applyAction(s, 'collectTrip', { id: r.expedition.id, fight }, r.expedition.returnAt);
+      break;
+    }
+  }
+  assert.equal(results.false.battle, null);
+  assert.deepEqual(results.false.standoff, { name: results.false.standoff.name, fought: false });
+  assert.ok(results.false.loot.length > 0);
+  assert.ok(results.true.battle);
+  assert.equal(results.true.standoff.fought, true);
+  // a predator gives no choice
+  const s = game(dino('d', 60, 'dilo'));
+  const raptors = ALL_HEXES.map(h => hexKey(...h)).find(k => threatAt(42, k.split(',').map(Number)).id === 'raptor');
+  const r = applyAction(s, 'explore', { babyId: 'd', hex: raptors }, T0);
+  assert.equal(tripStandoff(s, r.expedition.id), null);
+});

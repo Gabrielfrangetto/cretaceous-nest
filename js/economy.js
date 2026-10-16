@@ -646,8 +646,9 @@ export const ACTIONS = {
   recall(s, { id }) {
     return recallExpedition(s, id);
   },
-  collectTrip(s, { id }, now) {
-    return collectExpedition(s, id, now);
+  // fight: fight what stood its ground on the way (a wild defender or noncombatant), or leave it be
+  collectTrip(s, { id, fight }, now) {
+    return collectExpedition(s, id, now, { fight: !!fight });
   },
   // a group the team spotted at a distance: go after one of them (go: true), or let them be
   hunt(s, { id, go }) {
