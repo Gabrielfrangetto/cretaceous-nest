@@ -375,9 +375,11 @@ export const SIZE_EDGE = 0.3;
 // eyelids) and the neck (rings of bone) take cut less damage; a blow on the back also hurts the
 // attacker (thorns, of the blow's full damage). The legs have little armor; the belly none (belly times).
 export const ARMOR = { parts: [['back', 0.5], ['head', 0.15], ['neck', 0.1], ['legs', 0.2], ['belly', 0.05]], armored: ['back', 'head', 'neck'], cut: 0.6, thorns: 0.1, belly: 1.5 };
-// a tail club's counter or charge may break the foe's shin: lamed, as a Tyrannosaurus' bite lames a leg
-// (its relative Zuul is named crurivastator, "destroyer of shins"); and it lands damage times as hard
-export const CLUB = { lame: 0.35, damage: 1.2 };
+// A tail club's counter or charge (a blunt blow) lands damage times as hard and may break the foe's
+// shin: lamed, as a Tyrannosaurus' bite lames a leg (its relative Zuul is named crurivastator,
+// "destroyer of shins"). The chance: lame, plus up to bonus for its strength against the foe's
+// resistance (bonus x str / (str + res)).
+export const CLUB = { lame: 0.15, bonus: 0.35, damage: 1.2 };
 // Dilophosaurus' grasping hands, settled by contests (one value against another: a / (a + b) to win).
 // When a blow lands on a foe with no armor on its body, it tries to get hold of it tries of the time. A bigger foe: agility against agility to
 // climb on to it. Clinging, nothing can reach it; each of its turns, its strength against the foe's

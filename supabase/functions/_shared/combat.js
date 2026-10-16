@@ -20,7 +20,7 @@ export function fighterOf(baby, extra = []) {
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, rival: !!sp.rival, role: sp.role, fear: sp.fear, charge: sp.charge || 0, fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: !!sp.armor, club: !!sp.club,
         grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
-  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, power: sheet.power, ...body };
+  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
 }
 
 // health for the size of the body (SIZE_HP)
@@ -53,7 +53,7 @@ export function wildFighter(type, dist, lair = false) {
   const stats = wildStats(sp.base, level);
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
   return {
-    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
+    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
     size, bite: sp.bite, hide: youngHide(sp.hide, level), fisher: !!sp.fisher, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
@@ -79,7 +79,7 @@ export function creatureFighter(id, dist, lair = false) {
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
   const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, power, level, size,
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, res: stats.res, power, level, size,
     bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker' };
 }
 
@@ -255,7 +255,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       foeHp[member] = Math.max(0, foeHp[member] - dmg);
       let bone = dmg > 0 ? breakBones(units[who], foe, foeHp, member, 'foe') : {};
       // a tail club swung back (a counter or a charge) may break the foe's shin
-      if (dmg > 0 && units[who].members[0].club && (extra.counter || extra.charge) && foeHp[member] > 0 && !foe.members[member].lame && rand() < CLUB.lame) {
+      const clubber = units[who].members[0], shin = foe.members[member];
+      if (dmg > 0 && clubber.club && (extra.counter || extra.charge) && foeHp[member] > 0 && !shin.lame
+        && rand() < CLUB.lame + CLUB.bonus * clubber.str / (clubber.str + shin.res)) {
         lameMember(foe, member, 'foe');
         bone = { part: 'leg', lame: true, club: true };
       }
