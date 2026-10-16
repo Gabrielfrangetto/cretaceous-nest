@@ -416,8 +416,10 @@ export const TOUGH = { heal: 0.5 };
 // bleeds bleed more of the foe's health a turn (up to maxStacks wounds), until the foe shakes it off:
 // each of the foe's turns, agility against agility (clinging) or strength against strength (pinned).
 export const LATCH = { tries: 0.2, bleed: 0.005, maxStacks: 5 };
-// it drives the claw in from below, so a share of its blows land on the neck, through any armor
-export const CLAW = { neck: 0.3 };
+// it drives the claw in from below, so a share of its blows land on the neck, through any armor.
+// The claw was made to grip and pin prey no bigger than itself: on those a blow can land up to bite
+// (its own bite stays the limit on anything bigger, where the claw only cuts shallow)
+export const CLAW = { neck: 0.3, bite: 70 };
 // Triceratops' frill, solid bone, has its own health (hp points). Facing its foe, a blow lands on its
 // head head of the time (headPack against a pack, which gets at it from the sides). While the frill
 // holds, a blow on the head does the dinosaur no harm: it costs the frill a point (crushed points for a

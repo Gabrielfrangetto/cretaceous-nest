@@ -48,7 +48,9 @@ export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
 export function hitOf(att, def, roll) {
   // a crushing bite goes through part of the hide and the damage reduction
   const pierce = 1 - (att.crush || 0);
-  const landed = Math.min(att.bite ?? Infinity, att.damage * roll) * (1 - def.reduction * pierce) - (def.hide || 0) * pierce;
+  // a sickle claw hits hard on prey no bigger than itself
+  const cap = att.claw && SIZE_ORDER.indexOf(def.size || 'small') <= SIZE_ORDER.indexOf(att.size || 'small') ? Math.max(att.bite ?? 0, CLAW.bite) : att.bite;
+  const landed = Math.min(cap ?? Infinity, att.damage * roll) * (1 - def.reduction * pierce) - (def.hide || 0) * pierce;
   return landed > 0 ? landed * sizeEdge(att, def) : 0;
 }
 const rounded = hit => hit > 0 ? Math.max(1, Math.round(hit)) : 0;
