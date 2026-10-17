@@ -5,11 +5,12 @@ import { BIOMES, ITEMS, SPECIES, PLAYER_ID } from '../config.js';
 import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { ALL_HEXES, parseKey, hexKey, cellAt, explorerOf, teamUnits } from '../world.js';
+import { parseKey, cellAt, explorerOf, teamUnits } from '../world.js';
 import { partyOf, healthOf, standingUnits, legMins, HOME } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
-import { SIZE, SQ3, center, corners, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
+import { SIZE, SQ3, center, placeName } from './hexdraw.js';
+import { fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { esc, fmt } from '../util.js';
 
@@ -73,7 +74,8 @@ function setLeg(n) {
   body.querySelector('#journeyTitle').textContent = leg.to === HOME ? 'The way home' : `The way to the ${place(leg.to)}`;
 }
 
-// the map: every hex around the ways told so far, the ways themselves, and the marker
+// the map: every hex around the ways told so far, the ways themselves (drawn once into a picture kept
+// in fb.bg), and the marker walking on it
 function drawMap() {
   const keys = [...fb.legs.values()].flatMap(l => [l.from, ...l.path]).map(parseKey);
   const xs = keys.map(h => center(h)[0]), ys = keys.map(h => center(h)[1]);
@@ -83,22 +85,55 @@ function drawMap() {
   const minW = SIZE * SQ3 * 7;
   if (x1 - x0 < minW) { const c = (x0 + x1) / 2; x0 = c - minW / 2; x1 = c + minW / 2; }
   if (y1 - y0 < (x1 - x0) * 0.5) { const c = (y0 + y1) / 2, h = (x1 - x0) * 0.5; y0 = c - h / 2; y1 = c + h / 2; }
-  const cells = ALL_HEXES.filter(h => { const [x, y] = center(h); return x > x0 - SIZE && x < x1 + SIZE && y > y0 - SIZE && y < y1 + SIZE; }).map(h => {
-    const [x, y] = center(h), cell = cellAt(S.world.seed, h);
-    return `<g class="hex seen" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><polygon points="${corners([0, 0], 0.96)}" style="fill:${fillOf(cell)}"/>${hexKey(...h) === HOME ? NEST : glyphOf(cell)}</g>`;
-  }).join('');
-  const line = leg => [leg.from, ...leg.path].map(k => center(parseKey(k)).map(v => v.toFixed(1)).join(',')).join(' ');
-  const ways = [...fb.legs.values()].map(l => `<polyline class="way ${l === fb.leg ? 'now' : ''}" points="${line(l)}"/>`).join('');
+  const view = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   const box = document.querySelector('#journeyBody .journey-map');
-  box.innerHTML = `<svg class="world-map" viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${(x1 - x0).toFixed(1)} ${(y1 - y0).toFixed(1)}" aria-hidden="true">${cells}${ways}<g class="walker"><circle r="10"/></g></svg>`;
+  let canvas = box.querySelector('canvas');
+  if (!canvas) { box.innerHTML = '<canvas class="world-map" aria-hidden="true"></canvas>'; canvas = box.querySelector('canvas'); }
+  canvas.style.aspectRatio = `${view.w} / ${view.h}`;
+  const f = fit(canvas, view), { ctx, scale } = f;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#2b3a46';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  drawHexes(ctx, S.world.seed, hexesIn(f.x0, f.y0, f.x0 + f.width / scale, f.y0 + f.height / scale), () => true, cssVar('--panel'));
+  // the ways: the one being told bright, the others faint
+  for (const l of fb.legs.values()) {
+    const now = l === fb.leg;
+    ctx.save();
+    ctx.beginPath();
+    [l.from, ...l.path].forEach((k, i) => { const [x, y] = center(parseKey(k)); ctx[i ? 'lineTo' : 'moveTo'](x, y); });
+    ctx.setLineDash([2, 7].map(n => n / scale * 1.4));
+    ctx.lineCap = 'round';
+    ctx.lineWidth = (now ? 5 : 4) / scale * 1.4;
+    ctx.strokeStyle = now ? '#fff6dc' : 'rgba(255, 255, 255, .45)';
+    ctx.stroke();
+    ctx.restore();
+  }
+  // kept as a picture: the marker is drawn over it at each step
+  const bg = document.createElement('canvas');
+  bg.width = canvas.width; bg.height = canvas.height;
+  bg.getContext('2d').drawImage(canvas, 0, 0);
+  fb.bg = { canvas: bg, fit: f };
   moveMarker();
 }
 const atKey = () => (fb.pos < 0 ? fb.leg.from : fb.leg.path[Math.min(fb.pos, fb.leg.path.length - 1)]);
 function moveMarker() {
-  const g = document.querySelector('#journeyBody .walker');
-  if (!g) return;
-  const [x, y] = center(parseKey(atKey()));
-  g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+  const canvas = document.querySelector('#journeyBody .journey-map canvas');
+  if (!canvas || !fb.bg) return;
+  const ctx = canvas.getContext('2d'), { fit: f } = fb.bg;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(fb.bg.canvas, 0, 0);
+  ctx.restore();
+  const [x, y] = center(parseKey(atKey())), r = Math.max(10, 7 / f.scale);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = cssVar('--heart');
+  ctx.fill();
+  ctx.lineWidth = r * 0.3;
+  ctx.strokeStyle = cssVar('--panel');
+  ctx.stroke();
 }
 // walks the marker hex by hex to index i of the leg drawn, then goes on with done
 function walkTo(i, done) {

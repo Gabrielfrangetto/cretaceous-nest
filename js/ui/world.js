@@ -4,7 +4,7 @@ import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEA
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
-  ALL_HEXES, hexKey, parseKey, hexDist, biomeAt, cellAt, neighbors, isRevealed, canReach, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
+  ALL_HEXES, hexKey, parseKey, hexDist, inWorld, biomeAt, cellAt, neighbors, isRevealed, canReach, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
@@ -19,6 +19,7 @@ import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
+import { fit, drawHexes, mapPicture, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
@@ -95,55 +96,131 @@ const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured'
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;
 const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = SIZE * SQ3 * 60;
-function mapSVG(t) {
-  const w = S.world;
-  // where each party is by now: waiting somewhere, or along its way
-  const away = new Map(w.expeditions.map(e => {
-    if (!e.leg) return [e.at, e];
-    const i = positionOf(S, e, t);
-    return [i < 0 ? e.leg.from : e.leg.path[i], e];
-  }));
-  // the whole continent is drawn (its lie is known); what lives in a hex is known once it was seen
-  if (!view) view = { x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 };
-  const cells = ALL_HEXES.map(h => {
-    const key = hexKey(...h), c = center(h), cell = cellAt(w.seed, h);
-    const known = isRevealed(S, key), home = hexDist(h) === 0, water = cell.terrain === 'ocean' || cell.terrain === 'lake';
-    const go = !water && canReach(S, key);
-    const cls = ['hex', 'seen', known || water ? '' : 'unknown', key === selected ? 'sel' : ''].filter(Boolean).join(' ');
-    const lair = known && !water && isLair(w.seed, h);
-    const label = home ? 'Your nest' : `${placeName(cell)}${lair ? ', a lair' : ''}${!known && !water ? ', unexplored' : ''}`;
-    const glyph = home ? NEST : glyphOf(cell) + (lair ? LAIR : '');
-    const exp = away.get(key);
-    const marker = exp ? `<g class="trip ${exp.leg && t >= exp.leg.arriveAt ? 'back' : ''}"><circle r="8" cx="12" cy="-12"/><text x="12" y="-8.5">${esc(exp.team.length > 1 ? String(exp.team.length) : (unitName(exp.team[0])[0] || '?'))}</text></g>` : '';
-    return `<g class="${cls}" data-key="${key}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})" ${go || home ? `tabindex="0" role="button" aria-label="${esc(label)}"` : 'aria-hidden="true"'}>
-      <polygon points="${corners([0, 0], 0.96)}" style="fill:${fillOf(cell)}"/>${glyph}${marker}</g>`;
-  }).join('');
-  return `<svg class="world-map" id="worldMap" viewBox="${[view.x, view.y, view.w, view.h].map(v => v.toFixed(1)).join(' ')}" preserveAspectRatio="xMidYMid meet" role="group" aria-label="World map">${cells}</svg>
+// the map as drawn: a canvas, the zoom buttons, the legend; a line read out for the hex the keyboard is on
+function mapHTML() {
+  return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
+    <p class="sr-only" id="mapFocus" aria-live="polite"></p>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
     <p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p>`;
 }
+const homeView = () => ({ x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 });
+// a hex the player can pick: the nest, or land a team can reach
+function pickable(key) {
+  const h = parseKey(key);
+  if (!h || !inWorld(h)) return false;
+  return hexDist(h) === 0 || canReach(S, key);
+}
+function hexLabel(key) {
+  const h = parseKey(key), cell = cellAt(S.world.seed, h);
+  if (hexDist(h) === 0) return 'Your nest';
+  const known = isRevealed(S, key), water = cell.terrain === 'ocean' || cell.terrain === 'lake';
+  const lair = known && !water && isLair(S.world.seed, h);
+  return `${placeName(cell)}${lair ? ', a lair' : ''}${!known && !water ? ', unexplored' : ''}`;
+}
 
-// drag to look around, the wheel or two fingers to zoom; a press that doesn't move is a tap on a hex
+// The map, drawn on the canvas once a frame at most (drawMap asks for it): the hexes in view, one by
+// one close up or the continent's picture from afar; then lairs, the hex picked, the one under the
+// pointer or the keyboard, and where each party is
+let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null;
+function drawMap() {
+  if (!mapCanvas || frame) return;
+  frame = requestAnimationFrame(() => { frame = 0; paintMap(); });
+}
+function paintMap() {
+  if (!mapCanvas || !mapCanvas.isConnected) return;
+  const w = S.world, t = now();
+  if (!view) view = homeView();
+  const f = lastFit = fit(mapCanvas, view);
+  const { ctx, scale } = f;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#2b3a46';
+  ctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+  ctx.restore();
+  const knownSet = new Set(w.revealed), known = k => knownSet.has(k);
+  const edge = cssVar('--panel'), accent = cssVar('--accent'), ink = cssVar('--ink'), heart = cssVar('--heart'), accentInk = cssVar('--accent-ink');
+  const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
+  const inView = hexesIn(f.x0, f.y0, x1, y1);
+  if (SIZE * scale >= DETAIL_PX) drawHexes(ctx, w.seed, inView, known, edge);
+  else {
+    const pic = mapPicture(w.seed, known, w.revealed.length, edge);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(pic.canvas, pic.b.x, pic.b.y, pic.b.w, pic.b.h);
+  }
+  // (sizes in map units, never smaller than a few pixels on screen)
+  const px = n => n / scale;
+  for (const h of inView) {
+    const key = hexKey(...h);
+    if (known(key) && isLair(w.seed, h)) { const [x, y] = center(h); paint(ctx, LAIR, x, y); }
+  }
+  const outline = (key, color, width, dash = []) => {
+    const h = parseKey(key);
+    if (!h) return;
+    const [x, y] = center(h);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.setLineDash(dash.map(px));
+    ctx.lineWidth = Math.max(width, px(2));
+    ctx.strokeStyle = color;
+    ctx.stroke(hexPath());
+    ctx.restore();
+  };
+  if (hover && hover !== selected) outline(hover, ink, 2.5);
+  if (focusKey && document.activeElement === mapCanvas) outline(focusKey, ink, 3, [5, 4]);
+  if (selected) outline(selected, accent, 4);
+  // where each party is by now: waiting somewhere, or along its way
+  for (const e of w.expeditions) {
+    const i = e.leg ? positionOf(S, e, t) : null;
+    const key = !e.leg ? e.at : i < 0 ? e.leg.from : e.leg.path[i];
+    const [x, y] = center(parseKey(key));
+    const r = Math.max(8, px(7)), cx = x + Math.max(12, px(9)), cy = y - Math.max(12, px(9));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = e.leg && t >= e.leg.arriveAt ? heart : accent;
+    ctx.fill();
+    ctx.lineWidth = r / 4;
+    ctx.strokeStyle = edge;
+    ctx.stroke();
+    ctx.fillStyle = accentInk;
+    ctx.font = `700 ${(r * 1.25).toFixed(1)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.team.length > 1 ? String(e.team.length) : (unitName(e.team[0])[0] || '?'), cx, cy + r * 0.08);
+  }
+}
+
+// drag to look around, the wheel or two fingers to zoom; a press that doesn't move is a tap on a hex;
+// the arrow keys move between hexes and Enter picks one
 let dragged = false;
 function bindMap(box) {
-  const svg = box.querySelector('#worldMap');
-  if (!svg) return;
-  const set = () => svg.setAttribute('viewBox', [view.x, view.y, view.w, view.h].map(v => v.toFixed(1)).join(' '));
-  const scale = () => view.w / svg.getBoundingClientRect().width;
+  const canvas = mapCanvas = box.querySelector('#worldMap');
   const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
     const w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, view.w * k)), f = w / view.w;
     view = { x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f };
-    set();
+    drawMap();
   };
+  // a point on the screen as a point of the map
+  const at = (clientX, clientY) => {
+    const r = canvas.getBoundingClientRect(), f = lastFit || fit(canvas, view);
+    return [f.x0 + (clientX - r.left) / f.scale, f.y0 + (clientY - r.top) / f.scale];
+  };
+  const keyAt = (clientX, clientY) => hexKey(...hexAt(...at(clientX, clientY)));
+  const pick = key => { if (pickable(key)) { selected = key; message = ''; render(); } };
   const pts = new Map();
   let start = null, pinch = null;
-  svg.addEventListener('pointerdown', e => {
+  canvas.addEventListener('pointerdown', e => {
     pts.set(e.pointerId, [e.clientX, e.clientY]);
     if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, view: { ...view } }; dragged = false; }
     if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), w: view.w }; }
   });
-  svg.addEventListener('pointermove', e => {
-    if (!pts.has(e.pointerId)) return;
+  canvas.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) {
+      // the hex under the pointer, outlined when it can be picked
+      const key = keyAt(e.clientX, e.clientY), on = pickable(key) ? key : null;
+      canvas.style.cursor = on ? 'pointer' : '';
+      if (on !== hover) { hover = on; drawMap(); }
+      return;
+    }
     pts.set(e.pointerId, [e.clientX, e.clientY]);
     if (pts.size === 2 && pinch) {
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -154,24 +231,52 @@ function bindMap(box) {
     if (!start) return;
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
     if (!dragged && Math.hypot(dx, dy) < 6) return;
-    if (!dragged) svg.setPointerCapture(e.pointerId);
+    if (!dragged) canvas.setPointerCapture(e.pointerId);
     dragged = true;
-    const k = scale();
+    const k = 1 / (lastFit ? lastFit.scale : 1);
     view = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
-    set();
+    drawMap();
   });
-  const end = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) start = null; };
-  svg.addEventListener('pointerup', end);
-  svg.addEventListener('pointercancel', end);
-  svg.addEventListener('wheel', e => {
+  const end = e => {
+    const tap = pts.size === 1 && start && !dragged;
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (!pts.size) start = null;
+    if (tap && e.type === 'pointerup') pick(keyAt(e.clientX, e.clientY));
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('pointerleave', () => { if (hover) { hover = null; drawMap(); } });
+  canvas.addEventListener('wheel', e => {
     e.preventDefault();
-    const r = svg.getBoundingClientRect(), k = scale();
-    zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, view.x + (e.clientX - r.left) * k, view.y + (e.clientY - r.top) * k);
+    const [x, y] = at(e.clientX, e.clientY);
+    zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, x, y);
   }, { passive: false });
+  // the keyboard: a hex to stand on, kept in view, read out
+  const say = () => { box.querySelector('#mapFocus').textContent = hexLabel(focusKey) + (pickable(focusKey) ? '' : ' (out of reach)'); };
+  canvas.addEventListener('focus', () => { focusKey = focusKey || selected || '0,0'; say(); drawMap(); });
+  canvas.addEventListener('blur', drawMap);
+  const STEPS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  canvas.addEventListener('keydown', e => {
+    if (STEPS[e.key]) {
+      e.preventDefault();
+      const [q, r] = parseKey(focusKey || '0,0'), [dq, dr] = STEPS[e.key], h = [q + dq, r + dr];
+      if (!inWorld(h)) return;
+      focusKey = hexKey(...h);
+      const [x, y] = center(h);
+      if (x < view.x || x > view.x + view.w || y < view.y || y > view.y + view.h) view = { ...view, x: x - view.w / 2, y: y - view.h / 2 };
+      say();
+      drawMap();
+    } else if ((e.key === 'Enter' || e.key === ' ') && focusKey) { e.preventDefault(); pick(focusKey); }
+    else if (e.key === '+' || e.key === '=') zoom(1 / 1.3);
+    else if (e.key === '-') zoom(1.3);
+  });
   box.querySelectorAll('[data-zoom]').forEach(b => b.addEventListener('click', () => {
-    if (b.dataset.zoom === 'home') { view = { x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 }; set(); }
+    if (b.dataset.zoom === 'home') { view = homeView(); drawMap(); }
     else zoom(b.dataset.zoom === 'in' ? 1 / 1.3 : 1.3);
   }));
+  // the canvas follows the size it is shown at
+  new ResizeObserver(drawMap).observe(canvas);
 }
 
 // what waits there and how a fight would likely go for the chosen explorer
@@ -383,24 +488,19 @@ function render() {
   const box = document.getElementById('worldBox');
   if (!box) return;
   const t = now();
-  box.innerHTML = `
-    <div class="world-layout">
-      <div class="world-map-wrap">${mapSVG(t)}</div>
-      <div class="world-side">
+  // the map is made once and only redrawn; the side is remade
+  if (!box.querySelector('#worldMap')) {
+    box.innerHTML = `<div class="world-layout"><div class="world-map-wrap">${mapHTML()}</div><div class="world-side"></div></div>`;
+    bindMap(box);
+  }
+  box.querySelector('.world-side').innerHTML = `
         <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>
         <section class="panel-box you" id="youBox">${youHTML(t)}</section>
         <section class="panel-box"><h3>Expeditions <span class="hint">${S.world.expeditions.length} / ${EXPEDITION_SLOTS}</span></h3>
           <div id="tripsBox">${tripsHTML(t)}</div>
           ${message ? `<p class="hint" role="status">${message}</p>` : ''}
-        </section>
-      </div>
-    </div>`;
-  bindMap(box);
-  box.querySelectorAll('.hex[tabindex]').forEach(g => {
-    const pick = () => { selected = g.dataset.key; message = ''; render(); };
-    g.addEventListener('click', () => { if (!dragged) pick(); });
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
-  });
+        </section>`;
+  drawMap();
   box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 110));
   box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {
     const index = +box.querySelector(`select[data-arms-slot="${btn.dataset.arms}"]`).value;
@@ -480,6 +580,8 @@ function tickTrips() {
   if (backKey(t) !== shownBack) { render(); return; }
   box.innerHTML = tripsHTML(t);
   bindTrips(box);
+  // (the parties move on the map)
+  drawMap();
 }
 
 // the timers and the "back!" badge on the tab keep moving while the page is open
