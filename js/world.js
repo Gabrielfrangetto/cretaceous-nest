@@ -6,15 +6,14 @@
 // A party's team is up to TEAM_SLOTS units, each { kind: 'dino' | 'player' | 'pack', id, members: [id] }
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
-  BIOMES, ITEMS, MAP_VERSION, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
+  BIOMES, ITEMS, MAP_VERSION, WORLD_SEED, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
 } from './config.js';
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
-import { hashId } from './util.js';
-import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath } from './map.js';
+import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf } from './map.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -30,7 +29,11 @@ export const neighbors = mapNeighbors;
 export const ALL_HEXES = MAP_HEXES;
 // the land hexes of a world: where expeditions can go
 export const landHexes = seed => ALL_HEXES.filter(h => !isWater(seed, h));
-export { isWater, cellAt, travelCost, travelPath };
+export { isWater, cellAt, travelCost, travelPath, citiesOf };
+// how far a hex is from the nearest settlement (the nest or a city): the calm around them, and the big
+// predators kept away (NEST_CALM, NEST_FAR)
+export const nearOf = (seed, h) => { const c = cellAt(seed, h); return c ? c.near : Infinity; };
+export const cityAt = (seed, h) => (cellAt(seed, h) || {}).city || null;
 
 // a hash of a hex, for what is fixed about it (lairs)
 function mix(x) {
@@ -59,16 +62,16 @@ export function pickWeighted(list, rand) {
   return list[list.length - 1].type;
 }
 
-// lairs: a few hexes away from the nest where an animal always waits, stronger
-export const isLair = (seed, h) => hexDist(h) > NEST_CALM && !isWater(seed, h) && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
+// lairs: a few hexes away from any settlement, where an animal always waits, stronger
+export const isLair = (seed, h) => nearOf(seed, h) > NEST_CALM && !isWater(seed, h) && cell(seed, 0x27d4eb2f, ...h) < LAIR_SHARE;
 const isPredatorEntry = e => (e.creature ? true : (SPECIES[e.species].role || 'attacker') === 'attacker');
 const isBigPredator = e => isPredatorEntry(e) && sizeRank(e.creature ? CREATURES[e.creature].size : SPECIES[e.species].size) >= sizeRank('large');
-// the wild animals of a hex's biome that can live there: no predators near the nest, no big ones
-// within NEST_FAR of it (a newcomer doesn't run into a Tyrannosaurus by chance)
+// the wild animals of a hex's biome that can live there: no predators near a settlement (the nest or a
+// city), no big ones within NEST_FAR of one (a newcomer doesn't run into a Tyrannosaurus by chance)
 export const wildFor = (seed, h) => {
   const all = BIOMES[biomeAt(seed, h)].wild;
-  const list = hexDist(h) > NEST_FAR ? all : all.filter(e => !isBigPredator(e)).length ? all.filter(e => !isBigPredator(e)) : all;
-  if (hexDist(h) > NEST_CALM) return list;
+  const list = nearOf(seed, h) > NEST_FAR ? all : all.filter(e => !isBigPredator(e)).length ? all.filter(e => !isBigPredator(e)) : all;
+  if (nearOf(seed, h) > NEST_CALM) return list;
   // (a biome of nothing but predators: the meadow's small ones wander in instead)
   const calm = list.filter(e => !isPredatorEntry(e));
   return calm.length ? calm : BIOMES.meadow.wild.filter(e => !isPredatorEntry(e));
@@ -93,14 +96,12 @@ export function threatAt(seed, h) {
   };
 }
 
-export function newWorld(seed) {
+export function newWorld(seed = WORLD_SEED) {
   const home = [0, 0];
   return { seed, map: MAP_VERSION, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [] };
 }
 
-// a seed for saves made before the world existed: taken from the save itself, so the browser and
-// the server come up with the same one
-export const seedFor = s => hashId('world:' + ((s.hatched || []).map(b => b && b.id).join('|') || s.updatedAt || 'nest')) || 1;
+
 
 // ---------- what the player can see and reach ----------
 // an explorer: one of the dinosaurs, or the player's own explorer
@@ -224,6 +225,8 @@ export function exploreProblem(s, team, key, now) {
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
   if (isWater(W(s).seed, h)) return 'water';
+  // another tribe's city: its people keep to themselves, for now
+  if (cityAt(W(s).seed, h)) return 'city';
   if (!canReach(s, key)) return 'unreachable';
   const members = units.flatMap(u => u.members);
   if (new Set(members).size !== members.length) return 'twice';
@@ -434,7 +437,7 @@ export function routeRisk(s, team, key) {
   const seen = new Map();
   for (const p of path) {
     const last = hexKey(...p) === key;
-    if (hexDist(p) <= NEST_CALM && !last) continue;
+    if (nearOf(seed, p) <= NEST_CALM && !last) continue;
     const biome = biomeAt(seed, p), known = isRevealed(s, hexKey(...p));
     // what lives there: the one known, or any of the biome's
     const kinds = known ? [threatAt(seed, p)] : BIOMES[biome].wild.map(e => ({ entry: e, lair: false, chance: BIOMES[biome].density, foe: encounterUnit(e, AGES.adult.step, false), weight: e.weight }));
@@ -448,7 +451,7 @@ export function routeRisk(s, team, key) {
     }
     if (!last) pass *= 1 - p0;
   }
-  return { stopped: 1 - pass, crosses: [...new Set(path.slice(0, -1).filter(p => hexDist(p) > NEST_CALM).map(p => biomeAt(seed, p)))], foes: [...seen.values()] };
+  return { stopped: 1 - pass, crosses: [...new Set(path.slice(0, -1).filter(p => nearOf(seed, p) > NEST_CALM).map(p => biomeAt(seed, p)))], foes: [...seen.values()] };
 }
 
 // whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
@@ -486,14 +489,14 @@ export const standoffOf = threat => ({
 
 // keeps a loaded world inside the rules whatever produced it
 export function cleanWorld(world, s) {
-  let w = world && typeof world === 'object' ? world : newWorld(seedFor(s));
-  // a world made before the map it is played on: the new map starts unexplored (the same seed, the
-  // trips counted on), and teams out on the old one are home
-  if (w.map !== MAP_VERSION) w = { ...newWorld(Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s)), trips: Math.max(0, Math.floor(Number(w.trips) || 0)) };
+  let w = world && typeof world === 'object' ? world : newWorld();
+  // a world made before the map it is played on, or on another continent: everyone's continent starts
+  // unexplored (the trips counted on), and teams out on the old one are home
+  if (w.map !== MAP_VERSION || w.seed !== WORLD_SEED) w = { ...newWorld(), trips: Math.max(0, Math.floor(Number(w.trips) || 0)) };
   const keys = list => [...new Set((Array.isArray(list) ? list : []).filter(k => inWorld(parseKey(k))))];
-  const home = newWorld(1);
+  const home = newWorld();
   return {
-    seed: Number.isInteger(w.seed) && w.seed > 0 ? w.seed : seedFor(s),
+    seed: WORLD_SEED,
     map: MAP_VERSION,
     revealed: keys([...home.revealed, ...keys(w.revealed)]),
     visited: keys([...home.visited, ...keys(w.visited)]),

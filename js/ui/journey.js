@@ -96,7 +96,9 @@ function drawMap() {
   ctx.fillStyle = '#2b3a46';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
-  drawHexes(ctx, S.world.seed, hexesIn(f.x0, f.y0, f.x0 + f.width / scale, f.y0 + f.height / scale), () => true, cssVar('--panel'));
+  // (a long way drawn small: plainer hexes)
+  const detail = SIZE * scale >= 9 ? 'full' : SIZE * scale >= 3 ? 'plain' : 'dots';
+  drawHexes(ctx, S.world.seed, hexesIn(f.x0, f.y0, f.x0 + f.width / scale, f.y0 + f.height / scale), () => true, cssVar('--panel'), detail);
   // the ways: the one being told bright, the others faint
   for (const l of fb.legs.values()) {
     const now = l === fb.leg;

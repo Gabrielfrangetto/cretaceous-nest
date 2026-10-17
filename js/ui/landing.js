@@ -1,7 +1,7 @@
 // The landing page shown before sign-in (index.html #landing): fills each section's picture with the
 // game's own art, slides sections in from alternating sides as they scroll into view, and opens the
 // sign-in window from every Play button.
-import { SPECIES, STARTERS } from '../config.js';
+import { SPECIES, STARTERS, WORLD_SEED } from '../config.js';
 import { eggSVG, babyArt, dressedArt, playerArt } from '../art.js';
 import { sampleMapSVG } from './world.js';
 import { openSignIn } from './gate.js';
@@ -26,7 +26,7 @@ const ART = {
       el('art-stage', dressedArt('rex', 5.2, 'm', null, null, stage), label(stage[0].toUpperCase() + stage.slice(1)))));
   },
   explore() {
-    return el('art-map', sampleMapSVG(7, 2));
+    return el('art-map', sampleMapSVG(WORLD_SEED, 2));
   },
   fight() {
     const foe = babyArt('raptor', 5.5, 'm');

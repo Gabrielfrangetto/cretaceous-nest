@@ -21,7 +21,7 @@ import { addItem, earn, hungerEvery, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt } from './map.js';
 import {
-  hexKey, parseKey, hexDist, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
+  hexKey, parseKey, hexDist, nearOf, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
   runnersSpot, eyesChance, standsGround, standoffOf, chaseOf, witnessAt, interveneOptions, lootTable, eggKinds, pickWeighted, bury,
 } from './world.js';
@@ -213,7 +213,7 @@ const reveal = (s, keys) => {
 // anything else by how much the team stands out
 function wayEvent(ctx, idx) {
   const { s, p } = ctx, w = W(s), key = p.leg.path[idx], h = parseKey(key);
-  if (hexDist(h) <= NEST_CALM) return null;
+  if (nearOf(w.seed, h) <= NEST_CALM) return null;
   const units = standingUnits(s, p);
   if (!units.length) return null;
   const rand = seededRand(`way:${w.seed}:${p.leg.n}:${idx}`);

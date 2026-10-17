@@ -33,7 +33,7 @@ test('trips that come home can find an egg of the biome, with genes for its dist
   s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
   const champ = { id: 'c', type: 'rex', sex: 'm', name: 'C', at: 0, gen: 1, fed: 30, lastFed: T0, genes: { str: 100, agi: 100, vit: 100, res: 100 }, equip: {} };
   s.hatched.push(champ);
-  const far = landHexes(42).find(h => hexDist(h) === 4 && biomeAt(42, h) === 'forest');
+  const far = landHexes(42).find(h => hexDist(h) >= 4 && biomeAt(42, h) === 'forest');
   const key = hexKey(...far);
   let egg = null, t = T0;
   for (let i = 0; i < 60 && !egg; i++) {

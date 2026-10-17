@@ -9,6 +9,7 @@ import {
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { legMins, positionOf } from '../journey.js';
+import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
@@ -19,7 +20,7 @@ import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
-import { fit, drawHexes, mapPicture, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
+import { fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
@@ -37,6 +38,7 @@ export function sampleMapSVG(seed, seen = 3) {
 const PROBLEMS = {
   'too-young': 'Babies stay in the nest. Feed it until it is a juvenile.',
   away: 'Already exploring.',
+  city: 'A city of another tribe. Its people keep to themselves, for now.',
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
@@ -95,7 +97,8 @@ const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured'
 
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;
-const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = SIZE * SQ3 * 60;
+// (zoomed all the way out, the whole continent)
+const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds().w * 1.05;
 // the map as drawn: a canvas, the zoom buttons, the legend; a line read out for the hex the keyboard is on
 function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
@@ -121,7 +124,7 @@ function hexLabel(key) {
 // The map, drawn on the canvas once a frame at most (drawMap asks for it): the hexes in view, one by
 // one close up or the continent's picture from afar; then lairs, the hex picked, the one under the
 // pointer or the keyboard, and where each party is
-let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null;
+let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null, warmed = '';
 function drawMap() {
   if (!mapCanvas || frame) return;
   frame = requestAnimationFrame(() => { frame = 0; paintMap(); });
@@ -140,19 +143,36 @@ function paintMap() {
   const knownSet = new Set(w.revealed), known = k => knownSet.has(k);
   const edge = cssVar('--panel'), accent = cssVar('--accent'), ink = cssVar('--ink'), heart = cssVar('--heart'), accentInk = cssVar('--accent-ink');
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
-  const inView = hexesIn(f.x0, f.y0, x1, y1);
-  if (SIZE * scale >= DETAIL_PX) drawHexes(ctx, w.seed, inView, known, edge);
-  else {
-    const pic = mapPicture(w.seed, known, w.revealed.length, edge);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(pic.canvas, pic.b.x, pic.b.y, pic.b.w, pic.b.h);
-  }
+  const close = SIZE * scale >= DETAIL_PX;
+  const inView = close || SIZE * scale >= 6 ? hexesIn(f.x0, f.y0, x1, y1) : [];
+  if (close) drawHexes(ctx, w.seed, inView, known, edge);
+  else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, edge)) drawMap();
+  // the blurriest tiles of the whole map, drawn ahead once the map is up
+  const sig = `${w.seed}|${w.revealed.length}|${edge}`;
+  if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, edge), 400); }
   // (sizes in map units, never smaller than a few pixels on screen)
   const px = n => n / scale;
+  // lairs, once a hex is big enough to show one
   for (const h of inView) {
     const key = hexKey(...h);
     if (known(key) && isLair(w.seed, h)) { const [x, y] = center(h); paint(ctx, LAIR, x, y); }
   }
+  // the cities' names, and the nest's
+  ctx.save();
+  ctx.font = `700 ${px(12).toFixed(2)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.lineJoin = 'round';
+  for (const c of [{ h: [0, 0], name: 'Your nest' }, ...citiesOf(w.seed)]) {
+    const [x, y] = center(c.h), ty = y + Math.max(SIZE * 0.75, px(8));
+    if (x < f.x0 - px(80) || x > x1 + px(80) || y < f.y0 - px(40) || y > y1 + px(40)) continue;
+    ctx.lineWidth = px(3);
+    ctx.strokeStyle = 'rgba(20, 24, 18, .75)';
+    ctx.strokeText(c.name, x, ty);
+    ctx.fillStyle = '#fff6dc';
+    ctx.fillText(c.name, x, ty);
+  }
+  ctx.restore();
   const outline = (key, color, width, dash = []) => {
     const h = parseKey(key);
     if (!h) return;
@@ -382,6 +402,8 @@ function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
     <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home, and dinosaurs come home hungry.</p>`;
   const h = parseKey(selected), d = hexDist(h);
+  const city = cityAt(S.world.seed, h);
+  if (city) return `<h3>${esc(city)}</h3><p class="hint">A city of another tribe, ${plural(d, 'hex', 'hexes')} from your nest. Its people keep to themselves for now; one day there may be trade and travel between your nests. Around it the land is calm, as around yours: no predator hunts there.</p>`;
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);

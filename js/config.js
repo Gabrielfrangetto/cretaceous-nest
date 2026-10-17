@@ -351,9 +351,18 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // the nest north rows below the top and west columns from the left. land: the share of it that is
 // land; hills, mountains: the share of the land above those heights; volcanoes: hot spots; rivers:
 // springs high in the wet hills. Near the nest (calm, in hexes) the land is a lowland of ferns.
+// scale: how broad the land's shapes are (mountain ranges, wet and dry lands). cities: the other tribes'
+// settlements, at least cityFromNest hexes from the nest and citySpacing from each other.
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
-export const MAP_VERSION = 2;
-export const MAP = { cols: 80, rows: 56, north: 15, west: 40, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 4, rivers: 26, lakes: 6, calm: 3 };
+export const MAP_VERSION = 3;
+export const MAP = {
+  cols: 300, rows: 200, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 16, rivers: 150, lakes: 60, calm: 3,
+  scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40,
+};
+// One world for everyone: every player explores the same continent (what each has found is their own)
+export const WORLD_SEED = 1802;
+// the other tribes' cities, named in the order they are placed
+export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater', 'Mossbank', 'Redcliff', 'Thornfield', 'Greywillow', 'Highfen', 'Duskmere', 'Saltmarsh', 'Ironroot'];
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack

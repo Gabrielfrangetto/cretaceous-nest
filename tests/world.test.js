@@ -8,7 +8,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
@@ -51,6 +51,29 @@ test("every map has every biome, a calm meadow around the nest, rivers and lakes
   }
 });
 
+test("the other tribes' cities: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
+  const { citiesOf, cityAt, nearOf } = await import('../js/world.js');
+  const cities = citiesOf(WORLD_SEED);
+  assert.equal(cities.length, MAP.cities);
+  assert.equal(new Set(cities.map(c => c.name)).size, cities.length);
+  for (const c of cities) {
+    assert.ok(hexDist(c.h) >= MAP.cityFromNest, c.name);
+    for (const o of cities) if (o !== c) assert.ok(hexDist([c.h[0] - o.h[0], c.h[1] - o.h[1]]) >= MAP.citySpacing);
+    assert.equal(cityAt(WORLD_SEED, c.h), c.name);
+    assert.equal(travelCost(WORLD_SEED, c.h) < Infinity, true);
+    for (const h of landHexes(WORLD_SEED).filter(h => hexDist([h[0] - c.h[0], h[1] - c.h[1]]) <= MAP.calm)) {
+      assert.equal(biomeAt(WORLD_SEED, h), 'meadow');
+      assert.ok(nearOf(WORLD_SEED, h) <= MAP.calm);
+      const th = threatAt(WORLD_SEED, h);
+      assert.equal(th.lair, false);
+      assert.notEqual(th.entry.species && SPECIES[th.entry.species].role, 'attacker');
+    }
+  }
+  const s = game(dino('ad', 30));
+  s.world = newWorld();
+  assert.equal(exploreProblem(s, 'ad', hexKey(...cities[0].h), T0), 'city');
+});
+
 test('an open world: what lives around the nest is known, and any land can be explored, by the easiest way', () => {
   const s = game();
   assert.equal(s.world.revealed.length, 7);
@@ -59,7 +82,7 @@ test('an open world: what lives around the nest is known, and any land can be ex
   // however far: the danger is the player's to weigh
   const far = landHexes(42).at(-1);
   assert.equal(canReach(s, hexKey(...far)), true);
-  assert.equal(canReach(s, '99,0'), false);
+  assert.equal(canReach(s, '400,0'), false);
   // a trip takes as long as the way there is hard: farther, longer
   assert.ok(tripMins('1,0', 42) >= 1 && tripMins('3,0', 42) > tripMins('1,0', 42));
   // open water: no one goes there
@@ -79,7 +102,7 @@ test('who can explore: juveniles and adults anywhere, never babies, hungry or bu
   assert.equal(exploreProblem(s, 'juv', '1,0', T0), null);
   assert.equal(exploreProblem(s, 'ad', far, T0), null);
   assert.equal(exploreProblem(s, 'ad', '0,0', T0), 'home');
-  assert.equal(exploreProblem(s, 'ad', '50,0', T0), 'out-of-map');
+  assert.equal(exploreProblem(s, 'ad', '400,0', T0), 'out-of-map');
   assert.equal(exploreProblem(s, 'ad', '1,0', T0 + 10 * 60000), 'hungry');
   s.breeding = { type: 'rex', maleId: 'ad', femaleId: 'ad2', startedAt: T0, readyAt: T0 + 1 };
   assert.equal(exploreProblem(s, 'ad', '1,0', T0), 'breeding');
@@ -248,28 +271,36 @@ test("what lives in a hex is of an age: young, old, adult or in its prime (a lai
   assert.deepEqual(lootTable(s, hexKey(...meadows[0])), lootTable(s, hexKey(...meadows.at(-1))));
 });
 
-test('older saves get a world from their own contents, and loaded worlds are cleaned', () => {
+test("everyone explores the same continent: older saves and saves on another one start over on it, and loaded worlds are cleaned", () => {
   const old = freshState();
   delete old.world;
   old.saveVersion = 7;
   old.hatched.push(dino('ad', 30));
-  const a = migrate(old), b = migrate(JSON.parse(JSON.stringify(old)));
+  const a = migrate(old);
   assert.equal(a.saveVersion, SAVE_VERSION);
-  assert.equal(a.world.seed, b.world.seed);
+  assert.equal(a.world.seed, WORLD_SEED);
   assert.equal(a.world.revealed.length, 7);
+  assert.equal(freshState().world.seed, WORLD_SEED);
+  // a world on another continent, or an older map, is everyone's continent unexplored
+  const other = game(dino('ad', 30));
+  other.world.revealed.push('3,0');
+  other.world.trips = 9;
+  const moved = migrate(other).world;
+  assert.deepEqual([moved.seed, moved.revealed.length, moved.trips], [WORLD_SEED, 7, 9]);
 
   const s = game(dino('ad', 30));
-  s.world.revealed.push('99,99', 'junk');
+  s.world = newWorld();
+  s.world.revealed.push('999,999', 'junk');
   s.world.expeditions.push({ id: 'x', babyId: 'ghost', hex: '1,0', trip: 1, startedAt: T0, returnAt: T0 });
   s.world.expeditions.push({ id: 'y', babyId: 'ad', hex: '3,0', trip: 1, startedAt: T0, returnAt: T0 });
   const clean = migrate(s);
-  assert.ok(!clean.world.revealed.includes('99,99') && !clean.world.revealed.includes('junk'));
+  assert.ok(!clean.world.revealed.includes('999,999') && !clean.world.revealed.includes('junk'));
   assert.equal(clean.world.expeditions.length, 1);
   // a trip from before journeys is a leg from the nest, never shorter than it really is
   const p = clean.world.expeditions[0];
   assert.deepEqual([p.at, p.leg.from, p.leg.to, p.leg.step], ['0,0', '0,0', '3,0', 0]);
   assert.equal(p.leg.arriveAt, T0 + legMins(clean, ['ad'], '0,0', '3,0') * 60000);
-  assert.deepEqual(p.leg.path, travelPath(42, [3, 0]).map(h => hexKey(...h)));
+  assert.deepEqual(p.leg.path, travelPath(WORLD_SEED, [3, 0]).map(h => hexKey(...h)));
   // what a party carries must exist, and its decision belongs to its leg
   s.world = clean.world;
   Object.assign(p, { carry: { items: { leaf: 3, junk: 9 }, coins: -5, eggs: [{ type: 'nope' }] }, pending: { kind: 'go-on', idx: 5 }, health: { ad: 7 } });
@@ -281,6 +312,8 @@ test('older saves get a world from their own contents, and loaded worlds are cle
 
 test('a guest game brought into an account loses trips in progress', () => {
   const s = game(dino('ad', 30));
+  s.world = newWorld();
   applyAction(s, 'explore', { babyId: 'ad', hex: '1,0' }, T0);
+  assert.equal(migrate(s).world.expeditions.length, 1);
   assert.equal(capGuestSave(migrate(s), T0).world.expeditions.length, 0);
 });

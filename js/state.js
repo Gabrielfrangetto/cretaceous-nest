@@ -3,7 +3,7 @@
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
 import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
-import { newWorld, seedFor, cleanWorld } from './world.js';
+import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
 import { cleanPacks } from './packs.js';
 
@@ -22,7 +22,7 @@ export function freshState() {
     tutorial: { seen: [] },   // the guide's tips already shown
     packs: [],                 // groups of pack-hunting dinosaurs (packs.js)
     // a new map for every new game
-    world: newWorld(Math.floor(Math.random() * 2147483646) + 1),
+    world: newWorld(),
   };
   for (const [id, n] of STARTER) addItem(s, id, n);
   return s;
@@ -87,7 +87,7 @@ const MIGRATIONS = {
   },
   // v7: before the world map
   7: s => {
-    s.world = newWorld(seedFor(s));
+    s.world = newWorld();
     return s;
   },
   // v8: before starters; games that already exist are past that point

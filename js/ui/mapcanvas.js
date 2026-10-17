@@ -1,8 +1,8 @@
-// The world map drawn on a canvas: thousands of hexes stay smooth to drag and zoom. Close up, the hexes
-// in view are drawn one by one with their little drawings; from afar, a picture of the whole continent,
-// drawn once, is shown instead. The little drawings are the same SVG snippets as everywhere else
+// The world map drawn on a canvas: tens of thousands of hexes stay smooth to drag and zoom. Close up,
+// the hexes in view are drawn one by one with their little drawings; from afar, tiles of the map drawn
+// once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
-import { ALL_HEXES, hexKey, cellAt } from '../world.js';
+import { ALL_HEXES, hexKey, cellAt, inWorld as inMap } from '../world.js';
 import { SIZE, SQ3, center, fillOf, glyphOf, NEST } from './hexdraw.js';
 
 // ---------- SVG snippets as canvas paths ----------
@@ -59,56 +59,112 @@ export function hexPath(k = 0.96) {
 // the colours of the page's theme, for what the canvas draws
 export const cssVar = (name, el = document.documentElement) => getComputedStyle(el).getPropertyValue(name).trim();
 
+// a city of another tribe: huts behind a palisade
+export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5"/><path d="M-13 9 L-8 -1 L-3 9Z" fill="#8a5a2b"/><path d="M-4 9 L2 -8 L8 9Z" fill="#a8743c"/><path d="M5 9 L9.5 1 L14 9Z" fill="#8a5a2b"/><path d="M2 -8 L2 -13 L6 -11.5 L2 -10" fill="#d2493f" stroke="#5b3a1e" stroke-width="1"/>';
+
 // Draws hexes with their colour, outline and little drawing; known(key) false: not yet explored, drawn
-// a little dimmer. edge: the outline's colour.
-export function drawHexes(ctx, seed, hexes, known, edge) {
-  const shape = hexPath();
+// a little dimmer. edge: the outline's colour. detail: how much to draw, for how big a hex looks:
+// 'full' (outline and drawing), 'plain' (colour and outline), 'dots' (squares of colour, from very far)
+export function drawHexes(ctx, seed, hexes, known, edge, detail = 'full') {
+  const shape = hexPath(detail === 'full' ? 0.96 : 1);
+  const dim = 'rgba(30, 34, 28, .16)';
   ctx.setLineDash([]);
   ctx.lineWidth = 2;
   ctx.strokeStyle = edge;
+  if (detail === 'dots') {
+    const w = SIZE * SQ3, h = SIZE * 1.5;
+    for (const hx of hexes) {
+      const [x, y] = center(hx), cell = cellAt(seed, hx);
+      ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : fillOf(cell);
+      ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5);
+      if (!isWaterCell(cell) && !known(hexKey(...hx))) { ctx.fillStyle = dim; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
+    }
+    return;
+  }
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
-    const water = cell.terrain === 'ocean' || cell.terrain === 'lake', dim = !water && !known(key);
+    const faint = !isWaterCell(cell) && !known(key);
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = fillOf(cell);
     ctx.fill(shape);
-    if (dim) { ctx.fillStyle = 'rgba(30, 34, 28, .16)'; ctx.fill(shape); }
-    ctx.stroke(shape);
+    if (faint) { ctx.fillStyle = dim; ctx.fill(shape); }
+    if (detail === 'full') ctx.stroke(shape);
     ctx.restore();
-    paint(ctx, key === '0,0' ? NEST : glyphOf(cell), x, y, dim ? 0.7 : 1);
+    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : cell.river ? glyphOf(cell) : '';
+    if (art && (detail === 'full' || key === '0,0' || cell.city || cell.river)) paint(ctx, art, x, y, faint ? 0.7 : 1);
   }
 }
+const isWaterCell = c => c.terrain === 'ocean' || c.terrain === 'lake';
 
 // the map's extent, in map units: { x, y, w, h }
 let bounds = null;
 export function mapBounds() {
   if (!bounds) {
-    const xs = ALL_HEXES.map(h => center(h)[0]), ys = ALL_HEXES.map(h => center(h)[1]);
-    const x = Math.min(...xs) - SIZE, y = Math.min(...ys) - SIZE;
-    bounds = { x, y, w: Math.max(...xs) + SIZE - x, h: Math.max(...ys) + SIZE - y };
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const h of ALL_HEXES) { const [x, y] = center(h); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    bounds = { x: x0 - SIZE, y: y0 - SIZE, w: x1 - x0 + SIZE * 2, h: y1 - y0 + SIZE * 2 };
   }
   return bounds;
 }
 
-// The whole continent as one picture (k pixels a map unit), drawn once for a map and what of it is
-// known, for the view from afar
-const pictures = new Map();
-export function mapPicture(seed, known, sig, edge, k = 0.5) {
-  const id = `${seed}|${sig}|${edge}|${k}`;
-  if (pictures.has(id)) return pictures.get(id);
-  const b = mapBounds();
+// ---------- the view from afar, in tiles ----------
+// The map is cut into square tiles drawn at a few sharpnesses (LEVELS, pixels a map unit), each drawn
+// once and kept (the last TILE_KEEP), for the zoom that needs it: the sharpness just above the screen's.
+// A tile not drawn yet is drawn in the next frames (a few a frame), the blurrier one standing in.
+const TILE = 256, LEVELS = [0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 160;
+const tiles = new Map();
+const detailAt = k => (SIZE * k >= 9 ? 'full' : SIZE * k >= 3 ? 'plain' : 'dots');
+function tileOf(seed, known, sig, edge, k, tx, ty) {
+  const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`;
+  if (tiles.has(id)) { const c = tiles.get(id); tiles.delete(id); tiles.set(id, c); return c; }
+  return null;
+}
+function makeTile(seed, known, sig, edge, k, tx, ty) {
+  const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`, b = mapBounds(), span = TILE / k;
+  const ox = b.x + tx * span, oy = b.y + ty * span;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(b.w * k);
-  canvas.height = Math.ceil(b.h * k);
+  canvas.width = canvas.height = TILE;
   const ctx = canvas.getContext('2d');
   ctx.scale(k, k);
-  ctx.translate(-b.x, -b.y);
-  drawHexes(ctx, seed, ALL_HEXES, known, edge);
-  pictures.clear();
-  const pic = { canvas, k, b };
-  pictures.set(id, pic);
-  return pic;
+  ctx.translate(-ox, -oy);
+  drawHexes(ctx, seed, hexesIn(ox, oy, ox + span, oy + span), known, edge, detailAt(k));
+  tiles.set(id, canvas);
+  while (tiles.size > TILE_KEEP) tiles.delete(tiles.keys().next().value);
+  return canvas;
+}
+// Draws the tiles covering the view (f: from fit); returns whether some are still to be drawn (then
+// ask for another frame). sig: what of the map is known (when it changes, the tiles are drawn anew).
+export function drawTiles(ctx, seed, f, known, sig, edge) {
+  const b = mapBounds(), need = f.scale * f.dpr;
+  const k = [...LEVELS].reverse().find(l => l >= need) || LEVELS[0];
+  const span = TILE / k;
+  const x1 = f.x0 + f.width / f.scale, y1 = f.y0 + f.height / f.scale;
+  const tx0 = Math.max(0, Math.floor((f.x0 - b.x) / span)), tx1 = Math.min(Math.ceil(b.w / span) - 1, Math.floor((x1 - b.x) / span));
+  const ty0 = Math.max(0, Math.floor((f.y0 - b.y) / span)), ty1 = Math.min(Math.ceil(b.h / span) - 1, Math.floor((y1 - b.y) / span));
+  let budget = 6, missing = false;
+  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    let tile = tileOf(seed, known, sig, edge, k, tx, ty);
+    if (!tile && budget > 0) { tile = makeTile(seed, known, sig, edge, k, tx, ty); budget--; }
+    const x = b.x + tx * span, y = b.y + ty * span;
+    if (tile) { ctx.drawImage(tile, x, y, span, span); continue; }
+    missing = true;
+    // a blurrier tile that covers this one, if there is one
+    for (const l of LEVELS.filter(l => l < k)) {
+      const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2);
+      const up = tileOf(seed, known, sig, edge, l, px, py);
+      if (!up) continue;
+      const fx = (x - b.x - px * s2) / s2 * TILE, fy = (y - b.y - py * s2) / s2 * TILE, fw = span / s2 * TILE;
+      ctx.drawImage(up, fx, fy, fw, fw, x, y, span, span);
+      break;
+    }
+  }
+  return missing;
+}
+// draws the blurriest tiles of the whole map ahead of time, so the first look from afar is ready
+export function warmTiles(seed, known, sig, edge) {
+  const b = mapBounds(), k = LEVELS.at(-1), span = TILE / k;
+  for (let ty = 0; ty * span < b.h; ty++) for (let tx = 0; tx * span < b.w; tx++) if (!tileOf(seed, known, sig, edge, k, tx, ty)) makeTile(seed, known, sig, edge, k, tx, ty);
 }
 
 // the hex under a point of the map (map units), as [q, r]
@@ -135,10 +191,15 @@ export function fit(canvas, view) {
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, -x0 * dpr * scale, -y0 * dpr * scale);
   return { ctx, scale, width: w, height: h, x0, y0, dpr };
 }
-// the hexes whose centre falls inside a box of the map (with a hex's margin)
-export const hexesIn = (x0, y0, x1, y1) => ALL_HEXES.filter(h => {
-  const [x, y] = center(h);
-  return x > x0 - SIZE * 2 && x < x1 + SIZE * 2 && y > y0 - SIZE * 2 && y < y1 + SIZE * 2;
-});
+// the hexes whose centre falls inside a box of the map (with a hex's margin), row by row
+export function hexesIn(x0, y0, x1, y1) {
+  const out = [], rowH = SIZE * 1.5, colW = SIZE * SQ3;
+  const r0 = Math.floor((y0 - SIZE * 2) / rowH), r1 = Math.ceil((y1 + SIZE * 2) / rowH);
+  for (let r = r0; r <= r1; r++) {
+    const q0 = Math.floor((x0 - SIZE * 2) / colW - r / 2), q1 = Math.ceil((x1 + SIZE * 2) / colW - r / 2);
+    for (let q = q0; q <= q1; q++) if (inMap([q, r])) out.push([q, r]);
+  }
+  return out;
+}
 // how big a hex must look (radius in pixels) to be drawn one by one with its drawing
 export const DETAIL_PX = 15;

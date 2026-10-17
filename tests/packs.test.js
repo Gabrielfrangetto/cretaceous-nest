@@ -115,6 +115,8 @@ test('no pack of Compsognathus can hurt a Tyrannosaurus: its hide stops even a p
 
 test('older saves turn a one-explorer trip into a team of one', () => {
   const s = game(dino('a', 'dilo'));
+  // (on everyone's continent: a save on another is started over)
+  s.world = newWorld();
   s.saveVersion = 11;
   delete s.packs;
   s.world.expeditions = [{ id: 't1', babyId: 'a', hex: '1,0', trip: 1, startedAt: T0, returnAt: T0 + tripMins('1,0') * 60000 }];
@@ -214,6 +216,8 @@ test('only a won fight that went into a frenzy drops Allosaurus teeth and blood,
       const r = applyAction(s, 'explore', { team: ids.map(id => ({ kind: 'dino', id })), hex: key }, T0);
       assert.equal(r.ok, true, r.reason);
       const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
+      // (something met on the way instead)
+      if (c.intercepted) continue;
       const drops = c.loot.filter(l => l.id in got);
       if (!c.battle || !c.battle.win || !c.battle.frenzy.length) assert.deepEqual(drops, []);
       else got.frenzyWins++;
