@@ -781,7 +781,7 @@ test('the bigger the team, the sooner a predator notices it; Psittacosaurus vani
   assert.ok(teamVisibility(psittas, 'meadow') > teamVisibility([me], 'meadow'));
   // what doesn't hunt doesn't care, and lairs are always met
   const herd = threatAt(42, landHexes(42).find(h => threatAt(42, h).id === 'proto' && !threatAt(42, h).lair));
-  assert.equal(encounterChance(herd, [me], 'badlands', false), herd.chance);
+  assert.equal(encounterChance(herd, [me], 'scrub', false), herd.chance);
 });
 
 test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small foe's limb", async () => {
@@ -814,7 +814,7 @@ test('Gallimimus: twice as fast alone, they see predators first and run, and one
   // and run from
   const lair = lairs(42).find(k => threatAt(42, k.split(',').map(Number)).id === 'rex');
   let ran = 0, caught = 0, fought = 0;
-  for (let trip = 0; trip < 60; trip++) {
+  for (let trip = 0; trip < 200; trip++) {
     const s = game(...['g1', 'g2', 'g3', 'g4'].map(id => dino(id, 60, 'galli')));
     s.world.trips = trip;
     const r = applyAction(s, 'explore', { team: ['g1', 'g2', 'g3', 'g4'].map(id => ({ kind: 'dino', id })), hex: lair }, T0);
@@ -888,7 +888,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   const spino = () => unitOf('s', [{ ...fighterOf(dino('s', 60, 'spino')), fear: undefined }]);
   const foe = wildFighter('rex', 6);
   const { teamWinChance } = await import('../js/combat.js');
-  assert.ok(teamWinChance([spino()], foe, 200, { biome: 'swamp' }) > teamWinChance([spino()], foe, 200, { biome: 'badlands' }));
+  assert.ok(teamWinChance([spino()], foe, 200, { biome: 'swamp' }) > teamWinChance([spino()], foe, 200, { biome: 'scrub' }));
   // its sail: a smaller predator (Allosaurus) keeps away; a Tyrannosaurus (as big as it) doesn't, but
   // may back off after sizing it up, likelier in the water; a lair's Alpha never does
   const { sailBackOff } = await import('../js/world.js');
@@ -901,8 +901,8 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   assert.equal(keepsAway(at('allo', false), aTeam), false);
   const rex = at('rex', false);
   assert.equal(keepsAway(rex, sTeam), false);
-  assert.ok(sailBackOff(rex, sTeam, 'badlands') > 0);
-  assert.ok(sailBackOff(rex, sTeam, 'swamp') > sailBackOff(rex, sTeam, 'badlands'));
+  assert.ok(sailBackOff(rex, sTeam, 'scrub') > 0);
+  assert.ok(sailBackOff(rex, sTeam, 'swamp') > sailBackOff(rex, sTeam, 'scrub'));
   assert.equal(sailBackOff(rex, aTeam, 'swamp'), 0);
   assert.equal(sailBackOff({ ...rex, lair: true }, sTeam, 'swamp'), 0);
   // a herbivore as big (Triceratops) is not a rival: no sizing up
@@ -956,6 +956,8 @@ test('Hypsilophodon: zigzags away from bigger attackers, forages on any trip, an
     s2.world.trips = trip;
     const r = applyAction(s2, 'explore', { team: ids.slice(0, 4).map(id => ({ kind: 'dino', id })), hex: lair }, T0);
     const c = collect(s2, { id: r.expedition.id }, r.expedition.returnAt);
+    // (something met on the way instead)
+    if (c.intercepted) continue;
     if (c.chase) { scattered++; assert.equal(c.chase.scattered, true); assert.equal(c.chase.caught, null); assert.equal(c.battle, null); assert.equal(c.died.length, 0); }
     if (!c.battle || c.battle.win || c.battle.escaped) leaves += c.loot.filter(l => l.id === 'leaf').length ? 1 : 0;
   }

@@ -195,6 +195,10 @@ export function worldMap(seed) {
   const volcanoes = [];
   for (let i = 0; i < N; i++) if (terrain[i] === VOLCANO) volcanoes.push(i);
   const fromVolcano = spread(volcanoes);
+  // how far each hex is from a river on flat ground, over flat ground (the floodplains)
+  const riverFlats = [];
+  for (let i = 0; i < N; i++) if (river[i] && terrain[i] === FLAT) riverFlats.push(i);
+  const fromRiver = spread(riverFlats, n => terrain[n] === FLAT);
   const biome = new Array(N).fill(null);
   for (let i = 0; i < N; i++) {
     if (water(terrain[i])) continue;
@@ -202,9 +206,15 @@ export function worldMap(seed) {
     for (let k = 0; k < 6 && !byWater; k++) { const n = NB[i * 6 + k]; if (n >= 0 && water(terrain[n])) byWater = true; }
     const w = Math.min(1, wet[i] + (byWater ? 0.2 : 0));
     const lowland = terrain[i] === FLAT && height[i] < low;
+    // a strip of flat ground along a river, or along the sea's shore (not cold lands: forest there)
+    const byRiver = fromRiver[i] >= 0 && fromRiver[i] <= MAP.floodplain, bySea = coast[i] >= 1 && coast[i] <= MAP.shore;
+    const mild = heat[i] >= 0.42;
     biome[i] = fromVolcano[i] >= 0 && fromVolcano[i] <= 2 ? 'volcano'
-      : w < 0.3 ? 'badlands'
       : lowland && w > 0.6 && heat[i] > 0.45 ? 'swamp'
+      : terrain[i] === FLAT && mild && byRiver ? 'floodplain'
+      : terrain[i] === FLAT && mild && bySea ? 'coast'
+      : w < 0.18 && heat[i] > 0.55 ? 'desert'
+      : w < 0.3 ? 'scrub'
       : w > 0.58 || heat[i] < 0.42 ? 'forest'
       : 'meadow';
   }

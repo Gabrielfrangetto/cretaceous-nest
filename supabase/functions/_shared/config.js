@@ -187,7 +187,7 @@ export const CHARGE_EXPOSED = 1.25;
 export const OPENING = 0.35;
 // (fishers: BODY fisher { water, land, landAgi } – their blows times water in the water, times land on
 // land; landAgi: on land it keeps only that share of its agility and dodge)
-export const WATER_BIOMES = ['swamp'];
+export const WATER_BIOMES = ['swamp', 'floodplain', 'coast'];
 // creatures take theirs from their size unless they say otherwise; nearer the nest they are younger,
 // with thinner hide (see creatureFighter)
 export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300, colossal: 300 };
@@ -239,7 +239,8 @@ export const ITEMS = {
   // materials brought back from expeditions (for crafting, later)
   feather:      { name: 'Feather', plural: 'feathers', desc: 'Shed by the small feathered dinosaurs of the conifer forests.' },
   clay:         { name: 'Clay', plural: 'clay', desc: 'Soft river clay from the swamps.' },
-  bone:         { name: 'Old bone', plural: 'old bones', desc: 'Sun-bleached bones found in the badlands.' },
+  bone:         { name: 'Old bone', plural: 'old bones', desc: 'Bones bleached by the sun in the dry lands.' },
+  seashell:     { name: 'Seashell', plural: 'seashells', desc: 'A shell from the lagoons, washed up on the beach.' },
   obsidian:     { name: 'Obsidian', plural: 'obsidian', desc: 'Sharp volcanic glass from the slopes of the volcano.' },
   // only from an Allosaurus frenzy (FRENZY_DROPS)
   allo_tooth:   { name: 'Serrated Allosaurus Tooth', plural: 'serrated Allosaurus teeth', desc: 'Lost in a frenzy, when Allosaurus turned on each other. Serrated like a steak knife: they shed and regrew teeth all their lives.' },
@@ -352,12 +353,13 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // land; hills, mountains: the share of the land above those heights; volcanoes: hot spots; rivers:
 // springs high in the wet hills. Near the nest (calm, in hexes) the land is a lowland of ferns.
 // scale: how broad the land's shapes are (mountain ranges, wet and dry lands). cities: the other tribes'
-// settlements, at least cityFromNest hexes from the nest and citySpacing from each other.
+// settlements, at least cityFromNest hexes from the nest and citySpacing from each other. floodplain,
+// shore: how wide (in hexes) the flat strips along rivers and along the sea are.
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
-export const MAP_VERSION = 3;
+export const MAP_VERSION = 4;
 export const MAP = {
   cols: 300, rows: 200, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 16, rivers: 150, lakes: 60, calm: 3,
-  scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40,
+  scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 3,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
 export const WORLD_SEED = 1802;
@@ -397,7 +399,7 @@ export const PACK_BONUS = 0.05;              // +5% damage for each other member
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
 // Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
 // terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
-export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, badlands: 1, forest: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
+export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
 // On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
 // and the team meets it instead of what waits at the end.
@@ -428,24 +430,52 @@ export const WILD = {
     { species: 'coelo', pack: [3, 8], weight: 1, loot: [['meat', 1, 2], ['feather', 1, 1, 0.5]] },
     { species: 'allo', weight: 1, loot: [['meat', 2, 3], ['bone', 1, 2]] },
   ],
-  // the Swamp: hadrosaur herds at the water's edge, where the Deinosuchus waits; the fishers fish
+  // the Swamp (hot marshes and mangroves): the Deinosuchus waits, the fishers fish, now and then a
+  // hadrosaur herd (they live mostly on the floodplains)
   swamp: [
-    { species: 'para', pack: [3, 6], herd: true, weight: 2, loot: [['meat', 2, 4]] },
-    { species: 'hypa', pack: [3, 8], herd: true, weight: 2, loot: [['meat', 2, 4]] },
+    { species: 'para', pack: [3, 6], herd: true, weight: 1, loot: [['meat', 2, 4]] },
+    { species: 'hypa', pack: [3, 8], herd: true, weight: 1, loot: [['meat', 2, 4]] },
     { creature: 'deinosuchus', weight: 2, loot: [['clay', 2, 3], ['meat', 2, 3]] },
     { species: 'bary', weight: 1, loot: [['fish', 2, 3], ['bone', 1, 2]] },
     { species: 'spino', weight: 0.7, loot: [['fish', 2, 4], ['bone', 1, 2]] },
   ],
-  // the Badlands: raptors and Protoceratops (the Fighting Dinosaurs of the Gobi), the great armored
-  // and horned plant eaters, now and then a Tyrannosaurus (it lived beside Triceratops)
-  badlands: [
-    { species: 'proto', pack: [2, 5], herd: true, weight: 2, loot: [['bone', 2, 3]] },
-    { species: 'galli', pack: [3, 6], herd: true, weight: 1.5, loot: [['meat', 1, 2], ['feather', 1, 2]] },
-    { species: 'trike', weight: 1, loot: [['meat', 3, 4], ['bone', 2, 3]] },
-    { species: 'ankylo', weight: 1, loot: [['bone', 2, 4], ['meat', 2, 3]] },
-    { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] },
+  // the Desert Dunes (the Djadokhta of Mongolia): Protoceratops herds and Velociraptor packs (the
+  // Fighting Dinosaurs), an armored Pinacosaurus-like Ankylosaurus, small hunters of lizards and insects
+  desert: [
+    { species: 'proto', pack: [2, 5], herd: true, weight: 2.5, loot: [['bone', 2, 3]] },
     { species: 'raptor', pack: [2, 4], weight: 1.5, loot: [['feather', 2, 3], ['meat', 1, 2]] },
-    { species: 'rex', weight: 0.4, loot: [['meat', 2, 4], ['bone', 2, 3]] },
+    { species: 'ankylo', weight: 1, loot: [['bone', 2, 4], ['meat', 2, 3]] },
+    { species: 'compy', weight: 1, loot: [['meat', 1, 1]] },
+  ],
+  // the Dry Scrubland: open ground of cycads and low ferns, for runners and grazers; a horned
+  // Triceratops now and then, far from its rivers
+  scrub: [
+    { species: 'galli', pack: [3, 6], herd: true, weight: 2, loot: [['meat', 1, 2], ['feather', 1, 2]] },
+    { species: 'psitta', pack: [2, 5], herd: true, weight: 1.5, loot: [['meat', 1, 2], ['feather', 1, 1, 0.3]] },
+    { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] },
+    { species: 'scelido', weight: 1, loot: [['bone', 1, 2], ['meat', 1, 2]] },
+    { species: 'dilo', weight: 1, loot: [['meat', 1, 3]] },
+    { species: 'trike', weight: 0.4, loot: [['meat', 3, 4], ['bone', 2, 3]] },
+  ],
+  // the River Floodplain (Hell Creek, Dinosaur Park): hadrosaur herds on the banks, Triceratops and
+  // Tyrannosaurus side by side, small dromaeosaurs, and Deinosuchus waiting in the water
+  floodplain: [
+    { species: 'hypa', pack: [3, 8], herd: true, weight: 2, loot: [['meat', 2, 4]] },
+    { species: 'para', pack: [3, 6], herd: true, weight: 1.5, loot: [['meat', 2, 4]] },
+    { species: 'trike', weight: 1.2, loot: [['meat', 3, 4], ['bone', 2, 3]] },
+    { species: 'pachy', weight: 1, loot: [['bone', 1, 3], ['meat', 1, 2]] },
+    { species: 'raptor', pack: [2, 4], weight: 1, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+    { creature: 'deinosuchus', weight: 1, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+    { species: 'rex', weight: 0.6, loot: [['meat', 2, 4], ['bone', 2, 3]] },
+  ],
+  // Coast & Lagoons: Compsognathus on the lagoon islands (Solnhofen), the fishers of the deltas (Kem
+  // Kem), Deinosuchus in the estuaries, Psittacosaurus herds on the dunes behind the beach
+  coast: [
+    { species: 'compy', weight: 1.5, loot: [['meat', 1, 1]] },
+    { species: 'psitta', pack: [2, 5], herd: true, weight: 1.5, loot: [['meat', 1, 2], ['feather', 1, 1, 0.3]] },
+    { species: 'bary', weight: 1.2, loot: [['fish', 2, 3], ['bone', 1, 2]] },
+    { creature: 'deinosuchus', weight: 1, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+    { species: 'spino', weight: 0.6, loot: [['fish', 2, 4], ['bone', 1, 2]] },
   ],
   // the Volcanic Slopes: Tyrannosaurus and Allosaurus; herds of giant sauropods nothing hunts
   volcano: [
@@ -461,7 +491,10 @@ export const BIOMES = {
   meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
   forest:   { name: 'Conifer Forest', color: '#5f8f4e', density: 0.5, wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
   swamp:    { name: 'Swamp', color: '#6f8f7a', density: 0.45, wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
-  badlands: { name: 'Badlands', color: '#d2b07a', density: 0.3, wild: WILD.badlands, eggs: ['compy', 'scelido', 'proto', 'galli', 'trike', 'ankylo'], loot: [['bone', 1, 3], ['meat', 1, 2], ['raw_egg', 1, 2, 0.35], ['amber', 1, 1, 0.1]] },
+  desert:   { name: 'Desert Dunes', color: '#e2c78c', density: 0.2, wild: WILD.desert, eggs: ['proto', 'raptor', 'ankylo'], loot: [['bone', 2, 4], ['raw_egg', 1, 2, 0.4], ['insect', 1, 2, 0.4], ['amber', 1, 1, 0.05]] },
+  scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['bone', 1, 2], ['raw_egg', 1, 1, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
+  floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4], ['raw_egg', 1, 1, 0.2]] },
+  coast:    { name: 'Coast & Lagoons', color: '#d8cfa4', density: 0.35, wild: WILD.coast, eggs: ['compy', 'bary', 'psitta'], loot: [['fish', 2, 4], ['seashell', 1, 3], ['amber', 1, 1, 0.12], ['feather', 1, 1, 0.3]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 

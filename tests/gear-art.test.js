@@ -28,3 +28,9 @@ test('equipment art is shared by species of one build', async () => {
     delete GEAR_ART.test_hat;
   }
 });
+
+test('every item has an icon to show it by', async () => {
+  const { ITEMS } = await import('../js/config.js');
+  const { ITEM_ICONS } = await import('../js/art.js');
+  for (const id of Object.keys(ITEMS)) assert.ok(ITEM_ICONS[id], id);
+});
