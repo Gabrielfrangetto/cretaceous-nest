@@ -98,7 +98,8 @@ const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured'
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;
 // (zoomed all the way out, the whole continent)
-const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds().w * 1.05;
+// (zoomed all the way out, as much of the continent as fits the map's frame: never beyond its edges)
+const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds().w;
 // the map as drawn: a canvas, the zoom buttons, the legend; a line read out for the hex the keyboard is on
 function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
@@ -121,6 +122,19 @@ function hexLabel(key) {
   return `${placeName(cell)}${lair ? ', a lair' : ''}${!known && !water ? ', unexplored' : ''}`;
 }
 
+// The view kept inside the map: shaped like the canvas, no bigger than the map either way, and moved
+// back so no edge shows past the map's
+function keepInside(v, canvas) {
+  // (the map's edge without the half hexes the staggered rows leave)
+  const m = mapBounds(), b = { x: m.x + SIZE * SQ3, y: m.y + SIZE, w: m.w - SIZE * SQ3 * 2, h: m.h - SIZE * 2 };
+  const r = canvas.getBoundingClientRect();
+  const aspect = r.width > 0 && r.height > 0 ? r.height / r.width : v.h / v.w;
+  const w = Math.max(VIEW_MIN, Math.min(v.w, b.w, b.h / aspect)), h = w * aspect;
+  const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
+  const x = Math.min(b.x + b.w - w, Math.max(b.x, cx - w / 2)), y = Math.min(b.y + b.h - h, Math.max(b.y, cy - h / 2));
+  return { x, y, w, h };
+}
+
 // The map, drawn on the canvas once a frame at most (drawMap asks for it): the hexes in view, one by
 // one close up or the continent's picture from afar; then lairs, the hex picked, the one under the
 // pointer or the keyboard, and where each party is
@@ -133,6 +147,7 @@ function paintMap() {
   if (!mapCanvas || !mapCanvas.isConnected) return;
   const w = S.world, t = now();
   if (!view) view = homeView();
+  view = keepInside(view, mapCanvas);
   const f = lastFit = fit(mapCanvas, view);
   const { ctx, scale } = f;
   ctx.save();
@@ -216,7 +231,7 @@ function bindMap(box) {
   const canvas = mapCanvas = box.querySelector('#worldMap');
   const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
     const w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, view.w * k)), f = w / view.w;
-    view = { x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f };
+    view = keepInside({ x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f }, canvas);
     drawMap();
   };
   // a point on the screen as a point of the map
@@ -254,7 +269,10 @@ function bindMap(box) {
     if (!dragged) canvas.setPointerCapture(e.pointerId);
     dragged = true;
     const k = 1 / (lastFit ? lastFit.scale : 1);
-    view = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
+    const want = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
+    view = keepInside(want, canvas);
+    // (held at an edge: the drag starts over from here, so dragging back moves the map at once)
+    if (view.x !== want.x || view.y !== want.y) start = { x: e.clientX, y: e.clientY, view: { ...view } };
     drawMap();
   });
   const end = e => {
