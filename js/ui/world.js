@@ -20,7 +20,7 @@ import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
-import { fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
@@ -29,7 +29,7 @@ export function sampleMapSVG(seed, seen = 3) {
     const c = center(h), d = hexDist(h), cell = cellAt(seed, h);
     const fog = d > seen;
     return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
-      <polygon points="${corners([0, 0], 0.96)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : glyphOf(cell)}</g>`;
+      <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : glyphOf(cell)}</g>`;
   }).join('');
   const r = SIZE * SQ3 * (seen + 1.6);
   return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;
@@ -160,11 +160,11 @@ function paintMap() {
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
   const close = SIZE * scale >= DETAIL_PX;
   const inView = close || SIZE * scale >= 6 ? hexesIn(f.x0, f.y0, x1, y1) : [];
-  if (close) drawHexes(ctx, w.seed, inView, known, edge);
-  else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, edge)) drawMap();
+  if (close) drawHexes(ctx, w.seed, inView, known, GRID);
+  else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, GRID)) drawMap();
   // the blurriest tiles of the whole map, drawn ahead once the map is up
-  const sig = `${w.seed}|${w.revealed.length}|${edge}`;
-  if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, edge), 400); }
+  const sig = `${w.seed}|${w.revealed.length}`;
+  if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, GRID), 400); }
   // (sizes in map units, never smaller than a few pixels on screen)
   const px = n => n / scale;
   // lairs, once a hex is big enough to show one

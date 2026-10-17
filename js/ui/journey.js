@@ -10,7 +10,7 @@ import { partyOf, healthOf, standingUnits, legMins, HOME } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
-import { fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
+import { GRID, fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { esc, fmt } from '../util.js';
 
@@ -98,7 +98,7 @@ function drawMap() {
   ctx.restore();
   // (a long way drawn small: plainer hexes)
   const detail = SIZE * scale >= 9 ? 'full' : SIZE * scale >= 3 ? 'plain' : 'dots';
-  drawHexes(ctx, S.world.seed, hexesIn(f.x0, f.y0, f.x0 + f.width / scale, f.y0 + f.height / scale), () => true, cssVar('--panel'), detail);
+  drawHexes(ctx, S.world.seed, hexesIn(f.x0, f.y0, f.x0 + f.width / scale, f.y0 + f.height / scale), () => true, GRID, detail);
   // the ways: the one being told bright, the others faint
   for (const l of fb.legs.values()) {
     const now = l === fb.leg;

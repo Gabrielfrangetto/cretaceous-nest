@@ -59,17 +59,21 @@ export function hexPath(k = 0.96) {
 // the colours of the page's theme, for what the canvas draws
 export const cssVar = (name, el = document.documentElement) => getComputedStyle(el).getPropertyValue(name).trim();
 
+// the line between hexes: barely there, a shade of the land's own colour
+export const GRID = 'rgba(0, 0, 0, .07)';
+
 // a city of another tribe: huts behind a palisade
 export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5"/><path d="M-13 9 L-8 -1 L-3 9Z" fill="#8a5a2b"/><path d="M-4 9 L2 -8 L8 9Z" fill="#a8743c"/><path d="M5 9 L9.5 1 L14 9Z" fill="#8a5a2b"/><path d="M2 -8 L2 -13 L6 -11.5 L2 -10" fill="#d2493f" stroke="#5b3a1e" stroke-width="1"/>';
 
 // Draws hexes with their colour, outline and little drawing; known(key) false: not yet explored, drawn
-// a little dimmer. edge: the outline's colour. detail: how much to draw, for how big a hex looks:
-// 'full' (outline and drawing), 'plain' (colour and outline), 'dots' (squares of colour, from very far)
-export function drawHexes(ctx, seed, hexes, known, edge, detail = 'full') {
-  const shape = hexPath(detail === 'full' ? 0.96 : 1);
+// a little dimmer. edge: the faint line between hexes (GRID). detail: how much to draw, for how big a hex
+// looks: 'full' (line and drawing), 'plain' (colour only), 'dots' (squares of colour, from very far)
+export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full') {
+  // (a hair bigger than the hex, so neighbours meet with no gap between them)
+  const shape = hexPath(1.01);
   const dim = 'rgba(30, 34, 28, .16)';
   ctx.setLineDash([]);
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1;
   ctx.strokeStyle = edge;
   if (detail === 'dots') {
     const w = SIZE * SQ3, h = SIZE * 1.5;
