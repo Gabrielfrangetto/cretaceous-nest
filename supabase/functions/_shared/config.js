@@ -235,7 +235,7 @@ export const ITEMS = {
   raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, desc: 'An egg that will never hatch. Omnivores like Gallimimus eat it. Each meal uses 1.' },
   shell:        { name: 'Eggshell', plural: 'eggshells', desc: 'Left over from an egg that hatched in the nest.' },
   golden_shell: { name: 'Golden eggshell', plural: 'golden eggshells', desc: 'A piece of the rare Golden Egg, where the Tyrannosaurus hatches from.' },
-  amber:        { name: 'Amber', plural: 'amber', desc: 'Fossilized tree resin. Some pieces hold insects from the Cretaceous.' },
+  amber:        { name: 'Amber', plural: 'amber', desc: "Fossilized resin from the planet's own ancient forests. Some pieces hold insects millions of years old." },
   // materials brought back from expeditions (for crafting, later)
   feather:      { name: 'Feather', plural: 'feathers', desc: 'Shed by the small feathered dinosaurs of the conifer forests.' },
   clay:         { name: 'Clay', plural: 'clay', desc: 'Soft river clay from the swamps.' },
@@ -352,20 +352,27 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // the nest north rows below the top and west columns from the left. land: the share of it that is
 // land; hills, mountains: the share of the land above those heights; volcanoes: hot spots; rivers:
 // springs high in the wet hills. Near the nest (calm, in hexes) the land is a lowland of ferns.
-// scale: how broad the land's shapes are (mountain ranges, wet and dry lands). cities: the other tribes'
+// scale: how broad the land's shapes are (mountain ranges, wet and dry lands). cities: the other colonists'
 // settlements, at least cityFromNest hexes from the nest and citySpacing from each other. floodplain,
 // shore: how wide (in hexes) the flat strips along rivers and along the sea are. lakeMax: the most hexes a
 // lake filling a pit drowns; greatLake: a hollow inland below the sea this big is a great lake (smaller,
 // low ground). MAP_VERSION bumps when the map changes.
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
-export const MAP_VERSION = 6;
+export const MAP_VERSION = 7;
 export const MAP = {
-  cols: 300, rows: 200, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
+  cols: 300, rows: 200, lat: [55, 20], north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
 export const WORLD_SEED = 1802;
-// the other tribes' cities, named in the order they are placed
+// The sanctuary's climate was chosen for being Earth's own: the continent lies where the United States
+// would (MAP.lat, north to south), with today's climate. cooling: how much colder the north is than the
+// south; fetch: how far upwind (hexes) the sea is looked for, reach: how far the sea's rain gets inland;
+// shadow: how far (hexes) a range's rain shadow falls; humid: the extra rain the warm sea brings to the
+// subtropics' eastern shores (south of humidTo degrees); subtropical: how hot and wet the land must be
+// for Subtropical Forest.
+export const CLIMATE = { cooling: 0.75, base: 0.65, near: 25, fetch: 80, reach: 30, shadow: 15, humid: 0.4, humidTo: 33, gulf: 0.3, blur: 6, lapse: 0.3, desert: { wet: 0.21, heat: 0.52 }, subtropical: { heat: 0.68, wet: 0.42 } };
+// the other colonists' settlements, named in the order they are placed
 export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater', 'Mossbank', 'Redcliff', 'Thornfield', 'Greywillow', 'Highfen', 'Duskmere', 'Saltmarsh', 'Ironroot'];
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
@@ -401,7 +408,7 @@ export const PACK_BONUS = 0.05;              // +5% damage for each other member
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
 // Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
 // terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
-export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
+export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
 // On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
 // and the team meets it instead of what waits at the end.
@@ -479,6 +486,18 @@ export const WILD = {
     { creature: 'deinosuchus', weight: 1, loot: [['clay', 2, 3], ['meat', 2, 3]] },
     { species: 'spino', weight: 0.6, loot: [['fish', 2, 4], ['bone', 1, 2]] },
   ],
+  // the Subtropical Forest (warm, wet southeastern shores, like the Gulf's): broadleaf trees, palms and
+  // replanted cycads; hadrosaur herds browse (as Kritosaurus did in Texas' Aguja), small hunters work
+  // the roots, Deinosuchus waits at the flooded edges, and now and then a great hunter passes
+  subtropical: [
+    { species: 'para', pack: [3, 6], herd: true, weight: 1.5, loot: [['meat', 2, 4]] },
+    { species: 'hypa', pack: [3, 8], herd: true, weight: 1.2, loot: [['meat', 2, 4]] },
+    { species: 'compy', weight: 1.5, loot: [['meat', 1, 1]] },
+    { species: 'coelo', pack: [3, 8], weight: 1.2, loot: [['meat', 1, 2], ['feather', 1, 1, 0.5]] },
+    { species: 'raptor', pack: [2, 4], weight: 1.2, loot: [['feather', 2, 3], ['meat', 1, 2]] },
+    { creature: 'deinosuchus', weight: 0.8, loot: [['clay', 2, 3], ['meat', 2, 3]] },
+    { species: 'allo', weight: 0.5, loot: [['meat', 2, 3], ['bone', 1, 2]] },
+  ],
   // the Volcanic Slopes: Tyrannosaurus and Allosaurus; herds of giant sauropods nothing hunts
   volcano: [
     { species: 'argent', pack: [2, 4], herd: true, weight: 1.5, loot: [['meat', 4, 6], ['bone', 3, 5]] },
@@ -497,6 +516,7 @@ export const BIOMES = {
   scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['bone', 1, 2], ['raw_egg', 1, 1, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
   floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4], ['raw_egg', 1, 1, 0.2]] },
   coast:    { name: 'Coast & Lagoons', color: '#d8cfa4', density: 0.35, wild: WILD.coast, eggs: ['compy', 'bary', 'psitta'], loot: [['fish', 2, 4], ['seashell', 1, 3], ['amber', 1, 1, 0.12], ['feather', 1, 1, 0.3]] },
+  subtropical: { name: 'Subtropical Forest', color: '#4e8a5c', density: 0.55, ambush: true, wild: WILD.subtropical, eggs: ['compy', 'coelo', 'para', 'hypa', 'raptor', 'allo'], loot: [['amber', 1, 2, 0.4], ['insect', 2, 3], ['leaf', 2, 4], ['herb', 1, 2, 0.4], ['feather', 1, 1, 0.3]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
@@ -674,6 +694,10 @@ export const VISIBILITY = { size: { tiny: 0.3, small: 0.6, medium: 1, large: 1.6
 // canopy: there it doesn't add to how much its team stands out, and a predator goes for it target
 // times as often.
 export const CAMO = { target: 0.4 };
+// In a thick forest (a biome with ambush) a predator gets close unseen: those who watch for it (RUNNER,
+// EYES) see it in time spot times as often, and one that gives chase starts with lead instead of
+// CHASE.lead.
+export const AMBUSH = { spot: 0.5, lead: 1.25 };
 // Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow
 // that lands may break a limb chance of the time.
 export const CRACK = { chance: 0.2 };

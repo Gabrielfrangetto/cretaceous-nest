@@ -82,6 +82,8 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Step 2: wild creatures per biome (stronger farther out), lairs with Alpha creatures, auto-combat replayed when a trip is collected, danger shown before sending, injuries that heal with time or Healing Herbs, gear drops
 - [x] Step 3: eggs are found on expeditions (by biome, better genes farther out and in lairs) and laid by adult pairs; the incubator has no free eggs; new games pick one of four starter babies, each led by one stat (Dilophosaurus STR, Compsognathus AGI, Scelidosaurus RES, Psittacosaurus VIT); the Forge turns amber, shells, feathers, clay, bone and obsidian into equipment the Shop does not sell
 - [x] Player character: explores alone (any distance, never hungry, can be injured) with its own stats and five slots of weapons and armor, sold in the Shop and made in the Forge; drawn in code for now
+- [x] The sanctuary's climate is Earth's own today: the continent lies where the United States would (20°N to 55°N), hot and dry in the south-west, wet in the south-east, cold winters in the north; Subtropical Forest on the warm wet shores, where predators ambush
+- [ ] Biome hazards on journeys: sandstorms and heat, volcanic gas, floods, bogs, cold, losing the way in thick forest
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes
 - [x] 20 species in six rarities (Starter, Common, Uncommon, Rare, Epic, Legendary) with base stats by rarity; eggs by biome, rarity and distance (legendaries only in lairs)

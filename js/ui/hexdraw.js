@@ -23,6 +23,8 @@ const GLYPH = {
   floodplain: '<path d="M-9 8 L-10 -4 M-6 8 L-5 -7 M-3 8 L-4 -2 M4 8 L3 -5 M7 8 L8 -8 M10 8 L10 -3" stroke="#3f6e34" stroke-width="1.8" stroke-linecap="round"/><path d="M-5 -7 l0 -3 M8 -8 l0 -3" stroke="#7a5a33" stroke-width="2.4" stroke-linecap="round"/>',
   // a beach line and a shell
   coast: '<path d="M-13 3 q4 -3 8 0 t8 0 t8 0" stroke="#f3efe0" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M-1 9 a5 5 0 0 1 10 0Z" fill="#e8a67a"/><path d="M4 9 L4 4.5 M1.5 9 L2.5 5.2 M6.5 9 L5.5 5.2" stroke="#b9714a" stroke-width="0.9"/>',
+  // a broadleaf tree with a round crown beside a palm
+  subtropical: '<path d="M-6 9 L-6 0" stroke="#5a4028" stroke-width="2"/><circle cx="-9" cy="-3" r="4.5" fill="#245a33"/><circle cx="-3" cy="-5" r="5" fill="#2c6a3c"/><circle cx="-6" cy="1" r="3.5" fill="#245a33"/><path d="M7 9 Q6 1 8 -5" stroke="#6a5030" stroke-width="1.8" fill="none"/><path d="M8 -5 q-6 -2 -9 3 M8 -5 q6 -2 8 3 M8 -5 q-3 -5 -7 -5 M8 -5 q3 -5 7 -4" stroke="#2f7a40" stroke-width="2" fill="none" stroke-linecap="round"/>',
   volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
 };
 // terrain drawn over the biome: hills, mountains, a volcano's peak, a river; water has its own colour
@@ -38,7 +40,7 @@ export const glyphOf = c => WATER[c.terrain] ? '' : c.lava ? LAVA : (TERRAIN[c.t
 // cooled lava, cracked, still glowing in the cracks
 const LAVA = '<path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3 M-8 8 L-3 5 L2 8 M3 -6 L7 -3 L12 -5" stroke="#e2643a" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3" stroke="#f6c04a" stroke-width=".6" fill="none"/>';
 const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
-export const placeName = c => c.city ? `${c.city}, a city of another tribe` : WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
+export const placeName = c => c.city ? `${c.city}, a settlement of other colonists` : WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
 export const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
 
 // ---------- rivers ----------

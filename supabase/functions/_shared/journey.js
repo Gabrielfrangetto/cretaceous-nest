@@ -261,15 +261,15 @@ function run(ctx, ev, choice) {
     }
     // the player was along and some ran: the player decides
     if (scatterOf(s, units, threat)) return ask('scatter');
-    if (!standsGround(threat.foe) && runnersSpot(s, p.members, rand)) {
+    if (!standsGround(threat.foe) && runnersSpot(s, p.members, rand, biomeAt(w.seed, h))) {
       // runners (Gallimimus) saw the predator first: the team runs, and it gives chase to the slowest
-      const chased = chaseOf(team, threat.foe);
+      const chased = chaseOf(team, threat.foe, biomeAt(w.seed, h));
       let caught = null;
       if (chased && rand() < chased.chance) caught = fall(ctx, units[chased.unit].members[chased.member], rand() < chased.death);
       tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, spotted: 'runners', caught });
       return true;
     }
-    const eyes = eyesChance(s, p.members);
+    const eyes = eyesChance(s, p.members, biomeAt(w.seed, h));
     if (!standsGround(threat.foe) && eyes && rand() < eyes) {
       // watchful ones (Hypsilophodon) saw it first: the team scatters in zigzags, nobody is caught
       tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, spotted: 'eyes', caught: null, scattered: true });
@@ -284,7 +284,7 @@ function run(ctx, ev, choice) {
     if (!sc) { fight(ctx, ev, rand); return true; }
     if (choice === null) return ask('scatter');
     if (!choice.flee) { fight(ctx, ev, rand, { thrown: sc.mounted, scatter: sc }); return true; }
-    const r = runOf(s, units, threat, sc);
+    const r = runOf(s, units, threat, sc, biomeAt(w.seed, h));
     const safe = !!(r && r.safe && rand() < r.safe);
     if (r && !safe && rand() < r.chance) {
       // caught: the player (or one who'd fight) turns to fight; one of those who ran may not survive
@@ -413,7 +413,7 @@ function fight(ctx, ev, rand, how = {}) {
   const result = teamFight(team, foe, rand, opts);
   const frenzyCount = p.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length;
   // everyone ran from a predator: it gives chase, and may catch the slowest
-  const chased = result.escaped ? chaseOf(team, foe) : null;
+  const chased = result.escaped ? chaseOf(team, foe, opts.biome) : null;
   let caught = null;
   if (chased && rand() < chased.chance) caught = fall(ctx, fought[chased.unit].members[chased.member], rand() < chased.death);
   const died = [];
@@ -569,7 +569,7 @@ export function pendingView(s, p) {
   const base = { kind: ev.kind, hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), swamp: watery(w.seed, h), units: team, hp: units.map(u => u.members.map(id => healthOf(p, id))) };
   if (ev.kind === 'scatter') {
     const sc = scatterOf(s, units, threat);
-    return { ...base, ...(sc ? scatterView(sc) : { name: threat.foe.name }), count: threat.foe.members.length, foe: threat.foe, run: sc && runOf(s, units, threat, sc) };
+    return { ...base, ...(sc ? scatterView(sc) : { name: threat.foe.name }), count: threat.foe.members.length, foe: threat.foe, run: sc && runOf(s, units, threat, sc, base.biome) };
   }
   if (ev.kind === 'standoff') return { ...base, ...standoffOf(threat), foe: threat.foe };
   if (ev.kind === 'sighting') {

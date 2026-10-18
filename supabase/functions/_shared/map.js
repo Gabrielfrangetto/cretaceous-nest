@@ -1,5 +1,7 @@
 // The world map, made from the world's seed alone (so the browser and the server make the same one): a
-// supercontinent on a rectangle of hexes (MAP), shaped by height, latitude and wind like a planet's.
+// continent on a rectangle of hexes (MAP), shaped by height, latitude and wind like a planet's. The
+// sanctuary's planet was chosen for its climate, Earth's own today: the continent lies where the United
+// States would on Earth (MAP.lat, from north to south), and its weather is what that land has.
 //
 // Hexes use axial coordinates (q, r) with the nest at 0,0, pointy-top: rows run west to east, r grows
 // to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat', 'hill',
@@ -12,23 +14,27 @@
 // How it is made:
 //   height: a few octaves of smooth noise and an oval falloff around the continent's middle, plus
 //     ridges for the mountain ranges; the lowest share is sea, and land not joined to the nest's sinks.
-//   heat: the equator hottest, the poles coolest (the Cretaceous had no ice caps: polar forests grew
-//     there), and cooler the higher up.
-//   wet: the planet's rain belts (wet at the equator and around 60 degrees, dry around 30 where the
-//     great deserts are), drier far from the sea, and drier still in a mountain range's rain shadow
-//     (the wind blows from the east in the tropics and near the poles, from the west in between).
+//   heat: hot in the south, cold winters in the north (CLIMATE), and cooler the higher up.
+//   wet: dry under the high pressure around 30 degrees, wetter northwards; the rain comes in with the
+//     wind from the sea upwind (the trade winds from the east in the south, the westerlies from the west
+//     further north), so the subtropics' eastern shores are wet and a range's lee lies in a rain shadow;
+//     the warm sea's air drifts north over the land's eastern half (as the Gulf's does up the
+//     Mississippi). The rain is spread over a few hexes, then varied with noise.
 //   rivers: springs high up where it is wet, running down to the sea or a lake (a pit with no way down).
 //   volcanoes: in groups along the ranges (a lone cone or a field of vents), each of its own size, with
 //     lava flows running downhill from them.
-//   biomes: around volcanoes Volcanic Slopes, as far as each one's size and its lava reach; dry Badlands; wet lowlands Swamp; wet or cool Conifer
-//     Forest; the rest Fern Meadow (no grass yet in the Cretaceous: ferns covered the open ground).
+//   biomes: around volcanoes Volcanic Slopes, as far as each one's size and its lava reach; wet lowlands
+//     Swamp; flat ground along rivers River Floodplain, along the sea Coast & Lagoons; the driest and
+//     hottest Desert Dunes, the dry Dry Scrubland; hot and wet Subtropical Forest; wet or cool Conifer
+//     Forest; the rest Fern Meadow (the ferns and cycads the colonists replanted for the dinosaurs, among
+//     the planet's own grasses).
 //   the nest: always in a calm lowland of ferns, a few hexes across.
-//   cities: the other tribes' settlements (MAP.cities), on fern lowlands far apart, each in its calm.
+//   cities: the other colonists' settlements (MAP.cities), on fern lowlands far apart, each in its calm.
 //   near: how far each hex is from the nearest settlement, the nest or a city.
 //
 // Everything is kept in arrays by a hex's index (its row and column), so a continent of tens of
 // thousands of hexes is made in a moment.
-import { MAP, TRAVEL, CITY_NAMES } from './config.js';
+import { MAP, TRAVEL, CITY_NAMES, CLIMATE } from './config.js';
 
 const key = (q, r) => `${q},${r}`;
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -59,7 +65,7 @@ export const MAP_HEXES = (() => {
 })();
 // where a hex sits, in hex radii (for noise and shapes)
 const xy = ([q, r]) => [Math.sqrt(3) * (q + r / 2), 1.5 * r];
-export const latOf = ([, r]) => 90 - ((r + MAP.north + 0.5) / MAP.rows) * 180;
+export const latOf = ([, r]) => MAP.lat[0] - ((r + MAP.north + 0.5) / MAP.rows) * (MAP.lat[0] - MAP.lat[1]);
 
 // ---------- noise ----------
 function mix(x) {
@@ -191,25 +197,43 @@ export function worldMap(seed) {
   const seaHexes = [];
   for (let i = 0; i < N; i++) if (terrain[i] === OCEAN) seaHexes.push(i);
   const coast = spread(seaHexes);
-  // heat and rain
+  // heat and rain, as on Earth today at these latitudes: hot in the south, cold winters in the north
   for (let i = 0; i < N; i++) {
-    const h = HX[i], la = latOf(h), a = Math.abs(la);
+    const h = HX[i], a = latOf(h);
     const up = terrain[i] === OCEAN ? 0 : Math.max(0, (height[i] - sea) / (1 - sea));
-    lat[i] = Math.round(la * 10) / 10;
-    heat[i] = Math.max(0, Math.min(1, 1 - 0.72 * (a / 90) ** 1.3 - 0.35 * up));
-    const belt = a <= 60 ? 0.62 + 0.3 * Math.cos(a * Math.PI / 30) : 0.62 + 0.3 * (1 - (a - 60) / 30) * 0.4;
-    // the wind: from the east in the tropics and near the poles, from the west in between
-    const dq = a < 30 || a > 60 ? 1 : -1;
-    let shadow = 1;
-    for (let k = 1; k <= 6; k++) {
+    lat[i] = Math.round(a * 10) / 10;
+    heat[i] = Math.max(0, Math.min(1, 1 - CLIMATE.cooling * (a - MAP.lat[1]) / (MAP.lat[0] - MAP.lat[1]) - CLIMATE.lapse * up ** 2));
+    // the rain belts: dry under the high pressure around 30 degrees, wetter towards 60
+    const belt = 0.62 + 0.3 * Math.cos(a * Math.PI / 30);
+    // the wind: the trade winds from the east south of 30 degrees, the westerlies from the west north of it
+    const dq = a < 30 ? 1 : -1;
+    let shadow = 1, fetch = CLIMATE.fetch;
+    for (let k = 1; k <= CLIMATE.fetch; k++) {
       const j = indexOf([h[0] + dq * k, h[1]]);
       if (j < 0) break;
-      if (terrain[j] === MOUNTAIN || terrain[j] === VOLCANO) { shadow = Math.min(shadow, 0.45); break; }
-      if (terrain[j] === HILL) shadow = Math.min(shadow, 0.8);
+      if (terrain[j] === OCEAN) { fetch = k; break; }
+      if (k > CLIMATE.shadow) continue;
+      if (terrain[j] === MOUNTAIN || terrain[j] === VOLCANO) shadow = Math.min(shadow, 0.45);
+      else if (terrain[j] === HILL) shadow = Math.min(shadow, 0.8);
     }
-    const near = Math.exp(-Math.max(0, coast[i]) / (12 * S));
-    wet[i] = Math.max(0, Math.min(1, belt * (0.6 + 0.4 * near) * shadow + (fbm(seed, 0x3c6ef372, ...xy(h), 14 * S, 3) - 0.5) * 0.5));
+    // rain comes in with the wind from the sea upwind, and some from any sea nearby; on the subtropics'
+    // eastern shores the warm sea's air makes it wet (Florida, the Gulf), not dry, and that warm wet air
+    // drifts north over the land's eastern half (as the Gulf's does up the Mississippi)
+    const near = Math.exp(-Math.max(0, coast[i]) / (CLIMATE.near * S)), upwind = Math.exp(-fetch / (CLIMATE.reach * S));
+    const east = (i % MAP.cols) / MAP.cols;
+    const humid = (a < CLIMATE.humidTo && dq > 0 ? CLIMATE.humid * upwind : 0) + CLIMATE.gulf * Math.max(0, east - 0.45) / 0.55;
+    wet[i] = (belt * (CLIMATE.base + 0.25 * near + 0.3 * upwind) + humid) * shadow;
   }
+  // the air mixes: the rain spreads out over a few hexes (no hard lines along the wind), then varies
+  for (let pass = 0; pass < CLIMATE.blur; pass++) {
+    const prev = wet.slice();
+    for (let i = 0; i < N; i++) {
+      let t = prev[i], n = 1;
+      for (let k = 0; k < 6; k++) { const j = NB[i * 6 + k]; if (j >= 0) { t += prev[j]; n++; } }
+      wet[i] = t / n;
+    }
+  }
+  for (let i = 0; i < N; i++) wet[i] = Math.max(0, Math.min(1, wet[i] + (fbm(seed, 0x3c6ef372, ...xy(HX[i]), 14 * S, 3) - 0.5) * 0.5));
   // rivers: from springs high up and wet, down to the sea or a lake, or into another river. down: the
   // way (0-5, as DIRS) each stretch flows on to the next (-1: it ends there)
   const springs = [];
@@ -219,7 +243,8 @@ export function worldMap(seed) {
   const wayTo = (c, n) => { for (let k = 0; k < 6; k++) if (NB[c * 6 + k] === n) return k; return -1; };
   // A lake filling a pit from hex c: the lowest ground around it is drowned, hex by hex, until the water
   // would run downhill out of it (or it reaches MAP.lakeMax hexes). Returns { out: the hex it
-  // overflows into (-1: none), from: the lake's hex beside it }, or null when no lake forms.
+  // overflows into (-1: none), from: the lake's hex beside it }, or null when no lake forms (a pit of
+  // a single hex).
   const fillLake = (c, s) => {
     const lake = [c], inLake = new Set([c]);
     let level = height[c];
@@ -234,6 +259,8 @@ export function worldMap(seed) {
       // lake spills there
       const floodable = best >= 0 && (terrain[best] === FLAT || terrain[best] === HILL) && D[best] > MAP.calm + 1;
       if (best < 0 || height[best] < level || !floodable || lake.length >= MAP.lakeMax) {
+        // (a pit of a single hex is no lake: the river finds its way over it)
+        if (lake.length < 2) return null;
         for (const l of lake) { terrain[l] = LAKE; river[l] = 0; seen[l] = s; }
         return { out: best, from: by };
       }
@@ -258,7 +285,7 @@ export function worldMap(seed) {
         // finds a way over
         if (D[c] <= MAP.calm + 1 || terrain[c] !== FLAT) break;
         const lake = fillLake(c, s);
-        if (!lake) break;
+        if (!lake) { down[c] = wayTo(c, next); c = next; continue; }
         // in dry lands the lake keeps its water (a salt lake); elsewhere it overflows at its lowest
         // edge, and a river runs on from there
         if (wet[c] < 0.3 || lake.out < 0 || water(terrain[lake.out]) || river[lake.out]) break;
@@ -313,12 +340,13 @@ export function worldMap(seed) {
       : lowland && w > 0.6 && heat[i] > 0.45 ? 'swamp'
       : terrain[i] === FLAT && mild && byRiver ? 'floodplain'
       : terrain[i] === FLAT && mild && bySea ? 'coast'
-      : w < 0.18 && heat[i] > 0.55 ? 'desert'
+      : w < CLIMATE.desert.wet && heat[i] > CLIMATE.desert.heat ? 'desert'
       : w < 0.3 ? 'scrub'
+      : heat[i] > CLIMATE.subtropical.heat && w > CLIMATE.subtropical.wet ? 'subtropical'
       : w > 0.58 || heat[i] < 0.42 ? 'forest'
       : 'meadow';
   }
-  // the other tribes' cities: fern lowlands, mild and far from volcanoes, far from the nest and from
+  // the other colonists' settlements: fern lowlands, mild and far from volcanoes, far from the nest and from
   // each other; each in a calm of ferns like the nest's
   const calmAround = c => { for (let i = 0; i < N; i++) if (!water(terrain[i]) && dist([HX[i][0] - HX[c][0], HX[i][1] - HX[c][1]]) <= MAP.calm) { biome[i] = 'meadow'; terrain[i] = FLAT; } };
   const sites = [];
@@ -345,7 +373,7 @@ export function worldMap(seed) {
 }
 export const cellAt = (seed, h) => { const i = indexOf(h); return i < 0 ? null : worldMap(seed).cells[i]; };
 export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.terrain === 'ocean' || c.terrain === 'lake'; };
-// the other tribes' cities: [{ h, key, name }]
+// the other colonists' settlements: [{ h, key, name }]
 export const citiesOf = seed => worldMap(seed).cities;
 
 // How hard it is to get to each land hex from a hex (the nest by default), the easiest way (TRAVEL): a

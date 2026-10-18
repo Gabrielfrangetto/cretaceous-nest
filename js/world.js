@@ -8,7 +8,7 @@
 import {
   BIOMES, ITEMS, MAP_VERSION, WORLD_SEED, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
-  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS,
+  EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS, AMBUSH,
 } from './config.js';
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
@@ -225,7 +225,7 @@ export function exploreProblem(s, team, key, now) {
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
   if (isWater(W(s).seed, h)) return 'water';
-  // another tribe's city: its people keep to themselves, for now
+  // another colonists' settlement: its people keep to themselves, for now
   if (cityAt(W(s).seed, h)) return 'city';
   if (!canReach(s, key)) return 'unreachable';
   const members = units.flatMap(u => u.members);
@@ -355,7 +355,7 @@ export function scatterOf(s, units, threat) {
 // anyone running (CHASE); watchful ones (Hypsilophodon) may see it coming in time (safe). null when it
 // can't catch anyone. { id, unit, fighter, chance, death, safe, fights: caught, it (or the player) turns
 // to fight instead of going down }
-export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
+export function runOf(s, units, threat, sc = scatterOf(s, units, threat), biome) {
   if (!sc) return null;
   const team = teamUnits(s, units), foe = threat.foe, top = sizeRank(quickest(foe).size);
   const flee = f => f.agi * (f.zigzag ? ZIGZAG.flee : 1);
@@ -366,7 +366,7 @@ export function runOf(s, units, threat, sc = scatterOf(s, units, threat)) {
     if (!slow || flee(f) < flee(slow.fighter)) slow = { id, unit: i, fighter: f };
   }));
   if (!slow) return null;
-  return { ...slow, chance: catchChance(foe, slow.fighter), death: caughtDeath(foe, slow.fighter), safe: eyesChance(s, units.flatMap(u => u.members)),
+  return { ...slow, chance: catchChance(foe, slow.fighter, biome), death: caughtDeath(foe, slow.fighter), safe: eyesChance(s, units.flatMap(u => u.members), biome),
     fights: slow.id === PLAYER_ID || !sc.fled.includes(slow.unit) };
 }
 // A hunt the team may watch at a hex, wild against wild: a second animal of the biome turns up beside the
@@ -457,20 +457,23 @@ export function routeRisk(s, team, key) {
 }
 
 // whether a team's runners (Gallimimus) see a predator first: each one may (RUNNER.eye)
-export const runnersSpot = (s, members, rand) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye);
+export const runnersSpot = (s, members, rand, biome) => members.some(id => bodyOf(s, id).runner && rand() < RUNNER.eye * spotIn(biome));
+// in a thick forest a predator gets close unseen (AMBUSH)
+const ambushIn = biome => !!(BIOMES[biome] && BIOMES[biome].ambush);
+const spotIn = biome => (ambushIn(biome) ? AMBUSH.spot : 1);
 // a predator giving chase: its quickest runs down prey (a fighter) this often (CHASE)
 export const quickest = foe => foe.members.reduce((a, f) => (f.agi > a.agi ? f : a));
 // one caught doesn't fight back: the bigger the predator, the likelier it doesn't survive (DEATH.caught);
 // otherwise it comes home critically injured
 export const caughtDeath = (foe, prey) => DEATH.caught.find(([n]) => sizeRank(quickest(foe).size) - sizeRank(prey.size) >= n)[1];
-export const catchChance = (foe, prey) => {
+export const catchChance = (foe, prey, biome) => {
   const hunter = quickest(foe), agi = prey.agi * (prey.zigzag ? ZIGZAG.flee : 1);
-  return hunter.agi / (hunter.agi + CHASE.lead * agi);
+  return hunter.agi / (hunter.agi + (ambushIn(biome) ? AMBUSH.lead : CHASE.lead) * agi);
 };
 // When a whole team (fighters, from teamUnits) runs from a predator, the one it gives chase to: the
 // slowest to get away, never the player. null when it won't chase (it isn't a predator) or nobody can be
 // caught. { unit, member, fighter, chance, death: the chance the one caught doesn't survive }
-export function chaseOf(team, foe) {
+export function chaseOf(team, foe, biome) {
   if (foe.members[0].role && foe.members[0].role !== 'attacker') return null;
   const flee = f => f.agi * (f.zigzag ? ZIGZAG.flee : 1), top = sizeRank(quickest(foe).size);
   let slow = null;
@@ -479,10 +482,10 @@ export function chaseOf(team, foe) {
   }));
   if (!slow) return null;
   const f = slow.fighter;
-  return { ...slow, chance: catchChance(foe, f), death: caughtDeath(foe, f) };
+  return { ...slow, chance: catchChance(foe, f, biome), death: caughtDeath(foe, f) };
 }
 // whether a team's watchful ones (Hypsilophodon) see a predator first: more eyes, likelier (EYES)
-export const eyesChance = (s, members) => Math.min(EYES.max, EYES.perOne * members.filter(id => bodyOf(s, id).eyes).length);
+export const eyesChance = (s, members, biome) => Math.min(EYES.max, EYES.perOne * members.filter(id => bodyOf(s, id).eyes).length) * spotIn(biome);
 // how a group that stood its ground is told: its species, how many, and whether it's a herd or a pack
 export const standoffOf = threat => ({
   name: threat.foe.name, species: SPECIES[threat.entry.species].species, count: threat.foe.members.length,

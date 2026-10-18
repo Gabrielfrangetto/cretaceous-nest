@@ -45,9 +45,13 @@ test("every map has every biome, a calm meadow around the nest, rivers and lakes
     }
     const cells = ALL_HEXES.map(h => cellAt(seed, h));
     assert.ok(cells.some(c => c.river) && cells.some(c => c.terrain === 'lake') && cells.some(c => c.terrain === 'mountain'));
-    // warmer toward the equator, cooler toward the poles
-    const heat = band => { const c = cells.filter(c => c.terrain !== 'ocean' && band(Math.abs(c.lat))); return c.reduce((t, x) => t + x.heat, 0) / c.length; };
-    assert.ok(heat(a => a < 20) > heat(a => a > 55), 'seed ' + seed);
+    // where the United States would be on Earth, with its climate: hot in the south, cool in the north,
+    // the subtropical forest in the warm south
+    assert.ok(cells.every(c => c.lat >= MAP.lat[1] && c.lat <= MAP.lat[0]));
+    const heat = band => { const c = cells.filter(c => c.terrain !== 'ocean' && band(c.lat)); return c.reduce((t, x) => t + x.heat, 0) / c.length; };
+    assert.ok(heat(a => a < 30) > heat(a => a > 45) + 0.3, 'seed ' + seed);
+    const sub = cells.filter(c => c.biome === 'subtropical');
+    assert.ok(sub.reduce((t, c) => t + c.lat, 0) / sub.length < 32, 'seed ' + seed);
   }
 });
 
@@ -88,7 +92,7 @@ test('the sea is only the open water around the continent; lakes fill hollows, f
   assert.ok(ALL_HEXES.filter(h => cellAt(WORLD_SEED, h).from >= 0).length > 10);
 });
 
-test("the other tribes' cities: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
+test("the other colonists' settlements: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
   const { citiesOf, cityAt, nearOf } = await import('../js/world.js');
   const cities = citiesOf(WORLD_SEED);
   assert.equal(cities.length, MAP.cities);
@@ -353,4 +357,12 @@ test('a guest game brought into an account loses trips in progress', () => {
   applyAction(s, 'explore', { babyId: 'ad', hex: '1,0' }, T0);
   assert.equal(migrate(s).world.expeditions.length, 1);
   assert.equal(capGuestSave(migrate(s), T0).world.expeditions.length, 0);
+});
+
+test('in the thick Subtropical Forest a predator gets close unseen: harder to see coming, harder to outrun', async () => {
+  const { catchChance } = await import('../js/world.js');
+  const foe = { members: [{ agi: 80, size: 'large' }] }, prey = { agi: 60, size: 'medium' };
+  assert.ok(BIOMES.subtropical.ambush && !BIOMES.forest.ambush);
+  assert.ok(catchChance(foe, prey, 'subtropical') > catchChance(foe, prey, 'forest'));
+  assert.equal(catchChance(foe, prey, 'forest'), catchChance(foe, prey));
 });

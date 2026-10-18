@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, SIZE_ORDER } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -38,7 +38,7 @@ export function sampleMapSVG(seed, seen = 3) {
 const PROBLEMS = {
   'too-young': 'Babies stay in the nest. Feed it until it is a juvenile.',
   away: 'Already exploring.',
-  city: 'A city of another tribe. Its people keep to themselves, for now.',
+  city: 'A settlement of other colonists. Its people keep to themselves, for now.',
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
@@ -342,16 +342,19 @@ function threatHTML(h, units, scout) {
   const danger = odds == null ? '' : dangerOf(odds);
   const runners = run.fled.map(i => units[i].name);
   // everyone would run: a predator gives chase and may catch the slowest, who may not survive
-  const chased = units.length && run.escaped ? chaseOf(units, th.foe) : null;
+  const chased = units.length && run.escaped ? chaseOf(units, th.foe, biomeAt(S.world.seed, h)) : null;
   // a rival as big as a Spinosaurus in the team may back off from its sail
   const sail = units.length ? sailBackOff(th, units, swamp) : 0;
   // watchful ones (Hypsilophodon) may see a predator first and the team scatters
-  const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0));
+  // in a thick forest a predator gets close unseen (AMBUSH)
+  const ambush = !!BIOMES[biomeAt(S.world.seed, h)].ambush && (th.foe.members[0].role || 'attacker') === 'attacker';
+  const eyes = Math.min(EYES.max, EYES.perOne * units.reduce((t, u) => t + u.members.filter(m => m.type && SPECIES[m.type].eyes).length, 0)) * (ambush ? AMBUSH.spot : 1);
   return `<div class="threat ${th.lair ? 'is-lair' : ''}">
     <p><strong>${th.lair ? 'Lair: ' : ''}${esc(th.foe.name)}</strong> <span class="hint">Power ${th.power}</span></p>
     ${run.escaped && units.length ? `<p class="hint warn-text">Nobody in this team would fight it: they'd run off and bring nothing of it home.</p>${chased ? `<p class="hint warn-text">It would give chase, with ${chanceOf(chased.chance)} chance of catching ${esc(chased.fighter.name)}, who would be ${riskOf(chased.chance * chased.death)}.</p>` : ''}`
       : runners.length ? `<p class="hint warn-text">${esc(listNames(runners))} would run from it before the fight.</p>` : ''}
     <p class="hint">${th.lair ? 'Always met here. Beating it pays double and often drops equipment.' : `${cap(often(encounterChance(th, units, biomeAt(S.world.seed, h), scout)))} met here.${scout ? ' Your scout leads the team around it when it can.' : ''}${(th.foe.members[0].role || 'attacker') === 'attacker' ? ' The bigger the team, the sooner it is noticed.' : ''}`}</p>
+    ${ambush ? '<p class="hint warn-text">The forest is thick here: a hunter gets close before anyone sees it, and it is harder to outrun.</p>' : ''}
     ${(th.foe.members[0].role || 'attacker') !== 'attacker' ? '<p class="hint">It won\'t attack: it stands its ground to drive you off. You choose whether to fight it when you see the journey.</p>' : ''}
     ${odds == null ? '' : `<p><span class="danger danger-${danger.toLowerCase()}">${danger}</span> <span class="hint">${who} ${winOf(odds)} (Power ${power})</span></p>`}
     ${sail ? `<p class="hint">It may size up your Spinosaurus's sail and back off, as it ${often(sail)} does.</p>` : ''}
@@ -428,7 +431,7 @@ function sideHTML(t) {
     <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home, and dinosaurs come home hungry.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
-  if (city) return `<h3>${esc(city)}</h3><p class="hint">A city of another tribe, ${plural(d, 'hex', 'hexes')} from your nest. Its people keep to themselves for now; one day there may be trade and travel between your nests. Around it the land is calm, as around yours: no predator hunts there.</p>`;
+  if (city) return `<h3>${esc(city)}</h3><p class="hint">A settlement of other colonists, ${plural(d, 'hex', 'hexes')} from your nest. Its people keep to themselves for now; one day there may be trade and travel between your nests. Around it the land is calm, as around yours: no predator hunts there.</p>`;
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);

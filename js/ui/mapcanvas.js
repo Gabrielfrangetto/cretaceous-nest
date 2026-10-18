@@ -62,7 +62,7 @@ export const cssVar = (name, el = document.documentElement) => getComputedStyle(
 // the line between hexes: barely there, a shade of the land's own colour
 export const GRID = 'rgba(0, 0, 0, .07)';
 
-// a city of another tribe: huts behind a palisade
+// a settlement of other colonists: huts behind a palisade
 export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5"/><path d="M-13 9 L-8 -1 L-3 9Z" fill="#8a5a2b"/><path d="M-4 9 L2 -8 L8 9Z" fill="#a8743c"/><path d="M5 9 L9.5 1 L14 9Z" fill="#8a5a2b"/><path d="M2 -8 L2 -13 L6 -11.5 L2 -10" fill="#d2493f" stroke="#5b3a1e" stroke-width="1"/>';
 
 // Draws hexes with their colour, outline and little drawing; known(key) false: not yet explored, drawn
