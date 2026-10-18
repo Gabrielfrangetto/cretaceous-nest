@@ -70,7 +70,7 @@ test('rivers run on from hex to hex, down to the sea, a lake or a bigger river, 
   assert.ok(joined > 500 && mouths > 20, JSON.stringify({ joined, mouths }));
 });
 
-test('the sea is only the open water around the continent; lakes fill hollows, fed by rivers, and most overflow into one', async () => {
+test('the sea is only open water reaching the edges; lakes fill hollows, fed by rivers, and most overflow into one', async () => {
   const { mapNeighbors } = await import('../js/map.js');
   const water = k => ALL_HEXES.filter(h => cellAt(WORLD_SEED, h).terrain === k);
   const groups = kind => {
@@ -83,8 +83,10 @@ test('the sea is only the open water around the continent; lakes fill hollows, f
     }
     return out;
   };
-  // one sea, joined all around the edges
-  assert.equal(groups('ocean').length, 1);
+  // no sea shut inside the land: all of it open water reaching the map's edges (the land runs on past
+  // the top edge, into the uncharted north, so a bay may join the rest only beyond it)
+  const { inMap } = await import('../js/map.js');
+  for (const g of groups('ocean')) assert.ok(g.some(h => mapNeighbors(h).length < 6 || !inMap([h[0], h[1] - 1])), 'a sea inland');
   const lakes = groups('lake');
   assert.ok(lakes.length > 20);
   for (const g of lakes) assert.ok(g.length >= 2, 'no lake of a single hex');
@@ -365,4 +367,15 @@ test('in the thick Subtropical Forest a predator gets close unseen: harder to se
   assert.ok(BIOMES.subtropical.ambush && !BIOMES.forest.ambush);
   assert.ok(catchChance(foe, prey, 'subtropical') > catchChance(foe, prey, 'forest'));
   assert.equal(catchChance(foe, prey, 'forest'), catchChance(foe, prey));
+});
+
+test('the uncharted north: the continent runs on past the top of the map, colder, but nobody goes there', async () => {
+  const { wildsAt, WILDS_HEXES, inMap, inWilds } = await import('../js/map.js');
+  const cells = WILDS_HEXES.map(h => wildsAt(WORLD_SEED, h));
+  assert.ok(WILDS_HEXES.every(h => !inMap(h) && inWilds(h) && cellAt(WORLD_SEED, h) === null));
+  assert.ok(cells.every(c => c.wilds && c.lat > MAP.lat[0]));
+  const land = cells.filter(c => c.biome);
+  assert.ok(land.length > cells.length * 0.3);
+  assert.ok(land.some(c => c.biome === 'taiga') && land.some(c => c.biome === 'tundra'));
+  assert.ok(cells.some(c => c.terrain === 'lake'));
 });

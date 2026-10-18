@@ -358,9 +358,9 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // lake filling a pit drowns; greatLake: a hollow inland below the sea this big is a great lake (smaller,
 // low ground). MAP_VERSION bumps when the map changes.
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
-export const MAP_VERSION = 7;
+export const MAP_VERSION = 8;
 export const MAP = {
-  cols: 300, rows: 200, lat: [55, 20], north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
+  cols: 300, rows: 200, lat: [55, 20], wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
@@ -370,8 +370,11 @@ export const WORLD_SEED = 1802;
 // south; fetch: how far upwind (hexes) the sea is looked for, reach: how far the sea's rain gets inland;
 // shadow: how far (hexes) a range's rain shadow falls; humid: the extra rain the warm sea brings to the
 // subtropics' eastern shores (south of humidTo degrees); subtropical: how hot and wet the land must be
-// for Subtropical Forest.
-export const CLIMATE = { cooling: 0.75, base: 0.65, near: 25, fetch: 80, reach: 30, shadow: 15, humid: 0.4, humidTo: 33, gulf: 0.3, blur: 6, lapse: 0.3, desert: { wet: 0.21, heat: 0.52 }, subtropical: { heat: 0.68, wet: 0.42 } };
+// for Subtropical Forest. northFall: how slowly the land falls away to the north (it runs on into the
+// uncharted north, MAP.wilds rows past the map); wilds: how cold for Tundra and Boreal Forest there, and
+// its many lakes on cold flat ground.
+export const CLIMATE = { cooling: 0.75, base: 0.65, near: 25, fetch: 80, reach: 30, shadow: 15, humid: 0.4, humidTo: 33, gulf: 0.3, blur: 6, lapse: 0.3, desert: { wet: 0.24, heat: 0.5 }, subtropical: { heat: 0.68, wet: 0.42 },
+  prairie: 0.4, northFall: 2.2, wilds: { tundra: 0.06, taiga: 0.3, lakes: 0.3, lakeNoise: 0.66 } };
 // the other colonists' settlements, named in the order they are placed
 export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater', 'Mossbank', 'Redcliff', 'Thornfield', 'Greywillow', 'Highfen', 'Duskmere', 'Saltmarsh', 'Ironroot'];
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
@@ -519,6 +522,9 @@ export const BIOMES = {
   subtropical: { name: 'Subtropical Forest', color: '#4e8a5c', density: 0.55, ambush: true, wild: WILD.subtropical, eggs: ['compy', 'coelo', 'para', 'hypa', 'raptor', 'allo'], loot: [['amber', 1, 2, 0.4], ['insect', 2, 3], ['leaf', 2, 4], ['herb', 1, 2, 0.4], ['feather', 1, 1, 0.3]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
+
+// the land of the uncharted north (map.js wildsOf), drawn but not yet part of the sanctuary
+export const WILDS_BIOMES = { taiga: { name: 'Boreal Forest', color: '#5d806a' }, tundra: { name: 'Tundra', color: '#bcc0a8' } };
 
 // Wild animals that aren't dinosaurs (fear: the biggest it takes on, as BODY). stats are at full strength; one met d hexes from the nest has
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own

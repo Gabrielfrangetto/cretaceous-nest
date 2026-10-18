@@ -65,6 +65,18 @@ export const MAP_HEXES = (() => {
 })();
 // where a hex sits, in hex radii (for noise and shapes)
 const xy = ([q, r]) => [Math.sqrt(3) * (q + r / 2), 1.5 * r];
+// The uncharted north (MAP.wilds rows above the map): the continent runs on there, drawn with its
+// land and climate, but it isn't part of the sanctuary yet: nobody goes there (it has no cell in the
+// map; wildsAt gives what it looks like).
+export const inWilds = h => {
+  if (!h) return false;
+  const c = colOf(h), r = h[1];
+  return r >= -MAP.north - MAP.wilds && r < -MAP.north && c >= -MAP.west && c < MAP.cols - MAP.west;
+};
+const NW = MAP.cols * MAP.wilds;
+const wildsIndex = h => (inWilds(h) ? (h[1] + MAP.north + MAP.wilds) * MAP.cols + colOf(h) + MAP.west : -1);
+const wildsHex = i => { const r = Math.floor(i / MAP.cols) - MAP.north - MAP.wilds, c = (i % MAP.cols) - MAP.west; return [c - Math.floor(r / 2), r]; };
+export const WILDS_HEXES = Array.from({ length: NW }, (_, i) => wildsHex(i));
 export const latOf = ([, r]) => MAP.lat[0] - ((r + MAP.north + 0.5) / MAP.rows) * (MAP.lat[0] - MAP.lat[1]);
 
 // ---------- noise ----------
@@ -124,15 +136,20 @@ export function worldMap(seed) {
   const height = new Float64Array(N), terrain = new Uint8Array(N), river = new Uint8Array(N);
   const heat = new Float64Array(N), wet = new Float64Array(N), lat = new Float64Array(N), D = new Float64Array(N);
   const HX = new Array(N);
-  for (let i = 0; i < N; i++) {
-    const h = HX[i] = hexOf(i), [x, y] = xy(h);
-    D[i] = dist(h);
-    const fall = 1 - Math.hypot((x - cx) / (W * 0.46), (y - cy) / (H * 0.5));
-    // the sea all around the edges
-    const col = i % MAP.cols, row = Math.floor(i / MAP.cols);
-    const edge = Math.min(col, MAP.cols - 1 - col, row, MAP.rows - 1 - row);
+  // how high the ground is: the land falls into the sea to the west, the east and the south; to the north
+  // it runs on, past the map, into the uncharted north
+  const heightAt = h => {
+    const [x, y] = xy(h);
+    const fall = 1 - Math.hypot((x - cx) / (W * 0.46), (y - cy) / (H * (y < cy ? CLIMATE.northFall : 0.5)));
+    const col = colOf(h) + MAP.west, row = h[1] + MAP.north;
+    const edge = Math.min(col, MAP.cols - 1 - col, MAP.rows - 1 - row);
     const ridge = 1 - Math.abs(2 * fbm(seed, 0x2c1b3c6d, x, y, 22 * S, 4) - 1);
-    height[i] = 0.55 * fbm(seed, 0x6a09e667, x, y, 26 * S, 5) + 0.55 * fall + 0.3 * ridge ** 3 - (edge < 4 ? (4 - edge) * 0.08 : 0);
+    return 0.55 * fbm(seed, 0x6a09e667, x, y, 26 * S, 5) + 0.55 * fall + 0.3 * ridge ** 3 - (edge < 4 ? (4 - edge) * 0.08 : 0);
+  };
+  for (let i = 0; i < N; i++) {
+    const h = HX[i] = hexOf(i);
+    D[i] = dist(h);
+    height[i] = heightAt(h);
   }
   const sea = quantile(height, 1 - MAP.land);
   // the nest's surroundings: always a calm lowland, low enough to be flat and high enough to be land
@@ -343,7 +360,7 @@ export function worldMap(seed) {
       : w < CLIMATE.desert.wet && heat[i] > CLIMATE.desert.heat ? 'desert'
       : w < 0.3 ? 'scrub'
       : heat[i] > CLIMATE.subtropical.heat && w > CLIMATE.subtropical.wet ? 'subtropical'
-      : w > 0.58 || heat[i] < 0.42 ? 'forest'
+      : w > 0.58 || (heat[i] < 0.42 && w > CLIMATE.prairie) ? 'forest'
       : 'meadow';
   }
   // the other colonists' settlements: fern lowlands, mild and far from volcanoes, far from the nest and from
@@ -366,11 +383,54 @@ export function worldMap(seed) {
     cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], ...(lava[i] && biome[i] === 'volcano' ? { lava: true } : {}), river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i], ...(outlet[i] >= 0 ? { from: outlet[i] } : {}) } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
       ...(cityOf.has(i) ? { city: CITY_NAMES[cityOf.get(i) % CITY_NAMES.length] } : {}) };
   }
-  const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })) };
+  const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })), wilds: null };
+  // the uncharted north, made only when it is drawn
+  let wilds = null;
+  Object.defineProperty(out, 'wilds', { get: () => wilds || (wilds = wildsOf(seed, { heightAt, sea, hill, mountain, terrain })) });
   if (cache.size > 4) cache.clear();
   cache.set(seed, out);
   return out;
 }
+// The uncharted north: its ground from the same heights as the map's, water that joins the sea at its
+// edges (or the map's sea) is sea and the rest lakes, and many more lakes on the cold flat ground (the
+// lake country scraped out by old ice); its climate carries on to the north: Boreal Forest, then Tundra
+// where it is coldest, prairie where it is dry. [cell by wildsIndex]
+function wildsOf(seed, { heightAt, sea, hill, mountain, terrain: mapTerrain }) {
+  const S = MAP.scale, t = new Uint8Array(NW), up = new Float64Array(NW), hx = WILDS_HEXES;
+  const nb = (i, k) => { const [q, r] = hx[i], [dq, dr] = DIRS[k]; return wildsIndex([q + dq, r + dr]); };
+  for (let i = 0; i < NW; i++) {
+    const v = heightAt(hx[i]);
+    up[i] = Math.max(0, (v - sea) / (1 - sea));
+    t[i] = v <= sea ? OCEAN : v >= mountain ? MOUNTAIN : v >= hill ? HILL : FLAT;
+  }
+  // the sea: low ground joined to the edges, or to the map's sea below
+  const open = new Uint8Array(NW), queue = [];
+  for (let i = 0; i < NW; i++) {
+    if (t[i] !== OCEAN) continue;
+    const [q, r] = hx[i], col = colOf(hx[i]) + MAP.west;
+    const below = [[0, 1], [-1, 1]].some(([dq, dr]) => { const j = indexOf([q + dq, r + dr]); return j >= 0 && mapTerrain[j] === OCEAN; });
+    if (r === -MAP.north - MAP.wilds || col === 0 || col === MAP.cols - 1 || below) { open[i] = 1; queue.push(i); }
+  }
+  while (queue.length) { const c = queue.pop(); for (let k = 0; k < 6; k++) { const n = nb(c, k); if (n >= 0 && t[n] === OCEAN && !open[n]) { open[n] = 1; queue.push(n); } } }
+  // how far from the sea, for its rain
+  const coast = new Int32Array(NW).fill(-1), q2 = [];
+  for (let i = 0; i < NW; i++) if (open[i]) { coast[i] = 0; q2.push(i); }
+  for (let h = 0; h < q2.length; h++) { const c = q2[h]; for (let k = 0; k < 6; k++) { const n = nb(c, k); if (n >= 0 && coast[n] < 0) { coast[n] = coast[c] + 1; q2.push(n); } } }
+  const cells = new Array(NW);
+  for (let i = 0; i < NW; i++) {
+    const h = hx[i], [x, y] = xy(h), a = latOf(h);
+    const heat = Math.max(0, Math.min(1, 1 - CLIMATE.cooling * (a - MAP.lat[1]) / (MAP.lat[0] - MAP.lat[1]) - CLIMATE.lapse * up[i] ** 2));
+    const near = Math.exp(-Math.max(0, coast[i]) / (CLIMATE.near * S));
+    const wet = Math.max(0, Math.min(1, (0.62 + 0.3 * Math.cos(a * Math.PI / 30)) * (CLIMATE.base + 0.25 * near) + (fbm(seed, 0x3c6ef372, x, y, 14 * S, 3) - 0.5) * 0.5));
+    let terrain = t[i] === OCEAN ? (open[i] ? 'ocean' : 'lake') : TERRAINS[t[i]];
+    if (terrain === 'flat' && heat < CLIMATE.wilds.lakes && fbm(seed, 0x5bd1e995, x, y, 4 * S, 3) > CLIMATE.wilds.lakeNoise) terrain = 'lake';
+    const biome = terrain === 'ocean' || terrain === 'lake' ? null
+      : heat < CLIMATE.wilds.tundra ? 'tundra' : heat < CLIMATE.wilds.taiga ? 'taiga' : wet < 0.3 ? 'meadow' : 'forest';
+    cells[i] = { biome, terrain, river: false, lat: Math.round(a * 10) / 10, wilds: true };
+  }
+  return cells;
+}
+export const wildsAt = (seed, h) => { const i = wildsIndex(h); return i < 0 ? null : worldMap(seed).wilds[i]; };
 export const cellAt = (seed, h) => { const i = indexOf(h); return i < 0 ? null : worldMap(seed).cells[i]; };
 export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.terrain === 'ocean' || c.terrain === 'lake'; };
 // the other colonists' settlements: [{ h, key, name }]

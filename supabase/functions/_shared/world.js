@@ -13,7 +13,7 @@ import {
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
-import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf } from './map.js';
+import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES } from './map.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -29,7 +29,7 @@ export const neighbors = mapNeighbors;
 export const ALL_HEXES = MAP_HEXES;
 // the land hexes of a world: where expeditions can go
 export const landHexes = seed => ALL_HEXES.filter(h => !isWater(seed, h));
-export { isWater, cellAt, travelCost, travelPath, citiesOf };
+export { isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES };
 // how far a hex is from the nearest settlement (the nest or a city): the calm around them, and the big
 // predators kept away (NEST_CALM, NEST_FAR)
 export const nearOf = (seed, h) => { const c = cellAt(seed, h); return c ? c.near : Infinity; };
