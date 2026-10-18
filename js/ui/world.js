@@ -369,19 +369,26 @@ function routeHTML(units, key) {
   const sig = key + '|' + units.map(u => u.name + u.members.length).join(',');
   if (!routeCache.has(sig)) {
     const r = routeRisk(S, units, key);
-    const biome = biomeAt(S.world.seed, parseKey(key));
-    // (the likeliest to beat the team; between equals, the deadlier, then the biggest)
+    // the likeliest to beat the team, fought where it would be met; between equals, the deadlier, then
+    // the biggest
     const death = f => Math.max(...f.odds.death.flat()), big = f => SIZE_ORDER.indexOf(f.foe.members[0].size);
-    const worst = r.foes.map(f => ({ ...f, odds: teamOdds(units, f.foe, 60, { swamp: false, biome }) })).sort((a, b) => a.odds.win - b.odds.win || death(b) - death(a) || big(b) - big(a))[0] || null;
+    const worstOf = at => r.foes.filter(f => f.at === at).map(f => ({ ...f, odds: teamOdds(units, f.foe, 60, { swamp: f.water, biome: f.biome }) }))
+      .sort((a, b) => a.odds.win - b.odds.win || death(b) - death(a) || big(b) - big(a))[0] || null;
     if (routeCache.size > 40) routeCache.clear();
-    routeCache.set(sig, { ...r, worst });
+    routeCache.set(sig, { ...r, way: worstOf('on the way'), there: worstOf('there') });
   }
   const r = routeCache.get(sig);
   const how = r.stopped < 0.08 ? 'The way is quiet.' : r.stopped < 0.25 ? 'Something may notice you on the way.' : r.stopped < 0.5 ? 'The way is dangerous: something will likely come for you.' : 'Few cross that way unharmed.';
   const way = r.crosses.length ? `On the way you cross ${esc(listNames(r.crosses.map(b => `the ${BIOMES[b].name}`)))}. ${how}` : 'The way there is calm.';
-  const w = r.worst;
-  return `<div class="route ${w && w.odds.win < 0.5 ? 'warn' : ''}"><p class="hint">${way}</p>
-    ${w ? `<p class="hint ${w.odds.win < 0.5 ? 'warn-text' : ''}">The worst you could meet ${w.at}: ${article(w.foe.name)} ${esc(w.foe.name)} <span class="danger danger-${dangerOf(w.odds.win).toLowerCase()}">${dangerOf(w.odds.win)}</span>${Math.max(...w.odds.death.flat()) >= 0.01 ? ` (${riskOf(Math.max(...w.odds.death.flat()))})` : ''}.</p>` : ''}</div>`;
+  const line = (w, where) => {
+    if (!w) return '';
+    const dies = Math.max(...w.odds.death.flat());
+    return `<p class="hint ${w.odds.win < 0.5 ? 'warn-text' : ''}">${where}, the worst you could meet: ${article(w.foe.name)} ${esc(w.foe.name)}${w.at === 'on the way' ? ` in the ${esc(BIOMES[w.biome].name)}` : ''} <span class="danger danger-${dangerOf(w.odds.win).toLowerCase()}">${dangerOf(w.odds.win)}</span>${dies >= 0.01 ? ` (${riskOf(dies)})` : ''}.</p>`;
+  };
+  // (what lives at an explored hex is told above it; at an unexplored one only what its land could hold)
+  const there = isRevealed(S, key) ? null : r.there;
+  const warn = [r.way, there].some(w => w && w.odds.win < 0.5);
+  return `<div class="route ${warn ? 'warn' : ''}"><p class="hint">${way}</p>${line(r.way, 'On the way')}${line(there, 'There')}</div>`;
 }
 
 // the risk of death in a fight, for those who could die (1% or more); a pack shows its likeliest one

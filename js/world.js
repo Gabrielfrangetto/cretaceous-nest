@@ -430,7 +430,8 @@ export function interveneOptions(s, exp, wt) {
 }
 // What a team going to a hex could run into, for the warning before it sets out: from what the player
 // knows, not what waits (the animals of the biomes on the way, grown ones): the chance something on the
-// way stops it, and the predators that could (fighters, from teamUnits), worst first: [{ foe, biome }]
+// way stops it, and the predators that could (fighters, from teamUnits), each kind once on the way and
+// once there: [{ foe, biome, water: by the water, at: 'on the way' | 'there' }]
 export function routeRisk(s, team, key) {
   const seed = W(s).seed, h = parseKey(key), path = travelPath(seed, h);
   let pass = 1;
@@ -446,8 +447,9 @@ export function routeRisk(s, team, key) {
     for (const k of kinds) {
       if ((k.foe.members[0].role || 'attacker') !== 'attacker' || keepsAway(k, team)) continue;
       if (!last) p0 += (k.weight || 1) / total * (k.lair ? INTERCEPT.lair : Math.min(1, k.chance) * INTERCEPT.share);
-      const id = k.entry.species || k.entry.creature;
-      if (!seen.has(id)) seen.set(id, { foe: k.foe, biome, at: last ? 'there' : 'on the way' });
+      // (each kind once on the way and once there, where it would be met)
+      const at = last ? 'there' : 'on the way', id = `${k.entry.species || k.entry.creature}|${at}`;
+      if (!seen.has(id)) seen.set(id, { foe: k.foe, biome, water: watery(seed, p), at });
     }
     if (!last) pass *= 1 - p0;
   }
