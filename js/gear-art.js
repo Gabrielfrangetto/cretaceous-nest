@@ -17,7 +17,8 @@ export const ANCHORS = {
   },
   raptor: {
     m: { head: { x: 0.52, y: 0.1, w: 0.44, r: 0 }, neck: { x: 0.46, y: 0.42, w: 0.36, r: 0 }, body: { x: 0.46, y: 0.6, w: 0.5, r: 0 }, back: { x: 0.36, y: 0.52, w: 0.5, r: 0 } },
-    f: { head: { x: 0.68, y: 0.1, w: 0.3, r: 0 }, neck: { x: 0.56, y: 0.42, w: 0.28, r: 0 }, body: { x: 0.5, y: 0.6, w: 0.42, r: 0 }, back: { x: 0.36, y: 0.46, w: 0.4, r: -10 } },
+    // (the adult female: in profile, its long tail behind)
+    f: { head: { x: 0.92, y: 0.1, w: 0.16, r: 0 }, neck: { x: 0.85, y: 0.3, w: 0.12, r: 0 }, body: { x: 0.71, y: 0.47, w: 0.22, r: 0 }, back: { x: 0.64, y: 0.34, w: 0.22, r: 0 } },
   },
   rex: {
     m: { head: { x: 0.62, y: 0.1, w: 0.32, r: 0 }, neck: { x: 0.56, y: 0.42, w: 0.3, r: 0 }, body: { x: 0.5, y: 0.63, w: 0.44, r: 0 }, back: { x: 0.36, y: 0.5, w: 0.42, r: -10 }, bone_helmet: { x: 0.452, y: 0.157, w: 0.78, r: 9 } },
