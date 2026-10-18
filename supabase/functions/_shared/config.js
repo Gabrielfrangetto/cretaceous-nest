@@ -764,7 +764,7 @@ export const CAMP = {
   forage: { meadow: 0.6, forest: 0.6, subtropical: 0.7, swamp: 0.5, floodplain: 0.7, coast: 0.6, scrub: 0.4, desert: 0.15, volcano: 0.1 },
 };
 // waypoints a route may be traced through, at most
-export const VIA_MAX = 8;
+export const VIA_MAX = 20;
 export const HAZARD_WOUND = [0.2, 0.35];
 export const HAZARD_FLOOR = 0.15;
 // Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow

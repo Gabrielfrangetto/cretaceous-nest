@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath } from '../journey.js';
+import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater } from '../journey.js';
 import { isStation } from '../map.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
@@ -58,10 +58,26 @@ const PROBLEMS = {
 const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
 let selected = null, message = '', tick = null;
-// Tracing a route: { to: the destination, from: where the team sets out, party: the id of a party
-// waiting out there that is sent on (null: a new team from the nest) }, and the waypoints tapped on the
-// map so far (walked in order, then on to the destination)
-let tracing = null, route = [];
+// Planning the way: { to: the destination, from: where the team sets out, party: the id of a party
+// waiting out there that is sent on (null: a new team from the nest) }, and route: the points the player
+// dragged the way through, in the order the way passes them (the easiest way between them)
+let tracing = null, route = [], undoRoute = [];
+// a change to the way, kept to be undone
+const changeRoute = next => { undoRoute.push(route); route = next; };
+// the way planned: every hex of it, where it sets out first (worked out once per change)
+let planned = { sig: '', path: [] };
+function plannedPath() {
+  const sig = tracing ? `${tracing.from}|${tracing.to}|${route.join(';')}` : '';
+  if (planned.sig !== sig) planned = { sig, path: tracing ? [tracing.from, ...routePath(S.world.seed, tracing.from, tracing.to, route)] : [] };
+  return planned.path;
+}
+// which stretch of the way (between the dragged points) the hex at index i of the planned path is in
+function stretchOf(i) {
+  const path = plannedPath();
+  let s = 0, from = 0;
+  for (const k of route) { const at = path.indexOf(k, from + 1); if (at < 0 || at >= i) break; s++; from = at; }
+  return s;
+}
 // the team being put together: [{ kind: 'dino' | 'player' | 'pack', id }]
 let team = [];
 const isMe = b => b && b.id === PLAYER_ID;
@@ -217,31 +233,52 @@ function paintMap() {
   if (hover && hover !== selected) outline(hover, ink, 2.5);
   if (focusKey && document.activeElement === mapCanvas) outline(focusKey, ink, 3, [5, 4]);
   if (selected) outline(selected, accent, 4);
-  // the route being traced: from where the team sets out through its waypoints to its destination
+  // the way planned: a line through every hex of it, each numbered (once big enough to read), the
+  // points the player dragged it through ringed, fresh water marked; a point being dragged shown where
+  // it would go
   if (tracing) {
     outline(tracing.to, accent, 4);
-    const path = [tracing.from, ...routePath(w.seed, tracing.from, tracing.to, route)].map(k => center(parseKey(k)));
+    const keys = plannedPath(), pts = keys.map(k => center(parseKey(k)));
     ctx.save();
-    ctx.setLineDash([px(7), px(5)]);
-    ctx.lineWidth = Math.max(3, px(3));
     ctx.lineJoin = ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(3, px(3));
     ctx.strokeStyle = accent;
     ctx.beginPath();
-    path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
-    ctx.setLineDash([]);
-    route.forEach((k, i) => {
-      const [x, y] = center(parseKey(k)), r = Math.max(7, px(7));
+    const big = SIZE * scale >= 18, r = big ? SIZE * 0.42 : Math.max(2.5, px(3));
+    keys.forEach((k, i) => {
+      if (!i) return;
+      const [x, y] = pts[i], pin = route.includes(k);
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = accent;
+      ctx.arc(x, y, pin ? r * 1.25 : r, 0, Math.PI * 2);
+      ctx.fillStyle = pin ? heart : accent;
       ctx.fill();
-      ctx.fillStyle = accentInk;
-      ctx.font = `700 ${(r * 1.2).toFixed(1)}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(i + 1), x, y + r * 0.08);
+      if (freshWater(w.seed, parseKey(k))) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
+      if (big) {
+        ctx.fillStyle = accentInk;
+        ctx.font = `700 ${(r * (i > 99 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i), x, y + r * 0.08);
+      }
     });
+    if (grab && grab.target) {
+      const [tx, ty] = center(parseKey(grab.target));
+      ctx.setLineDash([px(6), px(5)]);
+      ctx.lineWidth = Math.max(2, px(2));
+      ctx.strokeStyle = heart;
+      ctx.beginPath();
+      ctx.moveTo(...pts[grab.i - 1]);
+      ctx.lineTo(tx, ty);
+      ctx.lineTo(...pts[grab.i + 1]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(tx, ty, r * 1.25, 0, Math.PI * 2);
+      ctx.fillStyle = heart;
+      ctx.fill();
+    }
     ctx.restore();
   }
   // where each party is by now: waiting somewhere, or along its way
@@ -267,7 +304,7 @@ function paintMap() {
 
 // drag to look around, the wheel or two fingers to zoom; a press that doesn't move is a tap on a hex;
 // the arrow keys move between hexes and Enter picks one
-let dragged = false;
+let dragged = false, grab = null;
 function bindMap(box) {
   const canvas = mapCanvas = box.querySelector('#worldMap');
   const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
@@ -282,14 +319,23 @@ function bindMap(box) {
   };
   const keyAt = (clientX, clientY) => hexKey(...hexAt(...at(clientX, clientY)));
   const pick = key => {
-    if (tracing) { if (traceable(key)) { route = route.includes(key) ? route.filter(k => k !== key) : route.length < VIA_MAX ? [...route, key] : route; render(); } return; }
+    // (planning the way: a tap on a point dragged puts it back)
+    if (tracing) { if (route.includes(key)) { changeRoute(route.filter(k => k !== key)); render(); } return; }
     if (pickable(key)) { selected = key; message = ''; render(); }
   };
   const pts = new Map();
   let start = null, pinch = null;
   canvas.addEventListener('pointerdown', e => {
     pts.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, view: { ...view } }; dragged = false; }
+    if (pts.size === 1) {
+      start = { x: e.clientX, y: e.clientY, view: { ...view } };
+      dragged = false;
+      // planning the way: a press on one of its points (not where it starts or ends) takes hold of it
+      if (tracing) {
+        const key = keyAt(e.clientX, e.clientY), path = plannedPath(), i = path.indexOf(key);
+        grab = i > 0 && i < path.length - 1 ? { i, key, target: null } : null;
+      }
+    }
     if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), w: view.w }; }
   });
   canvas.addEventListener('pointermove', e => {
@@ -312,6 +358,12 @@ function bindMap(box) {
     if (!dragged && Math.hypot(dx, dy) < 6) return;
     if (!dragged) canvas.setPointerCapture(e.pointerId);
     dragged = true;
+    if (grab) {
+      // a point of the way dragged to another hex
+      const key = keyAt(e.clientX, e.clientY), target = key !== grab.key && traceable(key) ? key : null;
+      if (target !== grab.target) { grab.target = target; drawMap(); }
+      return;
+    }
     const k = 1 / (lastFit ? lastFit.scale : 1);
     const want = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
     view = keepInside(want, canvas);
@@ -321,6 +373,15 @@ function bindMap(box) {
   });
   const end = e => {
     const tap = pts.size === 1 && start && !dragged;
+    if (grab && e.type === 'pointerup' && grab.target) {
+      // the dragged point becomes one the way passes through: moved, if it was one, or put in its stretch
+      const k = route.indexOf(grab.key);
+      if (k >= 0) changeRoute(route.map((x, j) => (j === k ? grab.target : x)));
+      else if (route.length < VIA_MAX) changeRoute([...route.slice(0, stretchOf(grab.i)), grab.target, ...route.slice(stretchOf(grab.i))]);
+      grab = null;
+      render();
+    }
+    grab = null;
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = null;
     if (!pts.size) start = null;
@@ -550,7 +611,7 @@ function sideHTML(t) {
     ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
     ${teamFieldHTML(rows, left, t)}
     ${rivalsHTML(team.flatMap(membersOf))}
-    ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button><button class="ghost" type="button" id="traceRoute" ${problem ? 'disabled' : ''}>Trace a route…</button></div><p class="hint">Explore takes the easiest way. Trace a route to choose the way yourself: along a river, from water to water, or clear of a lair.</p>` : ''}
+    ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
@@ -561,15 +622,13 @@ function traceHTML(t) {
   const party = tracing.party && S.world.expeditions.find(e => e.id === tracing.party);
   const members = party ? party.members : team.flatMap(membersOf);
   const dest = placeName(cellAt(S.world.seed, parseKey(tracing.to)));
-  const names = route.map((k, i) => `<li>${i + 1}. ${esc(placeName(cellAt(S.world.seed, parseKey(k))))}</li>`).join('');
-  const sup = party ? party.supplies || {} : null;
-  return `<h3>A route to the ${esc(dest)}</h3>
-    <p class="hint">Tap hexes on the map to pass through them, in order, from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'} to the ${esc(dest)}; tap one again to take it off. Rivers and lakes on the way water everyone.</p>
-    ${route.length ? `<ol class="route-list">${names}</ol>` : '<p class="hint">No waypoints yet: the team would take the easiest way.</p>'}
-    <p class="hint">${legMins(S, members, tracing.from, tracing.to, route)} min to get there by this route.</p>
+  const sup = party ? party.supplies || {} : null, hexes = plannedPath().length - 1;
+  return `<h3>The way to the ${esc(dest)}</h3>
+    <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
+    <p class="hint">${legMins(S, members, tracing.from, tracing.to, route)} min to get there.</p>
     ${party ? (() => { const dry = dryStretch(S.world.seed, tracing.from, tracing.to, route); return dry.thirst >= SURVIVAL.at ? `<p class="hint ${dry.thirst >= SURVIVAL.faint ? 'warn-text' : ''}">The longest dry stretch: ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water${sup.water ? `, with ${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left in the flasks` : ''}.</p>` : '<p class="hint">Water all the way.</p>'; })() : members.length ? suppliesHTML(members, tracing.to) : ''}
-    <div class="row"><button class="btn" type="button" id="traceGo">Set off by this route</button>
-      ${route.length ? '<button class="ghost" type="button" id="traceUndo">Undo the last</button><button class="ghost" type="button" id="traceClear">Clear</button>' : ''}
+    <div class="row"><button class="btn" type="button" id="traceGo">Set off</button>
+      ${undoRoute.length ? '<button class="ghost" type="button" id="traceUndo">Undo</button>' : ''}${route.length ? '<button class="ghost" type="button" id="traceClear">Back to the easiest way</button>' : ''}
       <button class="ghost" type="button" id="traceCancel">Cancel</button></div>`;
 }
 
@@ -624,7 +683,7 @@ function tripsHTML(t) {
         <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
         ${partyStatusHTML(p)}
         ${p.camp ? campHTML(p, t) : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
-        ${there ? `<button class="ghost" type="button" data-order="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))} <span class="hint">(${legMins(S, p.members, p.at, there)} min)</span></button><button class="ghost" type="button" data-trace="${esc(p.id)}" data-hex="${esc(there)}">Trace a route there…</button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}
+        ${there ? `<button class="ghost" type="button" data-trace="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))}…</button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}
         ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(${CAMP.mins} min: look for water and food, rest)</span></button>`}</div>`}
       </li>`;
     }
@@ -744,30 +803,24 @@ function render() {
     render();
   });
   // tracing a route: started from the hex picked (a new team) or for a party waiting out there
-  const trace = document.getElementById('traceRoute');
-  if (trace) trace.addEventListener('click', () => { tracing = { to: selected, from: '0,0', party: null }; route = []; message = ''; render(); });
+  // planning the way: started from the hex picked (a new team) or for a party waiting out there
   const go = document.getElementById('traceGo');
   if (go) go.addEventListener('click', () => {
     const { to, party } = tracing, names = team.map(unitName);
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
-    message = r.ok ? (party ? 'The team set off by your route.' : `${esc(listNames(names))} set off by your route.`) : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
+    message = r.ok ? `${party ? 'The team' : esc(listNames(names))} set off. There in ${mins} min: then they wait for your orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
   });
   const undo = document.getElementById('traceUndo');
-  if (undo) undo.addEventListener('click', () => { route = route.slice(0, -1); render(); });
+  if (undo) undo.addEventListener('click', () => { route = undoRoute.pop() || []; render(); });
   const clear = document.getElementById('traceClear');
-  if (clear) clear.addEventListener('click', () => { route = []; render(); });
+  if (clear) clear.addEventListener('click', () => { changeRoute([]); render(); });
   const cancel = document.getElementById('traceCancel');
   if (cancel) cancel.addEventListener('click', () => { tracing = null; route = []; render(); });
   const send = document.getElementById('sendTrip');
-  if (send) send.addEventListener('click', () => {
-    const names = team.map(unitName), mins = legMins(S, team.flatMap(membersOf), '0,0', selected);
-    const r = act('explore', { team, hex: selected });
-    message = r.ok ? `${esc(listNames(names))} set off. There in ${mins} min: then they wait for your orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
-    if (r.ok) team = [];   // the next free one is suggested
-    render();
-  });
+  if (send) send.addEventListener('click', () => { tracing = { to: selected, from: '0,0', party: null }; route = []; undoRoute = []; message = ''; render(); });
   bindTrips(box);
 }
 
@@ -784,6 +837,7 @@ function bindTrips(box) {
     if (!p) return;
     tracing = { to: btn.dataset.hex, from: p.at, party: p.id };
     route = [];
+    undoRoute = [];
     message = '';
     render();
   }));
