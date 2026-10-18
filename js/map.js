@@ -5,7 +5,8 @@
 // to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat', 'hill',
 // 'mountain', 'volcano', 'lake' or 'ocean' (the last two water, no one goes there); river: a river runs
 // through it (then flow: how many stretches of river it carries, down: the way it flows on, 0-5 as
-// DIRS, -1 where it ends; from: the way to the lake it flows out of); lat in degrees (north +); heat
+// DIRS, -1 where it ends; from: the way to the lake it flows out of); lava: a lava flow cooled there (on
+// Volcanic Slopes); lat in degrees (north +); heat
 // and wet from 0 to 1.
 //
 // How it is made:
@@ -17,7 +18,9 @@
 //     great deserts are), drier far from the sea, and drier still in a mountain range's rain shadow
 //     (the wind blows from the east in the tropics and near the poles, from the west in between).
 //   rivers: springs high up where it is wet, running down to the sea or a lake (a pit with no way down).
-//   biomes: around volcanoes Volcanic Slopes; dry Badlands; wet lowlands Swamp; wet or cool Conifer
+//   volcanoes: in groups along the ranges (a lone cone or a field of vents), each of its own size, with
+//     lava flows running downhill from them.
+//   biomes: around volcanoes Volcanic Slopes, as far as each one's size and its lava reach; dry Badlands; wet lowlands Swamp; wet or cool Conifer
 //     Forest; the rest Fern Meadow (no grass yet in the Cretaceous: ferns covered the open ground).
 //   the nest: always in a calm lowland of ferns, a few hexes across.
 //   cities: the other tribes' settlements (MAP.cities), on fern lowlands far apart, each in its calm.
@@ -155,10 +158,35 @@ export function worldMap(seed) {
       else { terrain[c] = FLAT; height[c] = sea + (low - sea) * 0.2; }
     }
   }
-  // hot spots: volcanoes on the high ground, away from the nest
+  // hot spots: groups of volcanoes on the high ground, away from the nest (a lone cone, or a field of a
+  // few vents along a range), each vent of its own size
   const high = [];
-  for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && D[i] > MAP.calm + 6) high.push(i);
-  for (let v = 0; v < MAP.volcanoes && high.length; v++) terrain[high.splice(Math.floor(rand() * high.length), 1)[0]] = VOLCANO;
+  for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && D[i] > MAP.calm + 8) high.push(i);
+  const vents = [];
+  const hexDistI = (a, b) => dist([HX[a][0] - HX[b][0], HX[a][1] - HX[b][1]]);
+  for (let g = 0; g < MAP.volcanoes && high.length; g++) {
+    const c = high[Math.floor(rand() * high.length)];
+    const count = 1 + Math.floor(rand() ** 1.5 * 4);
+    const near = high.filter(i => i !== c && hexDistI(i, c) >= 2 && hexDistI(i, c) <= 5);
+    for (const v of [c, ...Array.from({ length: count - 1 }, () => near.splice(Math.floor(rand() * near.length), 1)[0]).filter(v => v !== undefined)]) {
+      terrain[v] = VOLCANO;
+      vents.push({ i: v, size: 0.8 + rand() * 2.2 });
+    }
+  }
+  // lava flows: tongues of dark rock running down from a vent, the longer the bigger it is
+  const lava = new Uint8Array(N);
+  for (const v of vents) for (let f = 0, flows = 1 + Math.floor(rand() * 2); f < flows; f++) {
+    let c = v.i;
+    const steps = Math.round(2 + v.size * 2 + rand() * 2), past = new Set([c]);
+    for (let s = 0; s < steps; s++) {
+      let next = -1;
+      for (let k = 0; k < 6; k++) { const n = NB[c * 6 + k]; if (n >= 0 && !past.has(n) && (next < 0 || height[n] + rand() * 0.01 < height[next])) next = n; }
+      if (next < 0 || water(terrain[next]) || D[next] <= MAP.calm + 4) break;
+      past.add(next);
+      if (terrain[next] !== VOLCANO) lava[next] = 1;
+      c = next;
+    }
+  }
   // how far each land hex is from the sea, for the rain that comes in from it
   const seaHexes = [];
   for (let i = 0; i < N; i++) if (terrain[i] === OCEAN) seaHexes.push(i);
@@ -258,6 +286,15 @@ export function worldMap(seed) {
   const volcanoes = [];
   for (let i = 0; i < N; i++) if (terrain[i] === VOLCANO) volcanoes.push(i);
   const fromVolcano = spread(volcanoes);
+  // the volcanic slopes: around each vent as far as its size reaches, ragged at the edge, and wherever
+  // lava ran
+  const volcanic = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    if (water(terrain[i]) || fromVolcano[i] < 0 || fromVolcano[i] > 5) continue;
+    if (lava[i] || terrain[i] === VOLCANO) { volcanic[i] = 1; continue; }
+    const rag = 0.6 + 0.8 * fbm(seed, 0x5be0cd19, ...xy(HX[i]), 3, 2);
+    for (const v of vents) if (hexDistI(i, v.i) <= v.size * rag) { volcanic[i] = 1; break; }
+  }
   // how far each hex is from a river on flat ground, over flat ground (the floodplains)
   const riverFlats = [];
   for (let i = 0; i < N; i++) if (river[i] && terrain[i] === FLAT) riverFlats.push(i);
@@ -272,7 +309,7 @@ export function worldMap(seed) {
     // a strip of flat ground along a river, or along the sea's shore (not cold lands: forest there)
     const byRiver = fromRiver[i] >= 0 && fromRiver[i] <= MAP.floodplain, bySea = coast[i] >= 1 && coast[i] <= MAP.shore;
     const mild = heat[i] >= 0.42;
-    biome[i] = fromVolcano[i] >= 0 && fromVolcano[i] <= 2 ? 'volcano'
+    biome[i] = volcanic[i] ? 'volcano'
       : lowland && w > 0.6 && heat[i] > 0.45 ? 'swamp'
       : terrain[i] === FLAT && mild && byRiver ? 'floodplain'
       : terrain[i] === FLAT && mild && bySea ? 'coast'
@@ -298,7 +335,7 @@ export function worldMap(seed) {
   const cityOf = new Map(cities.map((c, n) => [c, n]));
   const cells = new Array(N);
   for (let i = 0; i < N; i++) {
-    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i], ...(outlet[i] >= 0 ? { from: outlet[i] } : {}) } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
+    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], ...(lava[i] && biome[i] === 'volcano' ? { lava: true } : {}), river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i], ...(outlet[i] >= 0 ? { from: outlet[i] } : {}) } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
       ...(cityOf.has(i) ? { city: CITY_NAMES[cityOf.get(i) % CITY_NAMES.length] } : {}) };
   }
   const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })) };

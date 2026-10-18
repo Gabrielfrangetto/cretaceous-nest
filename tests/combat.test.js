@@ -896,7 +896,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   const s = game(dino('s', 60, 'spino'), dino('a', 60, 'stego'));
   const sTeam = teamUnits(s, [{ kind: 'dino', id: 's', members: ['s'] }]), aTeam = teamUnits(s, [{ kind: 'dino', id: 'a', members: ['a'] }]);
   // (grown ones, past the young near the nest)
-  const at = (id, lair) => threatAt(42, landHexes(42).find(h => threatAt(42, h).id === id && threatAt(42, h).lair === lair && hexDist(h) > 3));
+  const at = (id, lair) => threatAt(42, landHexes(42).find(h => { const th = threatAt(42, h); return th.id === id && th.lair === lair && th.age !== 'young' && hexDist(h) > 3; }));
   assert.equal(keepsAway(at('allo', false), sTeam), true);
   assert.equal(keepsAway(at('allo', false), aTeam), false);
   const rex = at('rex', false);
