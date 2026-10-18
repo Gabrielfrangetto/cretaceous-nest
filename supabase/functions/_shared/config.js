@@ -358,7 +358,7 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // lake filling a pit drowns; greatLake: a hollow inland below the sea this big is a great lake (smaller,
 // low ground). MAP_VERSION bumps when the map changes.
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
-export const MAP_VERSION = 5;
+export const MAP_VERSION = 6;
 export const MAP = {
   cols: 300, rows: 200, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
