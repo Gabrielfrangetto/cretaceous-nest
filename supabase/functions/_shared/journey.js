@@ -15,9 +15,9 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET,
 } from './config.js';
-import { addItem, earn, hungerEvery, seededRand } from './economy.js';
+import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt } from './map.js';
 import {
@@ -60,10 +60,20 @@ export function startExpedition(s, team, key, now) {
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
   const units = teamFrom(s, team), members = units.flatMap(u => u.members);
-  const p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, pending: null };
+  const p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
+  for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
   startLeg(s, p, key, now);
   w.expeditions.push(p);
   return { ok: true, expedition: p };
+}
+
+// What a team packs from the inventory when it sets out (SURVIVAL.pack): water flasks, filled at the
+// nest's trough, and the player's rations (only with the player along). { water_skin, ration, water:
+// the drinks in the flasks }
+export function packOf(s, members) {
+  const n = id => Math.min(SURVIVAL.pack[id], countItem(s, id));
+  const skins = n('water_skin');
+  return { water_skin: skins, ration: members.includes(PLAYER_ID) ? n('ration') : 0, water: skins * SURVIVAL.skin };
 }
 
 // where a party on a leg is by now: the index of the last hex of its path it reached (-1: still leaving)
@@ -164,6 +174,7 @@ export function journeyStep(s, id, choice = {}, now) {
       reveal(s, [key]);
       const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
       if (z) suffer(c, z);
+      if (!c.gone) survive(c, idx);
       if (c.gone) break;
       const ev = idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx);
       if (ev && run(c, ev, null) && !c.gone && !p.pending) afterEvent(c, ev);
@@ -247,6 +258,98 @@ function suffer(ctx, z) {
   }
   const b = who && who !== PLAYER_ID ? explorerOf(s, who) : null;
   story.push({ kind: 'hazard', hazard: z.kind, hex: key, idx: z.idx, biome: biomeAt(w.seed, parseKey(key)), mins: z.mins, ...(who ? { who: { id: who, name: who === PLAYER_ID ? 'You' : b ? b.name : '?' } } : {}) });
+}
+
+// ---------- hunger and thirst ----------
+export const levelOf = (p, kind, id) => (p[kind] && p[kind][id]) || 0;
+const setLevel = (p, kind, id, v) => { p[kind] = p[kind] || {}; p[kind][id] = Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000; };
+const dietOf = (s, id) => (id === PLAYER_ID ? PLAYER_DIET : bodyOf(s, id).diet || []);
+// fresh water at a hex: a river, a lake beside it, a swamp or a floodplain (the sea is salt)
+export const freshWater = (seed, h) => {
+  const c = cellAt(seed, h);
+  return !!c && (c.river || c.biome === 'swamp' || c.biome === 'floodplain' || neighbors(h).some(n => (cellAt(seed, n) || {}).terrain === 'lake'));
+};
+// The longest stretch of the way from one hex to another with no fresh water: { hexes, thirst: how
+// thirsty it would leave one who set out watered }
+export function dryStretch(seed, from, to) {
+  let best = { hexes: 0, thirst: 0 }, run = { hexes: 0, thirst: 0 };
+  for (const h of travelPath(seed, parseKey(to), parseKey(from))) {
+    if (freshWater(seed, h)) { run = { hexes: 0, thirst: 0 }; continue; }
+    const c = cellAt(seed, h);
+    run = { hexes: run.hexes + 1, thirst: run.thirst + SURVIVAL.thirst * stepCost(c) * (SURVIVAL.dry[c.biome] || 1) };
+    if (run.thirst > best.thirst) best = run;
+  }
+  return best;
+}
+// what a level of hunger or thirst is called (SURVIVAL.words)
+export const needWord = (kind, v) => SURVIVAL.words[kind].find(([max]) => v < max)[1];
+// how worn down one is by hunger or thirst, as stat mods for a fight (SURVIVAL weak, faint, worn)
+export function wornMods(p, id) {
+  const worst = Math.max(levelOf(p, 'hunger', id), levelOf(p, 'thirst', id));
+  const k = worst >= SURVIVAL.faint ? SURVIVAL.worn[1] : worst >= SURVIVAL.weak ? SURVIVAL.worn[0] : 1;
+  return k < 1 ? [{ stat: 'str', type: 'more', value: k }, { stat: 'agi', type: 'more', value: k }] : [];
+}
+// Every step of the way: hunger and thirst rise (SURVIVAL); fresh water waters everyone and fills the
+// flasks, a plant eater grazes on green land, a fisher fishes at fresh water, a small hunter feeds
+// itself; past SURVIVAL.at one drinks from the flasks and eats what the team carries; at the end of
+// one's strength the health drains: a dinosaur dies of it, the player collapses.
+function survive(ctx, idx) {
+  const { s, p, story } = ctx, w = W(s), key = p.leg.path[idx], h = parseKey(key), cell = cellAt(w.seed, h);
+  if (!cell) return;
+  const cost = stepCost(cell), fresh = freshWater(w.seed, h);
+  const tell = x => story.push({ hex: key, idx, biome: cell.biome, ...x });
+  const sup = p.supplies || (p.supplies = { water_skin: 0, ration: 0, water: 0 });
+  const nameOf = id => (id === PLAYER_ID ? 'You' : (explorerOf(s, id) || { name: '?' }).name);
+  const before = Object.fromEntries(p.members.map(id => [id, Math.max(levelOf(p, 'hunger', id), levelOf(p, 'thirst', id))]));
+  const thirsty = p.members.some(id => levelOf(p, 'thirst', id) >= SURVIVAL.at);
+  for (const id of p.members) {
+    const sp = id === PLAYER_ID ? {} : bodyOf(s, id), up = !isDown(p, id);
+    let t = levelOf(p, 'thirst', id) + SURVIVAL.thirst * cost * (SURVIVAL.dry[cell.biome] || 1);
+    let f = levelOf(p, 'hunger', id) + SURVIVAL.hunger * cost;
+    if (up && sp.selfFeed) f = 0;
+    else if (up && dietOf(s, id).includes('leaf') && SURVIVAL.green.includes(cell.biome)) f -= SURVIVAL.graze;
+    if (fresh) { t = 0; if (up && sp.fishing) f = 0; }
+    setLevel(p, 'thirst', id, t);
+    setLevel(p, 'hunger', id, f);
+  }
+  if (fresh) {
+    sup.water = sup.water_skin * SURVIVAL.skin;
+    if (thirsty) tell({ kind: 'water' });
+  } else if (sup.water > 0) {
+    // the flasks, the thirstiest first
+    for (const id of [...p.members].sort((a, b) => levelOf(p, 'thirst', b) - levelOf(p, 'thirst', a))) {
+      if (levelOf(p, 'thirst', id) < SURVIVAL.at) break;
+      const need = SURVIVAL.drinks[id === PLAYER_ID ? PLAYER_SIZE : bodyOf(s, id).size] || 1;
+      if (sup.water < need) continue;
+      sup.water -= need;
+      setLevel(p, 'thirst', id, levelOf(p, 'thirst', id) - SURVIVAL.drink);
+    }
+    if (sup.water <= 0) tell({ kind: 'dry' });
+  }
+  // a meal of what the team carries (the player's rations first)
+  for (const id of p.members) {
+    if (levelOf(p, 'hunger', id) < SURVIVAL.at) continue;
+    const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => (p.carry.items[x] || 0) > 0);
+    if (!food) continue;
+    if (food === 'ration') sup.ration -= 1;
+    else if (!(p.carry.items[food] -= 1)) delete p.carry.items[food];
+    setLevel(p, 'hunger', id, levelOf(p, 'hunger', id) - SURVIVAL.eat);
+  }
+  // at the end of one's strength
+  for (const id of [...p.members]) {
+    const hunger = levelOf(p, 'hunger', id), thirst = levelOf(p, 'thirst', id), worst = Math.max(hunger, thirst);
+    const need = thirst >= hunger ? 'thirst' : 'hunger';
+    if (worst < SURVIVAL.faint) continue;
+    if (before[id] < SURVIVAL.faint) tell({ kind: 'faint', need, who: { id, name: nameOf(id) } });
+    if (healthOf(p, id) <= 0) continue;
+    const left = healthOf(p, id) - SURVIVAL.drain * cost;
+    if (left > 0) { p.health[id] = Math.round(left * 1000) / 1000; continue; }
+    const name = nameOf(id);
+    if (id === PLAYER_ID) { fall(ctx, id, false); tell({ kind: 'collapse', need, who: { id, name } }); continue; }
+    tell({ kind: 'perished', need, who: { id, name } });
+    die(ctx, id);
+    if (ctx.gone) return;
+  }
 }
 
 // ---------- what happens on the way ----------
@@ -404,6 +507,8 @@ function carcass(ctx, entry, step, rand) {
     const n = lo + Math.floor(rand() * (hi - lo + 1));
     if (n > 0) got.push(carryItem(ctx.p, item, n));
   }
+  // the meat eaters eat their fill of it there and then
+  for (const id of ctx.p.members) if (dietOf(ctx.s, id).includes('meat')) setLevel(ctx.p, 'hunger', id, 0);
   return got;
 }
 function carryItem(p, item, n) {
@@ -450,7 +555,7 @@ function fight(ctx, ev, rand, how = {}) {
   const as = how.as || { foe: threat.foe, entry: threat.entry, step: threat.step, lair: threat.lair, id: threat.id };
   const foe = as.foe;
   const fought = how.units || standingUnits(s, p);
-  const team = teamUnits(s, fought);
+  const team = teamUnits(s, fought, id => wornMods(p, id));
   const opts = { swamp: watery(w.seed, h), biome: biomeAt(w.seed, h), hp: fought.map(u => u.members.map(id => healthOf(p, id))), ...(how.defend ? { defend: true } : {}) };
   const result = teamFight(team, foe, rand, opts);
   const frenzyCount = p.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length;
@@ -572,7 +677,7 @@ function comeHome(ctx) {
     if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); return egg; }
     return { ...egg, lost: true };
   });
-  const injured = [], fedSelf = [];
+  const injured = [], fedSelf = [], hungry = [];
   for (const id of p.members) {
     const b = explorerOf(s, id);
     if (!b) continue;
@@ -586,14 +691,19 @@ function comeHome(ctx) {
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }
-    if (me) continue;
-    if (SPECIES[b.type].selfFeed && !down) { b.lastFed = now; b.fed = (b.fed || 0) + 1; fedSelf.push(id); }
-    else b.lastFed = now - hungerEvery(b);
+    if (!me && SPECIES[b.type].selfFeed && !down) { b.lastFed = now; b.fed = (b.fed || 0) + 1; fedSelf.push(id); continue; }
+    // as hungry as the journey left it: past SURVIVAL.at it needs a meal at once
+    const f = levelOf(p, 'hunger', id), every = hungerEvery(b);
+    b.lastFed = now - (f >= SURVIVAL.at ? every : Math.round(every * f / SURVIVAL.at));
+    if (isHungryNow(b, now)) hungry.push(id);
   }
+  // the flasks and the rations left go back in the inventory
+  const sup = p.supplies || {};
+  for (const id of ['water_skin', 'ration']) if (sup[id] > 0) addItem(s, id, sup[id]);
   w.expeditions = w.expeditions.filter(x => x !== p);
   p.leg = null;
   ctx.gone = true;
-  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, injured, fedSelf, died: p.dead, team: p.team, members: p.members });
+  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, injured, fedSelf, hungry, died: p.dead, team: p.team, members: p.members });
 }
 
 // ---------- the decision waiting, for the screens ----------
@@ -692,8 +802,12 @@ export function cleanParties(s, w) {
       id: String(g.id), type: g.type, gen: 1, parents: [], laidAt: num(g.laidAt),
       genes: Object.fromEntries(STATS.map(({ id }) => [id, Math.min(geneMax, int(g.genes && g.genes[id]))])),
     }));
+    const level = src => Object.fromEntries(members.filter(id => src && src[id] != null).map(id => [id, Math.max(0, Math.min(1, Number(src[id]) || 0))]));
+    const sp = e.supplies && typeof e.supplies === 'object' ? e.supplies : {};
+    const skins = Math.min(SURVIVAL.pack.water_skin, int(sp.water_skin));
+    const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)) };
     out.push({
-      id: String(e.id), team, members, at, leg, health, down: inParty(e.down), hurt: inParty(e.hurt),
+      id: String(e.id), team, members, at, leg, health, hunger: level(e.hunger), thirst: level(e.thirst), supplies, down: inParty(e.down), hurt: inParty(e.hurt),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
       carry: { items, coins: int(c.coins), eggs }, pending,
       hex: leg ? leg.to : at, trip: leg ? leg.n : int(e.trip, 1), startedAt: leg ? leg.startedAt : num(e.startedAt), returnAt: leg ? leg.arriveAt : num(e.returnAt),

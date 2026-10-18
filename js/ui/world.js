@@ -1,14 +1,14 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
+import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, mealFor } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, inWorld, biomeAt, cellAt, neighbors, isRevealed, canReach, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf } from '../journey.js';
+import { legMins, positionOf, packOf as suppliesOf, dryStretch } from '../journey.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -41,6 +41,7 @@ const PROBLEMS = {
   city: 'A settlement of other colonists. Its people keep to themselves, for now.',
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
+  starved: 'You are too hungry to set out. Eat something first (in the Nest).',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
@@ -93,7 +94,7 @@ function unitProblem(u, t) {
   }
   return null;
 }
-const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', hungry: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
+const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', hungry: 'hungry', starved: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
 
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;
@@ -395,6 +396,20 @@ function routeHTML(units, key) {
   return `<div class="route ${warn ? 'warn' : ''}"><p class="hint">${way}</p>${line(r.way, 'On the way')}${line(there, 'When you arrive')}</div>`;
 }
 
+// What the team packs (water flasks, the player's rations) and the longest dry stretch on the way
+function suppliesHTML(members, key) {
+  const sup = suppliesOf(S, members), dry = dryStretch(S.world.seed, '0,0', key);
+  const packed = [sup.water_skin ? `${sup.water_skin} ${sup.water_skin === 1 ? ITEMS.water_skin.name : ITEMS.water_skin.plural}` : '', sup.ration ? `${sup.ration} ${sup.ration === 1 ? ITEMS.ration.name : ITEMS.ration.plural}` : ''].filter(Boolean);
+  const pack = packed.length ? `The team packs ${listNames(packed)} from your inventory.` : '';
+  const drinks = members.reduce((t, id) => t + (SURVIVAL.drinks[id === PLAYER_ID ? 'small' : SPECIES[byId(id).type].size] || 1), 0);
+  let water = '';
+  if (dry.thirst >= SURVIVAL.faint) water = `A long dry stretch on the way: ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water. ${sup.water >= drinks ? 'The flasks may just see the team through.' : 'Without water flasks, some may not make it.'}`;
+  else if (dry.thirst >= SURVIVAL.at) water = `There is a dry stretch on the way, ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water: the team will be thirsty${sup.water ? ', but has its flasks' : ''}.`;
+  const food = members.includes(PLAYER_ID) && !sup.ration ? 'You pack no rations: you will eat what the team finds or brings down.' : '';
+  const text = [pack, water, food].filter(Boolean).join(' ');
+  return text ? `<p class="hint ${dry.thirst >= SURVIVAL.faint && sup.water < drinks ? 'warn-text' : ''}">${text}</p>` : '';
+}
+
 // the risk of death in a fight, for those who could die (1% or more); a pack shows its likeliest one
 function riskHTML(units, death) {
   const at = units.map((u, i) => ({ name: u.name, p: Math.max(...death[i]) })).filter(x => x.p >= 0.01);
@@ -441,7 +456,7 @@ function landHTML(cell) {
 
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home, and dinosaurs come home hungry.</p>`;
+    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
   if (city) return `<h3>${esc(city)}</h3><p class="hint">A settlement of other colonists, ${plural(d, 'hex', 'hexes')} from your nest. Its people keep to themselves for now; one day there may be trade and travel between your nests. Around it the land is calm, as around yours: no predator hunts there.</p>`;
@@ -477,6 +492,7 @@ function sideHTML(t) {
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
+    ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
     <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
       ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
       ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
@@ -519,6 +535,14 @@ function tripsHTML(t) {
   }).join('')}</ul>`;
 }
 
+// the player's own hunger, and a meal from the inventory
+function eatHTML(p, t) {
+  if (!isHungry(p, t)) return '<p class="hint">Fed for now.</p>';
+  const food = mealFor(S, null);
+  return `<div class="row"><button class="btn small" type="button" data-eat ${food ? '' : 'disabled'}>Eat${food ? ` (${esc(ITEMS[food].name)})` : ''}</button>
+    <span class="hint warn-text">${food ? 'You are hungry: eat before you set out.' : 'You are hungry, and have nothing to eat: buy Trail Rations in the Shop, or bring home meat or fish.'}</span></div>`;
+}
+
 // the player's own explorer: stats and the weapons and armor it wears
 function youHTML(t) {
   const p = S.player, sheet = statSheet(p), d = sheet.derived;
@@ -542,7 +566,8 @@ function youHTML(t) {
   return `<div class="you-head"><span class="you-art"></span>
       <div><h3>${esc(p.name)}</h3>
       <p class="hint">Power ${sheet.power} · Health ${d.hp} · Damage ${d.damage} · Dodge ${Math.round(d.dodge * 100)}% · Armor ${Math.round(d.reduction * 100)}%</p>
-      <p class="hint">${away ? 'Out exploring.' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'You can explore on foot, anywhere, and never get hungry.'}</p></div></div>
+      <p class="hint">${away ? 'Out exploring.' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'You can explore on foot, anywhere.'}</p>
+      ${away ? '' : eatHTML(p, t)}</div></div>
     ${loadHTML(p)}
     <ul class="gear-slots">${rows}</ul>
     <p class="hint">Weapons and armor are sold in the Shop and made in the Forge. They can't be changed while you're away.</p>`;
@@ -566,6 +591,8 @@ function render() {
         </section>`;
   drawMap();
   box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 110));
+  const eat = box.querySelector('[data-eat]');
+  if (eat) eat.addEventListener('click', () => { act('feed', { id: PLAYER_ID }); render(); });
   box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {
     const index = +box.querySelector(`select[data-arms-slot="${btn.dataset.arms}"]`).value;
     const r = act('equipArms', { index });

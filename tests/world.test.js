@@ -146,7 +146,7 @@ test('who can explore: juveniles and adults anywhere, never babies, hungry or bu
   assert.equal(exploreProblem(s, 'ad', far, T0), null);
   assert.equal(exploreProblem(s, 'ad', '0,0', T0), 'home');
   assert.equal(exploreProblem(s, 'ad', '400,0', T0), 'out-of-map');
-  assert.equal(exploreProblem(s, 'ad', '1,0', T0 + 10 * 60000), 'hungry');
+  assert.equal(exploreProblem(s, 'ad', '1,0', T0 + 60 * 60000), 'hungry');
   s.breeding = { type: 'rex', maleId: 'ad', femaleId: 'ad2', startedAt: T0, readyAt: T0 + 1 };
   assert.equal(exploreProblem(s, 'ad', '1,0', T0), 'breeding');
   s.breeding = null;
@@ -213,7 +213,7 @@ test('a journey: out to a hex where the party waits, everything carried until it
   assert.equal(s.coins, before + home.coins);
   assert.ok(home.coins >= 10 + 15);
   if (home.loot.some(l => l.id === 'leaf')) assert.ok(countItem(s, 'leaf') > leaves);
-  assert.equal(s.hatched[0].lastFed, t3 - hungerEvery(s.hatched[0]));
+  assert.ok(s.hatched[0].lastFed <= t3 && s.hatched[0].lastFed >= t3 - hungerEvery(s.hatched[0]));
   // a second visit pays no discovery coins
   s.hatched[0].lastFed = t3;
   const again = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, t3);
@@ -434,4 +434,73 @@ test("the land's own dangers: a storm costs a leg its time, the heat wears someo
     assert.ok(p.health.ad >= Math.min(HAZARD_FLOOR, 1) - 1e-9 && p.health.ad < 1);
     assert.ok(!p.down.includes('ad'));
   }
+});
+
+test('hunger and thirst on a journey: flasks packed and brought back, fresh water, and the end of one\'s strength', async () => {
+  const { partyOf, freshWater, levelOf } = await import('../js/journey.js');
+  const { SURVIVAL, PLAYER_ID: ME } = await import('../js/config.js');
+  const { addItem: give } = await import('../js/economy.js');
+  // a hex whose way out crosses dry land (dryAt: the first dry hex of it)
+  const dryStart = landHexes(42).filter(h => hexDist(h) >= 6 && hexDist(h) <= 20).map(h => hexKey(...h))
+    .find(k => travelPath(42, parseKey(k)).some(h => !freshWater(42, h)));
+  assert.ok(dryStart);
+  const dryAt = travelPath(42, parseKey(dryStart)).findIndex(h => !freshWater(42, h));
+  // the team packs what it can carry of flasks and rations, and brings back what is left
+  let s = game(dino('ad', 30));
+  give(s, 'water_skin', 5); give(s, 'ration', 5);
+  let r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(countItem(s, 'water_skin'), 5 - SURVIVAL.pack.water_skin);
+  assert.equal(countItem(s, 'ration'), 5 - SURVIVAL.pack.ration);
+  assert.deepEqual(r.expedition.supplies, { water_skin: 3, ration: 3, water: 3 * SURVIVAL.skin });
+  collect(s, { id: r.expedition.id, flee: true }, r.expedition.leg.arriveAt);
+  assert.equal(countItem(s, 'water_skin'), 5);
+  assert.ok(countItem(s, 'ration') <= 5 && countItem(s, 'ration') >= 5 - SURVIVAL.pack.ration);
+  // at the end of its strength, with nothing to drink, a dinosaur dies of thirst
+  s = game(dino('ad', 30));
+  r = applyAction(s, 'explore', { babyId: 'ad', hex: dryStart }, T0);
+  let p = partyOf(s, r.expedition.id);
+  p.thirst = { ad: 1 }; p.health = { ad: 0.01 }; p.leg.step = dryAt;
+  let step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  assert.ok(step.story.some(e => e.kind === 'perished' && e.need === 'thirst' && e.who.id === 'ad'));
+  assert.equal(s.hatched.length, 0);
+  // the player collapses instead, and is carried
+  s = game(dino('ad', 30));
+  r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
+  p = partyOf(s, r.expedition.id);
+  p.hunger = { [ME]: 1 }; p.health = { [ME]: 0.01 }; p.leg.step = dryAt;
+  step = applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
+  assert.ok(step.story.some(e => e.kind === 'collapse' && e.need === 'hunger'));
+  assert.ok(p.down.includes(ME) && p.members.includes(ME));
+  // fresh water waters everyone and fills the flasks
+  const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 8 && travelPath(42, parseKey(k)).length && freshWater(42, travelPath(42, parseKey(k))[0]));
+  if (wet) {
+    s = game(dino('ad', 30));
+    give(s, 'water_skin', 1);
+    r = applyAction(s, 'explore', { babyId: 'ad', hex: wet }, T0);
+    p = partyOf(s, r.expedition.id);
+    p.thirst = { ad: 0.9 }; p.supplies.water = 0;
+    applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
+    if (partyOf(s, p.id)) assert.ok(levelOf(p, 'thirst', 'ad') < 0.9);
+  }
+});
+
+test('the player gets hungry too, and eats from the inventory before setting out', async () => {
+  const { PLAYER_ID: ME, PLAYER_HUNGER_MIN } = await import('../js/config.js');
+  const { addItem: give, removeItem } = await import('../js/economy.js');
+  const s = game();
+  for (const food of ['meat', 'fish', 'raw_egg', 'ration']) removeItem(s, food, countItem(s, food));
+  // never having eaten, not hungry
+  assert.equal(exploreProblem(s, ME, '1,0', T0), null);
+  s.player.lastFed = T0;
+  const later = T0 + PLAYER_HUNGER_MIN * 60000;
+  assert.equal(exploreProblem(s, ME, '1,0', later), 'starved');
+  assert.equal(applyAction(s, 'feed', { id: ME }, later).reason, 'no-food');
+  give(s, 'meat', 1);
+  const meal = applyAction(s, 'feed', { id: ME }, later);
+  assert.equal(meal.ok, true);
+  assert.equal(meal.food, 'meat');
+  assert.equal(countItem(s, 'meat'), 0);
+  assert.equal(exploreProblem(s, ME, '1,0', later), null);
+  assert.equal(applyAction(s, 'feed', { id: ME }, later).reason, 'full');
 });

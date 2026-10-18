@@ -1,12 +1,12 @@
 // The journey told as a flashback: the way the party went, drawn on a little map, a marker walking it
 // and stopping wherever something happened, for the player to see (and watch the fights) and, when it
 // comes to it, decide: fight or flee, hunt or let be, go on or turn back.
-import { BIOMES, ITEMS, SPECIES, PLAYER_ID } from '../config.js';
+import { BIOMES, ITEMS, SPECIES, PLAYER_ID, SURVIVAL } from '../config.js';
 import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME } from '../journey.js';
+import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
@@ -29,12 +29,17 @@ let fb = null;
 export function partyStatusHTML(p) {
   const who = p.members.map(id => {
     const b = explorerOf(S, id), left = p.down.includes(id) ? 0 : healthOf(p, id);
-    return `<span class="${left <= 0 ? 'warn-text' : ''}">${esc(id === PLAYER_ID ? 'You' : b ? b.name : '?')} · ${healthWord(left)}</span>`;
+    // (hunger and thirst only once they show)
+    const needs = ['hunger', 'thirst'].filter(k => levelOf(p, k, id) >= SURVIVAL.words[k][0][0]).map(k => needWord(k, levelOf(p, k, id)).toLowerCase());
+    const worn = Math.max(levelOf(p, 'hunger', id), levelOf(p, 'thirst', id)) >= SURVIVAL.faint;
+    return `<span class="${left <= 0 || worn ? 'warn-text' : ''}">${esc(id === PLAYER_ID ? 'You' : b ? b.name : '?')} · ${healthWord(left)}${needs.length ? `, ${needs.join(', ')}` : ''}</span>`;
   }).join(', ');
+  const sup = p.supplies || {};
+  const packed = [sup.water_skin ? `${sup.water_skin} ${itemName('water_skin', sup.water_skin)} (${sup.water ? `${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left` : 'empty'})` : '', sup.ration ? `${sup.ration} ${itemName('ration', sup.ration)}` : ''].filter(Boolean);
   const items = Object.entries(p.carry.items).filter(([, n]) => n > 0).map(([id, n]) => `${n} ${esc(itemName(id, n))}`);
   if (p.carry.coins) items.push(`${p.carry.coins} coins`);
   for (const egg of p.carry.eggs) items.push(`a ${esc(SPECIES[egg.type].egg)}`);
-  return `<p class="hint party-health">${who}</p>${items.length ? `<p class="hint">Carrying ${listNames(items)}.</p>` : ''}`;
+  return `<p class="hint party-health">${who}</p>${items.length ? `<p class="hint">Carrying ${listNames(items)}.</p>` : ''}${packed.length ? `<p class="hint">Supplies: ${listNames(packed)}.</p>` : ''}`;
 }
 
 export function openJourney(id, onChange) {
@@ -151,7 +156,7 @@ function walkTo(i, done) {
   stepOn();
 }
 
-const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'lost'];
+const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'lost', 'perished', 'collapse'];
 function next() {
   const actBox = document.querySelector('#journeyBody .journey-act');
   actBox.innerHTML = '';
@@ -354,6 +359,13 @@ function entryHTML(e) {
     }
     case 'backedOff': return `${cap(article(e.name))} ${esc(e.name)} sized up ${esc(e.by)}'s sail and backed off.`;
     case 'hazard': return hazardHTML(e);
+    case 'water': return 'Fresh water at last: everyone drank their fill, and the flasks were filled again.';
+    case 'dry': return 'The last of the water in the flasks was gone.';
+    case 'faint': return e.need === 'thirst'
+      ? `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} weak with thirst, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`
+      : `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} starving, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`;
+    case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;
+    case 'perished': return `${esc(e.who.name)} ${e.need === 'thirst' ? 'died of thirst' : 'starved to death'} on the way.`;
     case 'turned': return e.recalled ? 'Called back, the team turned for home here.' : 'The team turned back for home.';
     case 'lost': return 'Nobody of the team is left. Everything it carried is lost.';
     case 'arrived': {
@@ -369,10 +381,13 @@ function entryHTML(e) {
       const eggs = (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)} (${esc(SPECIES[g.type].species)}) is waiting in the Incubator!`)).join('');
       const hurt = (e.injured || []).map(x => `${cap(nm(x.id))} ${x.id === PLAYER_ID ? 'are' : 'is'} ${x.critical ? 'critically injured: herbs won\'t help, a Blood Transfusion will' : `injured for ${x.mins} min`}.`);
       const fed = (e.fedSelf || []).map(nm);
-      const hungry = (e.members || []).filter(id => id !== PLAYER_ID && !(e.fedSelf || []).includes(id)).length;
+      const hungryIds = (e.hungry || (e.members || []).filter(id => id !== PLAYER_ID && !(e.fedSelf || []).includes(id))).filter(id => id !== PLAYER_ID);
+      const dinos = (e.members || []).filter(id => id !== PLAYER_ID && !(e.died || []).some(d => d.id === id));
+      const hungry = hungryIds.length;
+      const meHungry = (e.hungry || []).includes(PLAYER_ID);
       const dead = (e.died || []).map(x => esc(x.name));
       return `Home! ${got.length ? `The team brought in ${listNames(got)}.` : 'The team brought nothing in.'}${eggs}`
-        + `${hurt.length ? ` ${hurt.join(' ')}` : ''}${fed.length ? ` ${cap(listNames(fed))} hunted lizards and insects on the way and came home fed.` : ''}${hungry ? ` ${fed.length ? 'The rest are' : hungry > 1 ? 'They are' : 'It is'} hungry.` : ''}`
+        + `${hurt.length ? ` ${hurt.join(' ')}` : ''}${fed.length ? ` ${cap(listNames(fed))} hunted lizards and insects on the way and came home fed.` : ''}${hungry ? ` ${hungry === dinos.length ? (hungry > 1 ? 'They are' : 'It is') : `${cap(listNames(hungryIds.map(nm)))} ${hungry > 1 ? 'are' : 'is'}`} hungry.` : ''}${meHungry ? ' You could do with a meal yourself.' : ''}`
         + `${dead.length ? ` ${listNames(dead)} did not come home.` : ''}`;
     }
     default: return '';

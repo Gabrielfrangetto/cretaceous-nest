@@ -66,7 +66,7 @@ test('a team of up to 5 places goes out together; a pack takes one place', () =>
   assert.equal(applyAction(s, 'explore', { babyId: 'r1', hex: '0,1' }, T0).ok, true);
 });
 
-test('a team comes home together: everyone hungry, the downed ones injured', () => {
+test('a team comes home together: as hungry as the journey left it, the downed ones injured', () => {
   const s = game(...compys(3, 10));
   const p = applyAction(s, 'formPack', { type: 'hypa', members: ['c0', 'c1', 'c2'] }).pack;
   // a far hex with a fight the small pack loses
@@ -80,7 +80,7 @@ test('a team comes home together: everyone hungry, the downed ones injured', () 
     assert.equal(c.battle.team.length, 1);
     if (!c.battle.win) for (const b of s.hatched) assert.ok(injuredLeft(b, back) >= INJURY_MINS * 60000);
   }
-  for (const b of s.hatched) assert.ok(b.lastFed < back);
+  for (const b of s.hatched) assert.ok(b.lastFed <= back);
   assert.equal(s.world.expeditions.length, 0);
 });
 

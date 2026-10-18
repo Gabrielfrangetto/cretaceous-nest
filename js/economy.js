@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES,
+  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, NEST_HUNGER, PLAYER_HUNGER_MIN, PLAYER_DIET,
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
@@ -284,12 +284,15 @@ export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id)
 
 // (gizzard stones: a species that digests well gets hungry more slowly)
 // (and one raised in a Psittacosaurus creche has a strong stomach)
-export const hungerEvery = b => Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000
-  * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1) * (b.stomach ? CRECHE.stomach : 1));
-export const isHungry = (b, now) => now - (b.lastFed || b.at) >= hungerEvery(b);
+// (a juvenile or an adult, no longer eating to grow, gets hungry more slowly: NEST_HUNGER; the player
+// every PLAYER_HUNGER_MIN)
+export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000
+  * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1) * (b.stomach ? CRECHE.stomach : 1) * (NEST_HUNGER[stageOf(b).id] || 1));
+// (a player who has never eaten yet isn't hungry)
+export const isHungry = (b, now) => (b.id === PLAYER_ID && b.lastFed == null ? false : now - (b.lastFed || b.at) >= hungerEvery(b));
 
 // the meal a species would eat now: its favourite food that is in the inventory, or null
-export const mealFor = (s, type) => DIET[type].find(food => countItem(s, food) > 0) || null;
+export const mealFor = (s, type) => (type ? DIET[type] : PLAYER_DIET).find(food => countItem(s, food) > 0) || null;
 // "Meat eater", "Plant eater", "Omnivore" or "Fish eater", from what it eats
 export function dietLabel(type) {
   const d = DIET[type];
@@ -299,6 +302,7 @@ export function dietLabel(type) {
 }
 
 export function feedBaby(s, id, now) {
+  if (id === PLAYER_ID) return feedPlayer(s, now);
   const b = s.hatched.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'missing' };
   if (isAway(s, id)) return { ok: false, reason: 'away' };
@@ -313,6 +317,18 @@ export function feedBaby(s, id, now) {
   bump(s, 'meals');
   const after = stageOf(b);
   return { ok: true, food, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
+}
+
+// the player eats (in the nest): no coins for it, and nothing to grow
+function feedPlayer(s, now) {
+  const p = s.player;
+  if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
+  if (!isHungry(p, now)) return { ok: false, reason: 'full' };
+  const food = mealFor(s, null);
+  if (!food) return { ok: false, reason: 'no-food', food: PLAYER_DIET[0] };
+  removeItem(s, food, 1);
+  p.lastFed = now;
+  return { ok: true, food, coins: 0, grewTo: null };
 }
 
 // ---------- shop ----------
@@ -450,7 +466,7 @@ export function cleanPlayer(p) {
   const src = p && typeof p === 'object' ? p : newPlayer();
   const name = String(src.name ?? '').trim().slice(0, 24) || 'You';
   const equip = Object.fromEntries(PLAYER_SLOTS.map(({ id }) => [id, src.equip && src.equip[id]]).filter(([slot, item]) => isArms(item) && ITEMS[item].slot === slot));
-  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}) };
+  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}), ...(Number(src.lastFed) > 0 ? { lastFed: Number(src.lastFed) } : {}) };
 }
 
 // ---------- outfits ----------

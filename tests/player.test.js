@@ -27,7 +27,7 @@ test('every game has the player, with their own base stats', () => {
   assert.equal(m.player.name, 'You');
 });
 
-test('the player explores anywhere without a dinosaur and never gets hungry', () => {
+test('the player explores anywhere without a dinosaur, and comes home as hungry as the journey left it', () => {
   const s = game();
   const far = hexKey(WORLD_RADIUS, 0);
   assert.equal(exploreProblem(s, PLAYER_ID, far, T0 + 1e9), null);
@@ -36,7 +36,7 @@ test('the player explores anywhere without a dinosaur and never gets hungry', ()
   assert.equal(isAway(s, PLAYER_ID), true);
   const back = collect(s, { id: r.expedition.id }, T0 + tripMins('1,0') * 60000);
   assert.equal(back.ok, true);
-  assert.equal(s.player.lastFed, undefined);
+  assert.ok(s.player.lastFed <= T0 + tripMins('1,0') * 60000);
 });
 
 test('weapons and armor go on the player, one per slot, and raise its stats', () => {

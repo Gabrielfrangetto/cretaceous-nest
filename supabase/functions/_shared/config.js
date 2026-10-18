@@ -246,6 +246,8 @@ export const ITEMS = {
   allo_tooth:   { name: 'Serrated Allosaurus Tooth', plural: 'serrated Allosaurus teeth', desc: 'Lost in a frenzy, when Allosaurus turned on each other. Serrated like a steak knife: they shed and regrew teeth all their lives.' },
   allo_blood:   { name: 'Allosaurus Blood', plural: 'Allosaurus blood', desc: 'Spilled when Allosaurus turned on each other in a frenzy. Used in the Forge for blood transfusions.' },
   transfusion:  { name: 'Blood Transfusion', plural: 'blood transfusions', desc: 'Allosaurus blood and healing herbs. Heals a critically injured dinosaur on the spot.' },
+  ration:       { name: 'Trail Ration', plural: 'trail rations', desc: 'Dried meat, nuts and hard bread, wrapped for the road. Your own food on a journey: packed when you set out.' },
+  water_skin:   { name: 'Water Flask', plural: 'water flasks', desc: 'A clay flask stoppered with resin. Holds a few drinks for the dry stretches; packed when a team sets out, refilled wherever there is fresh water.' },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -343,6 +345,30 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
 export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
+// a juvenile or an adult gets hungry these times more slowly than a baby (that eats to grow)
+export const NEST_HUNGER = { baby: 1, juvenile: 2, adult: 4 };
+// the player gets hungry every this many minutes, and eats the first of these in the inventory
+export const PLAYER_HUNGER_MIN = 30;
+export const PLAYER_DIET = ['ration', 'fish', 'meat', 'raw_egg'];
+// Hunger and thirst on a journey (at home the nest's trough, built by the colonists, waters everyone).
+// Both go from 0 (fed, watered) to 1, rising with every step of the way (a hex's travel cost): thirst
+// and hunger a unit of cost, times dry in the thirstier lands. Fresh water (a river, a lake beside, a
+// swamp or a floodplain; not the salt sea) waters everyone and fills the flasks. A plant eater grazes
+// graze off its hunger on green land; a meat eater eats its fill of what the team brings down; a fisher
+// fishes its fill at fresh water; a small hunter (selfFeed) feeds itself as it goes. Past at, one eats a
+// meal of what the team carries (the player its rations first), taking eat off, and drinks from the
+// flasks (drinks by size a drink, a flask holding skin), taking drink off. Past weak one is worn (keeps
+// worn[0] of its strength and agility), past faint worn[1], and loses drain of its health a unit of
+// cost: a dinosaur at the end of it dies, the player collapses. A team packs up to pack of these from
+// the inventory when it sets out (what is left comes home). words: what each level is called.
+export const SURVIVAL = {
+  thirst: 0.012, hunger: 0.006, dry: { desert: 2, volcano: 1.5, scrub: 1.25 },
+  green: ['meadow', 'forest', 'scrub', 'floodplain', 'subtropical', 'swamp', 'coast'], graze: 0.04,
+  at: 0.5, eat: 0.5, drink: 0.5, weak: 0.35, faint: 0.75, worn: [0.9, 0.75], drain: 0.03,
+  drinks: { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, colossal: 4 }, skin: 4,
+  pack: { water_skin: 3, ration: 3 },
+  words: { hunger: [[0.2, 'Fed'], [0.35, 'Peckish'], [0.75, 'Hungry'], [Infinity, 'Starving']], thirst: [[0.2, 'Watered'], [0.35, 'Thirsty'], [0.75, 'Parched'], [Infinity, 'Dehydrated']] },
+};
 
 // World map: a hex map around the nest, hidden under fog until expeditions reveal it.
 // Each player's map is generated from their own seed. Distance from the nest sets how long a trip
@@ -823,6 +849,7 @@ export const EGG_GENES = (d, lair) => {      // [min, max] genes
 
 // The Forge: equipment made from materials. needs: { item: count }.
 export const RECIPES = [
+  { id: 'water_skin', needs: { clay: 4, amber: 1 } },
   { id: 'bone_sword', needs: { bone: 8, feather: 2 } },
   { id: 'bone_shield', needs: { bone: 6, clay: 2 } },
   { id: 'clay_armor', needs: { clay: 10, bone: 3 } },
@@ -838,7 +865,7 @@ export const RECIPES = [
   { id: 'transfusion', needs: { allo_blood: 2, herb: 2 } },
 ];
 
-// The player's explorer: explores alone like a dinosaur (any distance), never gets hungry, can be
+// The player's explorer: explores alone like a dinosaur (any distance), eats before setting out, can be
 // injured, and wears its own weapons and armor.
 export const PLAYER_ID = 'player';
 export const PLAYER_BASE = { str: 40, agi: 45, vit: 45, res: 35 };   // 165
@@ -896,6 +923,7 @@ export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp
 export const FOOD_PACKS = [
   { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
   { id: 'fish', qty: 5, price: 15 }, { id: 'raw_egg', qty: 3, price: 12 }, { id: 'herb', qty: 3, price: 20 },
+  { id: 'ration', qty: 3, price: 15 }, { id: 'water_skin', qty: 2, price: 40 },
 ];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 

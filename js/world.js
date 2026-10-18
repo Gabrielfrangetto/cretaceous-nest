@@ -188,14 +188,14 @@ export function lootTable(s, key) {
 export function memberProblem(s, id, key, now) {
   const b = explorerOf(s, id);
   if (!b) return 'missing';
-  // the player goes anywhere and never gets hungry
+  // the player goes anywhere (once fed)
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
   if (isAway(s, id)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
-  if (!me && isHungry(b, now)) return 'hungry';
+  if (isHungry(b, now)) return me ? 'starved' : 'hungry';
   return null;
 }
 
@@ -245,11 +245,12 @@ export function fullPackMods(type, n) {
 }
 
 // the fighting side of a team: a unit per dinosaur, the player, or pack
-export function teamUnits(s, units) {
+// (extra(id): more stat mods for one of them, e.g. worn down by hunger or thirst)
+export function teamUnits(s, units, extra = null) {
   return units.map(u => {
     const pack = u.kind === 'pack' && (s.packs || []).find(p => p.id === u.id);
     const bonus = fullPackMods(pack ? pack.type : null, u.members.length);
-    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(b => fighterOf(b, bonus));
+    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(b => fighterOf(b, extra ? [...bonus, ...extra(b.id)] : bonus));
     return unitOf(u.kind === 'pack' ? (pack ? pack.name : 'Pack') : (fighters[0] || { name: '?' }).name, fighters, u.kind === 'pack');
   }).filter(u => u.members.length);
 }

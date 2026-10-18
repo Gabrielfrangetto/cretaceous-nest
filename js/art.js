@@ -66,6 +66,10 @@ export const NEST = `<svg class="nest" viewBox="0 0 260 80" aria-hidden="true">
 // ---------- icons ----------
 const SHELL_PATH = 'M2 8 L4.5 6 L6.5 8.5 L8.5 5.5 L10.5 8.5 L12 6.5 L14 8 C14 12.5 11.5 15 8 15 C4.5 15 2 12.5 2 8Z';
 export const ITEM_ICONS = {
+  // a bundle wrapped in cloth and tied with cord
+  ration: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="5" width="11" height="7.5" rx="2" fill="#c9a46a" stroke="#7a5a33" stroke-width="1"/><path d="M8 5 L8 12.5 M2.5 8.7 L13.5 8.7" stroke="#7a3f2a" stroke-width="1.2"/><path d="M8 5 C6.5 3 5 3.5 5.5 4.6 M8 5 C9.5 3 11 3.5 10.5 4.6" stroke="#7a3f2a" stroke-width="1" fill="none"/></svg>',
+  // a clay flask with a resin stopper
+  water_skin: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 2.5 L9.5 2.5 L9.5 5 C12.5 6 13.5 8.5 13 11 C12.5 13.5 10.5 14.5 8 14.5 C5.5 14.5 3.5 13.5 3 11 C2.5 8.5 3.5 6 6.5 5Z" fill="#b8734a" stroke="#6e3f24" stroke-width="1"/><rect x="6.3" y="1.2" width="3.4" height="2" rx=".6" fill="#e39a2c"/><path d="M4.5 10 C6 11 10 11 11.5 10" stroke="#5b95c8" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>',
   leaf: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13 C3 6 8 2 14 2 C14 8 10 13 3 13Z" fill="#6fa64a"/><path d="M3 13 L10 6" stroke="#3f6b2a" stroke-width="1.4"/></svg>',
   meat: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2 C13 2 15 5 14 8 C13 11 9 12 7 10 C5 8 6 2 9 2Z" fill="#c4553b"/><path d="M9.5 4 C11 4 12 5 12 7" stroke="#eb9a84" stroke-width="1.3" fill="none"/><path d="M7.5 9.5 L4 13" stroke="#f2ead8" stroke-width="2.4" stroke-linecap="round"/><circle cx="3" cy="13.6" r="1.5" fill="#f2ead8"/><circle cx="2.4" cy="12" r="1.4" fill="#f2ead8"/></svg>',
   shell: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${SHELL_PATH}" fill="#eadcbf" stroke="#8b6a44" stroke-width="1"/><ellipse cx="5.5" cy="11" rx="1.2" ry="1" fill="#8b6a44" opacity=".6"/></svg>`,

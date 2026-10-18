@@ -24,7 +24,7 @@ test('the Forge turns materials into equipment the Shop does not sell', () => {
   for (const item of Object.keys(r.needs)) assert.equal(countItem(s, item), 0);
   assert.equal(applyAction(s, 'craft', { id: 'nothing' }, T0).reason, 'unknown-recipe');
   // equipment, or a remedy
-  for (const rec of RECIPES) assert.ok(['gear', 'arms'].includes(ITEMS[rec.id].kind) || rec.id === 'transfusion');
+  for (const rec of RECIPES) assert.ok(['gear', 'arms'].includes(ITEMS[rec.id].kind) || rec.id === 'transfusion' || rec.id === 'water_skin');
 });
 
 test('trips that come home can find an egg of the biome, with genes for its distance', async () => {
