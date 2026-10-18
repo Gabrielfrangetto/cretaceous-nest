@@ -3,7 +3,7 @@
 // once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt, inWorld as inMap } from '../world.js';
-import { SIZE, SQ3, center, fillOf, glyphOf, NEST } from './hexdraw.js';
+import { SIZE, SQ3, center, fillOf, glyphOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
 
 // ---------- SVG snippets as canvas paths ----------
 const attr = (s, name) => { const m = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(s); return m ? m[1] : null; };
@@ -83,21 +83,48 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
       ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5);
       if (!isWaterCell(cell) && !known(hexKey(...hx))) { ctx.fillStyle = dim; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
     }
+    // from very far only the great rivers show
+    drawRivers(ctx, seed, hexes, 8);
     return;
   }
   for (const h of hexes) {
-    const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
-    const faint = !isWaterCell(cell) && !known(key);
+    const [x, y] = center(h), cell = cellAt(seed, h);
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = fillOf(cell);
     ctx.fill(shape);
-    if (faint) { ctx.fillStyle = dim; ctx.fill(shape); }
+    if (!isWaterCell(cell) && !known(hexKey(...h))) { ctx.fillStyle = dim; ctx.fill(shape); }
     if (detail === 'full') ctx.stroke(shape);
     ctx.restore();
-    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : cell.river ? glyphOf(cell) : '';
-    if (art && (detail === 'full' || key === '0,0' || cell.city || cell.river)) paint(ctx, art, x, y, faint ? 0.7 : 1);
   }
+  drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
+  for (const h of hexes) {
+    const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
+    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : '';
+    if (art) paint(ctx, art, x, y, !isWaterCell(cell) && !known(key) ? 0.7 : 1);
+  }
+}
+// The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
+// never thinner on screen than the water they carry deserves
+function drawRivers(ctx, seed, hexes, minFlow) {
+  const hair = 1 / Math.max(1e-6, ctx.getTransform().a);
+  ctx.save();
+  ctx.strokeStyle = RIVER_COLOR;
+  ctx.lineCap = 'round';
+  for (const h of hexes) {
+    const cell = cellAt(seed, h);
+    if (!cell.river || cell.flow < minFlow) continue;
+    const [x, y] = center(h);
+    for (const s of riverHalves(seed, h)) {
+      if (s.width < riverWidth(minFlow)) continue;
+      ctx.lineWidth = Math.max(s.width, hair * (0.6 + Math.sqrt(s.width) * 0.45));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + s.bend[0], y + s.bend[1], x + s.to[0], y + s.to[1]);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 const isWaterCell = c => c.terrain === 'ocean' || c.terrain === 'lake';
 

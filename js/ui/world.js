@@ -19,7 +19,7 @@ import { ITEM_ICONS, playerArt } from '../art.js';
 import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt, plural } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
-import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST } from './hexdraw.js';
+import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
 import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 
@@ -29,7 +29,7 @@ export function sampleMapSVG(seed, seen = 3) {
     const c = center(h), d = hexDist(h), cell = cellAt(seed, h);
     const fog = d > seen;
     return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
-      <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : glyphOf(cell)}</g>`;
+      <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : riverSVG(seed, h) + glyphOf(cell)}</g>`;
   }).join('');
   const r = SIZE * SQ3 * (seen + 1.6);
   return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;

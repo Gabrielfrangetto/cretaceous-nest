@@ -51,6 +51,21 @@ test("every map has every biome, a calm meadow around the nest, rivers and lakes
   }
 });
 
+test('rivers run on from hex to hex, down to the sea, a lake or a bigger river, wider as they go', () => {
+  const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+  let joined = 0, mouths = 0;
+  for (const h of ALL_HEXES) {
+    const c = cellAt(WORLD_SEED, h);
+    if (!c.river) continue;
+    assert.ok(c.flow >= 1);
+    if (c.down < 0) continue;
+    const n = cellAt(WORLD_SEED, [h[0] + STEPS[c.down][0], h[1] + STEPS[c.down][1]]);
+    if (n.river) { joined++; assert.ok(n.flow > c.flow, 'wider downstream'); }
+    else if (n.terrain === 'ocean' || n.terrain === 'lake') mouths++;
+  }
+  assert.ok(joined > 500 && mouths > 20, JSON.stringify({ joined, mouths }));
+});
+
 test("the other tribes' cities: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
   const { citiesOf, cityAt, nearOf } = await import('../js/world.js');
   const cities = citiesOf(WORLD_SEED);

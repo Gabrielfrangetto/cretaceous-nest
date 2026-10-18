@@ -4,7 +4,8 @@
 // Hexes use axial coordinates (q, r) with the nest at 0,0, pointy-top: rows run west to east, r grows
 // to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat', 'hill',
 // 'mountain', 'volcano', 'lake' or 'ocean' (the last two water, no one goes there); river: a river runs
-// through it; lat in degrees (north +); heat and wet from 0 to 1.
+// through it (then flow: how many stretches of river it carries, down: the way it flows on, 0-5 as
+// DIRS, -1 where it ends); lat in degrees (north +); heat and wet from 0 to 1.
 //
 // How it is made:
 //   height: a few octaves of smooth noise and an oval falloff around the continent's middle, plus
@@ -160,27 +161,45 @@ export function worldMap(seed) {
     const near = Math.exp(-Math.max(0, coast[i]) / (12 * S));
     wet[i] = Math.max(0, Math.min(1, belt * (0.6 + 0.4 * near) * shadow + (fbm(seed, 0x3c6ef372, ...xy(h), 14 * S, 3) - 0.5) * 0.5));
   }
-  // rivers: from springs high up and wet, down to the sea or a lake
+  // rivers: from springs high up and wet, down to the sea or a lake, or into another river. down: the
+  // way (0-5, as DIRS) each stretch flows on to the next (-1: it ends there)
   const springs = [];
   for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && wet[i] > 0.4) springs.push(i);
   const rand2 = randOf(seed, 0x1f83d9ab);
-  const seen = new Int32Array(N).fill(-1);
+  const seen = new Int32Array(N).fill(-1), down = new Int8Array(N).fill(-1);
+  const wayTo = (c, n) => { for (let k = 0; k < 6; k++) if (NB[c * 6 + k] === n) return k; return -1; };
   for (let s = 0; s < MAP.rivers && springs.length; s++) {
     let c = springs.splice(Math.floor(rand2() * springs.length), 1)[0];
+    // (a spring on a river already running: nothing new starts there)
+    if (river[c]) continue;
     for (let step = 0; step < 400; step++) {
       seen[c] = s;
       if (terrain[c] !== MOUNTAIN && terrain[c] !== VOLCANO) river[c] = 1;
       let next = -1;
       for (let k = 0; k < 6; k++) { const n = NB[c * 6 + k]; if (n >= 0 && seen[n] !== s && (next < 0 || height[n] < height[next])) next = n; }
-      if (next < 0 || water(terrain[next])) break;
-      if (river[next] && step > 0) break;
+      if (next < 0) break;
+      // into the sea or a lake, or joining a river: it ends there, flowing into it
+      if (water(terrain[next]) || river[next]) { down[c] = wayTo(c, next); break; }
       if (height[next] > height[c] && rand2() < 0.25) {
         // a pit with no way down: a lake (never at the nest); otherwise the water finds a way over
         if (D[c] > MAP.calm && terrain[c] === FLAT) { terrain[c] = LAKE; river[c] = 0; }
         break;
       }
+      down[c] = wayTo(c, next);
       c = next;
     }
+  }
+  // how much water each stretch carries: itself and every stretch flowing into it (wider downstream)
+  const flow = new Float64Array(N), feeds = new Int32Array(N);
+  const into = i => { const n = down[i] >= 0 ? NB[i * 6 + down[i]] : -1; return n >= 0 && river[n] ? n : -1; };
+  for (let i = 0; i < N; i++) if (river[i]) { flow[i] = 1; const n = into(i); if (n >= 0) feeds[n]++; }
+  const ready = [];
+  for (let i = 0; i < N; i++) if (river[i] && !feeds[i]) ready.push(i);
+  while (ready.length) {
+    const i = ready.pop(), n = into(i);
+    if (n < 0) continue;
+    flow[n] += flow[i];
+    if (--feeds[n] === 0) ready.push(n);
   }
   // a few more lakes in wet hollows
   const hollows = [];
@@ -235,7 +254,7 @@ export function worldMap(seed) {
   const cityOf = new Map(cities.map((c, n) => [c, n]));
   const cells = new Array(N);
   for (let i = 0; i < N; i++) {
-    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], river: !!river[i], lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
+    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i] } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
       ...(cityOf.has(i) ? { city: CITY_NAMES[cityOf.get(i) % CITY_NAMES.length] } : {}) };
   }
   const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })) };

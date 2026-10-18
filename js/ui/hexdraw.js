@@ -1,5 +1,6 @@
 // Drawing the world's hexes: where a hex sits, its outline, its biome's colour and little drawing.
 import { BIOMES } from '../config.js';
+import { cellAt } from '../world.js';
 
 export const SIZE = 30;                 // hex radius in map units
 export const SQ3 = Math.sqrt(3);
@@ -30,10 +31,39 @@ const TERRAIN = {
   mountain: '<path d="M-14 10 L-5 -9 L1 2 L5 -4 L14 10Z" fill="#6e6458"/><path d="M-5 -9 L-2 -3 L-7 -3Z" fill="#f2efe6"/>',
   volcano: '<path d="M-14 10 L-4 -8 L4 -8 L14 10Z" fill="#4a3028"/><path d="M-4 -8 L-1 -13 L2 -9 L4 -12 L4 -8Z" fill="#e2643a"/>',
 };
-const RIVER = '<path d="M-22 -6 C-8 -14 -6 8 8 0 S 18 -4 24 6" fill="none" stroke="#4f8fcf" stroke-width="4" stroke-linecap="round"/>';
 export const WATER = { ocean: '#3b6e9e', lake: '#5b95c8' };
 export const fillOf = c => WATER[c.terrain] || BIOMES[c.biome].color;
-export const glyphOf = c => WATER[c.terrain] ? '' : (TERRAIN[c.terrain] || GLYPH[c.biome]) + (c.river ? RIVER : '');
+export const glyphOf = c => WATER[c.terrain] ? '' : (TERRAIN[c.terrain] || GLYPH[c.biome]);
 const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
 export const placeName = c => c.city ? `${c.city}, a city of another tribe` : WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
 export const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
+
+// ---------- rivers ----------
+// A river is drawn as one line from hex to hex: in each hex, from its middle to the edge it flows out
+// by (down), and from each edge a river flows in by, wider the more water it carries (flow). The bend
+// of each half is the hex's own, so the river meanders.
+export const RIVER_COLOR = '#4f8fcf';
+const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+export const riverWidth = flow => Math.min(12, 1.6 + 1.2 * Math.sqrt(flow || 1));
+const wobble = (q, r, k) => { let x = Math.imul(q * 73856093 ^ r * 19349663 ^ k * 83492791, 0x9e3779b1); x ^= x >>> 15; return ((x >>> 0) % 1000) / 1000 - 0.5; };
+// the halves of river in a hex, around its middle (0, 0): [{ to: the edge's middle, bend: the curve's
+// pull, width }]
+export function riverHalves(seed, h) {
+  const c = cellAt(seed, h);
+  if (!c || !c.river) return [];
+  const out = [];
+  const half = (k, width) => {
+    const [dq, dr] = STEPS[k], [x, y] = center([dq, dr]), to = [x / 2, y / 2];
+    // (the curve pulled to one side of the straight way, by up to a third of a hex)
+    const side = wobble(h[0], h[1], k) * SIZE * 0.7, len = Math.hypot(...to);
+    out.push({ to, bend: [to[0] / 2 - to[1] / len * side, to[1] / 2 + to[0] / len * side], width });
+  };
+  if (c.down >= 0) half(c.down, riverWidth(c.flow));
+  STEPS.forEach(([dq, dr], k) => {
+    const n = cellAt(seed, [h[0] + dq, h[1] + dr]);
+    if (n && n.river && n.down === (k + 3) % 6) half(k, riverWidth(n.flow));
+  });
+  return out;
+}
+// the river of a hex as SVG, around its middle
+export const riverSVG = (seed, h) => riverHalves(seed, h).map(s => `<path d="M0 0 Q${s.bend[0].toFixed(1)} ${s.bend[1].toFixed(1)} ${s.to[0].toFixed(1)} ${s.to[1].toFixed(1)}" fill="none" stroke="${RIVER_COLOR}" stroke-width="${s.width.toFixed(1)}" stroke-linecap="round"/>`).join('');
