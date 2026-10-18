@@ -379,3 +379,59 @@ test('the uncharted north: the continent runs on past the top of the map, colder
   assert.ok(land.some(c => c.biome === 'taiga') && land.some(c => c.biome === 'tundra'));
   assert.ok(cells.some(c => c.terrain === 'lake'));
 });
+
+test("the land's own dangers: a storm costs a leg its time, the heat wears someone down but never brings them down", async () => {
+  const { hazardsOf, partyOf } = await import('../js/journey.js');
+  const { HAZARD_FLOOR, NEST_CALM: CALM } = await import('../js/config.js');
+  const { nearOf } = await import('../js/world.js');
+  const SEED = 42;
+  const far = landHexes(SEED).filter(h => biomeAt(SEED, h) === 'desert').sort((a, b) => hexDist(a) - hexDist(b));
+  // none in the calm around a settlement, never more than two on a leg, the same every time
+  for (const h of far.slice(0, 20)) {
+    const path = travelPath(SEED, h).map(x => hexKey(...x));
+    for (let n = 1; n < 40; n++) {
+      const z = hazardsOf(SEED, n, path);
+      assert.ok(z.length <= 2);
+      assert.deepEqual(z, hazardsOf(SEED, n, path));
+      for (const x of z) assert.ok(nearOf(SEED, parseKey(path[x.idx])) > CALM);
+    }
+  }
+  // a leg that meets a sandstorm, and one that meets the heat
+  const find = kind => {
+    for (const h of far) {
+      const path = travelPath(SEED, h).map(x => hexKey(...x));
+      for (let n = 1; n < 300; n++) { const z = hazardsOf(SEED, n, path); if (z.some(x => x.kind === kind)) return { key: hexKey(...h), n, z }; }
+    }
+    return null;
+  };
+  const storm = find('sandstorm');
+  assert.ok(storm);
+  let s = game(dino('ad', 30));
+  s.world.trips = storm.n - 1;
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: storm.key }, T0);
+  const lost = storm.z.reduce((t, x) => t + x.mins, 0);
+  assert.ok(lost > 0);
+  assert.equal(r.expedition.leg.arriveAt, T0 + (legMins(s, ['ad'], '0,0', storm.key) + lost) * 60000);
+  const told = collect(s, { id: r.expedition.id, flee: true }, r.expedition.leg.arriveAt).story.find(e => e.kind === 'hazard' && e.hazard === 'sandstorm');
+  assert.ok(told && told.mins > 0 && told.biome === 'desert');
+  const heat = find('heat');
+  assert.ok(heat);
+  s = game(dino('ad', 30));
+  s.world.trips = heat.n - 1;
+  const r2 = applyAction(s, 'explore', { babyId: 'ad', hex: heat.key }, T0);
+  const id = r2.expedition.id, at = r2.expedition.leg.arriveAt;
+  let hurt = null;
+  for (let i = 0; i < 100 && !hurt; i++) {
+    const step = applyAction(s, 'journey', { id, flee: true }, at);
+    if (!step.ok) break;
+    hurt = step.story.find(e => e.kind === 'hazard' && e.hazard === 'heat');
+    if (!step.pending) break;
+  }
+  // (a fight on the way may have come first and ended the journey early)
+  if (hurt) {
+    const p = partyOf(s, id);
+    assert.equal(hurt.who.id, 'ad');
+    assert.ok(p.health.ad >= Math.min(HAZARD_FLOOR, 1) - 1e-9 && p.health.ad < 1);
+    assert.ok(!p.down.includes('ad'));
+  }
+});

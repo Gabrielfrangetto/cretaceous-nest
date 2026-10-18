@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -427,6 +427,18 @@ function rivalsHTML(members) {
   }).join('');
 }
 
+// the land's own dangers there (HAZARDS), in a line
+function landHTML(cell) {
+  const z = (HAZARDS[cell.biome] || []).filter(x => (!x.river || cell.river) && (x.cold == null || cell.heat < x.cold));
+  const say = {
+    sandstorm: 'Sandstorms blow across the dunes.', heat: 'Water is scarce under the burning sun.',
+    fumes: `Foul fumes drift down from the vents${cell.lava ? ', worst here on the old lava' : ''}.`,
+    flood: 'The river can burst its banks and hold a team up.', bog: "Bogs can cost a team its time, and a heavy animal its footing.",
+    cold: 'The nights are bitterly cold for small dinosaurs.', lost: 'A team can lose its way in this forest.',
+  };
+  return z.length ? `<p class="hint">${z.map(x => say[x.kind]).join(' ')}</p>` : '';
+}
+
 function sideHTML(t) {
   if (!selected) return `<h3>Pick a hex</h3>
     <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home, and dinosaurs come home hungry.</p>`;
@@ -461,6 +473,7 @@ function sideHTML(t) {
     : '';
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
     <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected)} min to get there, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    ${landHTML(cellAt(S.world.seed, h))}
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}

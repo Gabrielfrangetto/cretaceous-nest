@@ -317,6 +317,22 @@ function witnessHTML(e) {
 const fightOutcome = b => (b.escaped ? 'Everyone ran from it.' : b.win ? 'The team won.' : 'The team was beaten, and got away as best it could.')
   + `${(b.downed || []).length ? ` ${cap(listNames(b.downed.map(nm)))} went down.` : ''}${(b.died || []).length ? ` ${esc(listNames(b.died.map(x => x.name)))} did not survive.` : ''}`;
 
+// the land's own dangers met on the way (HAZARDS)
+function hazardHTML(e) {
+  const who = e.who ? esc(e.who.name) : '', lost = `, and lost about ${e.mins} min`;
+  const is = e.who && e.who.id === PLAYER_ID ? 'were' : 'was';
+  switch (e.hazard) {
+    case 'sandstorm': return `A sandstorm swept over the dunes. The team sheltered in the lee of a dune until it blew itself out${lost}.`;
+    case 'heat': return `The sun beat down and there was no water to be found. ${who} ${is} worn out by the heat and thirst.`;
+    case 'fumes': return `Foul fumes drifted down from the vents. ${who} breathed them in and came away coughing and weak.`;
+    case 'flood': return `The river had burst its banks. The team waited for the water to fall before crossing${lost}.`;
+    case 'bog': return `The ground gave way to a bog. Hauling free took a long while${lost}${who ? `, and ${who} wrenched a leg` : ''}.`;
+    case 'cold': return `A bitter night came down over the forest. ${who}, too small to keep warm, was chilled to the bone.`;
+    case 'lost': return `The forest closed in, thick and dark: the team lost its way, and it took about ${e.mins} min to find it again.`;
+    default: return '';
+  }
+}
+
 function entryHTML(e) {
   switch (e.kind) {
     case 'fight': return fightHTML(e);
@@ -337,6 +353,7 @@ function entryHTML(e) {
       return e.caught ? `${base} ${esc(e.hunter)} ran one down. Carried off: ${listNames(got) || 'nothing'}.` : `${base} ${esc(e.hunter)} gave chase, but it got away.`;
     }
     case 'backedOff': return `${cap(article(e.name))} ${esc(e.name)} sized up ${esc(e.by)}'s sail and backed off.`;
+    case 'hazard': return hazardHTML(e);
     case 'turned': return e.recalled ? 'Called back, the team turned for home here.' : 'The team turned back for home.';
     case 'lost': return 'Nobody of the team is left. Everything it carried is lost.';
     case 'arrived': {

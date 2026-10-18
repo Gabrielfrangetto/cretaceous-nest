@@ -704,6 +704,24 @@ export const CAMO = { target: 0.4 };
 // EYES) see it in time spot times as often, and one that gives chase starts with lead instead of
 // CHASE.lead.
 export const AMBUSH = { spot: 0.5, lead: 1.25 };
+// The land's own dangers on a journey, by biome: each hex crossed (past the calm around a settlement)
+// may bring one, chance of the time, at most HAZARD_MAX on one leg. delay: minutes lost (rolled in
+// that range), added to the leg when it sets out; wound: someone worn down, losing HAZARD_WOUND of
+// their health (never below HAZARD_FLOOR: the land wears a team down, it doesn't kill): 'any' one of
+// the team, 'heavy' a large one or bigger (a leg wrenched in a bog), 'cold' a small dinosaur (small
+// bodies lose their warmth fastest); river: only where a river runs; cold: only where the land is
+// colder than this (the north's winters); lava: this many times as likely on a lava flow.
+export const HAZARDS = {
+  desert: [{ kind: 'sandstorm', chance: 0.03, delay: [15, 40] }, { kind: 'heat', chance: 0.03, wound: 'any' }],
+  volcano: [{ kind: 'fumes', chance: 0.05, wound: 'any', lava: 2 }],
+  floodplain: [{ kind: 'flood', chance: 0.15, delay: [10, 30], river: true }],
+  swamp: [{ kind: 'bog', chance: 0.03, delay: [10, 25], wound: 'heavy' }],
+  forest: [{ kind: 'cold', chance: 0.025, wound: 'cold', cold: 0.35 }],
+  subtropical: [{ kind: 'lost', chance: 0.04, delay: [15, 35] }],
+};
+export const HAZARD_MAX = 2;
+export const HAZARD_WOUND = [0.2, 0.35];
+export const HAZARD_FLOOR = 0.15;
 // Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow
 // that lands may break a limb chance of the time.
 export const CRACK = { chance: 0.2 };

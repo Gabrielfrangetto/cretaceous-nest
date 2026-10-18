@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE,
 } from './config.js';
 import { addItem, earn, hungerEvery, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
@@ -48,7 +48,9 @@ function startLeg(s, p, to, at) {
   const w = W(s);
   w.trips += 1;
   const path = travelPath(w.seed, parseKey(to), parseKey(p.at)).map(h => hexKey(...h));
-  p.leg = { n: w.trips, from: p.at, to, path, step: 0, startedAt: at, arriveAt: at + legMins(s, p.members, p.at, to) * 60000 };
+  // (the land's dangers on the way may cost it time: a storm sat out, a river waited on)
+  const lost = hazardsOf(w.seed, w.trips, path).reduce((t, z) => t + z.mins, 0);
+  p.leg = { n: w.trips, from: p.at, to, path, step: 0, startedAt: at, arriveAt: at + (legMins(s, p.members, p.at, to) + lost) * 60000 };
   Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
 }
 
@@ -160,6 +162,9 @@ export function journeyStep(s, id, choice = {}, now) {
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
       reveal(s, [key]);
+      const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
+      if (z) suffer(c, z);
+      if (c.gone) break;
       const ev = idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx);
       if (ev && run(c, ev, null) && !c.gone && !p.pending) afterEvent(c, ev);
     }
@@ -206,6 +211,43 @@ const reveal = (s, keys) => {
   const w = W(s);
   for (const k of keys) if (!w.revealed.includes(k)) w.revealed.push(k);
 };
+
+// ---------- the land's own dangers ----------
+// The dangers of the land a leg crosses (HAZARDS), rolled once per hex of the leg (none in the calm
+// around a settlement), at most HAZARD_MAX: [{ idx, kind, mins: minutes lost, wound: who it wears down }]
+export function hazardsOf(seed, n, path) {
+  const out = [];
+  for (let idx = 0; idx < path.length && out.length < HAZARD_MAX; idx++) {
+    const h = parseKey(path[idx]), cell = cellAt(seed, h);
+    if (!cell || nearOf(seed, h) <= NEST_CALM) continue;
+    const rand = seededRand(`haz:${seed}:${n}:${idx}`);
+    for (const z of HAZARDS[cell.biome] || []) {
+      if ((z.river && !cell.river) || (z.cold != null && !(cell.heat < z.cold))) continue;
+      if (rand() >= z.chance * (z.lava && cell.lava ? z.lava : 1)) continue;
+      out.push({ idx, kind: z.kind, mins: z.delay ? z.delay[0] + Math.floor(rand() * (z.delay[1] - z.delay[0] + 1)) : 0, wound: z.wound || null });
+      break;
+    }
+  }
+  return out;
+}
+// A danger of the land met at a hex: the time it cost is already in the leg; someone of those on their
+// feet may be worn down by it (never brought down). Told unless nothing came of it.
+function suffer(ctx, z) {
+  const { s, p, story } = ctx, w = W(s), key = p.leg.path[z.idx];
+  const rand = seededRand(`hurt:${w.seed}:${p.leg.n}:${z.idx}`);
+  const members = standingUnits(s, p).flatMap(u => u.members);
+  const size = id => SIZE_ORDER.indexOf(bodyOf(s, id).size || PLAYER_SIZE);
+  const pool = !z.wound ? [] : z.wound === 'heavy' ? members.filter(id => size(id) >= SIZE_ORDER.indexOf('large'))
+    : z.wound === 'cold' ? members.filter(id => id !== PLAYER_ID && size(id) <= SIZE_ORDER.indexOf('small')) : members;
+  const who = pool.length ? pool[Math.floor(rand() * pool.length)] : null;
+  if (!z.mins && !who) return;
+  if (who) {
+    const cut = HAZARD_WOUND[0] + rand() * (HAZARD_WOUND[1] - HAZARD_WOUND[0]);
+    p.health[who] = Math.round(Math.max(Math.min(HAZARD_FLOOR, healthOf(p, who)), healthOf(p, who) - cut) * 1000) / 1000;
+  }
+  const b = who && who !== PLAYER_ID ? explorerOf(s, who) : null;
+  story.push({ kind: 'hazard', hazard: z.kind, hex: key, idx: z.idx, biome: biomeAt(w.seed, parseKey(key)), mins: z.mins, ...(who ? { who: { id: who, name: who === PLAYER_ID ? 'You' : b ? b.name : '?' } } : {}) });
+}
 
 // ---------- what happens on the way ----------
 // At a hex on the way (past the calm around the nest): now and then a hunt, wild against wild, the
