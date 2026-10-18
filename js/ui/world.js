@@ -125,8 +125,9 @@ function hexLabel(key) {
 // The view kept inside the map: shaped like the canvas, no bigger than the map either way, and moved
 // back so no edge shows past the map's
 function keepInside(v, canvas) {
-  // (the map's edge without the half hexes the staggered rows leave)
-  const m = mapBounds(), b = { x: m.x + SIZE * SQ3, y: m.y + SIZE, w: m.w - SIZE * SQ3 * 2, h: m.h - SIZE * 2 };
+  // (the map's edge without the half hexes the staggered rows leave; at the top the map's first row
+  // shows whole, and past it only the edge of the uncharted north, which no one explores)
+  const m = mapBounds(), b = { x: m.x + SIZE * SQ3, y: m.y, w: m.w - SIZE * SQ3 * 2, h: m.h - SIZE };
   const r = canvas.getBoundingClientRect();
   const aspect = r.width > 0 && r.height > 0 ? r.height / r.width : v.h / v.w;
   const w = Math.max(VIEW_MIN, Math.min(v.w, b.w, b.h / aspect)), h = w * aspect;
