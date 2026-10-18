@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
@@ -41,16 +41,34 @@ export const standingUnits = (s, p) => p.team
 const anyStanding = (s, p) => standingUnits(s, p).length > 0;
 // minutes for a leg from one hex to another, the easiest way: half a trip there and back (TRAVEL),
 // at the pace of the slowest (BODY slow), twice as fast for a team of runners (RUNNER)
-export const legMins = (s, members, from, to) =>
-  Math.max(1, Math.round(routeCost(W(s).seed, parseKey(from), parseKey(to)) * TRAVEL.mins / 2 * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1)));
+// (via: the waypoints of a route the player traced, walked in order)
+export const legMins = (s, members, from, to, via = []) =>
+  Math.max(1, Math.round(viaCost(W(s).seed, from, to, via) * TRAVEL.mins / 2 * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1)));
+// the stops of a route: from, the waypoints, to
+const stopsOf = (from, to, via) => [from, ...via.filter(k => k !== from && k !== to), to];
+const viaCost = (seed, from, to, via) => { const st = stopsOf(from, to, via); let c = 0; for (let i = 1; i < st.length; i++) c += routeCost(seed, parseKey(st[i - 1]), parseKey(st[i])); return c; };
+// the hexes walked on a route, from excluded, to last (the easiest way from each stop to the next)
+export function routePath(seed, from, to, via = []) {
+  const st = stopsOf(from, to, via), path = [];
+  for (let i = 1; i < st.length; i++) {
+    const seg = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1])).map(h => hexKey(...h));
+    if (!seg.length) return [];
+    path.push(...seg);
+  }
+  return path;
+}
+// the cost of each hex walked (a river crossed when stepped into, not along its bank)
+const pathCosts = (seed, from, path) => path.map((k, i) => stepCost(cellAt(seed, parseKey(k)), cellAt(seed, parseKey(i ? path[i - 1] : from))));
+// waypoints kept to land a team can walk to, at most VIA_MAX
+export const cleanVia = (s, via) => (Array.isArray(via) ? via : []).map(String).filter(k => { const h = parseKey(k); return h && inWorld(h) && !isWater(W(s).seed, h) && routeCost(W(s).seed, [0, 0], h) < Infinity; }).slice(0, VIA_MAX);
 
-function startLeg(s, p, to, at) {
+function startLeg(s, p, to, at, via = []) {
   const w = W(s);
   w.trips += 1;
-  const path = travelPath(w.seed, parseKey(to), parseKey(p.at)).map(h => hexKey(...h));
+  const path = routePath(w.seed, p.at, to, via);
   // (the land's dangers on the way may cost it time: a storm sat out, a river waited on)
   const lost = hazardsOf(w.seed, w.trips, path).reduce((t, z) => t + z.mins, 0);
-  p.leg = { n: w.trips, from: p.at, to, path, step: 0, startedAt: at, arriveAt: at + (legMins(s, p.members, p.at, to) + lost) * 60000 };
+  p.leg = { n: w.trips, from: p.at, to, path, step: 0, startedAt: at, arriveAt: at + (legMins(s, p.members, p.at, to, via) + lost) * 60000, ...(via.length ? { via } : {}) };
   Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
 }
 
@@ -78,7 +96,8 @@ function startTrain(s, p, to, at) {
 }
 
 // a new party sets out from the nest to a hex (on foot), or to a city's station by train
-export function startExpedition(s, team, key, now, train = false) {
+export function startExpedition(s, team, key, now, train = false, via = []) {
+  via = train ? [] : cleanVia(s, via);
   const problem = exploreProblem(s, team, key, now);
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
@@ -91,7 +110,7 @@ export function startExpedition(s, team, key, now, train = false) {
   const p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
   for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
   if (train) startTrain(s, p, key, now);
-  else startLeg(s, p, key, now);
+  else startLeg(s, p, key, now, via);
   w.expeditions.push(p);
   return { ok: true, expedition: p };
 }
@@ -109,7 +128,7 @@ export function packOf(s, members) {
 export function positionOf(s, p, now) {
   const leg = p.leg;
   if (!leg) return null;
-  const seed = W(s).seed, costs = leg.path.map(k => stepCost(cellAt(seed, parseKey(k))));
+  const seed = W(s).seed, costs = pathCosts(seed, leg.from, leg.path);
   const total = costs.reduce((t, c) => t + c, 0) || 1;
   const done = Math.min(1, Math.max(0, (now - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt))) * total;
   let i = -1, sum = 0;
@@ -118,7 +137,7 @@ export function positionOf(s, p, now) {
 }
 // when a leg reached the hex at index i of its path
 function timeAt(s, leg, i) {
-  const seed = W(s).seed, costs = leg.path.map(k => stepCost(cellAt(seed, parseKey(k))));
+  const seed = W(s).seed, costs = pathCosts(seed, leg.from, leg.path);
   const total = costs.reduce((t, c) => t + c, 0) || 1;
   const sum = costs.slice(0, i + 1).reduce((t, c) => t + c, 0);
   return Math.round(leg.startedAt + (leg.arriveAt - leg.startedAt) * sum / total);
@@ -126,10 +145,11 @@ function timeAt(s, leg, i) {
 
 // a party waiting at a hex is sent on: to another hex, or home (HOME); from a station, by train to
 // another (train)
-export function orderParty(s, id, to, now, train = false) {
+export function orderParty(s, id, to, now, train = false, via = []) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
   if (p.leg) return { ok: false, reason: 'on-the-way' };
+  if (p.camp) return { ok: false, reason: 'camping' };
   if (train) return to === p.at ? { ok: false, reason: 'there' } : startTrain(s, p, to, now);
   const h = parseKey(to);
   if (!h || !inWorld(h)) return { ok: false, reason: 'out-of-map' };
@@ -138,8 +158,53 @@ export function orderParty(s, id, to, now, train = false) {
   if (routeCost(W(s).seed, parseKey(p.at), h) === Infinity) return { ok: false, reason: 'unreachable' };
   // with nobody on their feet, the only way is home
   if (to !== HOME && !anyStanding(s, p)) return { ok: false, reason: 'nobody-standing' };
-  startLeg(s, p, to, now);
+  startLeg(s, p, to, now, cleanVia(s, via));
   return { ok: true, expedition: p };
+}
+
+// ---------- making camp ----------
+// A team waiting out in the wild makes camp (CAMP) to look for water and food and to rest
+export function makeCamp(s, id, now) {
+  const p = partyOf(s, id);
+  if (!p) return { ok: false, reason: 'no-expedition' };
+  if (p.leg) return { ok: false, reason: 'on-the-way' };
+  if (p.camp) return { ok: false, reason: 'camping' };
+  if (p.at === HOME || cityAt(W(s).seed, parseKey(p.at))) return { ok: false, reason: 'settled' };
+  p.camp = { startedAt: now, endsAt: now + CAMP.mins * 60000 };
+  return { ok: true, expedition: p };
+}
+// Breaking camp: what the camp found once it has had its time (CAMP), nothing if broken early.
+// { ok, story: [{ kind: 'camp', water, fed: [ids], meat, early }], expedition }
+export function breakCamp(s, id, now) {
+  const p = partyOf(s, id);
+  if (!p) return { ok: false, reason: 'no-expedition' };
+  if (!p.camp) return { ok: false, reason: 'no-camp' };
+  const w = W(s), h = parseKey(p.at), cell = cellAt(w.seed, h), biome = cell.biome;
+  const early = now < p.camp.endsAt;
+  const rand = seededRand(`camp:${w.seed}:${p.id}:${p.camp.startedAt}`);
+  p.camp = null;
+  const told = { kind: 'camp', hex: p.at, idx: 0, biome, early, water: false, fed: [], meat: 0 };
+  if (!early) {
+    const fresh = freshWater(w.seed, h) || neighbors(h).some(n => freshWater(w.seed, n));
+    told.water = fresh || rand() < (CAMP.water[biome] || 0);
+    const up = p.members.filter(id => !isDown(p, id));
+    const hunted = up.some(id => dietOf(s, id).includes('meat')) && rand() < CAMP.hunt * (BIOMES[biome].density || 0);
+    const foraged = rand() < (CAMP.forage[biome] || 0);
+    for (const id of up) {
+      const sp = id === PLAYER_ID ? {} : bodyOf(s, id), diet = dietOf(s, id);
+      const ate = (diet.includes('leaf') && SURVIVAL.green.includes(biome)) || (diet.includes('meat') && hunted) || (id === PLAYER_ID && foraged) || (sp.fishing && fresh) || sp.selfFeed;
+      if (ate) { setLevel(p, 'hunger', id, 0); told.fed.push(id); }
+      p.health[id] = Math.min(1, Math.round((healthOf(p, id) + CAMP.rest) * 1000) / 1000);
+    }
+    if (hunted) { told.meat = 1 + Math.floor(rand() * 2); carryItem(p, 'meat', told.meat); }
+    if (told.water) refreshWater(p);
+    // the hours in camp, without water found
+    for (const id of p.members) {
+      if (!told.water) setLevel(p, 'thirst', id, levelOf(p, 'thirst', id) + SURVIVAL.thirst * CAMP.cost);
+      if (!told.fed.includes(id)) setLevel(p, 'hunger', id, levelOf(p, 'hunger', id) + SURVIVAL.hunger * CAMP.cost);
+    }
+  }
+  return { ok: true, story: [told], expedition: p };
 }
 
 // Calling a party back: one waiting somewhere sets out for home; one on its way out stops where it is
@@ -315,7 +380,12 @@ function suffer(ctx, z) {
 // ---------- hunger and thirst ----------
 // fed and watered (at a city, on the train), the flasks filled
 function refresh(p) {
-  for (const id of p.members) { setLevel(p, 'hunger', id, 0); setLevel(p, 'thirst', id, 0); }
+  for (const id of p.members) setLevel(p, 'hunger', id, 0);
+  refreshWater(p);
+}
+// everyone watered, the flasks filled
+function refreshWater(p) {
+  for (const id of p.members) setLevel(p, 'thirst', id, 0);
   if (p.supplies) p.supplies.water = p.supplies.water_skin * SURVIVAL.skin;
 }
 export const levelOf = (p, kind, id) => (p[kind] && p[kind][id]) || 0;
@@ -328,12 +398,14 @@ export const freshWater = (seed, h) => {
 };
 // The longest stretch of the way from one hex to another with no fresh water: { hexes, thirst: how
 // thirsty it would leave one who set out watered }
-export function dryStretch(seed, from, to) {
+export function dryStretch(seed, from, to, via = []) {
   let best = { hexes: 0, thirst: 0 }, run = { hexes: 0, thirst: 0 };
-  for (const h of travelPath(seed, parseKey(to), parseKey(from))) {
+  const path = routePath(seed, from, to, via), costs = pathCosts(seed, from, path);
+  for (let i = 0; i < path.length; i++) {
+    const h = parseKey(path[i]);
     if (freshWater(seed, h)) { run = { hexes: 0, thirst: 0 }; continue; }
     const c = cellAt(seed, h);
-    run = { hexes: run.hexes + 1, thirst: run.thirst + SURVIVAL.thirst * stepCost(c) * (SURVIVAL.dry[c.biome] || 1) };
+    run = { hexes: run.hexes + 1, thirst: run.thirst + SURVIVAL.thirst * costs[i] * (SURVIVAL.dry[c.biome] || 1) };
     if (run.thirst > best.thirst) best = run;
   }
   return best;
@@ -353,7 +425,7 @@ export function wornMods(p, id) {
 function survive(ctx, idx) {
   const { s, p, story } = ctx, w = W(s), key = p.leg.path[idx], h = parseKey(key), cell = cellAt(w.seed, h);
   if (!cell) return;
-  const cost = stepCost(cell), fresh = freshWater(w.seed, h);
+  const cost = stepCost(cell, cellAt(w.seed, parseKey(idx ? p.leg.path[idx - 1] : p.leg.from))), fresh = freshWater(w.seed, h);
   const tell = x => story.push({ hex: key, idx, biome: cell.biome, ...x });
   const sup = p.supplies || (p.supplies = { water_skin: 0, ration: 0, water: 0 });
   const nameOf = id => (id === PLAYER_ID ? 'You' : (explorerOf(s, id) || { name: '?' }).name);
@@ -836,13 +908,14 @@ export function cleanParties(s, w) {
       const from = String(L.from), to = String(L.to);
       if (!land(from) || !land(to) || from === to || from !== at) continue;
       const train = L.train === true && trainRoute(w.seed, from, to);
-      const path = train ? train.path : travelPath(w.seed, parseKey(to), parseKey(from)).map(h => hexKey(...h));
+      const via = train ? [] : cleanVia(s, L.via);
+      const path = train ? train.path : routePath(w.seed, from, to, via);
       if (!path.length) continue;
       const startedAt = num(L.startedAt), recalled = !train && L.recalled === true;
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
-        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (train ? trainMins(train.hexes) : legMins(s, members, from, to)) * 60000),
-        ...(recalled ? { recalled } : {}), ...(train ? { train: true } : {}),
+        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (train ? trainMins(train.hexes) : legMins(s, members, from, to, via)) * 60000),
+        ...(recalled ? { recalled } : {}), ...(train ? { train: true } : {}), ...(via.length && !recalled ? { via } : {}),
       };
     }
     // a party with nowhere to go is one at home: it broke up
@@ -865,7 +938,8 @@ export function cleanParties(s, w) {
     const skins = Math.min(SURVIVAL.pack.water_skin, int(sp.water_skin));
     const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)) };
     out.push({
-      id: String(e.id), team, members, at, leg, health, hunger: level(e.hunger), thirst: level(e.thirst), supplies, down: inParty(e.down), hurt: inParty(e.hurt),
+      id: String(e.id), team, members, at, leg, health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
+      camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
       carry: { items, coins: int(c.coins), eggs }, pending,
       hex: leg ? leg.to : at, trip: leg ? leg.n : int(e.trip, 1), startedAt: leg ? leg.startedAt : num(e.startedAt), returnAt: leg ? leg.arriveAt : num(e.returnAt),

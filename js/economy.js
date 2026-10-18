@@ -7,7 +7,7 @@ import {
 } from './config.js';
 import { hashId, newId } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
-import { startExpedition, orderParty, recallParty, journeyStep } from './journey.js';
+import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 
 // running totals the achievements read; older saves get them from their migration
@@ -673,16 +673,23 @@ export const ACTIONS = {
     return feedBaby(s, id, now);
   },
   // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
-  explore(s, { team, babyId, hex, train }, now) {
-    return startExpedition(s, team || babyId, hex, now, !!train);
+  explore(s, { team, babyId, hex, train, via }, now) {
+    return startExpedition(s, team || babyId, hex, now, !!train, via);
   },
   // a party out is called home: from where it waits, or from where it is by now on its way out
   recall(s, { id }, now) {
     return recallParty(s, String(id), now);
   },
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
-  order(s, { id, hex, train }, now) {
-    return orderParty(s, String(id), String(hex), now, !!train);
+  order(s, { id, hex, train, via }, now) {
+    return orderParty(s, String(id), String(hex), now, !!train, via);
+  },
+  // a team waiting in the wild makes camp, or breaks it (and finds what it found)
+  camp(s, { id }, now) {
+    return makeCamp(s, String(id), now);
+  },
+  breakCamp(s, { id }, now) {
+    return breakCamp(s, String(id), now);
   },
   // what happened on a party's leg, told up to the next decision, which choice answers: fight (what
   // stood its ground), flee (a predator scattered the player's group: run too), hunt (one spotted at a

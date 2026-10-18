@@ -440,7 +440,9 @@ export const citiesOf = seed => worldMap(seed).cities;
 // hex's cost is its terrain's or its biome's, whichever is more, plus a river to cross. Water can't be
 // crossed.
 const costs = new Map();
-export const stepCost = c => Math.max(TRAVEL.terrain[c.terrain] || 1, TRAVEL.biome[c.biome] || 1) + (c.river ? TRAVEL.river : 0);
+// (a river takes crossing when the way steps into it; along its bank, from river hex to river hex, it
+// doesn't: from is the hex the way comes from)
+export const stepCost = (c, from = null) => Math.max(TRAVEL.terrain[c.terrain] || 1, TRAVEL.biome[c.biome] || 1) + (c.river && !(from && from.river) ? TRAVEL.river : 0);
 // { best: cost to each hex by index, prev: the hex (index) it is reached from }
 function routes(seed, from = [0, 0]) {
   const start = indexOf(from), id = `${seed}|${start}`;
@@ -476,7 +478,7 @@ function routes(seed, from = [0, 0]) {
       if (n < 0) continue;
       const cell = cells[n];
       if (cell.terrain === 'ocean' || cell.terrain === 'lake') continue;
-      const nc = c + stepCost(cell);
+      const nc = c + stepCost(cell, cells[i]);
       if (nc < best[n]) { best[n] = nc; prev[n] = i; push(nc, n); }
     }
   }

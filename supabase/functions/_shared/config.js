@@ -338,7 +338,7 @@ export const DRAWN_SLOTS = ['head', 'neck'];
 // cosmetic shop. Example:
 //   knight_rex: { name: 'Knight', species: 'rex', sprites: { m: 'sprites/outfits/knight_rex-m.png', f: 'sprites/outfits/knight_rex-f.png' } },
 export const OUTFITS = {};
-export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 2]];
+export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1]];
 
 // Feeding
 // what each species eats, favourite first; a meal uses the first of these in the inventory
@@ -751,6 +751,20 @@ export const HAZARDS = {
   subtropical: [{ kind: 'lost', chance: 0.04, delay: [15, 35] }],
 };
 export const HAZARD_MAX = 2;
+// Making camp: a team waiting out in the wild settles down for mins minutes to look for water and food
+// and to rest. Fresh water at the hex or beside it is found for sure; otherwise water of the time by the
+// land (a spring, rain caught in hollows, a soak dug in a dry bed). Plant eaters graze their fill on green
+// land; meat eaters catch small game hunt × the land's density of the time; the player forages (roots,
+// berries, eggs, small game) forage of the time by the land; fishers fish at fresh water. Everyone on
+// their feet gets back rest of their health. Without water found, the camp costs thirst (and hunger)
+// as much as this many units of travel.
+export const CAMP = {
+  mins: 30, rest: 0.15, cost: 1, hunt: 1.4,
+  water: { meadow: 0.6, forest: 0.7, subtropical: 0.85, swamp: 1, floodplain: 1, coast: 0.5, scrub: 0.35, desert: 0.1, volcano: 0.15 },
+  forage: { meadow: 0.6, forest: 0.6, subtropical: 0.7, swamp: 0.5, floodplain: 0.7, coast: 0.6, scrub: 0.4, desert: 0.15, volcano: 0.1 },
+};
+// waypoints a route may be traced through, at most
+export const VIA_MAX = 8;
 export const HAZARD_WOUND = [0.2, 0.35];
 export const HAZARD_FLOOR = 0.15;
 // Its strong beak cracked seeds and nuts: striking back at something no bigger than itself, a blow

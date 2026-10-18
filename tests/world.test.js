@@ -551,3 +551,58 @@ test('the maglev: stations at the nest and every city, a ride for a fare, safe, 
   assert.ok(home.story.some(e => e.kind === 'home'));
   assert.equal(s.world.expeditions.length, 0);
 });
+
+test('a route traced through waypoints: the team walks it stop by stop; along a river bank the river takes no crossing', async () => {
+  const { routePath, partyOf, cleanParties } = await import('../js/journey.js');
+  const { stepCost } = await import('../js/map.js');
+  // a river crossed when stepped into, not along its bank
+  const river = cellAt(42, landHexes(42).find(h => cellAt(42, h).river && cellAt(42, h).terrain === 'flat'));
+  const dry = { terrain: 'flat', biome: river.biome, river: false };
+  assert.equal(stepCost(river, dry), stepCost(river, river) + 1);
+  // a route through two waypoints
+  const land = landHexes(42).filter(h => hexDist(h) >= 4 && hexDist(h) <= 8).map(h => hexKey(...h));
+  const [a, b, to] = [land[0], land[Math.floor(land.length / 2)], land.at(-1)];
+  const path = routePath(42, '0,0', to, [a, b]);
+  assert.ok(path.includes(a) && path.includes(b) && path.at(-1) === to);
+  assert.ok(path.indexOf(a) < path.indexOf(b));
+  for (let i = 1; i < path.length; i++) { const [p, q] = [parseKey(path[i - 1]), parseKey(path[i])]; assert.equal(hexDist([q[0] - p[0], q[1] - p[1]]), 1); }
+  const s = game(dino('ad', 30));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: to, via: [a, b, 'nonsense', '9999,9999'] }, T0);
+  assert.equal(r.ok, true, r.reason);
+  const p = partyOf(s, r.expedition.id);
+  assert.deepEqual(p.leg.via, [a, b]);
+  assert.deepEqual(p.leg.path, path);
+  assert.ok(p.leg.arriveAt - T0 >= legMins(s, ['ad'], '0,0', to) * 60000);
+  assert.deepEqual(cleanParties(s, s.world)[0].leg.path, path);
+});
+
+test('making camp: water found where there is water to find, the hungry fed, everyone rested; nothing if broken early', async () => {
+  const { partyOf, freshWater, levelOf } = await import('../js/journey.js');
+  const { CAMP } = await import('../js/config.js');
+  const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) >= 6 && hexDist(parseKey(k)) <= 12 && freshWater(42, parseKey(k)) && biomeAt(42, parseKey(k)) !== 'desert');
+  const s = game(dino('ad', 30, 'm', 'hypsi'));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: wet }, T0);
+  const p = partyOf(s, r.expedition.id);
+  for (let i = 0; i < 50 && p.leg; i++) applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
+  if (!partyOf(s, p.id) || p.at !== wet) return;
+  const t = p.returnAt + 1000;
+  assert.equal(applyAction(s, 'breakCamp', { id: p.id }, t).reason, 'no-camp');
+  assert.equal(applyAction(s, 'camp', { id: p.id }, t).ok, true);
+  assert.equal(applyAction(s, 'camp', { id: p.id }, t).reason, 'camping');
+  assert.equal(applyAction(s, 'order', { id: p.id, hex: '0,0' }, t).reason, 'camping');
+  // broken early: nothing found
+  p.thirst = { ad: 0.6 }; p.hunger = { ad: 0.6 }; p.health = { ad: 0.5 };
+  let c = applyAction(s, 'breakCamp', { id: p.id }, t + 1000);
+  assert.equal(c.story[0].early, true);
+  assert.equal(levelOf(p, 'thirst', 'ad'), 0.6);
+  // a full camp by fresh water: watered, a plant eater fed on green land, rested
+  applyAction(s, 'camp', { id: p.id }, t);
+  c = applyAction(s, 'breakCamp', { id: p.id }, t + CAMP.mins * 60000);
+  assert.equal(c.ok, true);
+  assert.equal(c.story[0].water, true);
+  assert.equal(levelOf(p, 'thirst', 'ad'), 0);
+  assert.ok(p.health.ad > 0.5);
+  if (['meadow', 'forest', 'scrub', 'floodplain', 'subtropical', 'swamp', 'coast'].includes(biomeAt(42, parseKey(wet)))) assert.equal(levelOf(p, 'hunger', 'ad'), 0);
+  // no camp at home or in a city
+  assert.equal(applyAction(s, 'order', { id: p.id, hex: '0,0' }, t + CAMP.mins * 60000).ok, true);
+});

@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, mealFor } from '../economy.js';
 import {
@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip } from '../journey.js';
+import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath } from '../journey.js';
 import { isStation } from '../map.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
@@ -58,6 +58,8 @@ const PROBLEMS = {
 const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
 let selected = null, message = '', tick = null;
+// the waypoints of the route the player is tracing (walked in order, then on to the hex picked)
+let route = [];
 // the team being put together: [{ kind: 'dino' | 'player' | 'pack', id }]
 let team = [];
 const isMe = b => b && b.id === PLAYER_ID;
@@ -208,6 +210,32 @@ function paintMap() {
   if (hover && hover !== selected) outline(hover, ink, 2.5);
   if (focusKey && document.activeElement === mapCanvas) outline(focusKey, ink, 3, [5, 4]);
   if (selected) outline(selected, accent, 4);
+  // the route being traced: from the nest through its waypoints to the hex picked
+  if (route.length) {
+    const path = ['0,0', ...routePath(w.seed, '0,0', selected && !route.includes(selected) ? selected : route.at(-1), route)].map(k => center(parseKey(k)));
+    ctx.save();
+    ctx.setLineDash([px(7), px(5)]);
+    ctx.lineWidth = Math.max(3, px(3));
+    ctx.lineJoin = ctx.lineCap = 'round';
+    ctx.strokeStyle = accent;
+    ctx.beginPath();
+    path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    route.forEach((k, i) => {
+      const [x, y] = center(parseKey(k)), r = Math.max(7, px(7));
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = accent;
+      ctx.fill();
+      ctx.fillStyle = accentInk;
+      ctx.font = `700 ${(r * 1.2).toFixed(1)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), x, y + r * 0.08);
+    });
+    ctx.restore();
+  }
   // where each party is by now: waiting somewhere, or along its way
   for (const e of w.expeditions) {
     const i = e.leg ? positionOf(S, e, t) : null;
@@ -401,7 +429,7 @@ function routeHTML(units, key, calm = false) {
 
 // What the team packs (water flasks, the player's rations) and the longest dry stretch on the way
 function suppliesHTML(members, key) {
-  const sup = suppliesOf(S, members), dry = dryStretch(S.world.seed, '0,0', key);
+  const sup = suppliesOf(S, members), dry = dryStretch(S.world.seed, '0,0', key, route);
   const packed = [sup.water_skin ? `${sup.water_skin} ${sup.water_skin === 1 ? ITEMS.water_skin.name : ITEMS.water_skin.plural}` : '', sup.ration ? `${sup.ration} ${sup.ration === 1 ? ITEMS.ration.name : ITEMS.ration.plural}` : ''].filter(Boolean);
   const pack = packed.length ? `The team packs ${listNames(packed)} from your inventory.` : '';
   const drinks = members.reduce((t, id) => t + (SURVIVAL.drinks[id === PLAYER_ID ? 'small' : SPECIES[byId(id).type].size] || 1), 0);
@@ -502,18 +530,28 @@ function sideHTML(t) {
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}`;
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected)} min to get there, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected, route)} min to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${landHTML(cellAt(S.world.seed, h))}
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
     ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
+    ${routePlanHTML()}
     ${teamFieldHTML(rows, left, t)}
     ${rivalsHTML(team.flatMap(membersOf))}
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
+}
+
+// The route the player traces: waypoints the team walks through in order (to follow a river, keep to
+// water, or stay clear of a lair), then on to the hex picked
+function routePlanHTML() {
+  const names = route.map((k, i) => `${i + 1}. ${placeName(cellAt(S.world.seed, parseKey(k)))}`);
+  const can = selected && selected !== '0,0' && !route.includes(selected) && route.length < VIA_MAX;
+  return `<div class="route-plan"><p class="hint">${route.length ? `Your route: from the nest through ${esc(listNames(names))}, then here.` : 'The team takes the easiest way. To follow a river or keep close to water, trace a route: add this hex as a waypoint, then pick the next one.'}</p>
+    <div class="row"><button class="ghost" type="button" id="addWaypoint" ${can ? '' : 'disabled'}>Add as waypoint ${route.length + 1}</button>${route.length ? '<button class="ghost" type="button" id="clearRoute">Clear the route</button>' : ''}</div></div>`;
 }
 
 // the team being put together, and who else could join it
@@ -525,6 +563,19 @@ function teamFieldHTML(rows, left, t) {
         return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.label] || p.problem)}` : ''}</option>`;
       }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
     </div>`;
+}
+// a team in camp: how long it has left, and breaking camp (early: nothing found)
+function campHTML(p, t) {
+  const done = t >= p.camp.endsAt;
+  return `<div class="row">${done ? `<button class="btn small" type="button" data-break-camp="${esc(p.id)}">Break camp: see what they found</button>`
+    : `<span class="hint">In camp, looking for water and food · ${fmt(p.camp.endsAt - t)} left</span><button class="ghost" type="button" data-break-camp="${esc(p.id)}">Break camp now</button>`}</div>`;
+}
+// what a camp found, in words
+function campText(c) {
+  if (c.early) return 'The team broke camp early and moved on with nothing found.';
+  const fed = c.fed.map(id => (id === PLAYER_ID ? 'you' : esc((byId(id) || { name: '?' }).name)));
+  return `${c.water ? 'The team found fresh water: everyone drank, and the flasks were filled.' : 'The team searched all around, but found no water.'}`
+    + `${fed.length ? ` ${cap(listNames(fed))} ate${c.meat ? `, and the hunters brought down small game (${c.meat} meat carried)` : ''}.` : ' Nobody found anything to eat.'} Everyone rested.`;
 }
 // a station's name: the nest's, or its city's
 const stationName = k => (k === '0,0' ? 'your nest' : cityAt(S.world.seed, parseKey(k)) || '?');
@@ -553,8 +604,9 @@ function tripsHTML(t) {
       return `<li class="trip-row">
         <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
         ${partyStatusHTML(p)}
-        <div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
-        ${there ? `<button class="ghost" type="button" data-order="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))} <span class="hint">(${legMins(S, p.members, p.at, there)} min)</span></button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}</div>
+        ${p.camp ? campHTML(p, t) : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
+        ${there ? `<button class="ghost" type="button" data-order="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))}${route.length ? ' by your route' : ''} <span class="hint">(${legMins(S, p.members, p.at, there, route)} min)</span></button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}
+        ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(${CAMP.mins} min: look for water and food, rest)</span></button>`}</div>`}
       </li>`;
     }
     const leg = p.leg, done = t >= leg.arriveAt;
@@ -672,10 +724,15 @@ function render() {
     if (r.ok) team = [];
     render();
   });
+  const addWay = document.getElementById('addWaypoint');
+  if (addWay) addWay.addEventListener('click', () => { if (selected && !route.includes(selected)) route.push(selected); render(); drawMap(); });
+  const clearWay = document.getElementById('clearRoute');
+  if (clearWay) clearWay.addEventListener('click', () => { route = []; render(); drawMap(); });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
     const names = team.map(unitName), mins = legMins(S, team.flatMap(membersOf), '0,0', selected);
-    const r = act('explore', { team, hex: selected });
+    const r = act('explore', { team, hex: selected, via: route });
+    if (r.ok) route = [];
     message = r.ok ? `${esc(listNames(names))} set off. There in ${mins} min: then they wait for your orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
     if (r.ok) team = [];   // the next free one is suggested
     render();
@@ -691,8 +748,19 @@ function bindTrips(box) {
     const r = openJourney(btn.dataset.journey, render);
     if (!r.ok) { message = 'Not there yet.'; render(); }
   }));
+  box.querySelectorAll('[data-camp]').forEach(btn => btn.addEventListener('click', () => {
+    const r = act('camp', { id: btn.dataset.camp });
+    message = r.ok ? `The team made camp. In ${CAMP.mins} min you will see what they found.` : 'The team could not make camp here.';
+    render();
+  }));
+  box.querySelectorAll('[data-break-camp]').forEach(btn => btn.addEventListener('click', () => {
+    const r = act('breakCamp', { id: btn.dataset.breakCamp });
+    message = r.ok ? campText(r.story[0]) : 'The team could not break camp.';
+    render();
+  }));
   box.querySelectorAll('[data-order]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('order', { id: btn.dataset.order, hex: btn.dataset.hex });
+    const r = act('order', { id: btn.dataset.order, hex: btn.dataset.hex, via: btn.dataset.hex === '0,0' ? [] : route });
+    if (r.ok && btn.dataset.hex !== '0,0') route = [];
     message = r.ok ? (btn.dataset.hex === '0,0' ? 'The team set off for home.' : 'The team set off.') : 'The team could not go there.';
     render();
   }));
