@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, MAP, WILDS_BIOMES } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight } from '../economy.js';
 import {
@@ -105,7 +105,7 @@ function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
     <p class="sr-only" id="mapFocus" aria-live="polite"></p>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
-    <p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')}<span style="--c:${WILDS_BIOMES.taiga.color}">The uncharted north (not yet open)</span> · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p>`;
+    <p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p>`;
 }
 const homeView = () => ({ x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 });
 // a hex the player can pick: the nest, or land a team can reach
@@ -188,26 +188,6 @@ function paintMap() {
     ctx.fillText(c.name, x, ty);
   }
   ctx.restore();
-  // the uncharted north past the map's edge: drawn, not yet open
-  {
-    const b = mapBounds(), [, top] = center([0, -MAP.north]), x = b.x + b.w / 2, y = (b.y + top) / 2;
-    if (y > f.y0 - px(60) && y < y1 + px(60)) {
-      ctx.save();
-      ctx.font = `italic 700 ${px(18).toFixed(2)}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = px(4);
-      ctx.strokeStyle = 'rgba(20, 24, 18, .6)';
-      ctx.fillStyle = 'rgba(255, 250, 235, .92)';
-      for (const [text, dy] of [['The uncharted north', 0], ['Beyond the sanctuary: not yet open', px(22)]]) {
-        if (dy) ctx.font = `italic ${px(12).toFixed(2)}px system-ui, sans-serif`;
-        ctx.strokeText(text, x, y + dy);
-        ctx.fillText(text, x, y + dy);
-      }
-      ctx.restore();
-    }
-  }
   const outline = (key, color, width, dash = []) => {
     const h = parseKey(key);
     if (!h) return;

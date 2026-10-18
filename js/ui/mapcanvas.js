@@ -2,7 +2,7 @@
 // the hexes in view are drawn one by one with their little drawings; from afar, tiles of the map drawn
 // once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
-import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt, WILDS_HEXES } from '../world.js';
+import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
 import { SIZE, SQ3, center, fillOf, glyphOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
 
 // ---------- SVG snippets as canvas paths ----------
@@ -59,10 +59,9 @@ export function hexPath(k = 0.96) {
 // the colours of the page's theme, for what the canvas draws
 export const cssVar = (name, el = document.documentElement) => getComputedStyle(el).getPropertyValue(name).trim();
 
-// a hex of the map, or of the uncharted north past it (drawn, never explored)
+// a hex of the map, or of the uncharted north just past its top edge (the land runs on to the edge of
+// the screen there: never explored)
 const cellAt = (seed, h) => mapCell(seed, h) || wildsAt(seed, h);
-// the uncharted north under a pale haze, as land seen from far off
-export const WILDS_HAZE = 'rgba(222, 228, 232, .34)';
 
 // the line between hexes: barely there, a shade of the land's own colour
 export const GRID = 'rgba(0, 0, 0, .07)';
@@ -86,8 +85,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
       const [x, y] = center(hx), cell = cellAt(seed, hx);
       ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : fillOf(cell);
       ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5);
-      const veil = cell.wilds ? WILDS_HAZE : !isWaterCell(cell) && !known(hexKey(...hx)) ? dim : null;
-      if (veil) { ctx.fillStyle = veil; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
+      if (!isWaterCell(cell) && !known(hexKey(...hx))) { ctx.fillStyle = dim; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
     }
     // from very far only the great rivers show
     drawRivers(ctx, seed, hexes, 8);
@@ -99,8 +97,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.translate(x, y);
     ctx.fillStyle = fillOf(cell);
     ctx.fill(shape);
-    const veil = cell.wilds ? WILDS_HAZE : !isWaterCell(cell) && !known(hexKey(...h)) ? dim : null;
-    if (veil) { ctx.fillStyle = veil; ctx.fill(shape); }
+    if (!isWaterCell(cell) && !known(hexKey(...h))) { ctx.fillStyle = dim; ctx.fill(shape); }
     if (detail === 'full') ctx.stroke(shape);
     ctx.restore();
   }
@@ -108,7 +105,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
     const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : '';
-    if (art) paint(ctx, art, x, y, cell.wilds ? 0.55 : !isWaterCell(cell) && !known(key) ? 0.7 : 1);
+    if (art) paint(ctx, art, x, y, !isWaterCell(cell) && !known(key) ? 0.7 : 1);
   }
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
@@ -135,12 +132,12 @@ function drawRivers(ctx, seed, hexes, minFlow) {
 }
 const isWaterCell = c => c.terrain === 'ocean' || c.terrain === 'lake';
 
-// the map's extent, with the uncharted north, in map units: { x, y, w, h }
+// the map's extent, in map units: { x, y, w, h }
 let bounds = null;
 export function mapBounds() {
   if (!bounds) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const h of [...ALL_HEXES, ...WILDS_HEXES]) { const [x, y] = center(h); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    for (const h of ALL_HEXES) { const [x, y] = center(h); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     bounds = { x: x0 - SIZE, y: y0 - SIZE, w: x1 - x0 + SIZE * 2, h: y1 - y0 + SIZE * 2 };
   }
   return bounds;
