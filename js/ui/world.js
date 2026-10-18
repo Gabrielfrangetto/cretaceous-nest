@@ -388,7 +388,7 @@ function routeHTML(units, key) {
   // (what lives at an explored hex is told above it; at an unexplored one only what its land could hold)
   const there = isRevealed(S, key) ? null : r.there;
   const warn = [r.way, there].some(w => w && w.odds.win < 0.5);
-  return `<div class="route ${warn ? 'warn' : ''}"><p class="hint">${way}</p>${line(r.way, 'On the way')}${line(there, 'There')}</div>`;
+  return `<div class="route ${warn ? 'warn' : ''}"><p class="hint">${way}</p>${line(r.way, 'On the way')}${line(there, 'When you arrive')}</div>`;
 }
 
 // the risk of death in a fight, for those who could die (1% or more); a pack shows its likeliest one
