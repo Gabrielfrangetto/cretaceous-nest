@@ -187,6 +187,11 @@ export function guideArt(height = 180) {
 const asset = path => new URL('../' + path, import.meta.url).href;
 const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =>
   [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
+// babies redrawn in profile, one sex at a time (animated .webp: their idle plays on their own); the other
+// sex keeps the pixel fallback until it is drawn
+SPRITES.dilo = { f: asset('sprites/dilo-f.webp') };
+// how tall a profile baby is drawn against the others (its long tail makes it twice as wide)
+const BABY_SCALE = { dilo: { f: 0.8 } };
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // Adults without one are drawn with their baby sprite, scaled up.
@@ -277,7 +282,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : null;
-  const size = own && !look ? ((ADULT_SCALE[type] || {})[sex] || 1) : 1;
+  const size = look ? 1 : own ? adultScale(type, sex) : ((BABY_SCALE[type] || {})[sex] || 1);
   const base = babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);

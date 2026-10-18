@@ -26,6 +26,10 @@ export const ANCHORS = {
     f: { head: { x: 0.62, y: 0.1, w: 0.3, r: 0 }, neck: { x: 0.52, y: 0.43, w: 0.28, r: 0 }, body: { x: 0.48, y: 0.63, w: 0.42, r: 0 }, back: { x: 0.35, y: 0.5, w: 0.42, r: -10 } },
   },
 };
+// the female Dilophosaurus, drawn as a hatchling in profile (an adult wears it grown until it has its own)
+ANCHORS.dilo = {
+  f: { head: { x: 0.904, y: 0.106, w: 0.16, r: 0 }, neck: { x: 0.837, y: 0.255, w: 0.1, r: 0 }, body: { x: 0.698, y: 0.404, w: 0.24, r: 0 }, back: { x: 0.643, y: 0.305, w: 0.24, r: 0 } },
+};
 // species without anchors of their own yet start from a species with a similar body, drawn as their
 // babies are (three-quarter view; the small theropods' start is the young Velociraptor's)
 const THEROPOD = {
@@ -35,7 +39,9 @@ const THEROPOD = {
 const LIKE_BUILD = { theropod: THEROPOD, ornithopod: 'hypa', pachycephalosaur: 'hypa', ceratopsian: 'proto', armored: 'proto', sauropod: 'hypa' };
 for (const [type, sp] of Object.entries(SPECIES)) {
   const like = LIKE_BUILD[sp.build] || 'proto';
-  if (!ANCHORS[type]) ANCHORS[type] = JSON.parse(JSON.stringify(typeof like === 'string' ? ANCHORS[like] : like));
+  const base = JSON.parse(JSON.stringify(typeof like === 'string' ? ANCHORS[like] : like));
+  // (a species with only one sex drawn takes the start for the other)
+  ANCHORS[type] = { ...base, ...(ANCHORS[type] || {}) };
 }
 
 
