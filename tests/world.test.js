@@ -66,6 +66,28 @@ test('rivers run on from hex to hex, down to the sea, a lake or a bigger river, 
   assert.ok(joined > 500 && mouths > 20, JSON.stringify({ joined, mouths }));
 });
 
+test('the sea is only the open water around the continent; lakes fill hollows, fed by rivers, and most overflow into one', async () => {
+  const { mapNeighbors } = await import('../js/map.js');
+  const water = k => ALL_HEXES.filter(h => cellAt(WORLD_SEED, h).terrain === k);
+  const groups = kind => {
+    const left = new Set(water(kind).map(h => hexKey(...h))), out = [];
+    while (left.size) {
+      const first = left.values().next().value, queue = [parseKey(first)], g = [];
+      left.delete(first);
+      while (queue.length) { const h = queue.pop(); g.push(h); for (const n of mapNeighbors(h)) if (left.delete(hexKey(...n))) queue.push(n); }
+      out.push(g);
+    }
+    return out;
+  };
+  // one sea, joined all around the edges
+  assert.equal(groups('ocean').length, 1);
+  const lakes = groups('lake');
+  assert.ok(lakes.length > 20);
+  for (const g of lakes) assert.ok(g.length >= 2, 'no lake of a single hex');
+  // rivers flow out of lakes too
+  assert.ok(ALL_HEXES.filter(h => cellAt(WORLD_SEED, h).from >= 0).length > 10);
+});
+
 test("the other tribes' cities: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
   const { citiesOf, cityAt, nearOf } = await import('../js/world.js');
   const cities = citiesOf(WORLD_SEED);

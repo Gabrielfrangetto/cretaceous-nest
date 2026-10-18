@@ -5,7 +5,8 @@
 // to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat', 'hill',
 // 'mountain', 'volcano', 'lake' or 'ocean' (the last two water, no one goes there); river: a river runs
 // through it (then flow: how many stretches of river it carries, down: the way it flows on, 0-5 as
-// DIRS, -1 where it ends); lat in degrees (north +); heat and wet from 0 to 1.
+// DIRS, -1 where it ends; from: the way to the lake it flows out of); lat in degrees (north +); heat
+// and wet from 0 to 1.
 //
 // How it is made:
 //   height: a few octaves of smooth noise and an oval falloff around the continent's middle, plus
@@ -134,6 +135,26 @@ export function worldMap(seed) {
   // land: what is joined to the nest's (islands sink)
   const joined = spread([nest], n => height[n] > sea);
   for (let i = 0; i < N; i++) terrain[i] = joined[i] < 0 ? OCEAN : height[i] >= mountain ? MOUNTAIN : height[i] >= hill ? HILL : FLAT;
+  // the sea is what joins the open water at the map's edges; a hollow below it inland is not the sea: a
+  // great lake if it is big, low ground otherwise
+  const edges = [];
+  for (let i = 0; i < N; i++) { const col = i % MAP.cols, row = Math.floor(i / MAP.cols); if (terrain[i] === OCEAN && (col === 0 || row === 0 || col === MAP.cols - 1 || row === MAP.rows - 1)) edges.push(i); }
+  const open = spread(edges, n => terrain[n] === OCEAN);
+  const pocket = new Int32Array(N).fill(-1);
+  for (let i = 0; i < N; i++) {
+    if (terrain[i] !== OCEAN || open[i] >= 0 || pocket[i] >= 0) continue;
+    const members = [], queue = [i];
+    pocket[i] = i;
+    while (queue.length) {
+      const c = queue.pop();
+      members.push(c);
+      for (let k = 0; k < 6; k++) { const n = NB[c * 6 + k]; if (n >= 0 && terrain[n] === OCEAN && open[n] < 0 && pocket[n] < 0) { pocket[n] = i; queue.push(n); } }
+    }
+    for (const c of members) {
+      if (members.length >= MAP.greatLake) terrain[c] = LAKE;
+      else { terrain[c] = FLAT; height[c] = sea + (low - sea) * 0.2; }
+    }
+  }
   // hot spots: volcanoes on the high ground, away from the nest
   const high = [];
   for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && D[i] > MAP.calm + 6) high.push(i);
@@ -166,8 +187,32 @@ export function worldMap(seed) {
   const springs = [];
   for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && wet[i] > 0.4) springs.push(i);
   const rand2 = randOf(seed, 0x1f83d9ab);
-  const seen = new Int32Array(N).fill(-1), down = new Int8Array(N).fill(-1);
+  const seen = new Int32Array(N).fill(-1), down = new Int8Array(N).fill(-1), outlet = new Int8Array(N).fill(-1);
   const wayTo = (c, n) => { for (let k = 0; k < 6; k++) if (NB[c * 6 + k] === n) return k; return -1; };
+  // A lake filling a pit from hex c: the lowest ground around it is drowned, hex by hex, until the water
+  // would run downhill out of it (or it reaches MAP.lakeMax hexes). Returns { out: the hex it
+  // overflows into (-1: none), from: the lake's hex beside it }, or null when no lake forms.
+  const fillLake = (c, s) => {
+    const lake = [c], inLake = new Set([c]);
+    let level = height[c];
+    for (;;) {
+      let best = -1, by = -1;
+      for (const l of lake) for (let k = 0; k < 6; k++) {
+        const n = NB[l * 6 + k];
+        // (the rivers flowing in are its banks, not a way out)
+        if (n >= 0 && !inLake.has(n) && !river[n] && (best < 0 || height[n] < height[best])) { best = n; by = l; }
+      }
+      // the lowest ground around is lower than the water, or is water, mountains or the nest's calm: the
+      // lake spills there
+      const floodable = best >= 0 && (terrain[best] === FLAT || terrain[best] === HILL) && D[best] > MAP.calm + 1;
+      if (best < 0 || height[best] < level || !floodable || lake.length >= MAP.lakeMax) {
+        for (const l of lake) { terrain[l] = LAKE; river[l] = 0; seen[l] = s; }
+        return { out: best, from: by };
+      }
+      lake.push(best); inLake.add(best);
+      level = height[best];
+    }
+  };
   for (let s = 0; s < MAP.rivers && springs.length; s++) {
     let c = springs.splice(Math.floor(rand2() * springs.length), 1)[0];
     // (a spring on a river already running: nothing new starts there)
@@ -181,9 +226,17 @@ export function worldMap(seed) {
       // into the sea or a lake, or joining a river: it ends there, flowing into it
       if (water(terrain[next]) || river[next]) { down[c] = wayTo(c, next); break; }
       if (height[next] > height[c] && rand2() < 0.25) {
-        // a pit with no way down: a lake (never at the nest); otherwise the water finds a way over
-        if (D[c] > MAP.calm && terrain[c] === FLAT) { terrain[c] = LAKE; river[c] = 0; }
-        break;
+        // a pit with no way down: the water fills it into a lake (never by the nest); otherwise it
+        // finds a way over
+        if (D[c] <= MAP.calm + 1 || terrain[c] !== FLAT) break;
+        const lake = fillLake(c, s);
+        if (!lake) break;
+        // in dry lands the lake keeps its water (a salt lake); elsewhere it overflows at its lowest
+        // edge, and a river runs on from there
+        if (wet[c] < 0.3 || lake.out < 0 || water(terrain[lake.out]) || river[lake.out]) break;
+        outlet[lake.out] = wayTo(lake.out, lake.from);
+        c = lake.out;
+        continue;
       }
       down[c] = wayTo(c, next);
       c = next;
@@ -201,15 +254,6 @@ export function worldMap(seed) {
     flow[n] += flow[i];
     if (--feeds[n] === 0) ready.push(n);
   }
-  // a few more lakes in wet hollows
-  const hollows = [];
-  for (let i = 0; i < N; i++) {
-    if (terrain[i] !== FLAT || river[i] || D[i] <= MAP.calm + 2 || wet[i] <= 0.6) continue;
-    let pit = true;
-    for (let k = 0; k < 6; k++) { const n = NB[i * 6 + k]; if (n >= 0 && height[n] < height[i]) { pit = false; break; } }
-    if (pit) hollows.push(i);
-  }
-  for (let l = 0; l < MAP.lakes && hollows.length; l++) terrain[hollows.splice(Math.floor(rand2() * hollows.length), 1)[0]] = LAKE;
   // biomes, by heat and rain (and water close by); around volcanoes, their slopes
   const volcanoes = [];
   for (let i = 0; i < N; i++) if (terrain[i] === VOLCANO) volcanoes.push(i);
@@ -254,7 +298,7 @@ export function worldMap(seed) {
   const cityOf = new Map(cities.map((c, n) => [c, n]));
   const cells = new Array(N);
   for (let i = 0; i < N; i++) {
-    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i] } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
+    cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i], ...(outlet[i] >= 0 ? { from: outlet[i] } : {}) } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
       ...(cityOf.has(i) ? { city: CITY_NAMES[cityOf.get(i) % CITY_NAMES.length] } : {}) };
   }
   const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })) };

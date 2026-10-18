@@ -59,6 +59,8 @@ export function riverHalves(seed, h) {
     out.push({ to, bend: [to[0] / 2 - to[1] / len * side, to[1] / 2 + to[0] / len * side], width });
   };
   if (c.down >= 0) half(c.down, riverWidth(c.flow));
+  // (a river flowing out of a lake starts at its shore)
+  if (c.from >= 0) half(c.from, riverWidth(c.flow));
   STEPS.forEach(([dq, dr], k) => {
     const n = cellAt(seed, [h[0] + dq, h[1] + dr]);
     if (n && n.river && n.down === (k + 3) % 6) half(k, riverWidth(n.flow));
