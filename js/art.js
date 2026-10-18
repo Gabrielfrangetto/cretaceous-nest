@@ -191,10 +191,16 @@ const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // Adults without one are drawn with their baby sprite, scaled up.
 export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.png') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') } };
+// adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
+// step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
+// frames and their time, so the walker moves exactly as fast as its feet carry it
+export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } } };
+export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
 // how tall an adult sprite is drawn, against the others (a long-tailed one in profile is drawn smaller,
 // so it isn't twice as wide as the rest); animated sprites (.webp) play their idle on their own
 // (a Velociraptor male a little smaller than the female, as in hawks)
 const ADULT_SCALE = { raptor: { m: 0.7, f: 0.75 } };
+export const adultScale = (type, sex) => (ADULT_SCALE[type] || {})[sex] || 1;
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
 // pixel-art fallback for species without a sprite, or when an image fails to load

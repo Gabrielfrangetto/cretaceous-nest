@@ -5,7 +5,7 @@ import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor } fro
 import { act } from '../actions.js';
 import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
-import { dressedArt, ITEM_ICONS } from '../art.js';
+import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt } from '../util.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
@@ -16,6 +16,15 @@ const FOODS = ['leaf', 'meat', 'insect', 'fish', 'raw_egg'];
 
 const scene = document.getElementById('scene');
 const walkers = new Map();
+// An adult with a walk cycle of its own (and no outfit over it) walks with it, at the pace its feet carry
+// it: { src: the walk, idle: its standing sprite, speed in px/s }, or null
+function gaitOf(b, art) {
+  const g = stageOf(b).id === 'adult' && !b.outfit ? adultWalk(b.type, sexOf(b)) : null;
+  const img = art.tagName === 'IMG' ? art : art.querySelector('.dino-base');
+  if (!g || !img) return null;
+  const tall = parseFloat(img.style.height) || 70;
+  return { img, src: g.src, idle: img.src, speed: g.step * tall / (g.frames / 2 * g.ms / 1000) };
+}
 const sceneW = () => scene.clientWidth || 600;
 const findBaby = id => S.hatched.find(b => b.id === id);
 const nameTag = b => b.name + ' ' + SEX[sexOf(b)].sym;
@@ -126,6 +135,8 @@ function syncWalkers() {
         have.art.replaceWith(art);
         have.art = art;
         have.gearKey = key;
+        have.gait = gaitOf(b, art); have.walking = false;
+        if (have.gait) have.speed = have.gait.speed;
       }
       continue;
     }
@@ -144,7 +155,9 @@ function syncWalkers() {
       id: b.id, el, art, bubble, name, hungry: null, gearKey: lookKey(b),
       x: Math.random() * (sceneW() - 70), dir: Math.random() < .5 ? 1 : -1,
       speed: 28 + Math.random() * 26, pause: Math.random() * 1.5, walk: 1 + Math.random() * 3, t: Math.random() * 6, hop: 0,
+      gait: gaitOf(b, art), walking: false,
     };
+    if (w.gait) w.speed = w.gait.speed;
     el.addEventListener('click', () => feed(w));
     scene.appendChild(el);
     walkers.set(b.id, w);
@@ -195,13 +208,16 @@ function step(t) {
     if (w.pause > 0) w.pause -= dt;
     else {
       moving = true;
-      w.x += w.dir * w.speed * (w.hungry ? 0.45 : 1) * dt;
+      // (one walking with its own feet keeps their pace, hungry or not)
+      w.x += w.dir * w.speed * (w.hungry && !w.gait ? 0.45 : 1) * dt;
       w.walk -= dt; w.t += dt * 12;
       if (w.x < 4) { w.x = 4; w.dir = 1; }
       if (w.x > maxX) { w.x = maxX; w.dir = -1; }
       if (w.walk <= 0) { w.pause = 0.6 + Math.random() * 2.4; w.walk = 1.5 + Math.random() * 4; if (Math.random() < .45) w.dir *= -1; }
     }
-    let lift = moving ? Math.abs(Math.sin(w.t)) * 3 : 0;
+    // its own walk when it has one (its body already bobs in it), a little bounce otherwise
+    if (w.gait && moving !== w.walking) { w.walking = moving; w.gait.img.src = moving ? w.gait.src : w.gait.idle; }
+    let lift = moving && !w.gait ? Math.abs(Math.sin(w.t)) * 3 : 0;
     if (w.hop > 0) { w.hop -= dt; lift += Math.sin(Math.PI * (1 - Math.max(0, w.hop) / 0.45)) * 16; }
     w.el.style.transform = `translate(${w.x.toFixed(1)}px, ${(-lift).toFixed(1)}px)`;
     w.art.style.transform = `scaleX(${w.dir})`;
