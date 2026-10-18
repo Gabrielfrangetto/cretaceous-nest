@@ -8,7 +8,8 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf, packOf as suppliesOf, dryStretch } from '../journey.js';
+import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip } from '../journey.js';
+import { isStation } from '../map.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -42,6 +43,8 @@ const PROBLEMS = {
   breeding: 'Busy nesting with its partner.',
   hungry: 'Too hungry to travel. Feed it in the Nest first.',
   starved: 'You are too hungry to set out. Eat something first (in the Nest).',
+  coins: 'Not enough coins for the fare.',
+  'no-line': 'No maglev line goes there.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
@@ -370,7 +373,7 @@ function threatHTML(h, units, scout) {
 // (the biomes it crosses, the animals already seen): the chance something stops it on the way, and the
 // worst it could meet, with the risk of death. Worked out once per hex and team.
 const routeCache = new Map();
-function routeHTML(units, key) {
+function routeHTML(units, key, calm = false) {
   const sig = key + '|' + units.map(u => u.name + u.members.length).join(',');
   if (!routeCache.has(sig)) {
     const r = routeRisk(S, units, key);
@@ -391,7 +394,7 @@ function routeHTML(units, key) {
     return `<p class="hint ${w.odds.win < 0.5 ? 'warn-text' : ''}">${where}, the worst you could meet: ${article(w.foe.name)} ${esc(w.foe.name)}${w.at === 'on the way' ? ` in the ${esc(BIOMES[w.biome].name)}` : ''} <span class="danger danger-${dangerOf(w.odds.win).toLowerCase()}">${dangerOf(w.odds.win)}</span>${dies >= 0.01 ? ` (${riskOf(dies)})` : ''}.</p>`;
   };
   // (what lives at an explored hex is told above it; at an unexplored one only what its land could hold)
-  const there = isRevealed(S, key) ? null : r.there;
+  const there = isRevealed(S, key) || calm ? null : r.there;
   const warn = [r.way, there].some(w => w && w.odds.win < 0.5);
   return `<div class="route ${warn ? 'warn' : ''}"><p class="hint">${way}</p>${line(r.way, 'On the way')}${line(there, 'When you arrive')}</div>`;
 }
@@ -459,7 +462,6 @@ function sideHTML(t) {
     <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
-  if (city) return `<h3>${esc(city)}</h3><p class="hint">A settlement of other colonists, ${plural(d, 'hex', 'hexes')} from your nest. Its people keep to themselves for now; one day there may be trade and travel between your nests. Around it the land is calm, as around yours: no predator hunts there.</p>`;
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
@@ -486,6 +488,19 @@ function sideHTML(t) {
       + (critical ? 'Critically injured: it went down in a fight. Herbs won\'t help; a Blood Transfusion heals it at once.' : PROBLEMS[problem])
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
+  // a city: its station on the maglev, and a place to stop (fed, watered, the flasks filled)
+  const members = team.flatMap(membersOf), trip = city && members.length ? trainTrip(S, members, '0,0', selected) : null;
+  const ride = trip && !trip.reason ? `<p class="hint">By the maglev: ${trip.mins} min${trip.route.stops.length > 2 ? `, changing at ${esc(listNames(trip.route.stops.slice(1, -1).map(stationName)))}` : ''} · ${trip.fare} coins for this team${S.coins < trip.fare ? ` <span class="warn-text">(${trip.fare - S.coins} more needed)</span>` : ''}. Safe, and everyone is fed and watered aboard.</p>` : '';
+  if (city) return `<h3>${esc(city)}</h3>
+    <p class="hint">A settlement of other colonists, ${plural(d, 'hex', 'hexes')} from your nest, with a station on the maglev. Around it the land is calm, as around yours: no predator hunts there. A team that stops here is fed and watered, and its flasks filled; from here it can explore the lands around on foot.</p>
+    ${ride}
+    <p class="hint">On foot: ${legMins(S, members, '0,0', selected)} min, and the dangers of the way.</p>
+    ${units.length ? routeHTML(units, selected, true) : ''}
+    ${team.length ? suppliesHTML(members, selected) : ''}
+    ${teamFieldHTML(rows, left, t)}
+    <div class="row"><button class="btn" type="button" id="sendTrain" ${problem || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Take the maglev</button><button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
+    ${why ? `<p class="hint warn-text">${why}</p>` : ''}
+    ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}`;
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
     <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected)} min to get there, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${landHTML(cellAt(S.world.seed, h))}
@@ -493,18 +508,37 @@ function sideHTML(t) {
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
     ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
-    <div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
-      ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
-      ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
-        const p = unitProblem(u, t);
-        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.label] || p.problem)}` : ''}</option>`;
-      }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
-    </div>
+    ${teamFieldHTML(rows, left, t)}
     ${rivalsHTML(team.flatMap(membersOf))}
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
+}
+
+// the team being put together, and who else could join it
+function teamFieldHTML(rows, left, t) {
+  return `<div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
+      ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
+      ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
+        const p = unitProblem(u, t);
+        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.label] || p.problem)}` : ''}</option>`;
+      }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
+    </div>`;
+}
+// a station's name: the nest's, or its city's
+const stationName = k => (k === '0,0' ? 'your nest' : cityAt(S.world.seed, parseKey(k)) || '?');
+// the train from where a party waits (a station) home, or to the station picked on the map
+function trainButtons(p) {
+  if (!isStation(S.world.seed, p.at)) return '';
+  const button = to => {
+    const trip = trainTrip(S, p.members, p.at, to);
+    if (trip.reason) return '';
+    const can = S.coins >= trip.fare;
+    return `<button class="ghost" type="button" data-train="${esc(p.id)}" data-hex="${esc(to)}" ${can ? '' : 'disabled'}>Maglev to ${esc(stationName(to))} <span class="hint">(${trip.mins} min · ${trip.fare} coins)</span></button>`;
+  };
+  const other = selected && selected !== p.at && selected !== '0,0' && isStation(S.world.seed, selected) ? button(selected) : '';
+  return button('0,0') + other;
 }
 
 // the parties out: where each is, how it is, what it carries, and what can be done with it
@@ -519,18 +553,18 @@ function tripsHTML(t) {
       return `<li class="trip-row">
         <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
         ${partyStatusHTML(p)}
-        <div class="row"><button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">Come home <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
+        <div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
         ${there ? `<button class="ghost" type="button" data-order="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))} <span class="hint">(${legMins(S, p.members, p.at, there)} min)</span></button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}</div>
       </li>`;
     }
     const leg = p.leg, done = t >= leg.arriveAt;
-    const where = leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`;
+    const where = (leg.train ? 'on the maglev ' : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
     const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
     return `<li class="trip-row">
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
-        : `<span class="hint">${leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}`}</div>
+        : `<span class="hint">${leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled || leg.train ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -631,6 +665,13 @@ function render() {
     message = r.ok ? (r.left ? `Feeling better. Heals in ${fmt(r.left)}.` : 'Fully healed!') : 'No Healing Herbs.';
     render();
   });
+  const train = document.getElementById('sendTrain');
+  if (train) train.addEventListener('click', () => {
+    const names = team.map(unitName), r = act('explore', { team, hex: selected, train: true });
+    message = r.ok ? `${esc(listNames(names))} boarded the maglev for ${esc(stationName(selected))}.` : esc(PROBLEMS[r.reason] || 'The team could not board.');
+    if (r.ok) team = [];
+    render();
+  });
   const send = document.getElementById('sendTrip');
   if (send) send.addEventListener('click', () => {
     const names = team.map(unitName), mins = legMins(S, team.flatMap(membersOf), '0,0', selected);
@@ -653,6 +694,11 @@ function bindTrips(box) {
   box.querySelectorAll('[data-order]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('order', { id: btn.dataset.order, hex: btn.dataset.hex });
     message = r.ok ? (btn.dataset.hex === '0,0' ? 'The team set off for home.' : 'The team set off.') : 'The team could not go there.';
+    render();
+  }));
+  box.querySelectorAll('[data-train]').forEach(btn => btn.addEventListener('click', () => {
+    const r = act('order', { id: btn.dataset.train, hex: btn.dataset.hex, train: true });
+    message = r.ok ? `The team boarded the maglev for ${esc(stationName(btn.dataset.hex))}.` : r.reason === 'coins' ? 'Not enough coins for the fare.' : 'The team could not board.';
     render();
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {

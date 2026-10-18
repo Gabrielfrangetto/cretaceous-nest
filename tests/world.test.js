@@ -94,7 +94,7 @@ test('the sea is only open water reaching the edges; lakes fill hollows, fed by 
   assert.ok(ALL_HEXES.filter(h => cellAt(WORLD_SEED, h).from >= 0).length > 10);
 });
 
-test("the other colonists' settlements: far apart and from the nest, each in a calm of ferns where no predator hunts, not a place to explore", async () => {
+test("the other colonists' settlements: far apart and from the nest, each in a calm of ferns where no predator hunts, a place a team can stop at", async () => {
   const { citiesOf, cityAt, nearOf } = await import('../js/world.js');
   const cities = citiesOf(WORLD_SEED);
   assert.equal(cities.length, MAP.cities);
@@ -114,7 +114,7 @@ test("the other colonists' settlements: far apart and from the nest, each in a c
   }
   const s = game(dino('ad', 30));
   s.world = newWorld();
-  assert.equal(exploreProblem(s, 'ad', hexKey(...cities[0].h), T0), 'city');
+  assert.equal(exploreProblem(s, 'ad', hexKey(...cities[0].h), T0), null);
 });
 
 test('an open world: what lives around the nest is known, and any land can be explored, by the easiest way', () => {
@@ -447,7 +447,7 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   const dryAt = travelPath(42, parseKey(dryStart)).findIndex(h => !freshWater(42, h));
   // the team packs what it can carry of flasks and rations, and brings back what is left
   let s = game(dino('ad', 30));
-  give(s, 'water_skin', 5); give(s, 'ration', 5);
+  give(s, 'water_skin', 5 - countItem(s, 'water_skin')); give(s, 'ration', 5);
   let r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
   assert.equal(r.ok, true, r.reason);
   assert.equal(countItem(s, 'water_skin'), 5 - SURVIVAL.pack.water_skin);
@@ -460,7 +460,7 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   s = game(dino('ad', 30));
   r = applyAction(s, 'explore', { babyId: 'ad', hex: dryStart }, T0);
   let p = partyOf(s, r.expedition.id);
-  p.thirst = { ad: 1 }; p.health = { ad: 0.01 }; p.leg.step = dryAt;
+  p.thirst = { ad: 1 }; p.health = { ad: 0.01 }; p.leg.step = dryAt; p.supplies.water = 0;
   let step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
   assert.ok(step.story.some(e => e.kind === 'perished' && e.need === 'thirst' && e.who.id === 'ad'));
   assert.equal(s.hatched.length, 0);
@@ -503,4 +503,51 @@ test('the player gets hungry too, and eats from the inventory before setting out
   assert.equal(countItem(s, 'meat'), 0);
   assert.equal(exploreProblem(s, ME, '1,0', later), null);
   assert.equal(applyAction(s, 'feed', { id: ME }, later).reason, 'full');
+});
+
+test('the maglev: stations at the nest and every city, a ride for a fare, safe, fed and watered aboard', async () => {
+  const { railsOf, trainRoute } = await import('../js/map.js');
+  const { partyOf, trainTrip, cleanParties, levelOf } = await import('../js/journey.js');
+  const { citiesOf } = await import('../js/world.js');
+  const rails = railsOf(42), cities = citiesOf(42).map(c => c.key);
+  assert.deepEqual(rails.stations, ['0,0', ...cities]);
+  // every station reached from the nest, the lines over land, hex to hex
+  for (const c of cities) {
+    const r = trainRoute(42, '0,0', c);
+    assert.ok(r && r.hexes > 0 && r.path.at(-1) === c && r.stops[0] === '0,0' && r.stops.at(-1) === c);
+    for (const k of r.path) assert.equal(isWater(42, parseKey(k)), false);
+  }
+  for (const l of rails.lines) for (let i = 1; i < l.path.length; i++) assert.equal(hexDist([parseKey(l.path[i])[0] - parseKey(l.path[i - 1])[0], parseKey(l.path[i])[1] - parseKey(l.path[i - 1])[1]]), 1);
+  assert.equal(trainRoute(42, '0,0', '1,0'), null);
+  // a ride to a city: the fare paid, there soon, everyone fed and watered
+  const s = game(dino('ad', 30));
+  const city = cities[0], trip = trainTrip(s, ['ad'], '0,0', city);
+  s.coins = trip.fare - 1;
+  assert.equal(applyAction(s, 'explore', { babyId: 'ad', hex: city, train: true }, T0).reason, 'coins');
+  s.coins = trip.fare + 100;
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: city, train: true }, T0);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(s.coins, 100);
+  const p = partyOf(s, r.expedition.id);
+  assert.ok(p.leg.train && p.leg.arriveAt === T0 + trip.mins * 60000);
+  assert.ok(trip.mins < legMins(s, ['ad'], '0,0', city));
+  assert.equal(applyAction(s, 'recall', { id: p.id }, T0 + 1000).reason, 'on-the-train');
+  // (a saved game keeps the ride)
+  const kept = cleanParties(s, s.world)[0];
+  assert.ok(kept.leg.train && kept.leg.path.length === p.leg.path.length);
+  p.thirst = { ad: 0.6 }; p.hunger = { ad: 0.6 };
+  const step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  assert.deepEqual(step.story.map(e => e.kind), ['train']);
+  assert.equal(p.at, city);
+  assert.equal(levelOf(p, 'thirst', 'ad'), 0);
+  assert.equal(levelOf(p, 'hunger', 'ad'), 0);
+  // on from the city by train to another, then home
+  s.coins = 10000;
+  assert.equal(applyAction(s, 'order', { id: p.id, hex: cities[1], train: true }, p.leg ? p.leg.arriveAt : T0 + 1e7).ok, true);
+  applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  assert.equal(p.at, cities[1]);
+  assert.equal(applyAction(s, 'order', { id: p.id, hex: '0,0', train: true }, p.leg ? 0 : T0 + 2e7).ok, true);
+  const home = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  assert.ok(home.story.some(e => e.kind === 'home'));
+  assert.equal(s.world.expeditions.length, 0);
 });

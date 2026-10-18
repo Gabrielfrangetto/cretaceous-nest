@@ -5,7 +5,7 @@ import { BIOMES, ITEMS, SPECIES, PLAYER_ID, SURVIVAL } from '../config.js';
 import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { parseKey, cellAt, explorerOf, teamUnits } from '../world.js';
+import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
 import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
@@ -359,6 +359,12 @@ function entryHTML(e) {
     }
     case 'backedOff': return `${cap(article(e.name))} ${esc(e.name)} sized up ${esc(e.by)}'s sail and backed off.`;
     case 'hazard': return hazardHTML(e);
+    case 'train': {
+      const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || '?'));
+      const via = (e.stops || []).slice(1, -1);
+      return `The team boarded the maglev at ${name(e.from)}${via.length ? `, changed at ${listNames(via.map(name))}` : ''} and glided to ${name(e.to)} high above the land, fed and watered on board.`;
+    }
+    case 'city': return `The team reached ${esc(e.name)}. Its people gave everyone food and water, and filled the flasks.`;
     case 'water': return 'Fresh water at last: everyone drank their fill, and the flasks were filled again.';
     case 'dry': return 'The last of the water in the flasks was gone.';
     case 'faint': return e.need === 'thirst'

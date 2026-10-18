@@ -34,7 +34,7 @@
 //
 // Everything is kept in arrays by a hex's index (its row and column), so a continent of tens of
 // thousands of hexes is made in a moment.
-import { MAP, TRAVEL, CITY_NAMES, CLIMATE } from './config.js';
+import { MAP, TRAVEL, CITY_NAMES, CLIMATE, TRAIN } from './config.js';
 
 const key = (q, r) => `${q},${r}`;
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -497,3 +497,62 @@ export function travelPath(seed, h, from = [0, 0]) {
 }
 // the cost of the easiest way from one hex to another (Infinity: there is none)
 export const routeCost = (seed, from, to) => { const i = indexOf(to); return i < 0 ? Infinity : routes(seed, from).best[i]; };
+
+// ---------- the colonists' maglev ----------
+// Stations at the nest and every city, joined by elevated lines over the land (the easiest way between
+// them, never over water): the shortest lines that join them all, and each station's nearest
+// TRAIN.links besides. { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }], at: Map(hex key
+// -> [the hex keys the line runs on to]) }
+const rails = new Map();
+const parse = k => k.split(',').map(Number);
+export function railsOf(seed) {
+  if (rails.has(seed)) return rails.get(seed);
+  const stations = [key(0, 0), ...citiesOf(seed).map(c => c.key)];
+  const pairs = [];
+  for (let i = 0; i < stations.length; i++) for (let j = i + 1; j < stations.length; j++) {
+    const c = routeCost(seed, parse(stations[i]), parse(stations[j]));
+    if (c < Infinity) pairs.push({ a: stations[i], b: stations[j], c });
+  }
+  pairs.sort((x, y) => x.c - y.c);
+  // the shortest lines joining them all, then each one's nearest few
+  const group = new Map(stations.map(k => [k, k])), root = k => (group.get(k) === k ? k : root(group.get(k)));
+  const picked = new Set();
+  for (const e of pairs) { const ra = root(e.a), rb = root(e.b); if (ra !== rb) { group.set(ra, rb); picked.add(e); } }
+  for (const k of stations) pairs.filter(e => e.a === k || e.b === k).slice(0, TRAIN.links).forEach(e => picked.add(e));
+  const lines = [...picked].map(({ a, b }) => ({ a, b, path: [a, ...travelPath(seed, parse(b), parse(a)).map(h => key(...h))] }));
+  const at = new Map();
+  const link = (x, y) => { if (!at.has(x)) at.set(x, []); if (!at.get(x).includes(y)) at.get(x).push(y); };
+  for (const l of lines) for (let i = 1; i < l.path.length; i++) { link(l.path[i - 1], l.path[i]); link(l.path[i], l.path[i - 1]); }
+  const out = { stations, lines, at };
+  if (rails.size > 4) rails.clear();
+  rails.set(seed, out);
+  return out;
+}
+export const isStation = (seed, k) => railsOf(seed).stations.includes(k);
+// The train between two stations, changing at others on the way: { stops: [station keys, from first],
+// path: [the hex keys ridden, from excluded], hexes } or null when no line joins them
+export function trainRoute(seed, from, to) {
+  const { stations, lines } = railsOf(seed);
+  if (from === to || !stations.includes(from) || !stations.includes(to)) return null;
+  const dist = new Map([[from, 0]]), prev = new Map(), left = new Set(stations);
+  while (left.size) {
+    let u = null;
+    for (const k of left) if (dist.has(k) && (u === null || dist.get(k) < dist.get(u))) u = k;
+    if (u === null || u === to) break;
+    left.delete(u);
+    for (const l of lines) {
+      if (l.a !== u && l.b !== u) continue;
+      const v = l.a === u ? l.b : l.a, d = dist.get(u) + l.path.length - 1;
+      if (!dist.has(v) || d < dist.get(v)) { dist.set(v, d); prev.set(v, { u, l }); }
+    }
+  }
+  if (!dist.has(to)) return null;
+  const stops = [to], path = [];
+  for (let k = to; k !== from; k = prev.get(k).u) {
+    const { u, l } = prev.get(k);
+    const seg = l.a === u ? l.path : [...l.path].reverse();
+    path.unshift(...seg.slice(1));
+    stops.unshift(u);
+  }
+  return { stops, path, hexes: path.length };
+}

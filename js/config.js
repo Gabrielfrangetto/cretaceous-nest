@@ -338,7 +338,7 @@ export const DRAWN_SLOTS = ['head', 'neck'];
 // cosmetic shop. Example:
 //   knight_rex: { name: 'Knight', species: 'rex', sprites: { m: 'sprites/outfits/knight_rex-m.png', f: 'sprites/outfits/knight_rex-f.png' } },
 export const OUTFITS = {};
-export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1]];
+export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 2]];
 
 // Feeding
 // what each species eats, favourite first; a meal uses the first of these in the inventory
@@ -358,13 +358,13 @@ export const PLAYER_DIET = ['ration', 'fish', 'meat', 'raw_egg'];
 // fishes its fill at fresh water; a small hunter (selfFeed) feeds itself as it goes. Past at, one eats a
 // meal of what the team carries (the player its rations first), taking eat off, and drinks from the
 // flasks (drinks by size a drink, a flask holding skin), taking drink off. Past weak one is worn (keeps
-// worn[0] of its strength and agility), past faint worn[1], and loses drain of its health a unit of
-// cost: a dinosaur at the end of it dies, the player collapses. A team packs up to pack of these from
+// worn[0] of its strength and agility), past faint worn[1], and loses drain (by what wears it down most) of
+// its health a unit of cost: a dinosaur at the end of it dies, the player collapses. A team packs up to pack of these from
 // the inventory when it sets out (what is left comes home). words: what each level is called.
 export const SURVIVAL = {
-  thirst: 0.012, hunger: 0.006, dry: { desert: 2, volcano: 1.5, scrub: 1.25 },
+  thirst: 0.19, hunger: 0.025, dry: { desert: 2, volcano: 1.5, scrub: 1.25 },
   green: ['meadow', 'forest', 'scrub', 'floodplain', 'subtropical', 'swamp', 'coast'], graze: 0.04,
-  at: 0.5, eat: 0.5, drink: 0.5, weak: 0.35, faint: 0.75, worn: [0.9, 0.75], drain: 0.03,
+  at: 0.5, eat: 0.5, drink: 0.5, weak: 0.35, faint: 0.75, worn: [0.9, 0.75], drain: { thirst: 0.15, hunger: 0.04 },
   drinks: { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, colossal: 4 }, skin: 4,
   pack: { water_skin: 3, ration: 3 },
   words: { hunger: [[0.2, 'Fed'], [0.35, 'Peckish'], [0.75, 'Hungry'], [Infinity, 'Starving']], thirst: [[0.2, 'Watered'], [0.35, 'Thirsty'], [0.75, 'Parched'], [Infinity, 'Dehydrated']] },
@@ -403,6 +403,11 @@ export const CLIMATE = { cooling: 0.75, base: 0.65, near: 25, fetch: 80, reach: 
   prairie: 0.4, northFall: 2.2, wilds: { tundra: 0.06, taiga: 0.3, lakes: 0.3, lakeNoise: 0.66 } };
 // the other colonists' settlements, named in the order they are placed
 export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater', 'Mossbank', 'Redcliff', 'Thornfield', 'Greywillow', 'Highfen', 'Duskmere', 'Saltmarsh', 'Ironroot'];
+// The colonists' maglev: stations at the nest and every city (map.js railsOf), each joined to its nearest
+// links. A ride takes board minutes plus perHex a hex of line, is safe (on elevated, fenced lines) and
+// feeds and waters everyone aboard; the fare is base coins plus perHex a hex for every place taken
+// (seats: a person one, a dinosaur by its size).
+export const TRAIN = { links: 2, board: 2, mins: 0.05, fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack

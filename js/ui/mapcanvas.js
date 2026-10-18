@@ -4,6 +4,7 @@
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
 import { SIZE, SQ3, center, fillOf, glyphOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
+import { railsOf } from '../map.js';
 
 // ---------- SVG snippets as canvas paths ----------
 const attr = (s, name) => { const m = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(s); return m ? m[1] : null; };
@@ -89,6 +90,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     }
     // from very far only the great rivers show
     drawRivers(ctx, seed, hexes, 8);
+    drawRails(ctx, seed, hexes);
     return;
   }
   for (const h of hexes) {
@@ -102,6 +104,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.restore();
   }
   drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
+  drawRails(ctx, seed, hexes);
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
     const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : '';
@@ -127,6 +130,30 @@ function drawRivers(ctx, seed, hexes, minFlow) {
       ctx.quadraticCurveTo(x + s.bend[0], y + s.bend[1], x + s.to[0], y + s.to[1]);
       ctx.stroke();
     }
+  }
+  ctx.restore();
+}
+// The maglev's elevated lines: a dark guideway with a pale rail along it, curving through each hex from
+// the edge it comes in by to the one it leaves by (straight to the middle where it ends or branches);
+// never thinner on screen than a couple of pixels
+const RAIL = [['#3b4047', 6, 2.4], ['#dfe3e8', 1.8, 0.8]];
+function drawRails(ctx, seed, hexes) {
+  const at = railsOf(seed).at, hair = 1 / Math.max(1e-6, ctx.getTransform().a);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const [color, width, px] of RAIL) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(width, hair * px);
+    ctx.beginPath();
+    for (const h of hexes) {
+      const next = at.get(hexKey(...h));
+      if (!next) continue;
+      const [x, y] = center(h);
+      const mids = next.map(k => { const [nx, ny] = center(k.split(',').map(Number)); return [(x + nx) / 2, (y + ny) / 2]; });
+      if (mids.length === 2) { ctx.moveTo(...mids[0]); ctx.quadraticCurveTo(x, y, ...mids[1]); continue; }
+      for (const m of mids) { ctx.moveTo(x, y); ctx.lineTo(...m); }
+    }
+    ctx.stroke();
   }
   ctx.restore();
 }

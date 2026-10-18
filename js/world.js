@@ -225,8 +225,6 @@ export function exploreProblem(s, team, key, now) {
   if (!inWorld(h)) return 'out-of-map';
   if (hexDist(h) === 0) return 'home';
   if (isWater(W(s).seed, h)) return 'water';
-  // another colonists' settlement: its people keep to themselves, for now
-  if (cityAt(W(s).seed, h)) return 'city';
   if (!canReach(s, key)) return 'unreachable';
   const members = units.flatMap(u => u.members);
   if (new Set(members).size !== members.length) return 'twice';

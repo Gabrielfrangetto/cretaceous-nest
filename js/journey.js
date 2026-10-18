@@ -15,13 +15,13 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
-import { travelPath, routeCost, stepCost, cellAt } from './map.js';
+import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation } from './map.js';
 import {
-  hexKey, parseKey, hexDist, nearOf, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
+  hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
   runnersSpot, eyesChance, standsGround, standoffOf, chaseOf, witnessAt, interveneOptions, lootTable, eggKinds, pickWeighted, bury,
 } from './world.js';
@@ -54,15 +54,44 @@ function startLeg(s, p, to, at) {
   Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
 }
 
-// a new party sets out from the nest to a hex
-export function startExpedition(s, team, key, now) {
+// ---------- the train ----------
+// the seats a party takes on the train (TRAIN.seats), and the fare for a ride of so many hexes
+const seatsOf = (s, members) => members.reduce((t, id) => t + (TRAIN.seats[id === PLAYER_ID ? PLAYER_SIZE : bodyOf(s, id).size] || 1), 0);
+export const trainFare = (s, members, hexes) => Math.round(TRAIN.fare.base + TRAIN.fare.perHex * hexes * seatsOf(s, members));
+export const trainMins = hexes => Math.max(1, Math.round(TRAIN.board + TRAIN.mins * hexes));
+// a ride from one station to another, or why not: { route, fare, mins } | { reason }
+export function trainTrip(s, members, from, to) {
+  const route = trainRoute(W(s).seed, from, to);
+  if (!route) return { reason: isStation(W(s).seed, to) ? 'no-line' : 'no-station' };
+  return { route, fare: trainFare(s, members, route.hexes), mins: trainMins(route.hexes) };
+}
+// the party boards the train at its station (the fare paid) for another
+function startTrain(s, p, to, at) {
+  const w = W(s), trip = trainTrip(s, p.members, p.at, to);
+  if (trip.reason) return { ok: false, reason: trip.reason };
+  if (s.coins < trip.fare) return { ok: false, reason: 'coins' };
+  s.coins -= trip.fare;
+  w.trips += 1;
+  p.leg = { n: w.trips, from: p.at, to, path: trip.route.path, step: 0, startedAt: at, arriveAt: at + trip.mins * 60000, train: true };
+  Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
+  return { ok: true, expedition: p, fare: trip.fare };
+}
+
+// a new party sets out from the nest to a hex (on foot), or to a city's station by train
+export function startExpedition(s, team, key, now, train = false) {
   const problem = exploreProblem(s, team, key, now);
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
   const units = teamFrom(s, team), members = units.flatMap(u => u.members);
+  if (train) {
+    const trip = trainTrip(s, members, HOME, key);
+    if (trip.reason) return { ok: false, reason: trip.reason };
+    if (s.coins < trip.fare) return { ok: false, reason: 'coins' };
+  }
   const p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
   for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
-  startLeg(s, p, key, now);
+  if (train) startTrain(s, p, key, now);
+  else startLeg(s, p, key, now);
   w.expeditions.push(p);
   return { ok: true, expedition: p };
 }
@@ -95,11 +124,13 @@ function timeAt(s, leg, i) {
   return Math.round(leg.startedAt + (leg.arriveAt - leg.startedAt) * sum / total);
 }
 
-// a party waiting at a hex is sent on: to another hex, or home (HOME)
-export function orderParty(s, id, to, now) {
+// a party waiting at a hex is sent on: to another hex, or home (HOME); from a station, by train to
+// another (train)
+export function orderParty(s, id, to, now, train = false) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
   if (p.leg) return { ok: false, reason: 'on-the-way' };
+  if (train) return to === p.at ? { ok: false, reason: 'there' } : startTrain(s, p, to, now);
   const h = parseKey(to);
   if (!h || !inWorld(h)) return { ok: false, reason: 'out-of-map' };
   if (to === p.at) return { ok: false, reason: 'there' };
@@ -118,6 +149,7 @@ export function recallParty(s, id, now) {
   if (!p) return { ok: false, reason: 'no-expedition' };
   if (!p.leg) return orderParty(s, id, HOME, now);
   const leg = p.leg;
+  if (leg.train) return { ok: false, reason: 'on-the-train' };
   if (leg.to === HOME || leg.recalled) return { ok: false, reason: 'homeward' };
   if (now >= leg.arriveAt) return { ok: false, reason: 'arrived' };
   const i = Math.max(leg.step - 1, positionOf(s, p, now));
@@ -168,6 +200,8 @@ export function journeyStep(s, id, choice = {}, now) {
       c.n = leg.n;
       if (c.legs[c.legs.length - 1].n !== leg.n) c.legs.push(snap());
       if (now < leg.arriveAt) break;
+      // (on the train nothing happens on the way)
+      if (leg.train) leg.step = leg.path.length;
       if (leg.step >= leg.path.length) { arrive(c); continue; }
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
@@ -203,8 +237,26 @@ function turnBack(ctx, i) {
 // the end of a leg: at home the party breaks up and brings everything in; elsewhere it waits there
 // (having looked around: gather); a leg called back turns for home where it stopped
 function arrive(ctx) {
-  const { s, p, story } = ctx, leg = p.leg;
+  const { s, p, story } = ctx, leg = p.leg, w = W(s);
   p.at = leg.to;
+  // the train: everyone fed and watered aboard, the flasks filled at the station
+  if (leg.train) {
+    story.push({ kind: 'train', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, stops: trainRoute(w.seed, leg.from, leg.to)?.stops || [leg.from, leg.to] });
+    refresh(p);
+    if (leg.to === HOME) { comeHome(ctx); return; }
+    p.leg = null;
+    Object.assign(p, { hex: p.at, returnAt: leg.arriveAt });
+    return;
+  }
+  // a city on foot: its people give the team food and water, and there is nothing to gather
+  const city = leg.to !== HOME && cityAt(w.seed, parseKey(leg.to));
+  if (city && !leg.recalled) {
+    refresh(p);
+    p.leg = null;
+    story.push({ kind: 'city', hex: leg.to, idx: leg.path.length - 1, name: city });
+    Object.assign(p, { hex: p.at, returnAt: leg.arriveAt });
+    return;
+  }
   if (leg.to === HOME) { comeHome(ctx); return; }
   if (leg.recalled) {
     const at = leg.arriveAt;
@@ -261,6 +313,11 @@ function suffer(ctx, z) {
 }
 
 // ---------- hunger and thirst ----------
+// fed and watered (at a city, on the train), the flasks filled
+function refresh(p) {
+  for (const id of p.members) { setLevel(p, 'hunger', id, 0); setLevel(p, 'thirst', id, 0); }
+  if (p.supplies) p.supplies.water = p.supplies.water_skin * SURVIVAL.skin;
+}
 export const levelOf = (p, kind, id) => (p[kind] && p[kind][id]) || 0;
 const setLevel = (p, kind, id, v) => { p[kind] = p[kind] || {}; p[kind][id] = Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000; };
 const dietOf = (s, id) => (id === PLAYER_ID ? PLAYER_DIET : bodyOf(s, id).diet || []);
@@ -342,7 +399,7 @@ function survive(ctx, idx) {
     if (worst < SURVIVAL.faint) continue;
     if (before[id] < SURVIVAL.faint) tell({ kind: 'faint', need, who: { id, name: nameOf(id) } });
     if (healthOf(p, id) <= 0) continue;
-    const left = healthOf(p, id) - SURVIVAL.drain * cost;
+    const left = healthOf(p, id) - SURVIVAL.drain[need] * cost;
     if (left > 0) { p.health[id] = Math.round(left * 1000) / 1000; continue; }
     const name = nameOf(id);
     if (id === PLAYER_ID) { fall(ctx, id, false); tell({ kind: 'collapse', need, who: { id, name } }); continue; }
@@ -778,13 +835,14 @@ export function cleanParties(s, w) {
     if (L && typeof L === 'object') {
       const from = String(L.from), to = String(L.to);
       if (!land(from) || !land(to) || from === to || from !== at) continue;
-      const path = travelPath(w.seed, parseKey(to), parseKey(from)).map(h => hexKey(...h));
+      const train = L.train === true && trainRoute(w.seed, from, to);
+      const path = train ? train.path : travelPath(w.seed, parseKey(to), parseKey(from)).map(h => hexKey(...h));
       if (!path.length) continue;
-      const startedAt = num(L.startedAt), recalled = L.recalled === true;
+      const startedAt = num(L.startedAt), recalled = !train && L.recalled === true;
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
-        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + legMins(s, members, from, to) * 60000),
-        ...(recalled ? { recalled } : {}),
+        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (train ? trainMins(train.hexes) : legMins(s, members, from, to)) * 60000),
+        ...(recalled ? { recalled } : {}), ...(train ? { train: true } : {}),
       };
     }
     // a party with nowhere to go is one at home: it broke up

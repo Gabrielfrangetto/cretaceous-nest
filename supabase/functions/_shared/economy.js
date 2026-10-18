@@ -673,16 +673,16 @@ export const ACTIONS = {
     return feedBaby(s, id, now);
   },
   // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
-  explore(s, { team, babyId, hex }, now) {
-    return startExpedition(s, team || babyId, hex, now);
+  explore(s, { team, babyId, hex, train }, now) {
+    return startExpedition(s, team || babyId, hex, now, !!train);
   },
   // a party out is called home: from where it waits, or from where it is by now on its way out
   recall(s, { id }, now) {
     return recallParty(s, String(id), now);
   },
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
-  order(s, { id, hex }, now) {
-    return orderParty(s, String(id), String(hex), now);
+  order(s, { id, hex, train }, now) {
+    return orderParty(s, String(id), String(hex), now, !!train);
   },
   // what happened on a party's leg, told up to the next decision, which choice answers: fight (what
   // stood its ground), flee (a predator scattered the player's group: run too), hunt (one spotted at a
