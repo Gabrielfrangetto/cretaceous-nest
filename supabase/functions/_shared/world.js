@@ -431,8 +431,9 @@ export function interveneOptions(s, exp, wt) {
 // knows, not what waits (the animals of the biomes on the way, grown ones): the chance something on the
 // way stops it, and the predators that could (fighters, from teamUnits), each kind once on the way and
 // once there: [{ foe, biome, water: by the water, at: 'on the way' | 'there' }]
-export function routeRisk(s, team, key) {
-  const seed = W(s).seed, h = parseKey(key), path = travelPath(seed, h);
+// (path: the hexes of the way planned, the destination last; the easiest way from the nest by default)
+export function routeRisk(s, team, key, path = travelPath(W(s).seed, parseKey(key))) {
+  const seed = W(s).seed;
   let pass = 1;
   const seen = new Map();
   for (const p of path) {

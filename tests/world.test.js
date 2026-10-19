@@ -636,3 +636,17 @@ test('a journey never sets foot twice on the same hex: a way that would is worke
   }
   assert.ok(tried > 20);
 });
+
+test('the warning before setting off weighs the way planned, not the easiest one', async () => {
+  const { routeRisk, teamUnits } = await import('../js/world.js');
+  const { routePath } = await import('../js/journey.js');
+  const s = game(dino('ad', 30, 'm', 'hypsi'));
+  const team = teamUnits(s, [{ kind: 'dino', id: 'ad', members: ['ad'] }]);
+  const to = hexKey(...landHexes(42).filter(h => hexDist(h) === 8)[0]);
+  const easy = routeRisk(s, team, to);
+  assert.deepEqual(routeRisk(s, team, to, routePath(42, '0,0', to).map(parseKey)), easy);
+  // a long way round crosses more land, so more could notice the team
+  const far = landHexes(42).filter(h => hexDist(h) === 12).map(h => hexKey(...h)).find(k => !routePath(42, '0,0', to).includes(k));
+  const round = routeRisk(s, team, to, routePath(42, '0,0', to, [far]).map(parseKey));
+  assert.ok(round.stopped >= easy.stopped);
+});

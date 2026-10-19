@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater } from '../journey.js';
+import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits } from '../journey.js';
 import { isStation } from '../map.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
@@ -473,10 +473,11 @@ function threatHTML(h, units, scout) {
 // (the biomes it crosses, the animals already seen): the chance something stops it on the way, and the
 // worst it could meet, with the risk of death. Worked out once per hex and team.
 const routeCache = new Map();
-function routeHTML(units, key, calm = false) {
-  const sig = key + '|' + units.map(u => u.name + u.members.length).join(',');
+// (path: the way planned, hex keys with the destination last; the easiest way from the nest by default)
+function routeHTML(units, key, calm = false, path = null) {
+  const sig = key + '|' + units.map(u => u.name + u.members.length).join(',') + '|' + (path ? path.join(';') : '');
   if (!routeCache.has(sig)) {
-    const r = routeRisk(S, units, key);
+    const r = path ? routeRisk(S, units, key, path.map(parseKey)) : routeRisk(S, units, key);
     // the likeliest to beat the team, fought where it would be met; between equals, the deadlier, then
     // the biggest
     const death = f => Math.max(...f.odds.death.flat()), big = f => SIZE_ORDER.indexOf(f.foe.members[0].size);
@@ -626,6 +627,7 @@ function traceHTML(t) {
   return `<h3>The way to the ${esc(dest)}</h3>
     <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again, never over the same ground twice. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
     <p class="hint">${legMins(S, members, tracing.from, tracing.to, route)} min to get there.</p>
+    ${(() => { const units = teamUnits(S, party ? standingUnits(S, party) : (teamFrom(S, team) || []).filter(Boolean)); return units.length ? routeHTML(units, tracing.to, !!cityAt(S.world.seed, parseKey(tracing.to)), plannedPath().slice(1)) : ''; })()}
     ${party ? (() => { const dry = dryStretch(S.world.seed, tracing.from, tracing.to, route); return dry.thirst >= SURVIVAL.at ? `<p class="hint ${dry.thirst >= SURVIVAL.faint ? 'warn-text' : ''}">The longest dry stretch: ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water${sup.water ? `, with ${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left in the flasks` : ''}.</p>` : '<p class="hint">Water all the way.</p>'; })() : members.length ? suppliesHTML(members, tracing.to) : ''}
     <div class="row"><button class="btn" type="button" id="traceGo">Set off</button>
       ${undoRoute.length ? '<button class="ghost" type="button" id="traceUndo">Undo</button>' : ''}${route.length ? '<button class="ghost" type="button" id="traceClear">Back to the easiest way</button>' : ''}
