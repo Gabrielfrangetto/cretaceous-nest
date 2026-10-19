@@ -207,7 +207,7 @@ export const STARTERS = ['coelo', 'raptor', 'psitta', 'proto'];
 // for the two activities the game has so far.
 export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
-  proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
+  proto: { role: 'Defender', text: 'Never goes looking for a fight, but stands its ground: a tough body, a bony frill and a hooked beak that strikes back and can clamp on. One was found locked in battle with a Velociraptor.' },
   coelo: { role: 'Fighter', text: 'A slim, quick hunter of small prey, found by the hundreds: light on its feet, fragile bones, and better in a pack.' },
   raptor: { role: 'Fighter', text: 'Small and very quick, with a sickle claw on each foot that latches onto prey. One was found locked in battle with a Protoceratops.' },
   compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals (or to ride), but a team it leads sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
