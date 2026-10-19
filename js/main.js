@@ -16,6 +16,7 @@ import { initRewards } from './ui/rewards.js';
 import { initBreeding } from './ui/breeding.js';
 import { initBabyInfo } from './ui/baby-info.js';
 import { initWorld } from './ui/world.js';
+import { initTeam } from './ui/team.js';
 import { initForge } from './ui/forge.js';
 
 // local dev mode: play without an account on localhost with ?dev (never on the real site)
@@ -31,6 +32,7 @@ initRewards();
 initBreeding();
 initBabyInfo();
 initWorld();
+initTeam();
 initForge();
 initTabs();   // after the modules above, so every tab's handlers are registered before the first tab opens
 initAccount();

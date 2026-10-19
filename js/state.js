@@ -6,6 +6,7 @@ import { addItem, wildGenes, seededRand, cleanGenes, eggSex, maxStack, isGear, o
 import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
 import { cleanPacks } from './packs.js';
+import { cleanTeams } from './teams.js';
 
 export const SAVE_VERSION = 12;
 const KEY = 'cretaceous-nest';
@@ -22,6 +23,7 @@ export function freshState() {
     player: newPlayer(),
     tutorial: { seen: [] },   // the guide's tips already shown
     packs: [],                 // groups of pack-hunting dinosaurs (packs.js)
+    teams: [],                 // team presets (teams.js)
     // a new map for every new game
     world: newWorld(),
   };
@@ -169,6 +171,7 @@ function sanitize(s) {
   s.player = cleanPlayer(s.player);
   s.tutorial = { seen: [...new Set((s.tutorial && Array.isArray(s.tutorial.seen) ? s.tutorial.seen : []).filter(id => GUIDE[id]))] };
   s.packs = cleanPacks(s.packs, s);
+  s.teams = cleanTeams(s);
   s.world = cleanWorld(s.world, s);
   s.world.expeditions = cleanParties(s, s.world);
   s.starter = s.starter === true || s.hatched.length > 0;

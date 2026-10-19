@@ -677,3 +677,21 @@ body.guide-room { padding-bottom: 70vh; }
 .frill-bar i { width: 22px; height: 10px; border-radius: 3px; background: var(--line); }
 .frill-bar i.on { background: var(--accent); }
 .fighter .frill-bar i { width: 14px; height: 6px; }
+
+/* Team tab: presets of the team that sets out, a place per card */
+.team-box { display: grid; gap: 14px; }
+.team-presets { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--line); }
+.team-presets .tab { font-size: 16px; padding: 8px 12px; }
+.team-name input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); flex: 1 1 160px; min-width: 0; max-width: 280px; }
+.team-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.team-slot, .team-card { display: grid; justify-items: center; align-content: start; gap: 4px; padding: 10px; min-height: 150px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); font: inherit; text-align: center; cursor: pointer; }
+.team-slot.you { cursor: default; }
+.team-slot.empty { border-style: dashed; align-content: center; }
+.team-slot:hover:not(.you), .team-card:hover { border-color: var(--ink); }
+.team-card.on { outline: 2px solid var(--accent); }
+.team-plus { font-size: 2rem; line-height: 1; opacity: .6; }
+.team-art { display: flex; align-items: flex-end; justify-content: center; min-height: 72px; gap: 2px; }
+.team-art img, .team-art canvas, .team-art svg { max-width: 120px; max-height: 80px; }
+.team-dialog { width: min(720px, calc(100vw - 32px)); }
+.team-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 60vh; overflow-y: auto; margin: 12px 0; }
+.team-preset-use { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

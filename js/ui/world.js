@@ -23,6 +23,7 @@ import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
 import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
+import { cleanTeams } from '../teams.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
 export function sampleMapSVG(seed, seen = 3) {
@@ -634,7 +635,10 @@ function traceHTML(t) {
 
 // the team being put together, and who else could join it
 function teamFieldHTML(rows, left, t) {
+  // the teams set up in the Team tab, loaded in one go
+  const ready = cleanTeams(S).map((x, i) => ({ ...x, i })).filter(x => x.slots.some(Boolean));
   return `<div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
+      ${ready.length ? `<div class="team-preset-use"><span class="hint">Load:</span>${ready.map(x => `<button class="ghost" type="button" data-use-team="${x.i}">${esc(x.name)}</button>`).join('')}</div>` : ''}
       ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
       ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
         const p = unitProblem(u, t);
@@ -775,6 +779,12 @@ function render() {
     message = '';
     render();
   });
+  box.querySelectorAll('[data-use-team]').forEach(btn => btn.addEventListener('click', () => {
+    const preset = cleanTeams(S)[+btn.dataset.useTeam];
+    team = [{ kind: 'player', id: PLAYER_ID }, ...preset.slots.filter(Boolean)];
+    message = '';
+    render();
+  }));
   box.querySelectorAll('[data-unit-off]').forEach(btn => btn.addEventListener('click', () => {
     team.splice(+btn.dataset.unitOff, 1);
     render();

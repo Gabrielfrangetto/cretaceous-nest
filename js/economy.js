@@ -9,6 +9,7 @@ import { hashId, newId } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
 import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
+import { setTeamSlot, renameTeam } from './teams.js';
 
 // running totals the achievements read; older saves get them from their migration
 function bump(s, key, n = 1) {
@@ -737,6 +738,13 @@ export const ACTIONS = {
   },
   disbandPack(s, args) {
     return disbandPack(s, args);
+  },
+  // the Team tab's presets: a unit in a place ({ team, slot, unit: { kind, id } | null }), or a name
+  setTeamSlot(s, args) {
+    return setTeamSlot(s, args);
+  },
+  renameTeam(s, args) {
+    return renameTeam(s, args);
   },
   heal(s, { babyId }, now) {
     return healBaby(s, babyId, now);

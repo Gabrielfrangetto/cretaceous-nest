@@ -418,6 +418,7 @@ export const TRAIN = { links: 2, board: 2, mins: 0.05, fare: { base: 5, perHex: 
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
+export const TEAM_PRESETS = 5;               // teams that can be set up ahead in the Team tab
 
 // Packs: species that hunted or lived in groups can be formed into a pack, which takes one place in a
 // team however many it holds, up to the species' limit. Each member still fights as itself, with its
