@@ -149,6 +149,19 @@ export function positionOf(s, p, now) {
   while (i + 1 < costs.length && sum + costs[i + 1] <= done) sum += costs[++i];
   return i;
 }
+// where a party on its way is right now, between hexes: { i: the last hex reached (as positionOf),
+// f: how far it is toward the next one, 0 to 1 }
+export function progressOf(s, p, now) {
+  const leg = p.leg;
+  if (!leg) return null;
+  const seed = W(s).seed, costs = pathCosts(seed, leg.from, leg.path);
+  const total = costs.reduce((t, c) => t + c, 0) || 1;
+  const done = Math.min(1, Math.max(0, (now - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt))) * total;
+  let i = -1, sum = 0;
+  while (i + 1 < costs.length && sum + costs[i + 1] <= done) sum += costs[++i];
+  const next = costs[i + 1];
+  return { i, f: next ? Math.min(1, (done - sum) / next) : 0 };
+}
 // when a leg reached the hex at index i of its path
 function timeAt(s, leg, i) {
   const seed = W(s).seed, costs = pathCosts(seed, leg.from, leg.path);

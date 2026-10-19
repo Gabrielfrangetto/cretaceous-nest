@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, positionOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits } from '../journey.js';
+import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits } from '../journey.js';
 import { isStation } from '../map.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
@@ -59,7 +59,7 @@ const PROBLEMS = {
 };
 const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
-let selected = null, message = '', tick = null;
+let selected = null, message = '', tick = null, walkTick = null;
 // Planning the way: { to: the destination, from: where the team sets out, party: the id of a party
 // waiting out there that is sent on (null: a new team from the nest) }, and route: the points the player
 // dragged the way through, in the order the way passes them (the easiest way between them)
@@ -277,9 +277,11 @@ function paintMap() {
   }
   // where each party is by now: waiting somewhere, or along its way
   for (const e of w.expeditions) {
-    const i = e.leg ? positionOf(S, e, t) : null;
-    const key = !e.leg ? e.at : i < 0 ? e.leg.from : e.leg.path[i];
-    const [x, y] = center(parseKey(key));
+    // (on its way: between the last hex reached and the next, as far as the time says)
+    const g = e.leg ? progressOf(S, e, t) : null;
+    const hexOf = i => center(parseKey(i < 0 ? e.leg.from : e.leg.path[i]));
+    let [x, y] = center(parseKey(e.leg ? (g.i < 0 ? e.leg.from : e.leg.path[g.i]) : e.at));
+    if (g && g.f > 0 && g.i + 1 < e.leg.path.length) { const [nx, ny] = hexOf(g.i + 1); x += (nx - x) * g.f; y += (ny - y) * g.f; }
     const r = Math.max(8, px(7)), cx = x + Math.max(12, px(9)), cy = y - Math.max(12, px(9));
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -906,6 +908,12 @@ export function initWorld() {
     render();
     // redraw each second only while a trip is running, keeping the map and the form as they are
     tick = setInterval(tickTrips, 1000);
+    // and the map more often while a team walks, so its marker moves smoothly
+    clearInterval(walkTick);
+    walkTick = setInterval(() => {
+      const t = now();
+      if (currentTab() === 'world' && !document.hidden && S.world.expeditions.some(e => e.leg && t < e.leg.arriveAt)) drawMap();
+    }, 200);
   });
   setInterval(updateBadge, 1000);
   updateBadge();

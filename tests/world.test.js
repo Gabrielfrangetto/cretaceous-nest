@@ -882,3 +882,20 @@ test('dinosaurs never set out without the player', async () => {
     assert.ok(r.expedition.members.includes('player'));
   } finally { EXPEDITION.needsPlayer = false; }
 });
+
+test('a team on its way is somewhere between two hexes, further along as time goes by', async () => {
+  const { partyOf, progressOf, positionOf } = await import('../js/journey.js');
+  const s = game(dino('ad', 30, 'm', 'galli'));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: hexKey(...landHexes(42).filter(h => hexDist(h) === 8)[0]) }, T0);
+  const p = partyOf(s, r.expedition.id), { startedAt, arriveAt } = p.leg;
+  let last = -2;
+  for (let k = 0; k <= 40; k++) {
+    const t = startedAt + (arriveAt - startedAt) * k / 40, g = progressOf(s, p, t);
+    assert.equal(g.i, positionOf(s, p, t));
+    assert.ok(g.f >= 0 && g.f <= 1);
+    const at = g.i + g.f;
+    assert.ok(at >= last - 1e-9, `${at} after ${last}`);
+    last = at;
+  }
+  assert.equal(progressOf(s, p, arriveAt).i, p.leg.path.length - 1);
+});
