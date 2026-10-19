@@ -851,3 +851,20 @@ test("whose a nest with no parent about is, the player only knows for eggs they 
   }
   assert.ok(alone && parent);
 });
+
+test('a team whose last one dies on the way is lost, told at the hex where it fell', async () => {
+  const { partyOf } = await import('../js/journey.js');
+  const { SURVIVAL } = await import('../js/config.js');
+  const { REAL_SURVIVAL } = await import('./journey-helper.js');
+  const s = game(dino('ad', 30, 'm', 'galli'));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: hexKey(...landHexes(42).filter(h => hexDist(h) >= 10)[0]) }, T0);
+  const p = partyOf(s, r.expedition.id);
+  Object.assign(SURVIVAL, REAL_SURVIVAL);
+  try {
+    p.thirst = { ad: 1 }; p.health = { ad: 0.01 }; p.supplies = { water_skin: 0, ration: 0, water: 0 };
+    const step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+    const lost = step.story.find(e => e.kind === 'lost');
+    assert.ok(lost, step.story.map(e => e.kind).join());
+    assert.ok(Number.isInteger(lost.idx) && lost.idx >= 0 && lost.hex === p.leg.path[lost.idx]);
+  } finally { SURVIVAL.thirst = 0; SURVIVAL.hunger = 0; }
+});

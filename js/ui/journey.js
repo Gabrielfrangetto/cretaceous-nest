@@ -170,7 +170,8 @@ function next() {
   }
   const e = fb.queue.shift();
   if (e.n != null && fb.legs.has(e.n) && fb.leg.n !== e.n) { setLeg(e.n); drawMap(); }
-  const to = e.idx < 0 ? fb.leg.path.length - 1 : e.idx;
+  // (an entry with no place on the way is told where the marker stands)
+  const to = !Number.isInteger(e.idx) ? fb.pos : e.idx < 0 ? fb.leg.path.length - 1 : e.idx;
   walkTo(to, () => {
     tell(e);
     if (!STOPS.includes(e.kind)) { fb.timer = setTimeout(next, 500); return; }

@@ -935,7 +935,8 @@ function die(ctx, id) {
     // nobody left: the party is lost, and all it carried
     W(s).expeditions = W(s).expeditions.filter(x => x !== p);
     ctx.gone = true;
-    ctx.story.push({ kind: 'lost', hex: p.leg ? p.leg.path[Math.max(0, p.leg.step - 1)] : p.at });
+    const idx = p.leg ? Math.max(0, p.leg.step - 1) : -1;
+    ctx.story.push({ kind: 'lost', hex: p.leg ? p.leg.path[idx] : p.at, idx });
   }
 }
 
