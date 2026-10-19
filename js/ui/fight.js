@@ -129,7 +129,7 @@ export function playFight(battle, summary, who) {
     if (battle.win) foeBox.classList.add(battle.foeRouted || battle.foeFled ? 'fled' : 'down');
     else boxes.forEach((b, k) => { if (!fled.has(k)) b.classList.add('down'); });
     const res = body.querySelector('.fight-result');
-    res.innerHTML = `<strong class="${battle.win ? 'win' : 'loss'}">${battle.win ? 'Victory!' : 'Defeat'}</strong> ${summary}`;
+    res.innerHTML = `<strong class="${battle.win ? 'win' : battle.foeWent ? '' : 'loss'}">${battle.win ? 'Victory!' : battle.foeWent ? 'It left' : 'Defeat'}</strong> ${summary}`;
     body.querySelector('#fightSkip').hidden = true;
     const close = body.querySelector('#fightClose');
     close.hidden = false;

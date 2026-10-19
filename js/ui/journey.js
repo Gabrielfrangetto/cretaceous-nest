@@ -395,6 +395,7 @@ function fightHTML(e) {
   const call = b.alerted === 'team' ? (b.log || []).find(x => x.alert) : null;
   const gaveUp = (b.log || []).some(x => x.gaveUp);
   const outcome = b.escaped ? ` Everyone ran from it.${caughtText(b.caught)}`
+    : b.foeWent ? ` With nothing left standing that it would hunt, ${b.foe.pack ? 'they' : 'it'} left.`
     : b.win ? (b.foeFled ? (gaveUp ? ` It couldn't get through the armor and gave up.` : ` Badly hurt, it fled and left nothing behind.`) : b.foeRouted ? ' Half of them down, the rest ran off.' : ' You won.')
     : ' You were beaten, and got away as best you could.';
   const got = b.win ? lootText(b.loot || []) : [];
@@ -421,7 +422,7 @@ function witnessHTML(e) {
   return `${cap(wildName(e.hunter))} was chasing ${wildName(e.prey)}, and ${esc(e.by)} went after the ${esc(e.hunter.name)}: the ${esc(e.prey.name)} ran off, `
     + (e.battle ? 'and it stood its ground.' : e.caught ? `and the ${esc(e.hunter.name)} ran too, but was caught.` : `and the ${esc(e.hunter.name)} ran too, and got away.`) + tail;
 }
-const fightOutcome = b => (b.escaped ? 'Everyone ran from it.' : b.win ? 'You won.' : 'You were beaten, and got away as best you could.')
+const fightOutcome = b => (b.escaped ? 'Everyone ran from it.' : b.foeWent ? 'With nothing left standing that it would hunt, it left.' : b.win ? 'You won.' : 'You were beaten, and got away as best you could.')
   + `${(b.downed || []).length ? ` ${cap(listNames(b.downed.map(nm)))} went down.` : ''}${(b.died || []).length ? ` ${esc(listNames(b.died.map(x => x.name)))} did not survive.` : ''}`;
 
 // a nest found on the way, and what you did
@@ -431,7 +432,7 @@ function nestHTML(e) {
   const egg = list.length ? (e.unseen ? ` You carried off a ${esc(SPECIES[list[0].type].egg)}, with no time to see whether it would hatch.`
     : ` You carried off ${list.length === 1 ? `a fertile ${esc(SPECIES[list[0].type].egg)}` : `${list.length} fertile ${esc(SPECIES[list[0].type].egg)}s`}.`) : '';
   const full = e.full ? ' You couldn\'t carry any more.' : '';
-  const fought = e.battle ? ` ${e.battle.win ? 'You won' : 'You were beaten, and got away as best you could'}.${(e.battle.downed || []).length ? ` ${cap(listNames(e.battle.downed.map(nm)))} went down.` : ''}${(e.battle.died || []).length ? ` ${esc(listNames(e.battle.died.map(x => x.name)))} did not survive.` : ''}` : '';
+  const fought = e.battle ? ` ${e.battle.win ? 'You won' : e.battle.foeWent ? 'It left' : 'You were beaten, and got away as best you could'}.${(e.battle.downed || []).length ? ` ${cap(listNames(e.battle.downed.map(nm)))} went down.` : ''}${(e.battle.died || []).length ? ` ${esc(listNames(e.battle.died.map(x => x.name)))} did not survive.` : ''}` : '';
   const an = article(e.name);
   const N = e.known === false ? 'a nest' : `${an} ${sp} nest`;
   const found = { hatched: `${N} that had already hatched`, alone: `${N} left alone`, empty: `${N}, the parent away`, watched: `${an} ${sp} nest with a parent close by`, colony: `${an} ${sp} nesting colony`, unseen: `${an} ${sp} on its nest`, seen: `${an} ${sp} on its nest, warning you off` }[e.state];

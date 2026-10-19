@@ -994,7 +994,7 @@ function fight(ctx, ev, rand, how = {}) {
     }
     p.health[id] = Math.round(left * 1000) / 1000;
     const lame = result.lamed.some(([a, b]) => a === i && b === j);
-    if ((lame || !result.win) && !p.hurt.includes(id)) p.hurt.push(id);
+    if ((lame || (!result.win && !result.foeWent)) && !p.hurt.includes(id)) p.hurt.push(id);
     // a frill keeps the damage it took until it is mended
     const f = result.frill[i] && result.frill[i][j];
     if (f !== null && f !== undefined) explorerOf(s, id).frill = f;
@@ -1042,7 +1042,7 @@ function gather(ctx, leg) {
   const { s, p, story, now } = ctx, w = W(s), key = leg.to, h = parseKey(key);
   const rand = seededRand(`loot:${w.seed}:${leg.n}`);
   const b = ctx.endBattle;
-  const beaten = b && !b.win && !b.escaped;
+  const beaten = b && !b.win && !b.escaped && !b.foeWent;
   const found = [];
   let coins = 0, egg = null, discovered = false;
   const roll = ({ min, max }) => min + Math.floor(rand() * (max - min + 1));

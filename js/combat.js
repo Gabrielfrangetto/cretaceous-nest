@@ -284,7 +284,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const active = [units.flatMap((_, i) => fled.includes(i) ? [] : [i]), [0]];
   const stayed = [...active[0]];
   const routed = [];
-  let foeRouted = false, foeFled = false;
+  let foeRouted = false, foeFled = false, foeWent = false;
   const log = [];
   const frenzy = new Set();
   // our members lamed by a bone-breaking bite or a club: [unit, member]
@@ -410,6 +410,9 @@ export function teamFight(units, foe, rand, opts = {}) {
   // Returns the member it went for, or -1 when it missed or couldn't touch it.
   const blow = (s, u, at, v, m, roll, boost = 1, extra = {}, o = {}) => {
     const t = 1 - s, key = K(s, u), att = S[s][u].members[at], target = S[t][v], prey = target.members[m];
+    // one of ours that goes for it (an attacker, not a defender charging or striking back) is fought
+    // back, prey or not
+    if (s === 0 && roleOf(S[0][u]) === 'attacker' && ignored.has(v)) ignored.get(v).delete(E(0, u, at));
     const held = extra.slash || extra.hold;
     // held in a beak by one its size, it can only reach the head of the one holding it
     const gripped = heldBy(beaks, s, u, at);
@@ -650,8 +653,9 @@ export function teamFight(units, foe, rand, opts = {}) {
         const targets = (o.to !== undefined ? [o.to] : active[t]).filter(x => active[t].includes(x) && alive(t, x).some(y => usable(x, y)));
         if (!targets.length) continue;
         // camouflaged in this biome, it is hard to pick out
-        // a predator singles one out and keeps at it till it is down (or out of reach)
-        const fx = roleOf(S[s][u]) === 'attacker' && o.target === undefined ? focus.get(K(s, u)) : null;
+        // a predator singles one out and keeps at it till it is down (or out of reach): each one of a
+        // pack its own
+        const fx = roleOf(S[s][u]) === 'attacker' && o.target === undefined ? focus.get(`${K(s, u)}:${at}`) : null;
         if (fx && targets.includes(fx.v) && hp[t][fx.v][fx.m] > 0 && usable(fx.v, fx.m)) { v = fx.v; m = fx.m; }
         else {
           const weights = targets.map(x => ROLE_TARGET[roleOf(S[t][x])] * (opts.biome && S[t][x].members.every(f => f.camo === opts.biome) ? CAMO.target : 1));
@@ -660,7 +664,7 @@ export function teamFight(units, foe, rand, opts = {}) {
           for (let k = 0; k < targets.length; k++) { pick -= weights[k]; if (pick < 0) { v = targets[k]; break; } }
           const free = alive(t, v).filter(y => usable(v, y));
           m = o.target !== undefined && v === o.to && hp[t][v][o.target] > 0 ? o.target : free[Math.floor(rand() * free.length)];
-          if (roleOf(S[s][u]) === 'attacker' && o.target === undefined && !(fx && targets.includes(fx.v) && hp[t][fx.v][fx.m] > 0)) focus.set(K(s, u), { v, m });
+          if (roleOf(S[s][u]) === 'attacker' && o.target === undefined && !(fx && targets.includes(fx.v) && hp[t][fx.v][fx.m] > 0)) focus.set(`${K(s, u)}:${at}`, { v, m });
         }
       }
       room.set(E(t, v, m), roomOf(v, m) - 1);
@@ -715,7 +719,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   // a unit leaving the fight: ours that ran off, or the foe's (a win)
   const runOff = (s, u, how = { rout: true }) => {
     active[s].splice(active[s].indexOf(u), 1);
-    if (s === 0) routed.push(u); else { foeRouted = true; if (how.fled) foeFled = true; }
+    if (s === 0) routed.push(u); else { foeRouted = true; if (how.fled) foeFled = true; if (how.passed) foeWent = true; }
     for (const map of [clinging, holding, latches, beaks]) for (const [k, h] of map) if ((h.s === s && h.u === u) || (h.t === s && h.v === u)) map.delete(k);
     log.push(selfEntry(s, u, how));
   };
@@ -913,8 +917,9 @@ export function teamFight(units, foe, rand, opts = {}) {
   const teamMax = stayed.reduce((t, i) => t + unitHp(units[i]), 0);
   const teamLeft = stayed.reduce((t, i) => t + hp[0][i].reduce((x, h) => x + h, 0), 0);
   const left = foeLeft();
-  const win = !escaped && (left <= 0 || foeRouted);
-  return { win, escaped, fled, routed, foeRouted, foeFled, alerted, slain, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
+  // (a predator that left because nothing it hunts was left standing was not beaten: no win)
+  const win = !escaped && (left <= 0 || (foeRouted && !foeWent));
+  return { win, escaped, fled, routed, foeRouted, foeFled, foeWent, alerted, slain, teamHps: units.map(u => u.members.map(m => m.hp)), log, hp: hp[0], foeHp: left, foeHps: hp[1][0], teamMax, teamLeft, foeMax, frenzy: [...frenzy], lamed, frill: frill[0] };
 }
 
 // How a team would do, from a fixed set of rolls so the answer does not flicker: how often it wins,

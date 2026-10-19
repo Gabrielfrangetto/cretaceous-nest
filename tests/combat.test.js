@@ -1214,3 +1214,37 @@ test('an open world: the way to a far hex crosses danger, and something on it ma
   const risk = routeRisk(game(dino('p', 60, 'proto')), team, far);
   assert.ok(risk.stopped > 0 && risk.foes.length && risk.crosses.length);
 });
+
+test("a pack's members each single out their own prey, and keep at it", () => {
+  // two of ours that are prey to raptors: the pack's blows land on both in the same round, not all on one
+  const me = () => unitOf('You', [fighterOf(freshState().player)]);
+  const galli = () => unitOf('g', [{ ...fighterOf(dino('g', 60, 'galli')), fear: undefined, role: 'attacker' }]);
+  let split = 0;
+  for (let i = 0; i < 30; i++) {
+    const r = realFight([me(), galli()], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 6), seededRand('split' + i));
+    const first = r.log.filter(e => e.by === 'foe' && e.to !== undefined && (e.dmg !== undefined || e.miss)).slice(0, 4);
+    if (new Set(first.map(e => e.to)).size > 1) split++;
+  }
+  assert.ok(split > 5, `${split} of 30 fights split the pack's first blows`);
+});
+
+test('a predator that leaves once nothing it hunts is standing is no win; one that goes for it is fought back', () => {
+  // a Coelophysis pack: you are its prey, a Dilophosaurus isn't, but it attacks them, and is fought back
+  const s = game(dino('c', 60, 'dilo'));
+  const team = teamUnits(s, [{ kind: 'player', id: 'player', members: ['player'] }, { kind: 'dino', id: 'c', members: ['c'] }]);
+  let fought = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = realFight(team, encounterUnit({ species: 'coelo', pack: [6, 6], loot: [] }, 8), seededRand('coelo' + i));
+    if (r.log.some(e => e.by === 'foe' && e.to === 1 && e.dmg !== undefined)) fought++;
+    if (r.foeWent) assert.equal(r.win, false);
+  }
+  assert.ok(fought > 0);
+  // nothing it hunts in the team but the player, who goes down: it leaves, and that is no win
+  const lone = unitOf('d', [{ ...fighterOf(dino('d', 60, 'dilo')), role: 'defender', charge: 0 }]);
+  let went = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = realFight([unitOf('You', [{ ...fighterOf(freshState().player), hp: 1 }]), lone], encounterUnit({ species: 'coelo', pack: [6, 6], loot: [] }, 8), seededRand('went' + i));
+    if (r.foeWent) { went++; assert.equal(r.win, false); }
+  }
+  assert.ok(went > 0, 'the pack left in some fights');
+});
