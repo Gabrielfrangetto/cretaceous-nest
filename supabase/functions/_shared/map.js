@@ -443,9 +443,10 @@ const costs = new Map();
 // (a river takes crossing when the way steps into it; along its bank, from river hex to river hex, it
 // doesn't: from is the hex the way comes from)
 export const stepCost = (c, from = null) => Math.max(TRAVEL.terrain[c.terrain] || 1, TRAVEL.biome[c.biome] || 1) + (c.river && !(from && from.river) ? TRAVEL.river : 0);
-// { best: cost to each hex by index, prev: the hex (index) it is reached from }
-function routes(seed, from = [0, 0]) {
-  const start = indexOf(from), id = `${seed}|${start}`;
+// { best: cost to each hex by index, prev: the hex (index) it is reached from } (avoid: a hex the ways
+// go around, by index)
+function routes(seed, from = [0, 0], avoid = -1) {
+  const start = indexOf(from), id = `${seed}|${start}|${avoid}`;
   if (costs.has(id)) return costs.get(id);
   const { cells } = worldMap(seed);
   const best = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1);
@@ -475,7 +476,7 @@ function routes(seed, from = [0, 0]) {
     if (c > best[i]) continue;
     for (let k = 0; k < 6; k++) {
       const n = NB[i * 6 + k];
-      if (n < 0) continue;
+      if (n < 0 || n === avoid) continue;
       const cell = cells[n];
       if (cell.terrain === 'ocean' || cell.terrain === 'lake') continue;
       const nc = c + stepCost(cell, cells[i]);
@@ -490,9 +491,9 @@ function routes(seed, from = [0, 0]) {
 // the cost of the easiest way from the nest to a hex (Infinity: there is none)
 export const travelCost = (seed, h) => { const i = indexOf(h); return i < 0 ? Infinity : routes(seed).best[i]; };
 // the easiest way from one hex to another (from the nest by default): the hexes crossed, the hex itself
-// last (not the one it starts from); [] when there is none
-export function travelPath(seed, h, from = [0, 0]) {
-  const { prev, start } = routes(seed, from), end = indexOf(h), path = [];
+// last (not the one it starts from); [] when there is none. around: a hex the way goes around
+export function travelPath(seed, h, from = [0, 0], around = null) {
+  const { prev, start } = routes(seed, from, around ? indexOf(around) : -1), end = indexOf(h), path = [];
   if (end < 0 || end === start || (prev[end] < 0)) return [];
   for (let i = end; i >= 0 && i !== start; i = prev[i]) path.unshift(hexOf(i));
   return path;

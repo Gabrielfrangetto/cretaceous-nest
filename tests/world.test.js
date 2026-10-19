@@ -606,3 +606,16 @@ test('making camp: water found where there is water to find, the hungry fed, eve
   // no camp at home or in a city
   assert.equal(applyAction(s, 'order', { id: p.id, hex: '0,0' }, t + CAMP.mins * 60000).ok, true);
 });
+
+test('the destination is always the last hex a route reaches: a way to a point beyond it goes around it', async () => {
+  const { routePath } = await import('../js/journey.js');
+  // a straight way east, then a point dragged just past the destination
+  const land = k => !isWater(42, parseKey(k));
+  for (const [to, past] of [['4,0', '5,0'], ['5,1', '6,1'], ['3,3', '3,4']]) {
+    if (!land(to) || !land(past)) continue;
+    const path = routePath(42, '0,0', to, [past]);
+    assert.ok(path.length);
+    assert.equal(path.indexOf(to), path.length - 1, `${to} via ${past}: ${path.join(' ')}`);
+    assert.ok(path.includes(past));
+  }
+});

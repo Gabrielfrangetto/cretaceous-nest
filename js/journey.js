@@ -46,12 +46,17 @@ export const legMins = (s, members, from, to, via = []) =>
   Math.max(1, Math.round(viaCost(W(s).seed, from, to, via) * TRAVEL.mins / 2 * teamSlow(s, members) * (allRunners(s, members) ? RUNNER.trip : 1)));
 // the stops of a route: from, the waypoints, to
 const stopsOf = (from, to, via) => [from, ...via.filter(k => k !== from && k !== to), to];
-const viaCost = (seed, from, to, via) => { const st = stopsOf(from, to, via); let c = 0; for (let i = 1; i < st.length; i++) c += routeCost(seed, parseKey(st[i - 1]), parseKey(st[i])); return c; };
-// the hexes walked on a route, from excluded, to last (the easiest way from each stop to the next)
+const viaCost = (seed, from, to, via) => (via.length ? pathCosts(seed, from, routePath(seed, from, to, via)).reduce((t, c) => t + c, 0) : routeCost(seed, parseKey(from), parseKey(to)));
+// The hexes walked on a route, from excluded, to last: the easiest way from each stop to the next. The
+// destination is always the last hex reached: a way to a stop beyond it goes around it, not through.
 export function routePath(seed, from, to, via = []) {
   const st = stopsOf(from, to, via), path = [];
   for (let i = 1; i < st.length; i++) {
-    const seg = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1])).map(h => hexKey(...h));
+    let seg = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1])).map(h => hexKey(...h));
+    if (i < st.length - 1 && seg.includes(to)) {
+      const round = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1]), parseKey(to)).map(h => hexKey(...h));
+      if (round.length) seg = round;
+    }
     if (!seg.length) return [];
     path.push(...seg);
   }
