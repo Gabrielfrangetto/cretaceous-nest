@@ -817,8 +817,8 @@ export const FORAGE = {
 // candle[kind][1] more at each one after (a big predator is quicker back). One with a parent on it unseen can be crept up on (seen again as
 // above) or lured away by one of the team that would run from the parent (its fear, BODY) as bait (its
 // agility against the parent's; caught, it is killed): one egg grabbed, unseen. Waiting for it to leave
-// is no use: it smells the team. Whose a nest with no parent about is, the player only knows for a
-// species whose eggs they have had (the starters known from the start). Taking it by force is a fight with a parent
+// is no use: it smells the team. Whose a nest with no parent about is, and whose an egg is, the player
+// only knows for a species they have hatched (the starters known from the start). Taking it by force is a fight with a parent
 // (a prime adult, or colony adults) that never runs: won, the nest is the team's to look over, but at a
 // colony the other adults close in, so one egg is grabbed, unseen. An egg taken unseen shows what it is
 // once home. A team carries carry eggs at most.
@@ -847,7 +847,7 @@ export const NEST = {
     pachy: [6, 15], scelido: [6, 15],
   },
   fertile: 0.9, hatched: 0.2,
-  watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, candle: { brooded: [0, 0.1], guarded: [0, 0.15] },
+  watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, candle: { brooded: [0.1, 0.1], guarded: [0.15, 0.15] },
   cost: 1, colony: [2, 4], fumes: 0.35, carry: 3, gap: 10,
   sees: { colony: 0.04, creche: 0.02, watched: 0.015, brooded: 0.015, guarded: 0.01, buried: 0.005 },
   rarity: { Starter: 1, Common: 1, Uncommon: 0.75, Rare: 0.5, Epic: 0.3, Legendary: 0.15 }, legendary: 0.02,

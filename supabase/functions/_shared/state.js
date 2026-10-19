@@ -17,7 +17,7 @@ export function freshState() {
     saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
     daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
     eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
-    known: [],        // the species whose eggs the player has had (starters are known from the start: knows)
+    known: [],        // the species the player has hatched, whose eggs and nests they know (starters from the start: knows)
     starter: false,   // the starter baby is not picked yet
     player: newPlayer(),
     tutorial: { seen: [] },   // the guide's tips already shown
@@ -163,8 +163,8 @@ function sanitize(s) {
     return rest;
   });
   if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
-  // the eggs had: the ones kept, and those of every baby and egg there is (older saves)
-  s.known = [...new Set([...(Array.isArray(s.known) ? s.known : []), ...s.hatched.map(b => b.type), ...(s.eggs || []).map(e => e.type), ...(s.current ? [s.current.type] : [])].filter(t => SPECIES[t]))];
+  // the species hatched: the ones kept, and every baby's (older saves)
+  s.known = [...new Set([...(Array.isArray(s.known) ? s.known : []), ...s.hatched.map(b => b.type)].filter(t => SPECIES[t]))];
   s.player = cleanPlayer(s.player);
   s.tutorial = { seen: [...new Set((s.tutorial && Array.isArray(s.tutorial.seen) ? s.tutorial.seen : []).filter(id => GUIDE[id]))] };
   s.packs = cleanPacks(s.packs, s);

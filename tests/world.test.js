@@ -813,7 +813,7 @@ test("an empty nest: an egg snatched unseen, or held to the light one by one, th
     // held up one by one: each look is likelier to bring the parent back
     // (the first look is safe, the parent likelier back at each one after)
     let w = v, prev = -1, n = 0;
-    assert.equal(v.chance, 0);
+    assert.equal(v.chance, N.candle[v.nest][0]);
     for (let k = 0; k < 40; k++) {
       const c = w.phase === 'dud' ? { nest: 'keep' } : { nest: 'candle' };
       if (c.nest === 'candle') { assert.ok(w.chance > prev); prev = w.chance; n++; }

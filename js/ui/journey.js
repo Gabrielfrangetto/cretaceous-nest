@@ -6,7 +6,7 @@ import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord } from '../journey.js';
+import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
@@ -277,8 +277,8 @@ function decide(v) {
     const sp = esc(v.name), eggs = n => `${n} ${n === 1 ? 'egg' : 'eggs'}`;
     // with no parent about, whose nest it was is only known for eggs the player has had
     const N = v.known ? `${article(v.name)} <strong>${sp}</strong> nest` : 'a nest';
-    const whose = v.known ? '' : ' Whose it was, the team couldn\'t tell: it had never had eggs like these.';
-    const backHint = `<span class="hint">(${v.chance > 0 ? `${chanceOf(v.chance)} chance the parent came back meanwhile` : 'it had only just left: no fear of it coming back yet'})</span>`;
+    const whose = v.known ? '' : ' Whose it was, the team couldn\'t tell: nothing like these eggs had ever hatched at the nest.';
+    const backHint = `<span class="hint">(${chanceOf(v.chance)} chance the parent came back meanwhile)</span>`;
     if (v.phase === 'empty') {
       html = `<p>${v.left === v.clutch ? `The parent had gone off to feed, leaving its ${eggs(v.clutch)}.` : `The parent was still away. ${cap(eggs(v.left))} ${v.left === 1 ? 'was' : 'were'} left to look at.`}</p>
         <div class="row wrap">${btn({ nest: 'candle' }, `Held ${v.left === v.clutch ? 'an egg' : 'another'} to the light ${backHint}`)}${btn({ nest: 'take' }, `Grabbed one without looking, and went`, true)}${btn({}, v.left === v.clutch ? 'Left it be' : 'Went on with what they had', true)}</div>`;
@@ -462,7 +462,7 @@ function entryHTML(e) {
       const got = lootText(e.loot || []);
       if (e.coins) got.push(`${e.coins} coins`);
       const eggs = (e.duds || []).map(t => ` Held to the light, the ${esc(SPECIES[t].egg)} showed no life inside: it would never hatch, and went to the food.`).join('')
-        + (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)} (${esc(SPECIES[g.type].species)}) is waiting in the Incubator!`)).join('');
+        + (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)}${knows(S, g.type) ? ` (${esc(SPECIES[g.type].species)})` : ', whose no one knew until it hatched,'} is waiting in the Incubator!`)).join('');
       const hurt = (e.injured || []).map(x => `${cap(nm(x.id))} ${x.id === PLAYER_ID ? 'are' : 'is'} ${x.critical ? 'critically injured: herbs won\'t help, a Blood Transfusion will' : `injured for ${x.mins} min`}.`);
       const fed = (e.fedSelf || []).map(nm);
       const hungryIds = (e.hungry || (e.members || []).filter(id => id !== PLAYER_ID && !(e.fedSelf || []).includes(id))).filter(id => id !== PLAYER_ID);

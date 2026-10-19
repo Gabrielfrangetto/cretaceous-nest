@@ -587,7 +587,7 @@ export function clutchOf(seed, n, idx, species) {
   if (SPECIES[species].build === 'theropod' && size % 2) size += size < hi ? 1 : -1;
   return { size, fertile: Array.from({ length: size }, () => rand() < NEST.fertile) };
 }
-// whether the player knows a species' eggs (and so its nest): a starter's, one they have, or one whose eggs they have had
+// whether the player knows a species' eggs (and so its nest): a starter's, or one they have hatched
 export const knows = (s, species) => SPECIES[species].rarity === 'Starter' || (s.known || []).includes(species) || s.hatched.some(b => b.type === species);
 // the eggs of a hatched nest left behind: those that never hatched (one at least)
 const leftoversOf = c => Math.max(1, c.fertile.filter(f => !f).length);
@@ -627,7 +627,7 @@ export function nestView(s, p, idx) {
   return {
     species, name: sp.species, nest: kind, state, foe, clutch: clutch.size, leftovers: leftoversOf(clutch),
     eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, volcano: biome === 'volcano',
-    // (no parent about: whose it is, only known for a species whose eggs the player has had)
+    // (no parent about: whose it is, only known for a species the player has hatched)
     known: ['watched', 'colony', 'unseen', 'seen'].includes(state) || knows(s, species),
     phase: pe ? pe.phase : null, left: clutch.size - looked, duds: pe ? pe.duds || 0 : 0, chance: candleChance(kind, pe ? pe.looks || 0 : 0),
   };
@@ -1061,8 +1061,6 @@ function comeHome(ctx) {
   if (duds.length) p.carry.items.raw_egg = (p.carry.items.raw_egg || 0) + duds.length;
   for (const [item, n] of Object.entries(p.carry.items)) if (n > 0) loot.push({ id: item, n, lost: addItem(s, item, n) });
   if (p.carry.coins) earn(s, p.carry.coins);
-  // (every fertile egg brought home is known from then on, and so its nest)
-  s.known = [...new Set([...(s.known || []), ...p.carry.eggs.filter(g => !g.dud).map(g => g.type)])];
   const eggs = p.carry.eggs.filter(g => !g.dud).map(({ unseen, ...egg }) => {
     s.eggs = s.eggs || [];
     if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); return egg; }

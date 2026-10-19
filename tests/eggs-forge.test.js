@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { applyAction, countItem, addItem, isAdult } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { newWorld, landHexes } from '../js/world.js';
-import { RECIPES, ITEMS, BIOMES, EGG_GENES, STARTERS, ROLES, DIET, STATS } from '../js/config.js';
+import { RECIPES, ITEMS, BIOMES, EGG_GENES, STARTERS, ROLES, DIET, STATS, SPECIES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 function game() {
@@ -53,11 +53,15 @@ test('eggs are taken from nests found on the way: of a species that nests there,
   const [lo, hi] = EGG_GENES(EGG_STEP, false);
   for (const { id } of STATS) assert.ok(egg.genes[id] >= lo && egg.genes[id] <= hi);
   assert.ok(s.eggs.some(e => e.id === egg.id));
-  // brought home, its species' eggs and nests are known from then on
-  assert.ok(s.known.includes(egg.type));
   // and it hatches in the incubator like any other egg
   assert.equal(applyAction(s, 'startEgg', { eggId: egg.id }, t).ok, true);
   assert.equal(s.current.type, egg.type);
+  // whose it is, no one knows until it hatches (a starter's, or one already hatched, aside)
+  const { knows } = await import('../js/journey.js');
+  const { hatchEgg } = await import('../js/economy.js');
+  assert.equal(knows(s, egg.type), SPECIES[egg.type].rarity === 'Starter' || egg.type === 'rex');
+  assert.ok(hatchEgg(s, t + 1e10));
+  assert.ok(knows(s, egg.type) && s.known.includes(egg.type));
 });
 
 test('the incubator only hatches eggs you have', () => {

@@ -271,6 +271,8 @@ export function hatchEgg(s, now, rand = Math.random) {
   // raised in a Psittacosaurus creche: a strong stomach
   if (s.hatched.some(b => SPECIES[b.type] && SPECIES[b.type].creche && stageOf(b).id === 'adult' && !isAway(s, b.id))) baby.stomach = true;
   s.hatched.unshift(baby);
+  // its eggs, and its nests, are known from now on
+  if (!(s.known || []).includes(type)) s.known = [...(s.known || []), type];
   const lootId = HATCH_LOOT[type];
   const lost = addItem(s, lootId, 1) > 0;
   earn(s, HATCH_COINS[type]);
@@ -414,6 +416,8 @@ export function pickStarter(s, type, now) {
   if (!STARTERS.includes(type)) return { ok: false, reason: 'unknown-species' };
   const baby = { ...starterBaby(s, type), name: suggestName(s, type), at: now, equip: {} };
   s.hatched.unshift(baby);
+  // its eggs, and its nests, are known from now on
+  if (!(s.known || []).includes(type)) s.known = [...(s.known || []), type];
   s.starter = true;
   return { ok: true, baby };
 }

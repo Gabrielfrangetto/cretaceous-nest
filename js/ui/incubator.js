@@ -8,6 +8,7 @@ import { now } from '../clock.js';
 import { eggSVG, NEST, babyArt } from '../art.js';
 import { fmt, minsLabel, esc } from '../util.js';
 import { setTab, onTabChange } from './tabs.js';
+import { knows } from '../journey.js';
 import { statsHTML, powerText, genesText } from './stats.js';
 
 const stage = document.getElementById('stage');
@@ -38,9 +39,10 @@ function renderChooser() {
   stage.innerHTML = `<div><h2>Pick an egg to hatch</h2>
     <p class="sub">Found on expeditions or laid by your breeding pairs. The baby inherits the egg's genes.</p></div>
     <div class="eggs">${eggs.map(e => {
-      const sp = SPECIES[e.type];
+      // (an egg of a species never hatched here: no one knows whose it is until it hatches)
+      const sp = SPECIES[e.type], known = knows(S, e.type);
       return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
-        ${eggSVG(sp)}<strong>${sp.species}</strong><span>${sp.rarity} · Gen ${e.gen} · ${genesText(e.genes)}</span>
+        ${eggSVG(sp)}<strong>${known ? sp.species : `${sp.egg}: whose?`}</strong><span>${known ? sp.rarity : 'Unknown'} · Gen ${e.gen} · ${genesText(e.genes)}</span>
         <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e, { compact: true })}</button>`;
     }).join('')}</div>`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {
@@ -78,7 +80,7 @@ function renderIncubator() {
         ${NEST}
       </div>
       <div class="info">
-        <p class="eyebrow">${sp.egg} · ${sp.rarity}</p>
+        <p class="eyebrow">${sp.egg} · ${knows(S, S.current.type) ? sp.rarity : 'whose, no one knows yet'}</p>
         <div class="timer" id="timer">0:00</div>
         <div>
           <div class="bar"><i id="fill"></i><b style="left:25%"></b><b style="left:50%"></b><b style="left:75%"></b></div>
