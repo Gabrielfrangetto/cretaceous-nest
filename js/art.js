@@ -197,13 +197,15 @@ export function guideArt(height = 180) {
 const asset = path => new URL('../' + path, import.meta.url).href;
 // an event's picture (images/events/<key>.webp or .png, 16:9): the addresses to try, in order
 export const eventArtUrls = keys => keys.flatMap(k => ['webp', 'png'].map(ext => asset(`images/events/${k}.${ext}`)));
-const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =>
-  [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
-// babies redrawn in profile, one sex at a time (animated .webp: their idle plays on their own); the other
-// sex keeps the pixel fallback until it is drawn
-SPRITES.dilo = { f: asset('sprites/dilo-f.webp') };
+// (a baby looks the same whatever its sex: the older drawings use the female's for both)
+const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor'].map(type =>
+  [type, { m: asset(`sprites/${type}-f.png`), f: asset(`sprites/${type}-f.png`) }]));
+// babies redrawn in profile (animated .webp: their idle plays on their own); a baby looks the same
+// whatever its sex, so one drawing serves both
+SPRITES.dilo = { f: asset('sprites/dilo-f.webp'), m: asset('sprites/dilo-f.webp') };
+SPRITES.rex = { f: asset('sprites/rex.webp'), m: asset('sprites/rex.webp') };
 // how tall a profile baby is drawn against the others (its long tail makes it twice as wide)
-const BABY_SCALE = { dilo: { f: 0.8 } };
+const BABY_SCALE = { dilo: 0.8, rex: 0.8 };
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // Adults without one are drawn with their baby sprite, scaled up.
@@ -300,7 +302,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
-  const size = look ? 1 : !own ? ((BABY_SCALE[type] || {})[sex] || 1)
+  const size = look ? 1 : !own ? (BABY_SCALE[type] || 1)
     : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
   const base = babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
