@@ -20,6 +20,7 @@ import {
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
+import { skyAt, placeOf } from './sun.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
@@ -788,8 +789,9 @@ function wayEvent(ctx, idx) {
   if (rand() < WITNESS.way && witnessOf(s, p, idx)) return { kind: 'witness', idx, hex: key };
   const t = metAt(s, p, idx), team = teamUnits(s, units);
   if (isAttacker(t.foe) && keepsAway(t, team) && !huntOdds(team, t.foe.members[0])) return null;
-  const chance = t.lair ? INTERCEPT.lair : encounterChance(t, team, biomeAt(w.seed, h), hasScout(s, p.members)) * INTERCEPT.share;
-  return rand() < chance ? { kind: 'meet', idx, hex: key } : null;
+  const sun = sunAt(s, p, idx);
+  const chance = t.lair ? INTERCEPT.lair : encounterChance(t, team, biomeAt(w.seed, h), hasScout(s, p.members), sun) * INTERCEPT.share;
+  return rand() < chance ? { kind: 'meet', idx, hex: key, sun } : null;
 }
 // At the journey's end: a hunt the team watches (WITNESS), or what lives there, met as often as it
 // would be (encounterChance)
@@ -799,9 +801,11 @@ function endEvent(ctx, idx) {
   if (!units.length) return null;
   const rand = seededRand(`end:${w.seed}:${p.leg.n}`);
   if (rand() < WITNESS.chance && witnessOf(s, p, idx)) return { kind: 'witness', idx, hex: key };
-  const t = metAt(s, p, idx);
-  return rand() < encounterChance(t, teamUnits(s, units), biomeAt(w.seed, h), hasScout(s, p.members)) ? { kind: 'meet', idx, hex: key } : null;
+  const t = metAt(s, p, idx), sun = sunAt(s, p, idx);
+  return rand() < encounterChance(t, teamUnits(s, units), biomeAt(w.seed, h), hasScout(s, p.members), sun) ? { kind: 'meet', idx, hex: key, sun } : null;
 }
+// day or night at the hex at idx of the leg when the team got there (sun.js)
+const sunAt = (s, p, idx) => skyAt(timeAt(s, p.leg, idx), placeOf(parseKey(p.leg.path[idx]))).phase;
 // what lives at the hex at idx of the leg, the very animals met there this time (each wild one its own)
 const metAt = (s, p, idx) => threatAt(W(s).seed, parseKey(p.leg.path[idx]), seededRand(`met:${W(s).seed}:${p.leg.n}:${idx}`));
 const witnessOf = (s, p, idx) => witnessAt(W(s).seed, parseKey(p.leg.path[idx]), seededRand(`wit:${W(s).seed}:${p.leg.n}:${idx}`));
@@ -1052,7 +1056,7 @@ function fight(ctx, ev, rand, how = {}) {
   if (ev.idx === (p.leg ? p.leg.path.length - 1 : -1)) ctx.endBattle = battle;
   if (!how.silent) {
     story.push({
-      hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), kind: 'fight', battle,
+      hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), kind: 'fight', battle, ...(ev.sun === 'night' ? { night: true } : {}),
       ...(how.standoff ? { standoff: standoffOf(threat) } : {}), ...(how.scatter ? { scatter: { ...scatterView(how.scatter), choice: 'fight' } } : {}),
     });
   }

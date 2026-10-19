@@ -78,6 +78,8 @@ const wildsIndex = h => (inWilds(h) ? (h[1] + MAP.north + MAP.wilds) * MAP.cols 
 const wildsHex = i => { const r = Math.floor(i / MAP.cols) - MAP.north - MAP.wilds, c = (i % MAP.cols) - MAP.west; return [c - Math.floor(r / 2), r]; };
 export const WILDS_HEXES = Array.from({ length: NW }, (_, i) => wildsHex(i));
 export const latOf = ([, r]) => MAP.lat[0] - ((r + MAP.north + 0.5) / MAP.rows) * (MAP.lat[0] - MAP.lat[1]);
+// its longitude (east +), west to east across the map
+export const lonOf = h => MAP.lon[0] + ((colOf(h) + MAP.west + 0.5) / MAP.cols) * (MAP.lon[1] - MAP.lon[0]);
 
 // ---------- noise ----------
 function mix(x) {

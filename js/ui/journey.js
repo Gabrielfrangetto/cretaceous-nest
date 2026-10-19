@@ -390,7 +390,7 @@ function fightHTML(e) {
   const sc = e.scatter;
   const intro = e.standoff ? `${standText(e.standoff, true)} You went for ${them(e.standoff.count)}.`
     : sc ? `${esc(listNames(sc.prey))} spotted ${article(sc.name)} ${esc(sc.name)} charging the group and ${sc.prey.length > 1 ? 'scattered' : 'bolted'}. ${b.forced ? `You ran too, but it caught up with ${nm(b.forced)} and there was no escaping the fight.` : sc.mounted ? 'You were thrown in the scramble and stayed to fight.' : sc.alone ? 'You stayed to face it alone.' : 'You stayed to face it with the rest.'}`
-    : `${cap(article(b.foe.name))} <strong>${foe}</strong> came for you.`;
+    : `${e.night ? `In the dark, ${article(b.foe.name)}` : cap(article(b.foe.name))} <strong>${foe}</strong> came for you.`;
   const ran = (b.fled || []).map(i => b.team[i].name);
   const call = b.alerted === 'team' ? (b.log || []).find(x => x.alert) : null;
   const gaveUp = (b.log || []).some(x => x.gaveUp);

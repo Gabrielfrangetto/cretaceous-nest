@@ -7,7 +7,7 @@ import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
-import { skyAt, sunTimes, sunAltitude, moonPhase } from '../sky.js';
+import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf } from '../sun.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -165,6 +165,8 @@ function syncWalkers() {
 }
 
 // ---------- day and night ----------
+// the nest's own sun time (its longitude's, sun.js); sunrise and sunset are told on the player's clock
+const NEST_PLACE = placeOf([0, 0]);
 const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 const DAY_MS = 86400000;
 // the moon's lit side: right while it waxes, left as it wanes (seen from the north)
@@ -177,19 +179,19 @@ const across = hours => (6 + Math.min(1, Math.max(0, (hours - 6) / 12)) * 88).to
 const height = alt => (42 - Math.max(-10, alt) / 75 * 36).toFixed(1) + '%';
 let asleepKey = null;
 function updateSky() {
-  const d = new Date(gameNow()), sky = skyAt(d), st = scene.style;
+  const d = gameNow(), sky = skyAt(d, NEST_PLACE), st = scene.style;
   st.setProperty('--dark', sky.dark.toFixed(3));
   st.setProperty('--glow', Math.max(0, 1 - Math.abs(sky.alt) / 8).toFixed(3));
   st.setProperty('--stars', Math.max(0, (sky.dark - 0.6) / 0.4).toFixed(3));
-  const hours = d.getHours() + d.getMinutes() / 60;
+  const hours = sunHours(d, NEST_PLACE.lon);
   st.setProperty('--sun-x', across(hours)); st.setProperty('--sun-y', height(sky.alt));
   st.setProperty('--sun-o', sky.alt > -4 ? '1' : '0');
   // the moon trails the sun by its age through the month: full, it rises at sunset
-  const p = moonPhase(d), lag = p * 24, moonAlt = sunAltitude(new Date(+d - lag * 3600000));
+  const p = moonPhase(d), lag = p * 24, moonAlt = moonAltitude(d, NEST_PLACE);
   st.setProperty('--moon-x', across(((hours - lag) % 24 + 24) % 24)); st.setProperty('--moon-y', height(moonAlt));
   st.setProperty('--moon-o', moonAlt > -4 && p > 0.03 && p < 0.97 ? (0.35 + 0.65 * sky.dark).toFixed(2) : '0');
   scene.querySelector('.moon path').setAttribute('d', moonPath(p));
-  const t = sunTimes(d), tomorrow = sunTimes(new Date(+d + DAY_MS));
+  const t = sunTimes(d, NEST_PLACE), tomorrow = sunTimes(d + DAY_MS, NEST_PLACE);
   const label = !t ? (sky.phase === 'night' ? 'Polar night' : 'Midnight sun')
     : sky.phase === 'day' ? `Day · sunset ${clockFmt.format(t.set)}`
     : sky.phase === 'dusk' ? (d < t.set ? `Dusk · sunset ${clockFmt.format(t.set)}` : 'Dusk')

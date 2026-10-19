@@ -10,6 +10,7 @@ import {
 import { packOf } from '../packs.js';
 import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits } from '../journey.js';
 import { isStation } from '../map.js';
+import { skyAt, sunTimes, sunHours, placeOf } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -166,6 +167,35 @@ function drawMap() {
   if (!mapCanvas || frame) return;
   frame = requestAnimationFrame(() => { frame = 0; paintMap(); });
 }
+// Night over the map, as it is right now (sun.js): darker where the sun is down, a small picture of it
+// (a pixel every BAND hexes, made again each minute) stretched smoothly over the whole map, so the dusk
+// sweeps across it from east to west
+const NIGHT_SHADE = 0.5, BAND = 3;
+let shade = null;
+function nightPicture(t) {
+  const minute = Math.floor(t / 60000), b = mapBounds();
+  if (shade && shade.minute === minute) return shade;
+  const w = Math.ceil(b.w / (SIZE * SQ3 * BAND)), h = Math.ceil(b.h / (SIZE * 1.5 * BAND));
+  const c = shade ? shade.canvas : document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const hex = hexAt(b.x + (i + 0.5) / w * b.w, b.y + (j + 0.5) / h * b.h);
+    const k = (j * w + i) * 4;
+    img.data[k] = 8; img.data[k + 1] = 16; img.data[k + 2] = 44;
+    img.data[k + 3] = Math.round(skyAt(t, placeOf(hex)).dark * NIGHT_SHADE * 255);
+  }
+  g.putImageData(img, 0, 0);
+  return (shade = { minute, canvas: c });
+}
+function shadeNight(ctx, f, x1, y1, t) {
+  const b = mapBounds(), pic = nightPicture(t);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(pic.canvas, b.x, b.y, b.w, b.h);
+  ctx.restore();
+}
+
 function paintMap() {
   if (!mapCanvas || !mapCanvas.isConnected) return;
   const w = S.world, t = now();
@@ -188,6 +218,7 @@ function paintMap() {
   // the blurriest tiles of the whole map, drawn ahead once the map is up
   const sig = `${w.seed}|${w.revealed.length}`;
   if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, GRID), 400); }
+  shadeNight(ctx, f, x1, y1, t);
   // (sizes in map units, never smaller than a few pixels on screen)
   const px = n => n / scale;
   // lairs, once a hex is big enough to show one
@@ -568,6 +599,18 @@ function rivalsHTML(members) {
 }
 
 // the land's own dangers there (HAZARDS), in a line
+// the time of day there: its own sun time, and when the light turns (on the player's clock)
+const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+const PHASE_WORD = { day: 'day', dawn: 'dawn', dusk: 'dusk', night: 'night' };
+function timeHTML(h, t) {
+  const place = placeOf(h), sky = skyAt(t, place), hrs = sunHours(t, place.lon);
+  const local = `${((Math.floor(hrs) + 11) % 12) + 1}:${String(Math.floor(hrs % 1 * 60)).padStart(2, '0')} ${hrs < 12 ? 'AM' : 'PM'}`;
+  const times = sunTimes(t, place), next = sky.phase === 'day' || sky.phase === 'dusk' ? times && times.set : times && (t < times.rise ? times.rise : sunTimes(t + 86400000, place).rise);
+  const turn = next && next > t ? `; ${sky.phase === 'day' || sky.phase === 'dusk' ? 'sunset' : 'sunrise'} at ${clockFmt.format(next)} your time` : '';
+  const night = sky.phase === 'night' ? ' Most animals are asleep, night hunters are out, and a team is harder to see in the dark.' : '';
+  return `<p class="hint">It is ${local} there, ${PHASE_WORD[sky.phase]}${turn}.${night}</p>`;
+}
+
 function landHTML(cell) {
   const z = (HAZARDS[cell.biome] || []).filter(x => (!x.river || cell.river) && (x.cold == null || cell.heat < x.cold));
   const say = {
@@ -625,7 +668,7 @@ function sideHTML(t) {
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}`;
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
     <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected, route)} min to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
-    ${landHTML(cellAt(S.world.seed, h))}
+    ${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
@@ -652,7 +695,7 @@ function goOnHTML(p, h, d, t) {
   const seen = d === 0 || isRevealed(S, selected), first = d > 0 && !S.world.visited.includes(selected);
   return `<h3>${title}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
     <p class="hint">From the ${where}, where your team waits: ${legMins(S, p.members, p.at, selected)} min${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
-    ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
+    ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
     ${units.length ? routeHTML(units, selected, d === 0, path) : ''}
     <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore'}</button></div>
     <p class="hint">You will see the way there, and can change it before the team sets off.</p>`;
@@ -941,5 +984,7 @@ export function initWorld() {
     }, 200);
   });
   setInterval(updateBadge, 1000);
+  // (the night moves over the map)
+  setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, 60000);
   updateBadge();
 }

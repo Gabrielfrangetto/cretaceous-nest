@@ -418,7 +418,7 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
 export const MAP_VERSION = 8;
 export const MAP = {
-  cols: 300, rows: 200, lat: [55, 20], wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
+  cols: 300, rows: 200, lat: [55, 20], lon: [-121, -72], wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
@@ -599,7 +599,7 @@ export const WILDS_BIOMES = { taiga: { name: 'Boreal Forest', color: '#5d806a' }
 // CREATURE_LEVEL(d) of them (more in a lair). look is the sprite drawn for it until it has its own
 // art, recoloured with the CSS filter tint.
 export const CREATURES = {
-  deinosuchus:  { name: 'Deinosuchus', size: 'huge', fear: 'huge', hunts: 'any', preyMax: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
+  deinosuchus:  { name: 'Deinosuchus', active: 'both', size: 'huge', fear: 'huge', hunts: 'any', preyMax: 'huge', bite: 220, hide: 10, look: 'rex', tint: 'hue-rotate(80deg) saturate(.5) brightness(.75)', stats: { str: 80, agi: 30, vit: 85, res: 75 } },
 };
 // (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
 export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge
@@ -768,6 +768,10 @@ export const ESCAPE = { max: 0.95 };
 // How much a team stands out: every member adds its size's share (a camouflaged one in its own biome
 // nothing). A predator's chance to notice the team is its usual chance times that total over base
 // (a player and a medium dinosaur: as usual), between min and max times. Lairs are always met.
+// Day and night (sun.js): a wild animal asleep (SPECIES and CREATURES active: by day unless 'night' or
+// 'both') is met asleep times as often; a night hunter about at night prowl times as often; in the dark
+// a team stands out unseen times as much to anything but a night animal. In the twilight all are about.
+export const NIGHT = { asleep: 0.35, prowl: 1.5, unseen: 0.6 };
 export const VISIBILITY = { size: { tiny: 0.3, small: 0.6, medium: 1, large: 1.6, huge: 2.5, colossal: 4 }, base: 1.6, min: 0.25, max: 2 };
 // Psittacosaurus was countershaded, dark above and pale below, for the soft light under a forest
 // canopy: there it doesn't add to how much its team stands out, and a predator goes for it target

@@ -781,14 +781,16 @@ test('a predator that gives up on hunkered-down armor turns on the rest of the g
 
 test('the bigger the team, the sooner a predator notices it; Psittacosaurus vanish in the forest', async () => {
   const { encounterChance, teamVisibility } = await import('../js/world.js');
+  const { NIGHT } = await import('../js/config.js');
   const { freshState } = await import('../js/state.js');
   const me = unitOf('You', [fighterOf(freshState().player)]);
   const one = t => unitOf(t, [fighterOf(dino(t, 60, t))]);
   const raptorHex = landHexes(42).find(h => threatAt(42, h).id === 'raptor' && !threatAt(42, h).lair);
   const th = threatAt(42, raptorHex);
-  const alone = encounterChance(th, [me], 'forest', false);
-  const withDilo = encounterChance(th, [me, one('dilo')], 'forest', false);
-  const withAnkylo = encounterChance(th, [me, one('ankylo')], 'forest', false);
+  // (a Velociraptor hunts by night)
+  const alone = encounterChance(th, [me], 'forest', false, 'night') / NIGHT.prowl;
+  const withDilo = encounterChance(th, [me, one('dilo')], 'forest', false, 'night') / NIGHT.prowl;
+  const withAnkylo = encounterChance(th, [me, one('ankylo')], 'forest', false, 'night') / NIGHT.prowl;
   assert.ok(alone < withDilo && withDilo < withAnkylo);
   // a player and a medium dinosaur meet it as often as ever
   assert.ok(Math.abs(withDilo - th.chance) < 1e-9);

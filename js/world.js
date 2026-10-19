@@ -9,7 +9,7 @@ import {
   BIOMES, ITEMS, MAP_VERSION, WORLD_SEED, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, AGES, LAIR_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS, AMBUSH,
-  EXPEDITION,
+  EXPEDITION, NIGHT,
 } from './config.js';
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, seededRand } from './economy.js';
@@ -266,11 +266,26 @@ export const teamVisibility = (units, biome) => units.reduce((t, u) => t + u.mem
   x + (m.type && SPECIES[m.type] && SPECIES[m.type].camo === biome ? 0 : VISIBILITY.size[m.size || PLAYER_SIZE] || 1), 0), 0);
 // the chance a trip meets what waits in its hex: a scout leads the team around it, and a predator
 // notices a team that stands out more often (lairs are always met)
-export function encounterChance(threat, units, biome, scout) {
+// (phase: the sun there then, sun.js: an animal asleep is met far less often, a night hunter more at
+// night, and in the dark a team stands out less to all but night animals: NIGHT)
+export function encounterChance(threat, units, biome, scout, phase = 'day') {
   if (threat.lair) return threat.chance;
   const predator = (threat.foe.members[0].role || 'attacker') === 'attacker';
-  const seen = predator && units.length ? Math.min(VISIBILITY.max, Math.max(VISIBILITY.min, teamVisibility(units, biome) / VISIBILITY.base)) : 1;
-  return Math.min(1, threat.chance * (scout ? SCOUT.encounter : 1) * seen);
+  const active = activeOf(threat);
+  const dark = phase === 'night' && active !== 'night' && active !== 'both' ? NIGHT.unseen : 1;
+  const seen = predator && units.length ? Math.min(VISIBILITY.max, Math.max(VISIBILITY.min, teamVisibility(units, biome) / VISIBILITY.base * dark)) : 1;
+  return Math.min(1, threat.chance * (scout ? SCOUT.encounter : 1) * seen * awake(active, phase));
+}
+// when a wild one is awake (SPECIES or CREATURES active): 'night', 'both' or by day
+export const activeOf = threat => {
+  const e = threat && threat.entry;
+  return e ? ((e.species && SPECIES[e.species]) || (e.creature && CREATURES[e.creature]) || {}).active : undefined;
+};
+// how often one is met at this time of day, for being asleep or out on the prowl
+export function awake(active, phase) {
+  if (active === 'both' || phase === 'dawn' || phase === 'dusk') return 1;
+  if (phase === 'night') return active === 'night' ? NIGHT.prowl : NIGHT.asleep;
+  return active === 'night' ? NIGHT.asleep : 1;
 }
 
 // ---------- keeping away and hunting ----------
