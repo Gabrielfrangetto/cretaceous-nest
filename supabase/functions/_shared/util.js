@@ -5,9 +5,17 @@ export function fmt(ms) {
   return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
 }
 
-export const minsLabel = m => m >= 60 ? (m / 60) + ' h' : m + ' min';
+export const minsLabel = m => m >= 60 ? Math.round(m / 60) + ' h' : m + ' min';
 
 export const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+// "5 days old", "3 months old", "2 years old" from an age in ms
+export function ageLabel(ms) {
+  const days = Math.floor(ms / 86400000), months = Math.floor(days / 30.44), years = Math.floor(days / 365.25);
+  if (years) return plural(years, 'year', 'years') + ' old';
+  if (months) return plural(months, 'month', 'months') + ' old';
+  return days ? plural(days, 'day', 'days') + ' old' : 'less than a day old';
+}
 
 export const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 

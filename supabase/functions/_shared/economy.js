@@ -1,9 +1,9 @@
 // Game rules. Every function works on a state object passed in and touches no DOM or storage,
 // so the same rules can be tested in Node and later run on a server.
 import {
-  SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
+  SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, NEST_HUNGER, PLAYER_HUNGER_MIN, PLAYER_DIET,
+  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
   KG, PLAYER_KG, MASS,
   FOOD,
@@ -62,15 +62,17 @@ export function cleanGenes(g, seed) {
 }
 
 // ---------- growth ----------
-// A baby's stage comes from how many meals it has eaten, which only the rules (and the server) change.
-// the meals a stage needs for this one (a fast-growing species needs fewer)
-export const mealsFor = (b, st) => Math.ceil(st.meals / ((b && b.type && SPECIES[b.type] && SPECIES[b.type].growth) || 1));
+// A young one's stage comes from how many growth capsules it has had (fed), which only the rules (and
+// the server) change. the capsules a stage needs for this one's species (CAPSULES)
+export const mealsFor = (b, st) => (b && CAPSULES[b.type] ? CAPSULES[b.type][st.id] : st.share ? Infinity : 0);
 export const stageOf = b => [...STAGES].reverse().find(st => ((b && b.fed) || 0) >= mealsFor(b, st));
-// the next stage and how many meals it still needs, or null for adults
+// the next stage and how many capsules it still needs, or null for adults
 export function nextStage(b) {
   const next = STAGES[STAGES.indexOf(stageOf(b)) + 1];
   return next ? { stage: next, mealsLeft: mealsFor(b, next) - ((b && b.fed) || 0) } : null;
 }
+// its age (ms), a year of it a year of ours
+export const ageOf = (b, now) => Math.max(0, now - (Number.isFinite(b.at) ? b.at : now));
 
 // ---------- stats ----------
 // Only adults wear equipment; pieces a younger baby still wears (from before this rule) can be
@@ -298,14 +300,13 @@ export function hatchEgg(s, now, rand = Math.random) {
 // babies from before sexes existed get a stable one from their id
 export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id) % 2 ? 'm' : 'f');
 
-// (gizzard stones: a species that digests well gets hungry more slowly)
-// (and one raised in a Psittacosaurus creche has a strong stomach)
-// (a juvenile or an adult, no longer eating to grow, gets hungry more slowly: NEST_HUNGER; the player
-// every PLAYER_HUNGER_MIN)
-export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : Math.round((HUNGER_MIN_S + hashId(b.id) % HUNGER_SPREAD_S) * 1000
-  * ((b.type && SPECIES[b.type] && SPECIES[b.type].digest) || 1) * (b.stomach ? CRECHE.stomach : 1) * (NEST_HUNGER[stageOf(b).id] || 1));
+// At home the keepers feed the dinosaurs; only the player gets hungry there, every PLAYER_HUNGER_MIN.
+// A young dinosaur instead needs a growth capsule as each one wears off (CAPSULE.every hours of its
+// stage), the first as soon as it hatches; an adult needs none.
+export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : (CAPSULE.every[stageOf(b).id] || 0) * 3600000;
 // (a player who has never eaten yet isn't hungry)
-export const isHungry = (b, now) => (b.id === PLAYER_ID && b.lastFed == null ? false : now - (b.lastFed || b.at) >= hungerEvery(b));
+export const isHungry = (b, now) => b.id === PLAYER_ID ? b.lastFed != null && now - b.lastFed >= hungerEvery(b) : needsCapsule(b, now);
+export const needsCapsule = (b, now) => !!b && b.id !== PLAYER_ID && !isAdult(b) && (b.lastFed == null || now - b.lastFed >= hungerEvery(b));
 
 // A day's food (kg) for one (a dinosaur at its stage, or the player) of this food: FOOD
 const PLANT_FOOD = ['leaf', 'fruit', 'seed'];
@@ -323,15 +324,15 @@ export function dietLabel(type) {
   return d.includes('meat') ? 'Meat eater' : 'Plant eater';
 }
 
+// gives a young dinosaur its growth capsule (the player: a meal)
 export function feedBaby(s, id, now) {
   if (id === PLAYER_ID) return feedPlayer(s, now);
   const b = s.hatched.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'missing' };
   if (isAway(s, id)) return { ok: false, reason: 'away' };
-  if (!isHungry(b, now)) return { ok: false, reason: 'full' };
-  const food = mealFor(s, b.type, b);
-  if (!food) return { ok: false, reason: 'no-food', food: DIET[b.type][0], n: mealSize(b, DIET[b.type][0]) };
-  const n = mealSize(b, food);
+  if (!needsCapsule(b, now)) return { ok: false, reason: isAdult(b) ? 'grown' : 'full' };
+  const food = CAPSULE.item, n = 1;
+  if (countItem(s, food) < n) return { ok: false, reason: 'no-food', food, n };
   removeItem(s, food, n);
   const before = stageOf(b);
   b.lastFed = now;
@@ -342,7 +343,7 @@ export function feedBaby(s, id, now) {
   return { ok: true, food, n, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
 }
 
-// the player eats (in the nest): no coins for it, and nothing to grow
+// the player eats (in the nest): no coins for it
 function feedPlayer(s, now) {
   const p = s.player;
   if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };

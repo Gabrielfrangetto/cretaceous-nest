@@ -9,7 +9,7 @@ const genes = n => ({ str: n, agi: n, vit: n, res: n });
 function withRex(coins = 1000) {
   const s = freshState();
   s.coins = coins;
-  s.hatched.push({ id: 'r1', type: 'rex', sex: 'm', name: 'Rex', at: 0, gen: 1, genes: genes(100), equip: {}, fed: 30 });
+  s.hatched.push({ id: 'r1', type: 'rex', sex: 'm', name: 'Rex', at: 0, gen: 1, genes: genes(100), equip: {}, fed: 999 });
   return s;
 }
 const slotOf = (s, id) => s.inv.findIndex(x => x && x.id === id);

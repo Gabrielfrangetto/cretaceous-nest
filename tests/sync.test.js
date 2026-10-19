@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { chooseSave, hasProgress, summarize, capGuestSave, GUEST_LIMITS } from '../js/sync.js';
 import { freshState, migrate } from '../js/state.js';
 import { countItem, addItem } from '../js/economy.js';
+import { SPECIES } from '../js/config.js';
 
 const played = (owner, updatedAt = 100) => {
   const s = freshState();
@@ -66,9 +67,9 @@ test('a guest save brought into an account is held to plausible limits', () => {
   assert.ok(countItem(c, 'leaf') <= GUEST_LIMITS.items.leaf);
   assert.equal(countItem(c, 'amber'), 1);
   assert.equal(countItem(c, 'golden_shell'), 0);     // no Tyrannosaurus hatched, so no golden shells
-  assert.equal(c.current.duration, 60 * 60000);      // the real Golden Egg time, whatever the save said
+  assert.equal(c.current.duration, SPECIES.rex.mins * 60000);      // the real Golden Egg time, whatever the save said
   assert.equal(c.current.startedAt, now);
-  assert.equal(c.current.bonus, 30 * 60000);
+  assert.equal(c.current.bonus, SPECIES.rex.mins * 60000 / 2);
 });
 
 test('an honest guest save keeps its babies, coins and items', () => {

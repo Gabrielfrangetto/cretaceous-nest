@@ -12,7 +12,7 @@ import {
   EXPEDITION,
 } from './config.js';
 import { CREATURES } from './config.js';
-import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
+import { addItem, removeItem, countItem, earn, stageOf, isHungry, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf, afraidOf } from './combat.js';
 import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES } from './map.js';
 import { alphaOf } from './packs.js';
@@ -198,7 +198,7 @@ export function memberProblem(s, id, key, now) {
   if (isAway(s, id)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
-  if (isHungry(b, now)) return me ? 'starved' : 'hungry';
+  if (me && isHungry(b, now)) return 'starved';
   return null;
 }
 

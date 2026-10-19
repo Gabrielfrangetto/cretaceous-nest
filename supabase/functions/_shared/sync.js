@@ -35,7 +35,7 @@ export const GUEST_LIMITS = {
   coins: 1000,
   babies: 40,
   invSize: 30,
-  items: { leaf: 150, meat: 150, amber: 1, feather: 60, clay: 60, bone: 60, obsidian: 60 },   // shells are capped by the babies they came from
+  items: { leaf: 150, meat: 150, amber: 1, feather: 60, clay: 60, bone: 60, obsidian: 60, capsule: 100 },   // shells are capped by the babies they came from
   mealsPerBaby: 300,
 };
 

@@ -1,6 +1,6 @@
 // Breeding panel in the Nest tab: pick a male and a female of the same species; after a while
 // they lay an egg that goes to the egg tray, ready to hatch in the Incubator.
-import { SPECIES, SEX, STATS, GENES_MAX, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES } from '../config.js';
+import { SPECIES, SEX, STATS, GENES_MAX, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, breedProblem, isAdult } from '../economy.js';
 import { act } from '../actions.js';
@@ -69,7 +69,7 @@ function render() {
   const males = adults.filter(b => sexOf(b) === 'm');
   const pairable = males.filter(m => adults.some(f => f.type === m.type && sexOf(f) === 'f'));
   if (!pairable.length) {
-    body.innerHTML = `<p class="hint">To breed you need an adult male and an adult female of the same species. Babies grow up after ${STAGES[STAGES.length - 1].meals} meals. Their babies inherit their genes, so pick your best pair.</p>${trayLine}${note}`;
+    body.innerHTML = `<p class="hint">To breed you need an adult male and an adult female of the same species. Young ones grow up on growth capsules (see each one's window). Their babies inherit their genes, so pick your best pair.</p>${trayLine}${note}`;
     return;
   }
   if (!pairable.some(m => m.id === maleId)) maleId = pairable[0].id;

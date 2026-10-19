@@ -2,7 +2,7 @@
 // Each place opens a picker with a card for every dinosaur and pack that could fill it.
 import { SPECIES, SEX } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, stageOf, wornGear, isHungry } from '../economy.js';
+import { sexOf, stageOf, wornGear } from '../economy.js';
 import { act } from '../actions.js';
 import { isAway, injuredLeft } from '../world.js';
 import { packOf, alphaOf } from '../packs.js';
@@ -29,7 +29,6 @@ function status(ids) {
     if (!b) continue;
     if (isAway(S, id)) return 'away';
     if (injuredLeft(b, t) > 0) return 'injured';
-    if (isHungry(b, t)) return 'hungry';
   }
   return '';
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { collect, reach } from './journey-helper.js';
 import assert from 'node:assert/strict';
-import { applyAction, countItem, addItem, buyGear, equipGear, seededRand } from '../js/economy.js';
+import { applyAction, countItem, addItem, removeItem, buyGear, equipGear, seededRand } from '../js/economy.js';
 import { freshState } from '../js/state.js';
 import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFight as realFight, unitOf, winChance, dangerOf } from '../js/combat.js';
 // Most tests here look at how abilities play out, between animals that may not be on each other's menu:
@@ -17,7 +17,7 @@ const showsTo = (key, type) => { const s = game(dino('x', 50, type)), t = threat
 
 const T0 = 1_000_000_000_000;
 const genes = n => ({ str: n, agi: n, vit: n, res: n });
-const dino = (id, g, type = 'rex') => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed: 30, lastFed: T0, genes: genes(g), equip: {} });
+const dino = (id, g, type = 'rex') => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: T0, genes: genes(g), equip: {} });
 function game(...babies) {
   const s = freshState();
   s.world = newWorld(42);
@@ -149,6 +149,7 @@ test('a dinosaur brought down is critically injured: herbs do not help, a Blood 
   assert.equal(isCritical(b, back), true);
   assert.equal(injuredLeft(b, back), CRITICAL_MINS * 60000);
   assert.ok(r.injured[0].critical);
+  removeItem(s, 'capsule', 99);   // (room in the bag)
   addItem(s, 'herb', 3);
   assert.equal(applyAction(s, 'heal', { babyId: 'runt' }, back).reason, 'critical');
   assert.equal(applyAction(s, 'transfuse', { babyId: 'runt' }, back).reason, 'no-transfusion');
@@ -801,9 +802,7 @@ test('the bigger the team, the sooner a predator notices it; Psittacosaurus vani
 });
 
 test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small foe's limb", async () => {
-  const { hungerEvery } = await import('../js/economy.js');
   const { SPECIES } = await import('../js/config.js');
-  assert.ok(hungerEvery({ id: 'x', type: 'psitta' }) > hungerEvery({ id: 'x', type: 'hypsi' }));
   assert.ok(SPECIES.psitta.digest > 1);
   let cracked = 0;
   for (let i = 0; i < 400; i++) {
@@ -1018,29 +1017,22 @@ test('a predator everyone ran from gives chase: it may catch the slowest, who ma
   assert.ok(caught > 0 && died > 0 && away > 0, JSON.stringify({ caught, died, away }));
 });
 
-test('a Compsognathus hunts on the way and comes home fed, with insects now and then; it lives alone', async () => {
+test('a Compsognathus feeds itself on the way, with insects brought home now and then; it lives alone', async () => {
   const { PACK_LIMITS } = await import('../js/config.js');
   const { cleanPacks } = await import('../js/packs.js');
-  const { isHungry } = await import('../js/economy.js');
   assert.equal(PACK_LIMITS.compy, undefined);
+  assert.equal(SPECIES.compy.selfFeed, true);
   // an old save's pack of them breaks up
   const old = game(dino('a', 60, 'compy'), dino('b', 60, 'compy'));
   assert.deepEqual(cleanPacks([{ id: 'p', type: 'compy', name: 'p', members: ['a', 'b'] }], old), []);
-  let fed = 0, insects = 0;
+  let insects = 0;
   for (let trip = 0; trip < 20; trip++) {
-    const s = game(dino('c', 60, 'compy'), dino('d', 60, 'dilo'));
+    const s = game(dino('c', 60, 'compy'));
     s.world.trips = trip;
     const c = trip0(s, 'c', '1,0');
-    const back = T0 + tripMins('1,0') * 60000;
-    if (!c.fedSelf.includes('c')) continue;
-    fed++;
-    assert.equal(isHungry(s.hatched.find(b => b.id === 'c'), back), false);
     if (c.loot.some(l => l.id === 'insect')) insects++;
-    // the others come home hungry
-    const d = trip0(s, 'd', '1,0');
-    assert.equal(d.fedSelf.length, 0);
   }
-  assert.ok(fed > 10 && insects > 0, JSON.stringify({ fed, insects }));
+  assert.ok(insects > 0);
 });
 
 test('prey animals never fight: they run from any predator, even with the player fighting, and wild ones keep away', async () => {

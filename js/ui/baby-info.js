@@ -2,11 +2,12 @@
 // equipment (equip and take off) and family.
 import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL, ROLES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, ageOf, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
-import { esc, plural } from '../util.js';
+import { esc, plural, ageLabel } from '../util.js';
+import { now } from '../clock.js';
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
 
@@ -64,7 +65,7 @@ function equipmentHTML(b) {
     </li>`;
   }).join('');
   const next = nextStage(b);
-  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more meal', 'more meals');
+  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more capsule', 'more capsules');
   return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
     ${loadHTML(b)}
     <ul class="gear-slots">${rows}</ul>
@@ -120,8 +121,9 @@ function render() {
     <dl class="info-facts">
       <div><dt>Parents</dt><dd>${esc(parentsText(b))}</dd></div>
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
-      <div><dt>Meals</dt><dd>${plural(b.fed || 0, 'meal', 'meals')}</dd></div>
-      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'meal', 'meals')} to ${nextStage(b).stage.name})` : ''}</dd></div>
+      <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
+      <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
+      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
   body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id));
 

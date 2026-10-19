@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -471,7 +471,9 @@ function survive(ctx, idx) {
   for (const id of p.members) {
     const sp = id === PLAYER_ID ? {} : bodyOf(s, id), up = !isDown(p, id);
     let t = levelOf(p, 'thirst', id) + SURVIVAL.thirst * cost * (SURVIVAL.dry[cell.biome] || 1);
-    let f = levelOf(p, 'hunger', id) + SURVIVAL.hunger * cost;
+    // (gizzard stones, or a Psittacosaurus creche's strong stomach: hungry more slowly)
+    const slow = (sp.digest || 1) * (id !== PLAYER_ID && explorerOf(s, id).stomach ? CRECHE.stomach : 1);
+    let f = levelOf(p, 'hunger', id) + SURVIVAL.hunger * cost / slow;
     if (up && sp.selfFeed) f = 0;
     else if (up && dietOf(s, id).includes('leaf') && SURVIVAL.green.includes(cell.biome)) f -= SURVIVAL.graze;
     if (fresh) { t = 0; if (up && sp.fishing) f = 0; }
@@ -1109,7 +1111,7 @@ function comeHome(ctx) {
     if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); return egg; }
     return { ...egg, lost: true };
   });
-  const injured = [], fedSelf = [], hungry = [];
+  const injured = [], hungry = [];
   for (const id of p.members) {
     const b = explorerOf(s, id);
     if (!b) continue;
@@ -1123,8 +1125,9 @@ function comeHome(ctx) {
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
     }
-    if (!me && SPECIES[b.type].selfFeed && !down) { b.lastFed = now; b.fed = (b.fed || 0) + 1; fedSelf.push(id); continue; }
-    // as hungry as the journey left it: past SURVIVAL.at it needs a meal at once
+    // (at home the keepers feed the dinosaurs; the player comes home as hungry as the journey left
+    // them: past SURVIVAL.at they need a meal at once)
+    if (!me) continue;
     const f = levelOf(p, 'hunger', id), every = hungerEvery(b);
     b.lastFed = now - (f >= SURVIVAL.at ? every : Math.round(every * f / SURVIVAL.at));
     if (isHungryNow(b, now)) hungry.push(id);
@@ -1135,7 +1138,7 @@ function comeHome(ctx) {
   w.expeditions = w.expeditions.filter(x => x !== p);
   p.leg = null;
   ctx.gone = true;
-  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, duds: duds.map(g => g.type), injured, fedSelf, hungry, died: p.dead, team: p.team, members: p.members });
+  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, duds: duds.map(g => g.type), injured, hungry, died: p.dead, team: p.team, members: p.members });
 }
 
 // ---------- the decision waiting, for the screens ----------

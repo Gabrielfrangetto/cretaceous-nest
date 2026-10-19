@@ -4,7 +4,7 @@ import { applyAction, buyGear, carryCapacity, carriedWeight, loadFactor, statShe
 import { freshState } from '../js/state.js';
 import { ITEMS, SPECIES, CARRY, LOAD_AGI_LOSS, PLAYER_ID } from '../js/config.js';
 
-const dino = (id, type, g = 50) => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed: 30, lastFed: 0, genes: { str: g, agi: g, vit: g, res: g }, equip: {} });
+const dino = (id, type, g = 50) => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: 0, genes: { str: g, agi: g, vit: g, res: g }, equip: {} });
 function game(...babies) {
   const s = freshState();
   s.coins = 5000;

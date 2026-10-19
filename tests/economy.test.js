@@ -106,25 +106,24 @@ test('warming can cut at most half of the hatch time', () => {
   assert.equal(eggProgress(s.current, PROTO / 2).frac, 1);
 });
 
-test('feeding needs a hungry baby and the right food', () => {
+test('a growth capsule as soon as it hatches, and coins for giving it; none without one', () => {
   const s = freshState();
   startEgg(s, 'rex', 0);
   const { baby } = hatchEgg(s, SPECIES.rex.mins * MIN);
-  const hungryAt = baby.at + hungerEvery(baby);
-
-  assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'full');
-
-  const meat = countItem(s, 'meat'), coins = s.coins;
-  // a meal is a quarter of its day's food, by its weight: a baby Tyrannosaurus' takes several cuts
-  const r = feedBaby(s, baby.id, hungryAt);
+  // (a new game starts with some)
+  assert.ok(countItem(s, 'capsule') > 0);
+  removeItem(s, 'capsule', 99);
+  assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'no-food');
+  addItem(s, 'capsule', 1);
+  const coins = s.coins;
+  const r = feedBaby(s, baby.id, baby.at + 1000);
   assert.equal(r.ok, true);
-  assert.ok(r.n > 1 && r.n === mealSize(baby, 'meat'));
-  assert.equal(countItem(s, 'meat'), meat - r.n);
+  assert.equal(r.n, 1);
+  assert.equal(countItem(s, 'capsule'), 0);
   assert.equal(s.coins, coins + FEED_COINS);
-
-  removeItem(s, 'meat', 99);
-  const later = hungryAt + hungerEvery(baby);
-  assert.equal(feedBaby(s, baby.id, later).reason, 'no-food');
+  // the next once it wears off: a baby's works 4 h
+  assert.equal(feedBaby(s, baby.id, baby.at + 2000).reason, 'full');
+  assert.equal(feedBaby(s, baby.id, baby.at + 1000 + hungerEvery(baby)).reason, 'no-food');
 });
 
 test('backpack rows cost 50, 100, 150 ... and stop at 100 slots', () => {

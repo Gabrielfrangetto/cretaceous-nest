@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { handleGame, changeBetween } from '../js/game-server.js';
 import { freshState } from '../js/state.js';
 import { countItem } from '../js/economy.js';
-import { HATCH_COINS, FEED_COINS, SPECIES } from '../js/config.js';
+import { HATCH_COINS, FEED_COINS, SPECIES, FOOD_PACKS } from '../js/config.js';
 
 const MIN = 60000;
 const PROTO = SPECIES.proto.mins * MIN;   // how long a Protoceratops egg takes
@@ -95,22 +95,25 @@ test('a rejected action changes nothing and returns the real state', async () =>
   assert.equal(store.rows.get('u1').revision, 1);
 });
 
-test('feeding is logged as food spent and coins earned', async () => {
+test('a growth capsule given is logged as spent, and the coins earned', async () => {
   const store = memoryStore(), c = clock(0);
   await startProtoEgg(store, c);
   c.advance(PROTO);
   const { result } = await call(store, { action: 'hatch' }, c);
-  c.advance(10 * MIN);
+  // (a growth capsule, bought in the shop)
+  store.rows.get('u1').data.coins = 100;
+  assert.equal((await call(store, { action: 'buyPack', args: { k: FOOD_PACKS.findIndex(p => p.id === 'capsule') } }, c)).ok, true);
   const fed = await call(store, { action: 'feed', args: { id: result.baby.id } }, c);
   assert.equal(fed.ok, true);
-  assert.deepEqual(store.ledger.at(-1), { action: 'feed', coins: FEED_COINS, items: { leaf: -1 } });
+  assert.deepEqual(store.ledger.at(-1), { action: 'feed', coins: FEED_COINS, items: { capsule: -1 } });
 });
 
 test('taps on the egg arrive in batches and still stop at half the hatch time', async () => {
   const store = memoryStore(), c = clock(0);
   await startProtoEgg(store, c);
-  const res = await call(store, { action: 'warmEgg', args: { taps: 500 } }, c);
-  assert.equal(res.result.saved, PROTO / 2 / 1000);
+  let res = await call(store, { action: 'warmEgg', args: { taps: 500 } }, c);
+  assert.equal(res.result.saved, 500);
+  for (let i = 0; i < 60; i++) res = await call(store, { action: 'warmEgg', args: { taps: 600 } }, c);
   assert.equal(res.state.current.bonus, PROTO / 2);
 });
 

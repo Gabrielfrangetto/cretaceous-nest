@@ -57,16 +57,16 @@ const SPECIES_LIST = {
              'Giant Egg', '#e8e2d2', '#7a6a4a', 'spots', '#9a8a6a', '#c9b98a', 'Titan', 'Argentinosaurus may have weighed as much as ten elephants, yet hatched from an egg the size of a melon.'),
 };
 
-// what each rarity means: hatch time (minutes), coins for hatching, breeding time, and where its
+// what each rarity means: coins for hatching, and where its
 // eggs turn up: from minDist hexes away (a lair counts 2 hexes farther), lairOnly for legendaries;
 // weight is how often it is picked against the other eggs of the same biome
 export const RARITIES = {
-  Starter:   { mins: 3,  coins: 8,   breed: 4,  minDist: 1, weight: 5 },
-  Common:    { mins: 3,  coins: 10,  breed: 5,  minDist: 1, weight: 5 },
-  Uncommon:  { mins: 8,  coins: 25,  breed: 15, minDist: 3, weight: 3 },
-  Rare:      { mins: 20, coins: 60,  breed: 30, minDist: 5, weight: 2 },
-  Epic:      { mins: 40, coins: 100, breed: 60, minDist: 6, weight: 1.2 },
-  Legendary: { mins: 60, coins: 150, breed: 90, minDist: 5, weight: 1, lairOnly: true },
+  Starter:   { coins: 8, minDist: 1, weight: 5 },
+  Common:    { coins: 10, minDist: 1, weight: 5 },
+  Uncommon:  { coins: 25, minDist: 3, weight: 3 },
+  Rare:      { coins: 60, minDist: 5, weight: 2 },
+  Epic:      { coins: 100, minDist: 6, weight: 1.2 },
+  Legendary: { coins: 150, minDist: 5, weight: 1, lairOnly: true },
 };
 
 // body size, from the real animal's weight: tiny under 10 kg, small 10–100 kg, medium 100 kg–1 t,
@@ -103,10 +103,9 @@ const SIZE = {
 //   giant: a giant sauropod: it only strikes back, with a stomp or its tail (GIANT)
 //   alert: a deep call through its hollow crest that warns its group of a predator (ALERT)
 //   escape: may get away from a blow that would bring it down (ESCAPE)
-//   growth: grows up this many times as fast (needs that many times fewer meals for each stage)
 //   nurse:  cares for the nest's eggs and hatchlings (NURSE)
 //   camo:   the biome it blends into (VISIBILITY, CAMO)
-//   digest: gets hungry this many times more slowly (gizzard stones)
+//   digest: gets hungry this many times more slowly on a journey (gizzard stones)
 //   crack:  a nut-cracking beak that may break a small foe's limb when it strikes back (CRACK)
 //   creche: an adult in the nest raises its hatchlings with a strong stomach (CRECHE)
 //   runner: a fast runner with wide-set eyes (RUNNER)
@@ -158,7 +157,7 @@ export const BODY = {
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, zigzag: true, forage: [['leaf', 1, 2], ['herb', 1, 1, 0.25]], eyes: true, role: 'noncombatant', fear: 'small' },
   proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
-  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
+  hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
   raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'small' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
@@ -194,8 +193,20 @@ export const WATER_BIOMES = ['swamp', 'floodplain', 'coast'];
 // with thinner hide (see creatureFighter)
 export const BITE = { tiny: 30, small: 120, medium: 160, large: 220, huge: 300, colossal: 300 };
 export const HIDE = { tiny: 0, small: 0, medium: 5, large: 12, huge: 25, colossal: 30 };
+// Life in the wild (estimates from growth lines: in embryos' teeth for incubation, Erickson et al. 2017,
+// Protoceratops 83 days and Hypacrosaurus 171; in bones for growth, a Tyrannosaurus full grown at about
+// 20): incubation in days, years to full size. The sanctuary's incubators and growth capsules make
+// both PACE times as fast; a year of its age is still a year.
+export const LIFE = {
+  coelo: [70, 3], raptor: [70, 3], compy: [60, 2], psitta: [75, 9], proto: [83, 8], hypsi: [70, 4],
+  scelido: [100, 8], dilo: [100, 8], galli: [100, 7], hypa: [171, 11], pachy: [110, 10],
+  stego: [150, 12], bary: [150, 12], para: [170, 10], trike: [180, 16], ankylo: [170, 15],
+  allo: [150, 15], spino: [180, 18], rex: [180, 20], argent: [120, 30],
+};
+export const PACE = 240;
+const DAY_MINS = 24 * 60;
 export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, sp]) => [k, {
-  ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
+  ...sp, mins: Math.round(LIFE[k][0] * DAY_MINS / PACE), size: SIZE[k], ...BODY[k],
 }]));
 export const ORDER = Object.keys(SPECIES_LIST);
 // the first dinosaurs, common in the fossil record and small: two meat eaters and two plant eaters
@@ -237,8 +248,8 @@ export const ROW = 10;
 export const MAX_STACK = 99;
 
 export const ITEMS = {
-  leaf:         { name: 'Leaf', plural: 'leaves', kg: 1, desc: 'Food for plant eaters: a bundle of leafy branches and fronds, about 1 kg. The bigger the eater, the more a meal takes.' },
-  meat:         { name: 'Meat', plural: 'meat', kg: 1, desc: 'Food for meat eaters: a cut of about 1 kg. The bigger the eater, the more a meal takes.' },
+  leaf:         { name: 'Leaf', plural: 'leaves', kg: 1, desc: 'Food for plant eaters: a bundle of leafy branches and fronds, about 1 kg, for a journey.' },
+  meat:         { name: 'Meat', plural: 'meat', kg: 1, desc: 'Food for meat eaters: a cut of about 1 kg, for a journey.' },
   insect:       { name: 'Insects', plural: 'insects', food: true, kg: 0.1, desc: 'A crunchy handful, about 100 g. Small hunters and omnivores like them.' },
   fish:         { name: 'Fish', plural: 'fish', food: true, kg: 1, desc: 'Fresh from the swamp, about 1 kg. Fish eaters like Baryonyx and Spinosaurus love it.' },
   raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, kg: 0.5, desc: 'An egg that will never hatch, found only in nests, about 500 g. Omnivores like Gallimimus eat it.' },
@@ -260,6 +271,7 @@ export const ITEMS = {
   seed:         { name: 'Seeds', plural: 'seeds', kg: 0.2, food: true, desc: 'A handful of cycad and conifer seeds. Plant eaters crack them, and so can you.' },
   fruit:        { name: 'Fruit', plural: 'fruit', kg: 0.5, food: true, desc: 'Fruit from high branches, knocked down by browsers that reach up into the trees. Plant eaters and you can eat it.' },
   stone:        { name: 'Gizzard Stone', plural: 'gizzard stones', desc: 'A smooth, rounded pebble. Plant eaters swallow them to grind tough food in the gizzard: Psittacosaurus skeletons are found with dozens inside.' },
+  capsule:      { name: 'Growth Capsule', plural: 'growth capsules', desc: "The sanctuary's growth formula, given to a baby or a juvenile while it grows. Without it, a young dinosaur doesn't grow." },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -350,7 +362,7 @@ export const DRAWN_SLOTS = ['head', 'neck'];
 // cosmetic shop. Example:
 //   knight_rex: { name: 'Knight', species: 'rex', sprites: { m: 'sprites/outfits/knight_rex-m.png', f: 'sprites/outfits/knight_rex-f.png' } },
 export const OUTFITS = {};
-export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1]];
+export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1], ['capsule', 20]];
 
 // Feeding
 // How much one eats (food kg: each food item's kg; a trail ration, dried and dense, counts as a day of a
@@ -364,10 +376,6 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin',
 export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, edible: 0.5, haul: 0.15, playerHaul: 20 };
 // what each species eats, favourite first; a meal uses the first of these in the inventory
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
-export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
-export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
-// a juvenile or an adult gets hungry these times more slowly than a baby (that eats to grow)
-export const NEST_HUNGER = { baby: 1, juvenile: 2, adult: 4 };
 // the player gets hungry every this many minutes, and eats the first of these in the inventory
 export const PLAYER_HUNGER_MIN = 30;
 export const PLAYER_DIET = ['ration', 'fish', 'meat', 'fruit', 'seed', 'raw_egg'];
@@ -1068,13 +1076,21 @@ export const GUIDE = {
   },
 };
 
-// Growth: a baby moves up a stage after this many meals in total. Only adults wear equipment.
-// scale draws juveniles (and adults without an adult sprite yet) larger than babies.
+// Growth: at home the keepers feed everyone; what makes a young one grow is a growth capsule, each
+// one working for every hours of its stage (a baby's, a juvenile's), and nothing grows without one.
+// A stage begins at share of the growing (LIFE, at PACE). Only adults wear equipment. scale draws
+// juveniles (and adults without an adult sprite yet) larger than babies.
 export const STAGES = [
-  { id: 'baby', name: 'Baby', meals: 0, scale: 1 },
-  { id: 'juvenile', name: 'Juvenile', meals: 10, scale: 1.25 },
-  { id: 'adult', name: 'Adult', meals: 30, scale: 1.5 },
+  { id: 'baby', name: 'Baby', share: 0, scale: 1 },
+  { id: 'juvenile', name: 'Juvenile', share: 0.2, scale: 1.25 },
+  { id: 'adult', name: 'Adult', share: 1, scale: 1.5 },
 ];
+export const CAPSULE = { item: 'capsule', every: { baby: 4, juvenile: 6 } };
+// the growth capsules each species takes to reach each stage (a whole capsule's hours each)
+export const CAPSULES = Object.fromEntries(Object.keys(SPECIES_LIST).map(k => {
+  const hours = LIFE[k][1] * 365 * 24 / PACE, juvenile = Math.ceil(hours * STAGES[1].share / CAPSULE.every.baby);
+  return [k, { baby: 0, juvenile, adult: juvenile + Math.ceil(hours * (1 - STAGES[1].share) / CAPSULE.every.juvenile) }];
+}));
 
 // Rewards and prices (coins)
 export const FEED_COINS = 5;
@@ -1083,7 +1099,7 @@ export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp
 // a small one's meal pays more than its food costs; a big one's costs more than it pays
 export const FOOD_PACKS = [
   { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
-  { id: 'fish', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 },
+  { id: 'fish', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }, { id: 'capsule', qty: 10, price: 20 },
   { id: 'ration', qty: 3, price: 15 }, { id: 'water_skin', qty: 2, price: 40 },
   { id: 'leaf', qty: 50, price: 80 }, { id: 'meat', qty: 50, price: 120 },
 ];
@@ -1111,8 +1127,8 @@ export const ACHIEVEMENTS = [
   { id: 'king', title: 'King of the Nest', desc: 'Hatch a Tyrannosaurus from a Golden Egg.', metric: 'hatched_rex', target: 1, coins: 150 },
   { id: 'all_species', title: 'Full Collection', desc: 'Hatch every species at least once.', metric: 'species', target: 4, coins: 200 },
   { id: 'pair', title: 'Perfect Pair', desc: 'Have a male and a female of the same species.', metric: 'pair', target: 1, coins: 75 },
-  { id: 'meals_25', title: 'Good Keeper', desc: 'Feed your babies 25 times.', metric: 'meals', target: 25, coins: 75 },
-  { id: 'meals_100', title: 'Master Keeper', desc: 'Feed your babies 100 times.', metric: 'meals', target: 100, coins: 250 },
+  { id: 'meals_25', title: 'Good Keeper', desc: 'Give your young dinosaurs 25 growth capsules.', metric: 'meals', target: 25, coins: 75 },
+  { id: 'meals_100', title: 'Master Keeper', desc: 'Give your young dinosaurs 100 growth capsules.', metric: 'meals', target: 100, coins: 250 },
   { id: 'streak_7', title: 'Week Streak', desc: 'Claim the daily reward 7 days in a row.', metric: 'best_streak', target: 7, coins: 150 },
   { id: 'big_backpack', title: 'Big Backpack', desc: 'Unlock 30 inventory slots.', metric: 'slots', target: 30, coins: 100 },
   { id: 'coins_1000', title: 'Treasure Hunter', desc: 'Earn 1,000 coins in total.', metric: 'coins_earned', target: 1000, coins: 200 },
@@ -1144,6 +1160,8 @@ export const DERIVED = { hpBase: 50, hpPerVit: 10, damagePerStr: 1.5, dodgeHalfA
 
 // Breeding: a male and a female of the same species lay an egg of that species. Each gene of the
 // baby lands between its parents' genes, plus a small random change, so good pairs make better babies.
-export const BREED_MINS = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, RARITIES[sp.rarity].breed]));
+// From mating to laying: about a month, as in crocodiles (at PACE).
+export const BREED_DAYS = 30;
+export const BREED_MINS = Object.fromEntries(Object.keys(SPECIES).map(k => [k, Math.round(BREED_DAYS * DAY_MINS / PACE)]));
 export const BREED_GENE_CHANGE = [-2, 5];
 export const EGG_TRAY_SIZE = 10;

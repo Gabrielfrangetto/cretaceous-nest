@@ -74,7 +74,7 @@ function render() {
     <div class="earn">
       <h3>How to earn coins</h3>
       <ul>
-        <li>Feed a hungry baby: +${FEED_COINS} (uses 1 of a food it eats from your inventory)</li>
+        <li>Give a young dinosaur its growth capsule: +${FEED_COINS}</li>
         <li>Hatch an egg: ${Object.entries(RARITIES).filter(([name]) => name !== 'Starter').map(([name, r]) => `+${r.coins} (${name})`).join(', ')}</li>
       </ul>
     </div>`;

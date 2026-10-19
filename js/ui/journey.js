@@ -524,14 +524,10 @@ function entryHTML(e) {
       const eggs = (e.duds || []).map(t => ` Held to the light, the ${esc(SPECIES[t].egg)} showed no life inside: it would never hatch, and went to the food.`).join('')
         + (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)}${knows(S, g.type) ? ` (${esc(SPECIES[g.type].species)})` : ', whose no one knew until it hatched,'} is waiting in the Incubator!`)).join('');
       const hurt = (e.injured || []).map(x => `${cap(nm(x.id))} ${x.id === PLAYER_ID ? 'are' : 'is'} ${x.critical ? 'critically injured: herbs won\'t help, a Blood Transfusion will' : `injured for ${x.mins} min`}.`);
-      const fed = (e.fedSelf || []).map(nm);
-      const hungryIds = (e.hungry || (e.members || []).filter(id => id !== PLAYER_ID && !(e.fedSelf || []).includes(id))).filter(id => id !== PLAYER_ID);
-      const dinos = (e.members || []).filter(id => id !== PLAYER_ID && !(e.died || []).some(d => d.id === id));
-      const hungry = hungryIds.length;
       const meHungry = (e.hungry || []).includes(PLAYER_ID);
       const dead = (e.died || []).map(x => esc(x.name));
       return `Home! ${got.length ? `You brought in ${listNames(got)}.` : 'You brought nothing in.'}${eggs}`
-        + `${hurt.length ? ` ${hurt.join(' ')}` : ''}${fed.length ? ` ${cap(listNames(fed))} hunted lizards and insects on the way and came home fed.` : ''}${hungry ? ` ${hungry === dinos.length ? (hungry > 1 ? 'They are' : 'It is') : `${cap(listNames(hungryIds.map(nm)))} ${hungry > 1 ? 'are' : 'is'}`} hungry.` : ''}${meHungry ? ' You could do with a meal yourself.' : ''}`
+        + `${hurt.length ? ` ${hurt.join(' ')}` : ''}${meHungry ? ' You could do with a meal yourself.' : ''}`
         + `${dead.length ? ` ${listNames(dead)} did not come home.` : ''}`;
     }
     default: return '';

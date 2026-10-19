@@ -1,14 +1,14 @@
 // The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
-import { PROMO_CODES, GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
+import { PROMO_CODES, GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE, CAPSULES } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, eggSex, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
 import { cleanPacks } from './packs.js';
 import { cleanTeams } from './teams.js';
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 const KEY = 'cretaceous-nest';
 const LEGACY_KEY = 'ninho-cretaceo';   // saves from the Portuguese prototype
 const DEV_KEY = 'cretaceous-nest:dev';
@@ -118,6 +118,20 @@ const MIGRATIONS = {
     }
     return s;
   },
+  // v12: young ones grew on meals (10 to a juvenile, 30 to an adult; a Hypacrosaurus 1.5 times as fast);
+  // now they grow on growth capsules (CAPSULES): each keeps how far it was through its stage
+  12: s => {
+    for (const b of s.hatched || []) {
+      const c = CAPSULES[b.type];
+      if (!c) continue;
+      const fast = b.type === 'hypa' ? 1.5 : 1, juv = Math.ceil(10 / fast), adult = Math.ceil(30 / fast), fed = Number(b.fed) || 0;
+      b.fed = fed >= adult ? c.adult
+        : fed >= juv ? c.juvenile + Math.floor((fed - juv) / (adult - juv) * (c.adult - c.juvenile))
+          : Math.floor(fed / juv * c.juvenile);
+      delete b.lastFed;
+    }
+    return s;
+  },
 };
 
 // keeps a loaded save inside the rules whatever produced it
@@ -141,7 +155,7 @@ function sanitize(s) {
     ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined } : { injuredUntil: undefined, critical: undefined }),
     // raised among Hypacrosaurus: a share more of every stat (NURSE)
     care: Number(b.care) > 0 ? Math.min(NURSE.max, Number(b.care)) : undefined,
-    // raised in a Psittacosaurus creche: it gets hungry more slowly (CRECHE)
+    // raised in a Psittacosaurus creche: it gets hungry more slowly on a journey (CRECHE)
     stomach: b.stomach === true || undefined,
     // a damaged frill (Triceratops), from 0 to just under whole
     frill: SPECIES[b.type].frill && Number.isInteger(b.frill) && b.frill >= 0 && b.frill < FRILL.hp ? b.frill : undefined,

@@ -42,7 +42,6 @@ const PROBLEMS = {
   away: 'Already exploring.',
   city: 'A settlement of other colonists. Its people keep to themselves, for now.',
   breeding: 'Busy nesting with its partner.',
-  hungry: 'Too hungry to travel. Feed it in the Nest first.',
   starved: 'You are too hungry to set out. Eat something first (in the Nest).',
   coins: 'Not enough coins for the fare.',
   'no-line': 'No maglev line goes there.',
@@ -111,7 +110,7 @@ function unitProblem(u, t) {
   }
   return null;
 }
-const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', hungry: 'hungry', starved: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
+const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', starved: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
 
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;
@@ -636,7 +635,7 @@ function sideHTML(t) {
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
-    ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
+    ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, once growth capsules have raised them past babyhood.</p>` : ''}`;
 }
 
 // The hex picked while you are out with a team: it goes there from where it waits (or once it gets

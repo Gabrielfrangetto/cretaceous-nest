@@ -1,18 +1,15 @@
-// Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
-import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
+// Nest tab: the walking babies, their growth capsules, and the collection of hatched babies.
+import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor, mealSize } from '../economy.js';
+import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
-import { plural, fmt } from '../util.js';
+import { plural, fmt, ageLabel } from '../util.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
-
-// every food a dinosaur can eat, in the order the stock line lists them
-const FOODS = ['leaf', 'meat', 'insect', 'fish', 'raw_egg'];
 
 const scene = document.getElementById('scene');
 const walkers = new Map();
@@ -28,10 +25,10 @@ function gaitOf(b, art) {
 const sceneW = () => scene.clientWidth || 600;
 const findBaby = id => S.hatched.find(b => b.id === id);
 const nameTag = b => b.name + ' ' + SEX[sexOf(b)].sym;
-// "Juvenile · 4 meals to Adult"
+// "Juvenile · 4 capsules to Adult"
 export function growthText(b) {
   const next = nextStage(b);
-  return stageOf(b).name + (next ? ` · ${plural(next.mealsLeft, 'meal', 'meals')} to ${next.stage.name}` : '');
+  return stageOf(b).name + (next ? ` · ${plural(next.mealsLeft, 'capsule', 'capsules')} to ${next.stage.name}` : '');
 }
 // what a baby looks like right now, for redrawing when it changes
 const lookKey = b => JSON.stringify([wornGear(b), b.outfit || null, stageOf(b).id]);
@@ -58,7 +55,7 @@ function renderBabies() {
       card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit, stageOf(b).id));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
-      const dt = document.createElement('span'); dt.textContent = 'Hatched ' + df.format(new Date(b.at));
+      const dt = document.createElement('span'); dt.textContent = `Hatched ${df.format(new Date(b.at))} · ${ageLabel(ageOf(b, gameNow()))}`;
       const grow = document.createElement('span'); grow.className = 'growth'; grow.textContent = growthText(b);
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
@@ -78,14 +75,14 @@ function checkHunger() {
   let hungryCount = 0;
   for (const b of S.hatched) {
     const trip = expeditionOf(S, b.id);
-    // explorers are away: they get fed when they come home
-    const hungry = !trip && isHungry(b, now);
+    // explorers are away: they don't grow until they are home again
+    const hungry = !trip && needsCapsule(b, now);
     if (hungry) hungryCount++;
     const w = walkers.get(b.id);
     if (w && w.hungry !== hungry) {
       w.hungry = hungry;
       w.bubble.hidden = !hungry;
-      w.el.setAttribute('aria-label', b.name + (hungry ? ', hungry. Tap to feed.' : ', full.'));
+      w.el.setAttribute('aria-label', b.name + (hungry ? ', needs a growth capsule. Tap to give it one.' : ''));
     }
     const fed = document.querySelector(`.fed[data-id="${b.id}"]`);
     if (fed) {
@@ -93,30 +90,27 @@ function checkHunger() {
       fed.textContent = trip ? (!trip.leg ? 'Out in the world, waiting for orders · see the World tab'
           : now >= trip.leg.arriveAt ? 'A journey to tell! See the World tab'
           : (trip.leg.to === '0,0' ? 'On the way home · back in ' : 'Exploring · there in ') + fmt(trip.leg.arriveAt - now))
-        : hungry ? 'Hungry!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt) : 'Ate ' + plural(b.fed || 0, 'time', 'times');
+        : hungry ? 'Needs a growth capsule!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt)
+        : isAdult(b) ? 'Fully grown' : 'Growing · next capsule in ' + fmt(b.lastFed + hungerEvery(b) - now);
       fed.classList.toggle('hungry', hungry);
     }
   }
-  // hungry babies ask for the food they would eat now, or say none of their foods is left
+  // young ones whose capsule wore off ask for the next, or say there is none left
+  const caps = countItem(S, CAPSULE.item);
   for (const w of walkers.values()) {
     if (!w.hungry) continue;
-    const b = findBaby(w.id); if (!b) continue;
-    // (a meal is a quarter of its day's food: the bigger, the more it takes)
-    const meal = mealFor(S, b.type, b), n = meal ? mealSize(b, meal) : 0;
-    const key = meal ? `${meal}:${n}` : 'none';
+    const key = caps ? 'ask' : 'none';
     if (w.askFor === key) continue;
     w.askFor = key;
-    w.bubble.innerHTML = ITEM_ICONS[meal || DIET[b.type][0]] + `<span>${meal ? `Wants ${n} ${n === 1 ? ITEMS[meal].name.toLowerCase() : ITEMS[meal].plural}` : 'Out of food!'}</span>`;
+    w.bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + `<span>${caps ? 'Needs a capsule' : 'Out of capsules!'}</span>`;
   }
   const fs = document.getElementById('foodStock');
-  const have = FOODS.map(id => [id, countItem(S, id)]).filter(([, n]) => n);
-  const fsText = have.length
-    ? `Food in your inventory: ${have.map(([id, n]) => `${n} ${n === 1 ? ITEMS[id].name.toLowerCase() : ITEMS[id].plural}`).join(', ')}. A meal is a quarter of a day's food: the bigger the dinosaur, the more it takes.`
-    : 'No food in your inventory. Buy some in the Shop, or bring it back from the World.';
+  const fsText = `The keepers feed everyone. A young dinosaur grows only while a growth capsule works: one every ${CAPSULE.every.baby} h for a baby, every ${CAPSULE.every.juvenile} h for a juvenile. `
+    + (caps ? `You have ${plural(caps, 'growth capsule', 'growth capsules')}.` : 'You have no growth capsules: buy some in the Shop.');
   if (fs.textContent !== fsText) fs.textContent = fsText;
   const pill = document.getElementById('hungryPill');
   pill.hidden = hungryCount === 0;
-  pill.textContent = hungryCount + ' hungry';
+  pill.textContent = plural(hungryCount, 'capsule', 'capsules') + ' due';
 }
 
 function syncWalkers() {
@@ -145,7 +139,7 @@ function syncWalkers() {
     el.type = 'button'; el.className = 'walker';
     const bubble = document.createElement('span');
     bubble.className = 'bubble'; bubble.hidden = true;
-    bubble.innerHTML = ITEM_ICONS[DIET[b.type][0]] + '<span>Hungry</span>';
+    bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + '<span>Needs a capsule</span>';
     const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
@@ -189,11 +183,10 @@ function feed(w) {
       if (b && st) setTimeout(() => popText(w, 'grew', `${b.name} grew into ${st.id === 'adult' ? 'an adult' : 'a juvenile'}!`), 500);
     }
   } else if (result.reason === 'no-food') {
-    const b = S.hatched.find(x => x.id === w.id);
-    popText(w, 'say', `A meal takes ${result.n} ${ITEMS[result.food].plural}: it eats ${DIET[b.type].map(id => ITEMS[id].plural).join(' or ')}`);
-  } else if (result.reason === 'full') {
+    popText(w, 'say', `No ${ITEMS[CAPSULE.item].plural} left: buy some in the Shop`);
+  } else if (result.reason === 'full' || result.reason === 'grown') {
     w.hop = 0.45;
-    popText(w, 'say', "I'm full");
+    popText(w, 'say', result.reason === 'grown' ? "I'm all grown up" : 'My capsule is still working');
   }
 }
 

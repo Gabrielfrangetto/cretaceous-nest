@@ -32,7 +32,7 @@ test('eggs are taken from nests found on the way: of a species that nests there,
   const { NEST: N } = await import('../js/config.js');
   const s = game();
   s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
-  const champ = { id: 'c', type: 'rex', sex: 'm', name: 'C', at: 0, gen: 1, fed: 30, lastFed: T0, genes: { str: 100, agi: 100, vit: 100, res: 100 }, equip: {} };
+  const champ = { id: 'c', type: 'rex', sex: 'm', name: 'C', at: 0, gen: 1, fed: 999, lastFed: T0, genes: { str: 100, agi: 100, vit: 100, res: 100 }, equip: {} };
   s.hatched.push(champ);
   const far = landHexes(42).filter(h => hexDist(h) >= 14 && hexDist(h) <= 20);
   let egg = null, t = T0, nests = 0;

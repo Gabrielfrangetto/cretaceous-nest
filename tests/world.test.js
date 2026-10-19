@@ -2,16 +2,18 @@ import { test } from 'node:test';
 import { collect } from './journey-helper.js';
 import { legMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
-import { applyAction, countItem, hungerEvery, feedBaby, breedProblem } from '../js/economy.js';
+import { applyAction, countItem, feedBaby, breedProblem } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
-const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
+// (fed as in meals before growth capsules: 10 a juvenile, 30 an adult)
+const grown = (fed, type) => fed >= 30 ? CAPSULES[type].adult : fed >= 10 ? CAPSULES[type].juvenile : fed;
+const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed: grown(fed, type), lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
 function game(...babies) {
   const s = freshState();
   s.world = newWorld(42);
@@ -146,7 +148,8 @@ test('who can explore: juveniles and adults anywhere, never babies, hungry or bu
   assert.equal(exploreProblem(s, 'ad', far, T0), null);
   assert.equal(exploreProblem(s, 'ad', '0,0', T0), 'home');
   assert.equal(exploreProblem(s, 'ad', '400,0', T0), 'out-of-map');
-  assert.equal(exploreProblem(s, 'ad', '1,0', T0 + 60 * 60000), 'hungry');
+  // (the keepers feed the dinosaurs at home: none is ever too hungry to go)
+  assert.equal(exploreProblem(s, 'ad', '1,0', T0 + 60 * 60000), null);
   s.breeding = { type: 'rex', maleId: 'ad', femaleId: 'ad2', startedAt: T0, readyAt: T0 + 1 };
   assert.equal(exploreProblem(s, 'ad', '1,0', T0), 'breeding');
   s.breeding = null;
@@ -165,7 +168,7 @@ test('a dinosaur away can be neither fed nor paired', () => {
   assert.equal(breedProblem(s, 'ad', 'ad2'), 'away');
 });
 
-test('a journey: out to a hex where the party waits, everything carried until it comes home hungry', () => {
+test('a journey: out to a hex where the party waits, everything carried until it comes home', () => {
   const s = game(dino('ad', 30));
   const r = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, T0);
   const id = r.expedition.id;
@@ -213,9 +216,9 @@ test('a journey: out to a hex where the party waits, everything carried until it
   assert.equal(s.coins, before + home.coins);
   assert.ok(home.coins >= 10 + 15);
   if (home.loot.some(l => l.id === 'leaf')) assert.ok(countItem(s, 'leaf') > leaves);
-  assert.ok(s.hatched[0].lastFed <= t3 && s.hatched[0].lastFed >= t3 - hungerEvery(s.hatched[0]));
+  // (fed by the keepers at home: a journey leaves a dinosaur's growth capsules as they were)
+  assert.equal(s.hatched[0].lastFed, T0);
   // a second visit pays no discovery coins
-  s.hatched[0].lastFed = t3;
   const again = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, t3);
   const second = collect(s, { id: again.expedition.id }, again.expedition.returnAt);
   assert.equal(second.story.find(e => e.kind === 'arrived').coins, 0);

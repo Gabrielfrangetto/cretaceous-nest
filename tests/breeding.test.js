@@ -6,12 +6,12 @@ import {
 } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
-import { STATS, GENES_MAX, WILD_GENES, BREED_MINS, EGG_TRAY_SIZE, SPECIES } from '../js/config.js';
+import { STATS, GENES_MAX, WILD_GENES, BREED_MINS, EGG_TRAY_SIZE, SPECIES, CAPSULES } from '../js/config.js';
 
 const MIN = 60000;
 const ids = STATS.map(s => s.id);
 // adults (30 meals), since only adults breed
-const baby = (id, type, sex, genes, gen = 1) => ({ id, type, sex, name: id, at: 0, genes, gen, fed: 30 });
+const baby = (id, type, sex, genes, gen = 1) => ({ id, type, sex, name: id, at: 0, genes, gen, fed: 999 });
 const flat = n => Object.fromEntries(ids.map(id => [id, n]));
 
 test('free-egg babies roll genes in the wild range', () => {
@@ -116,8 +116,8 @@ test('genes in a guest save cannot beat what a free egg gives', () => {
 
 test('only adults breed', () => {
   const s = freshState();
-  s.hatched.push(baby('m1', 'proto', 'm', flat(30)), { ...baby('f1', 'proto', 'f', flat(30)), fed: 29 });
+  s.hatched.push(baby('m1', 'proto', 'm', flat(30)), { ...baby('f1', 'proto', 'f', flat(30)), fed: CAPSULES.proto.adult - 1 });
   assert.equal(breedProblem(s, 'm1', 'f1'), 'not-adult');
-  s.hatched[1].fed = 30;
+  s.hatched[1].fed = CAPSULES.proto.adult;
   assert.equal(breedProblem(s, 'm1', 'f1'), null);
 });
