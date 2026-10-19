@@ -247,22 +247,27 @@ function paintMap() {
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
     const big = SIZE * scale >= 18, r = big ? SIZE * 0.42 : Math.max(2.5, px(3));
-    keys.forEach((k, i) => {
-      if (!i) return;
-      const [x, y] = pts[i], pin = route.includes(k);
+    // (a hex the way passes more than once shows all its numbers together: "3 · 5")
+    const visits = new Map();
+    keys.forEach((k, i) => { if (i) visits.set(k, [...(visits.get(k) || []), i]); });
+    for (const [k, nums] of visits) {
+      const [x, y] = center(parseKey(k)), pin = route.includes(k), rr = pin ? r * 1.25 : r;
+      const label = nums.join(' · ');
+      ctx.font = `700 ${(r * (label.length > 2 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
+      const half = big ? Math.max(0, ctx.measureText(label).width / 2 - rr * 0.6) : 0;
       ctx.beginPath();
-      ctx.arc(x, y, pin ? r * 1.25 : r, 0, Math.PI * 2);
+      if (half) { ctx.arc(x - half, y, rr, Math.PI / 2, Math.PI * 1.5); ctx.arc(x + half, y, rr, -Math.PI / 2, Math.PI / 2); ctx.closePath(); }
+      else ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.fillStyle = pin ? heart : accent;
       ctx.fill();
       if (freshWater(w.seed, parseKey(k))) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
       if (big) {
         ctx.fillStyle = accentInk;
-        ctx.font = `700 ${(r * (i > 99 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(i), x, y + r * 0.08);
+        ctx.fillText(label, x, y + r * 0.08);
       }
-    });
+    }
     if (grab && grab.target) {
       const [tx, ty] = center(parseKey(grab.target));
       ctx.setLineDash([px(6), px(5)]);
