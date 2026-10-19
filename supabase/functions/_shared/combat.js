@@ -6,10 +6,10 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, SIZE_HP, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, KG, MASS, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
-import { deriveCombat, statSheet, gearMods, seededRand } from './economy.js';
+import { deriveCombat, statSheet, gearMods, seededRand, massOf, hpForMass, biteForMass } from './economy.js';
 
 // extra: stat mods on top of its equipment, for the fight only (a full pack's bonus)
 export function fighterOf(baby, extra = []) {
@@ -20,7 +20,10 @@ export function fighterOf(baby, extra = []) {
     : { size: sp.size, bite: sp.bite, hide: sp.hide, type: baby.type, biped: !!sp.biped, rival: !!sp.rival, role: sp.role, fear: sp.fear, hunts: sp.hunts || null, preyMax: sp.preyMax || null, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
         grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, zigzag: !!sp.zigzag, plated: sp.build === 'armored',
         ...(sp.frill ? { frill: Math.max(0, Math.min(FRILL.hp, baby.frill ?? FRILL.hp)) } : {}) };
-  return { name: baby.name, ...sheet.derived, hp: Math.round(bodyHp(sheet.derived.hp, body.size) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body };
+  // (health from its vitality and its weight; a growing one bites as its skull allows)
+  const kg = massOf(baby);
+  if (!me) body.bite = biteForMass(sp.bite, kg, KG[baby.type]);
+  return { name: baby.name, ...sheet.derived, hp: Math.round(hpForMass(sheet.derived.hp, kg) * (sp && !me ? sp.fragile || 1 : 1)), agi: sheet.stats.agi, str: sheet.stats.str, res: sheet.stats.res, power: sheet.power, ...body, kg };
 }
 
 // a dodge against an attacker. Speed against speed: two equally quick ones cancel each other out and
@@ -46,8 +49,6 @@ export const bleedVs = (bleed, attSize, size) => {
   return bleed * (steps >= 0 ? 1 + BLEED_BIGGER * steps : Math.max(BLEED_MIN, 1 + BLEED_SMALLER * steps));
 };
 
-// health for the size of the body (SIZE_HP)
-export const bodyHp = (hp, size) => Math.round(hp * (SIZE_HP[size] ?? 1));
 
 // what one blow does before rounding, roll being the ±25% (0.75 to 1.25): 0 when the hide stops it
 export function hitOf(att, def, roll) {
@@ -76,10 +77,11 @@ export function wildFighter(type, dist, lair = false) {
   const sp = SPECIES[type];
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = wildStats(sp.base, level);
-  const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair);
+  const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair), young = size !== sp.size;
+  const kg = KG[type] * (young ? MASS.young : 1);
   return {
-    name: sp.species, ...derived, hp: Math.round(bodyHp(derived.hp, size) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type,
-    size, young: size !== sp.size, bite: sp.bite, hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, hunts: sp.hunts || null, preyMax: sp.preyMax || null, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
+    name: sp.species, ...derived, hp: Math.round(hpForMass(derived.hp, kg) * (sp.fragile || 1)), agi: stats.agi, str: stats.str, res: stats.res, power: Object.values(stats).reduce((t, v) => t + v, 0), level, type, kg,
+    size, young, bite: biteForMass(sp.bite, kg, KG[type]), hide: youngHide(sp.hide, level), biped: !!sp.biped, role: sp.role, fear: sp.fear, hunts: sp.hunts || null, preyMax: sp.preyMax || null, charge: sp.charge || 0, fisher: sp.fisher || null, hook: !!sp.hook, armor: sp.armor || false, collar: !!sp.collar, crouch: !!sp.crouch, club: !!sp.club,
     grab: !!sp.grab, tough: !!sp.tough, claw: !!sp.claw, beak: !!sp.beak, spikes: !!sp.spikes, guard: !!sp.guard, throat: !!sp.throat, dome: !!sp.dome, giant: !!sp.giant, alert: !!sp.alert, escape: !!sp.escape, crack: !!sp.crack, camo: sp.camo || null, kick: sp.kick || 1, zigzag: !!sp.zigzag, crush: sp.crush || 0, boneBreaker: !!sp.boneBreaker, plated: sp.build === 'armored',
     ...(sp.frill ? { frill: FRILL.hp } : {}),
   };
@@ -104,9 +106,10 @@ export function creatureFighter(id, dist, lair = false) {
   const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = Object.fromEntries(Object.entries(c.stats).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
-  const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: bodyHp(derived.hp, size), agi: stats.agi, str: stats.str, res: stats.res, power, level, size, young: size !== c.size,
-    bite: c.bite ?? BITE[c.size], hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear, hunts: c.hunts || null, preyMax: c.preyMax || null };
+  const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair), young = size !== c.size;
+  const kg = KG[id] * (young ? MASS.young : 1);
+  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: hpForMass(derived.hp, kg), agi: stats.agi, str: stats.str, res: stats.res, power, level, size, young, kg,
+    bite: biteForMass(c.bite ?? BITE[c.size], kg, KG[id]), hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear, hunts: c.hunts || null, preyMax: c.preyMax || null };
 }
 
 // log: [{ by: 'a' | 'b', miss } | { by, dmg, left }], left being the target's health after the blow
@@ -539,6 +542,8 @@ export function teamFight(units, foe, rand, opts = {}) {
     if (throat < 1) bone.throat = true;
     if (shrug) bone.shrugged = true;
     if (domed) bone = { part: 'head', dome: true };
+    // a predator's bite that lands on something a fraction of its weight kills it outright
+    if (dmg > 0 && hp[t][v][m] > 0 && att.type && (att.role || 'attacker') === 'attacker' && att.kg && prey.kg && prey.kg <= att.kg * MASS.oneBite) { hp[t][v][m] = 0; bone = { ...bone, kill: true }; }
     // a giant's stomp crushes anything short of colossal
     if (stomp && hp[t][v][m] > 0 && sizeRank(prey.size) < sizeRank('colossal')) { hp[t][v][m] = 0; bone = { part: 'whole', kill: true, stomped: true }; }
     // butted in the flank, it may go down and lose its next action (never a giant)

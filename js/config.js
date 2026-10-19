@@ -931,8 +931,22 @@ export const FRILL = { hp: 5, head: 0.35, headPack: 0.2, crushed: 2, broken: 0.7
 // outright, if the target is no bigger than neckMax: bigger necks are too thick to close the jaws on.
 // Anything no bigger than oneBite (up to about 100 kg) dies from any bite that lands.
 export const BONE_BREAKER = { parts: [['back', 0.45], ['belly', 0.2], ['neck', 0.08], ['limbs', 0.27]], lame: 0.35, lameCut: 0.5, neckMax: 'large', oneBite: 'small' };
-// health grows with the body: a size's share of the health its stats give (medium as it is)
-export const SIZE_HP = { tiny: 0.45, small: 0.7, medium: 1, large: 1.35, huge: 1.75, colossal: 2.3 };
+// Body mass (kg) of a grown animal, from fossil estimates, and the player's. Health and the bite grow
+// with it (MASS).
+export const KG = {
+  compy: 3, raptor: 15, coelo: 20, hypsi: 20, psitta: 25, proto: 150, scelido: 270, dilo: 350, galli: 440, pachy: 450,
+  bary: 1700, allo: 2000, para: 2600, hypa: 4000, stego: 4500, ankylo: 6000, spino: 7500, rex: 8000, trike: 8000, argent: 60000,
+  deinosuchus: 3500,
+};
+export const PLAYER_KG = 75;
+// Health grows with the body: the health its vitality gives, × (mass / ref)^hp (a 350 kg body as it
+// is; strength and toughness grow slower than weight). The bite grows with the skull: a young one's is
+// the grown one's × (its mass / the grown mass)^bite (a 13-year-old Tyrannosaurus bit with about a
+// sixth of an adult's force). A growing one weighs stage of a grown one (babies, juveniles); a wild
+// young one, near the nest, weighs young. A predator's bite that lands on something oneBite of its
+// weight or less kills it outright, whatever its health (a 175 kg young Dilophosaurus on a 20 kg
+// Coelophysis; not a 2 t Allosaurus on a 350 kg Dilophosaurus).
+export const MASS = { ref: 350, hp: 0.6, bite: 2 / 3, stage: { baby: 0.1, juvenile: 0.5, adult: 1 }, young: 0.5, oneBite: 0.12 };
 export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 // a fight has no turn limit: it goes on until one side is down. This only stops a fight that can't
 // end because of a bug (no real fight comes near it); it then counts as lost.

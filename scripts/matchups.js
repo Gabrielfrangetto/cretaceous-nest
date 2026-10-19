@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { SPECIES, ORDER, GENES_MAX, ARMOR, SIZE_ORDER } from '../js/config.js';
 import { fighterOf, hitOf } from '../js/combat.js';
 
-const at = (type, g) => fighterOf({ id: type, type, name: type, genes: { str: g, agi: g, vit: g, res: g }, equip: {}, fed: 0 });
+const at = (type, g) => fighterOf({ id: type, type, name: type, genes: { str: g, agi: g, vit: g, res: g }, equip: {}, fed: 999 });
 // the most one blow can take off, as a share of the defender's health
 export function bestBlow(a, b) {
   const att = at(a, GENES_MAX), def = at(b, 0);

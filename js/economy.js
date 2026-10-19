@@ -5,6 +5,7 @@ import {
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
   OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, NEST_HUNGER, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
+  KG, PLAYER_KG, MASS,
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
@@ -132,6 +133,13 @@ export function statSheet(baby, mods = gearMods(baby)) {
   }
   return { stats, steps, derived: deriveCombat(stats), power: sumOf(stats) };
 }
+
+// how heavy one is (kg): the player, or a dinosaur at its stage of growth (MASS)
+export const massOf = b => (b.id === PLAYER_ID ? PLAYER_KG : KG[b.type] * (MASS.stage[stageOf(b).id] ?? 1));
+// the health a body of this mass has, from the health its vitality gives
+export const hpForMass = (hp, kg) => Math.round(hp * Math.pow(kg / MASS.ref, MASS.hp));
+// a bite, for a body lighter than the grown one
+export const biteForMass = (bite, kg, grown) => (kg >= grown ? bite : Math.round(bite * Math.pow(kg / grown, MASS.bite)));
 
 export function deriveCombat(st) {
   return {

@@ -244,8 +244,8 @@ test('a full Coelophysis pack (the biggest of all) fights with more of every sta
 });
 
 test('only so many fit around a foe, a much bigger foe catches several at once, and bigger bodies have more health', async () => {
-  const { bodyHp } = await import('../js/combat.js');
-  const { REACH_SLOTS, SIZE_HP } = await import('../js/config.js');
+  const { hpForMass } = await import('../js/economy.js');
+  const { REACH_SLOTS, KG, MASS } = await import('../js/config.js');
   const coelos = n => unitOf('p', Array.from({ length: n }, (_, i) => fighterOf(dino('c' + i, 'coelo'))), true);
   // every Coelophysis strikes as itself on the pack's turn, but only REACH_SLOTS.small fit around a small foe
   const small = wildFighter('hypsi', 5);
@@ -257,8 +257,10 @@ test('only so many fit around a foe, a much bigger foe catches several at once, 
   // a Tyrannosaurus blow on a pack of compys catches more than one
   const r = teamFight([coelos(6)], wildFighter('rex', 6), seededRand('stomp'));
   assert.ok(r.fled.length || r.log.some(e => e.by === 'foe' && e.also && e.also.length));
-  assert.ok(SIZE_HP.huge > SIZE_HP.medium && SIZE_HP.medium > SIZE_HP.small);
-  assert.equal(bodyHp(500, 'medium'), 500);
+  // health grows with the weight, not as fast: a 350 kg body as it is
+  assert.equal(hpForMass(500, MASS.ref), 500);
+  assert.ok(hpForMass(500, KG.rex) > hpForMass(500, KG.dilo) && hpForMass(500, KG.dilo) > hpForMass(500, KG.coelo));
+  assert.ok(hpForMass(500, KG.rex) / hpForMass(500, KG.coelo) < KG.rex / KG.coelo);
 });
 
 test('a pack or herd that loses half its members runs off', () => {

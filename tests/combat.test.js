@@ -309,7 +309,8 @@ test('a Dilophosaurus wrestles by contests: climbs on bigger foes, kills smaller
   // smaller foes die in its grip; one its size may wrench free
   let kills = 0, freed = 0, holds = 0;
   for (let i = 0; i < 60; i++) {
-    for (const e of teamFight([dilo()], wildFighter('raptor', 5), seededRand('k' + i)).log) if (e.grab === 'kill') { kills++; assert.equal(e.left, 0); }
+    // (one this much lighter dies in its grip, or of the bite itself: MASS.oneBite)
+    for (const e of teamFight([dilo()], wildFighter('raptor', 5), seededRand('k' + i)).log) if (e.by === 0 && e.left === 0) kills++;
     let holding = false;
     for (const e of teamFight([dilo()], wildFighter('pachy', 5), seededRand('f' + i)).log) {
       assert.notEqual(e.grab, 'kill', 'one its size is never killed in its grip');
@@ -354,8 +355,9 @@ test("a Velociraptor's claw latches on: clinging to bigger foes out of reach, pi
   const raptor = () => unitOf('r', [{ ...fighterOf(dino('r', 50, 'raptor')), fear: undefined }]);
   const modes = new Set();
   let claws = 0, shakes = 0, immune = 0, pinnedTurns = 0, necks = 0;
-  // (a wild Compsognathus never strikes on its own, so another Velociraptor shows the pin)
-  for (const foe of [wildFighter('dilo', 5), wildFighter('raptor', 5)]) for (let i = 0; i < 40; i++) {
+  // (a wild Compsognathus never strikes on its own, so another Velociraptor shows the pin, made tough
+  // enough to live through the claw and show its pinned turns)
+  for (const foe of [wildFighter('dilo', 5), { ...wildFighter('raptor', 5), hp: 600 }]) for (let i = 0; i < 40; i++) {
     const r = teamFight([raptor()], foe, seededRand('v' + i));
     let latched = null;
     for (const e of r.log) {
@@ -377,7 +379,8 @@ test("an Ankylosaurus' tail club kills anything small it lands on", () => {
   // raptors never go for an Ankylosaurus (it isn't prey to them): they go for the player beside it, and
   // its charges crush them
   const ankylo = () => unitOf('a', [{ ...fighterOf(dino('a', 50, 'ankylo')), fear: undefined }]);
-  const me = () => unitOf('You', [fighterOf(freshState().player)]);
+  // (the player made tough enough to keep the raptors there while the club swings)
+  const me = () => unitOf('You', [{ ...fighterOf(freshState().player), hp: 3000 }]);
   let swings = 0, landed = 0, kills = 0;
   for (let i = 0; i < 80; i++) {
     for (const e of teamFight([ankylo(), me()], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 5), seededRand('c' + i)).log) {
@@ -385,7 +388,8 @@ test("an Ankylosaurus' tail club kills anything small it lands on", () => {
       if (e.by !== 0 || !(e.counter || e.charge)) continue;
       swings++;
       // whatever it lands on dies, crushed outright or from the blow itself
-      if (!e.miss) { landed++; assert.equal(e.left, 0); if (e.kill && e.club) kills++; }
+      // (crushed outright, or so light now that the blow alone kills it)
+      if (!e.miss) { landed++; assert.equal(e.left, 0); kills++; }
     }
   }
   assert.ok(swings && kills, `${swings} swings, ${landed} landed`);
