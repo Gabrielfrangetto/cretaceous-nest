@@ -811,7 +811,9 @@ test("an empty nest: an egg snatched unseen, or held to the light one by one, th
     }
     looked++;
     // held up one by one: each look is likelier to bring the parent back
-    let w = v, prev = 0, n = 0;
+    // (the first look is safe, the parent likelier back at each one after)
+    let w = v, prev = -1, n = 0;
+    assert.equal(v.chance, 0);
     for (let k = 0; k < 40; k++) {
       const c = w.phase === 'dud' ? { nest: 'keep' } : { nest: 'candle' };
       if (c.nest === 'candle') { assert.ok(w.chance > prev); prev = w.chance; n++; }
@@ -823,4 +825,29 @@ test("an empty nest: an egg snatched unseen, or held to the light one by one, th
     assert.ok(p.carry.eggs.length <= N.carry && p.carry.eggs.every(g => !g.unseen));
   }
   assert.ok(looked >= 1 && snatched >= 1, `${looked} looked, ${snatched} snatched`);
+});
+
+test("whose a nest with no parent about is, the player only knows for eggs they have had: the starters' from the start", async () => {
+  const { reach } = await import('./journey-helper.js');
+  const { pendingView, partyOf, knows } = await import('../js/journey.js');
+  const { SPECIES: SP } = await import('../js/config.js');
+  const s0 = game();
+  for (const [k, sp] of Object.entries(SP)) assert.equal(knows(s0, k), sp.rarity === 'Starter', k);
+  const far = landHexes(42).filter(h => hexDist(h) >= 16 && hexDist(h) <= 24).map(h => hexKey(...h));
+  let alone = 0, parent = 0;
+  for (let i = 0; i < 600 && (alone < 3 || parent < 3); i++) {
+    const s = game(dino('ad', 30, 'm', 'galli'));
+    s.world.trips = i * 3;
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far[i % far.length] }, T0);
+    if (!r.ok) continue;
+    if (!reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest')) continue;
+    const p = partyOf(s, r.expedition.id), v = pendingView(s, p);
+    // the parent there: seen; none: known only by its eggs
+    if (['watched', 'colony', 'unseen', 'seen'].includes(v.state)) { parent++; assert.equal(v.known, true); continue; }
+    alone++;
+    assert.equal(v.known, v.species === 'galli' || SP[v.species].rarity === 'Starter');
+    s.known = [v.species];
+    assert.equal(pendingView(s, p).known, true);
+  }
+  assert.ok(alone && parent);
 });

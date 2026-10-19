@@ -53,6 +53,8 @@ test('eggs are taken from nests found on the way: of a species that nests there,
   const [lo, hi] = EGG_GENES(EGG_STEP, false);
   for (const { id } of STATS) assert.ok(egg.genes[id] >= lo && egg.genes[id] <= hi);
   assert.ok(s.eggs.some(e => e.id === egg.id));
+  // brought home, its species' eggs and nests are known from then on
+  assert.ok(s.known.includes(egg.type));
   // and it hatches in the incubator like any other egg
   assert.equal(applyAction(s, 'startEgg', { eggId: egg.id }, t).ok, true);
   assert.equal(s.current.type, egg.type);

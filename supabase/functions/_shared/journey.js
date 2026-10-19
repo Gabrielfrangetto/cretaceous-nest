@@ -587,6 +587,8 @@ export function clutchOf(seed, n, idx, species) {
   if (SPECIES[species].build === 'theropod' && size % 2) size += size < hi ? 1 : -1;
   return { size, fertile: Array.from({ length: size }, () => rand() < NEST.fertile) };
 }
+// whether the player knows a species' eggs (and so its nest): a starter's, one they have, or one whose eggs they have had
+export const knows = (s, species) => SPECIES[species].rarity === 'Starter' || (s.known || []).includes(species) || s.hatched.some(b => b.type === species);
 // the eggs of a hatched nest left behind: those that never hatched (one at least)
 const leftoversOf = c => Math.max(1, c.fertile.filter(f => !f).length);
 // the chance the parent of an empty nest comes back while the team holds its looks-th egg to the light
@@ -624,7 +626,9 @@ export function nestView(s, p, idx) {
   const looked = pe ? pe.looked || 0 : 0;
   return {
     species, name: sp.species, nest: kind, state, foe, clutch: clutch.size, leftovers: leftoversOf(clutch),
-    eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, wait: NEST.wait, volcano: biome === 'volcano',
+    eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, volcano: biome === 'volcano',
+    // (no parent about: whose it is, only known for a species whose eggs the player has had)
+    known: ['watched', 'colony', 'unseen', 'seen'].includes(state) || knows(s, species),
     phase: pe ? pe.phase : null, left: clutch.size - looked, duds: pe ? pe.duds || 0 : 0, chance: candleChance(kind, pe ? pe.looks || 0 : 0),
   };
 }
@@ -650,7 +654,7 @@ function linger(p) {
 // A nest on the way: the decision waits for the player, and may lead to another (ev.phase). First
 // (choice.nest): 'keep' (a hatched nest: take the eggs left), 'take' (a nest alone: dig it out and look
 // the eggs over; an empty one: snatch an egg and go), 'candle' (an empty one: hold an egg to the light),
-// 'sneak', 'wait', 'lure' (with choice.decoy), 'fight', or anything else: leave it. Then, phase 'empty':
+// 'sneak', 'lure' (with choice.decoy), 'fight', or anything else: leave it. Then, phase 'empty':
 // 'candle' again, 'take' (one more, unseen, and go) or leave; 'dud': 'keep' it as food or put it back;
 // 'duds': 'keep' them as food or leave them.
 function nestEvent(ctx, ev, choice) {
@@ -660,7 +664,7 @@ function nestEvent(ctx, ev, choice) {
   const step = ev.step || 0, rand = seededRand(`nest-act:${w.seed}:${p.leg.n}:${ev.idx}:${step}`);
   const clutch = clutchOf(w.seed, p.leg.n, ev.idx, v.species);
   let looked = ev.looked || 0, looks = ev.looks || 0;
-  const told = { kind: 'nest', hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), species: v.species, name: v.name, nest: v.nest, state: v.state, clutch: v.clutch, act: 'leave', eggs: [] };
+  const told = { kind: 'nest', hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), species: v.species, name: v.name, nest: v.nest, state: v.state, clutch: v.clutch, known: v.known, act: 'leave', eggs: [] };
   const as = { foe: v.foe, entry: { species: v.species, loot: [['meat', 2, 4], ['bone', 1, 2]] }, step: AGES.prime.step, id: v.species };
   const next = (phase, extra = {}) => { p.pending = { kind: 'nest', idx: ev.idx, hex: ev.hex, phase, looked, looks, step: step + 1, ...extra }; };
   const space = () => NEST.carry - p.carry.eggs.length;
@@ -712,7 +716,7 @@ function nestEvent(ctx, ev, choice) {
     const can = {
       keep: v.state === 'hatched', take: !v.full && ['alone', 'empty'].includes(v.state), candle: !v.full && v.state === 'empty',
       fight: !v.full && v.state !== 'hatched' && v.state !== 'alone' && v.state !== 'empty',
-      sneak: !v.full && v.state === 'unseen', wait: !v.full && v.state === 'unseen', lure: !v.full && v.decoys.length > 0,
+      sneak: !v.full && v.state === 'unseen', lure: !v.full && v.decoys.length > 0,
     };
     if (act && can[act]) {
       told.act = act;
@@ -727,9 +731,6 @@ function nestEvent(ctx, ev, choice) {
       else if (act === 'sneak') {
         if (rand() < v.sneak) grab();
         else { told.spotted = true; battle(); }
-      } else if (act === 'wait') {
-        linger(p);
-        if (rand() < v.wait) { told.left = true; next('empty'); }
       } else if (act === 'lure') {
         const d = v.decoys.find(x => x.id === choice.decoy) || v.decoys[0];
         told.decoy = { id: d.id, name: d.name };
@@ -1060,6 +1061,8 @@ function comeHome(ctx) {
   if (duds.length) p.carry.items.raw_egg = (p.carry.items.raw_egg || 0) + duds.length;
   for (const [item, n] of Object.entries(p.carry.items)) if (n > 0) loot.push({ id: item, n, lost: addItem(s, item, n) });
   if (p.carry.coins) earn(s, p.carry.coins);
+  // (every fertile egg brought home is known from then on, and so its nest)
+  s.known = [...new Set([...(s.known || []), ...p.carry.eggs.filter(g => !g.dud).map(g => g.type)])];
   const eggs = p.carry.eggs.filter(g => !g.dud).map(({ unseen, ...egg }) => {
     s.eggs = s.eggs || [];
     if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); return egg; }
@@ -1148,7 +1151,7 @@ function nestPhaseFits(s, p) {
   if (!v) return false;
   const c = clutchOf(w.seed, p.leg.n, pe.idx, v.species), duds = c.fertile.filter(f => !f).length;
   if (pe.looked > c.size) return false;
-  const away = v.state === 'empty' || (v.state === 'unseen' && seededRand(`nest-act:${w.seed}:${p.leg.n}:${pe.idx}:0`)() < NEST.wait);
+  const away = v.state === 'empty';
   if (pe.phase === 'empty') return away && pe.looked < c.size;
   if (pe.phase === 'dud') return away && pe.looked > 0 && !c.fertile[pe.looked - 1];
   return !['colony', 'hatched'].includes(v.state) && pe.duds <= duds;
