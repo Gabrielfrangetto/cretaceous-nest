@@ -5,3 +5,4 @@ Thumbs.db
 
 # per-session state written by the anchor-memory plugin
 .anchor/
+serve.log

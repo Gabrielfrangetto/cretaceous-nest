@@ -67,6 +67,13 @@ function drawArt(root) {
 function render() {
   const box = document.getElementById('teamBox');
   if (!box || currentTab() !== 'team') return;
+  // (anything that goes wrong drawing the tab is shown, never a blank page)
+  try { draw(box); } catch (e) {
+    console.error(e);
+    box.innerHTML = `<div><h2>Teams</h2><p class="hint warn-text">The teams could not be shown: ${esc(e && e.message)}</p></div>`;
+  }
+}
+function draw(box) {
   const all = presets(), t = all[picked];
   box.innerHTML = `<div><h2>Teams</h2>
       <p class="sub">Set up teams ahead, then send one out from the World map in one go. You always go along: your dinosaurs never set out without you.</p></div>
