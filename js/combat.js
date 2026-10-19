@@ -251,6 +251,7 @@ function withRoles(u, water) {
 // units that ran off mid-fight; hp: every
 // member's health at the end, per unit; foeHps: the foe's members'; frenzy: the frenzied units.
 // opts.swamp / opts.biome: where the fight is (fishers fight better in the water, WATER_BIOMES).
+// opts.guard: the foe guards its nest: it never runs, breaks away, gives up or routs.
 export function teamFight(units, foe, rand, opts = {}) {
   if (!foe.members) foe = unitOf(foe.name, [foe]);
   const water = !!opts.swamp || WATER_BIOMES.includes(opts.biome);
@@ -552,7 +553,7 @@ export function teamFight(units, foe, rand, opts = {}) {
       toughUsed.add(E(t, v, m));
       bone.tough = true;
       // a wild one gets that one more chance to run, there and then (its health doesn't hold it back)
-      if (t === 1 && roleOf(S[t][v]) === 'attacker') {
+      if (t === 1 && roleOf(S[t][v]) === 'attacker' && !opts.guard) {
         const speed = prey.agi + prey.res;
         const chasers = active[s].some(x => roleOf(S[s][x]) === 'attacker' && alive(s, x).length);
         if (!chasers || rand() < Math.min(0.95, speed / (speed + FLIGHT.base))) toughRan = true;
@@ -598,7 +599,7 @@ export function teamFight(units, foe, rand, opts = {}) {
     // brought down, it may break away and run instead (out of the fight, hurt but not critically), and
     // its herd runs with it
     let herdRuns = false;
-    if (hp[t][v][m] <= 0 && prey.escape && !pinned(t, v, m) && !heldBy(holding, t, v, m) && rand() < Math.min(ESCAPE.max, prey.agi / 100)) {
+    if (hp[t][v][m] <= 0 && prey.escape && !(t === 1 && opts.guard) && !pinned(t, v, m) && !heldBy(holding, t, v, m) && rand() < Math.min(ESCAPE.max, prey.agi / 100)) {
       brokeAway.add(E(t, v, m));
       bone = { ...bone, escaped: true };
       herdRuns = true;
@@ -722,7 +723,7 @@ export function teamFight(units, foe, rand, opts = {}) {
   const routs = list => list.length >= 2 && list.length - standing(list).length >= list.length * ROUT;
   const checkRouts = () => {
     for (const s of [0, 1]) for (const u of [...active[s]]) {
-      if (over() || !routs(hp[s][u]) || !alive(s, u).length) continue;
+      if (over() || !routs(hp[s][u]) || !alive(s, u).length || (s === 1 && opts.guard)) continue;
       runOff(s, u);
     }
   };
@@ -770,8 +771,9 @@ export function teamFight(units, foe, rand, opts = {}) {
       const ign = ignored.get(u) || new Set();
       if (!active[t].some(v => alive(t, v).some(m => !ign.has(E(t, v, m))))) { runOff(s, u, { fled: true, passed: true }); return; }
     }
-    // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it
-    if (s === 1 && roleOf(unit) === 'attacker') {
+    // a wild predator badly hurt tries to run: always, with nobody on the other side to chase it (not
+    // one guarding its nest: opts.guard)
+    if (s === 1 && roleOf(unit) === 'attacker' && !opts.guard) {
       const left = hp[s][u].reduce((a, h) => a + h, 0) / unitHp(unit);
       const below = FLIGHT.below;
       if (left < below) {
@@ -885,7 +887,7 @@ export function teamFight(units, foe, rand, opts = {}) {
         recording = false;
         // a wild predator that only scraped hunkered-down armor (or armor too much for it) this turn grows
         // frustrated, and gives up
-        if (s === 1 && active[1].includes(u) && roleOf(S[1][u]) === 'attacker' && !over()) {
+        if (s === 1 && active[1].includes(u) && roleOf(S[1][u]) === 'attacker' && !over() && !opts.guard) {
           const scraped = turnHits.hp > 0 && !turnHits.open && turnHits.dmg < GIVE_UP.perTurn * turnHits.hp;
           const n = scraped ? (frustrated.get(u) || 0) + 1 : 0;
           frustrated.set(u, n);

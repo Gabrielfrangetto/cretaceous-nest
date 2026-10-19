@@ -156,7 +156,7 @@ function walkTo(i, done) {
   stepOn();
 }
 
-const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'lost', 'perished', 'collapse'];
+const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'lost', 'perished', 'collapse', 'nest'];
 function next() {
   const actBox = document.querySelector('#journeyBody .journey-act');
   actBox.innerHTML = '';
@@ -271,6 +271,29 @@ function decide(v) {
     }
     html = `<p>${cap(wildName(v.hunter))} ${v.hunter.count > 1 ? 'are' : 'is'} chasing ${wildName(v.prey)}. Do you step in?</p>
       <div class="row wrap">${buttons.join('')}${btn({}, 'Let it be', true)}</div>${cant.length ? `<p class="hint">Can't step in: ${cant.join(', ')}.</p>` : ''}`;
+  } else if (v.kind === 'nest') {
+    const { win, death } = teamOdds(v.units, v.foe, 120, { ...opts, defend: true, guard: true });
+    const fightBtn = label => btn({ nest: 'fight' }, `${label} <span class="hint">(${dangerOf(win)})</span>`);
+    const leave = btn({}, 'Leave it be', true);
+    const sp = esc(v.name);
+    const intro = {
+      alone: v.nest === 'buried' ? `The team notices a patch of churned, warm earth: a <strong>${sp}</strong> nest, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rise' : ''}.` : `A <strong>${sp}</strong> nest, the eggs buried, and no parent in sight.`,
+      empty: `A <strong>${sp}</strong> nest, and the parent gone, off to feed. It won't be long.`,
+      watched: v.nest === 'creche' ? `A <strong>${sp}</strong> with its young and its nest, never leaving them.` : `A <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
+      colony: `A <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
+      unseen: `A <strong>${sp}</strong> sits on its nest. It hasn't seen the team yet.`,
+      seen: `A <strong>${sp}</strong> on its nest has seen the team: it rises, calling and threatening, warning you off. It won't attack unless you come closer.`,
+    }[v.state];
+    const buttons = [];
+    if (v.full) buttons.push(`<span class="hint">The team already carries ${v.eggs} eggs: it can't take another.</span>`);
+    else if (v.state === 'alone' || v.state === 'empty') buttons.push(btn({ nest: 'take' }, `${v.nest === 'buried' || v.nest === 'watched' ? 'Dig up an egg' : 'Snatch an egg'}${v.state === 'empty' ? ' <span class="hint">(it may come back)</span>' : ''}`));
+    else if (v.state === 'unseen') {
+      buttons.push(btn({ nest: 'sneak' }, `Creep up and take one <span class="hint">(${chanceOf(v.sneak)} chance it doesn't notice)</span>`));
+      buttons.push(btn({ nest: 'wait' }, `Wait for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
+      for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Lure it away with ${esc(d.name)} <span class="hint">(${chanceOf(d.chance)} chance; it may be chased)</span>`, true));
+      buttons.push(fightBtn('Drive it off its nest'));
+    } else buttons.push(fightBtn(v.state === 'colony' ? 'Raid the edge of the colony' : v.state === 'seen' ? 'Stand your ground and take an egg' : 'Take an egg by force'));
+    html = `<p>${intro}</p><div class="row wrap">${v.full ? '' : ''}${buttons.join('')}${leave}</div>${v.full || v.state === 'alone' || v.state === 'empty' ? '' : riskHTML(v.units, death)}`;
   } else if (v.kind === 'go-on') {
     html = `<p>What now? Go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'are' : 'is'} down: carried, out of any fight.</p>` : ''}
@@ -322,6 +345,22 @@ function witnessHTML(e) {
 const fightOutcome = b => (b.escaped ? 'Everyone ran from it.' : b.win ? 'The team won.' : 'The team was beaten, and got away as best it could.')
   + `${(b.downed || []).length ? ` ${cap(listNames(b.downed.map(nm)))} went down.` : ''}${(b.died || []).length ? ` ${esc(listNames(b.died.map(x => x.name)))} did not survive.` : ''}`;
 
+// a nest found on the way, and what the team did
+function nestHTML(e) {
+  const sp = esc(e.name), egg = e.egg ? ` The team carries off a ${esc(SPECIES[e.egg.type].egg)}.` : '';
+  const fought = e.battle ? ` ${e.battle.win ? 'The team won' : 'The team was beaten, and got away as best it could'}.${(e.battle.downed || []).length ? ` ${cap(listNames(e.battle.downed.map(nm)))} went down.` : ''}${(e.battle.died || []).length ? ` ${esc(listNames(e.battle.died.map(x => x.name)))} did not survive.` : ''}` : '';
+  const found = { alone: `a ${sp} nest left alone`, empty: `a ${sp} nest, the parent away`, watched: `a ${sp} nest with a parent close by`, colony: `a ${sp} nesting colony`, unseen: `a ${sp} on its nest`, seen: `a ${sp} on its nest, warning the team off` }[e.state];
+  switch (e.act) {
+    case 'leave': return `The team came upon ${found}, and left it be.`;
+    case 'take': return `The team came upon ${found} and ${e.nest === 'buried' || e.nest === 'watched' ? 'dug up an egg' : 'snatched an egg'}.${e.fumes ? ` ${cap(nm(e.fumes))} breathed the hot spring's fumes while digging.` : ''}${e.back ? ` The parent came back and fell on the team.${fought}` : ''}${egg}`;
+    case 'sneak': return `The team crept up on ${found}.${e.spotted ? ` It noticed them and attacked.${fought}` : ''}${egg}`;
+    case 'wait': return `The team waited near ${found}.${e.left ? ' At last it left to feed, and the nest was theirs for a moment.' : ' It never left.'}${egg}`;
+    case 'lure': return `${esc(e.decoy.name)} lured away ${found}.${e.egg ? ' It worked.' : ` It didn't fall for it and turned on ${esc(e.decoy.name)}${e.caught ? (e.caught.died ? ', who did not survive' : ', who went down') : ', who got away'}.`}${egg}`;
+    case 'fight': return `The team went for ${found}, and the ${e.state === 'colony' ? 'adults' : 'parent'} defended it to the end.${fought}${egg}`;
+    default: return '';
+  }
+}
+
 // the land's own dangers met on the way (HAZARDS)
 function hazardHTML(e) {
   const who = e.who ? esc(e.who.name) : '', lost = `, and lost about ${e.mins} min`;
@@ -359,6 +398,7 @@ function entryHTML(e) {
     }
     case 'backedOff': return `${cap(article(e.name))} ${esc(e.name)} sized up ${esc(e.by)}'s sail and backed off.`;
     case 'hazard': return hazardHTML(e);
+    case 'nest': return nestHTML(e);
     case 'gathered': return `Along the way the team gathered ${listNames(lootText(e.found || []))}.`;
     case 'forage': {
       const got = lootText(e.found || []);

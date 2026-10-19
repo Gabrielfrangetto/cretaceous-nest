@@ -27,24 +27,28 @@ test('the Forge turns materials into equipment the Shop does not sell', () => {
   for (const rec of RECIPES) assert.ok(['gear', 'arms'].includes(ITEMS[rec.id].kind) || rec.id === 'transfusion' || rec.id === 'water_skin');
 });
 
-test('trips that come home can find an egg of the biome, with genes for its distance', async () => {
-  const { ALL_HEXES, hexKey, hexDist, biomeAt, tripMins } = await import('../js/world.js');
+test('eggs are taken from nests found on the way: of a species that nests there, with its genes', async () => {
+  const { ALL_HEXES, hexKey, hexDist } = await import('../js/world.js');
+  const { NEST: N } = await import('../js/config.js');
   const s = game();
   s.world.revealed.push(...ALL_HEXES.map(h => hexKey(...h)));
   const champ = { id: 'c', type: 'rex', sex: 'm', name: 'C', at: 0, gen: 1, fed: 30, lastFed: T0, genes: { str: 100, agi: 100, vit: 100, res: 100 }, equip: {} };
   s.hatched.push(champ);
-  const far = landHexes(42).find(h => hexDist(h) >= 4 && biomeAt(42, h) === 'forest');
-  const key = hexKey(...far);
-  let egg = null, t = T0;
-  for (let i = 0; i < 60 && !egg; i++) {
-    champ.lastFed = t; delete champ.injuredUntil;
-    const r = applyAction(s, 'explore', { babyId: 'c', hex: key }, t);
+  const far = landHexes(42).filter(h => hexDist(h) >= 14 && hexDist(h) <= 20);
+  let egg = null, t = T0, nests = 0;
+  for (let i = 0; i < 120 && !egg; i++) {
+    champ.lastFed = t; delete champ.injuredUntil; delete champ.critical;
+    if (!s.hatched.includes(champ)) s.hatched.push(champ);
+    const r = applyAction(s, 'explore', { babyId: 'c', hex: hexKey(...far[i % far.length]) }, t);
     assert.equal(r.ok, true, r.reason);
-    t += tripMins(key, 42) * 60000;
-    egg = collect(s, { id: r.expedition.id }, t).egg;
+    t = r.expedition.leg.arriveAt;
+    const c = collect(s, { id: r.expedition.id, nest: 'fight' }, t);
+    nests += c.story.filter(e => e.kind === 'nest').length;
+    egg = c.story.map(e => e.kind === 'nest' && e.egg).find(Boolean) || null;
+    t += 1e7;
   }
-  assert.ok(egg, 'an egg within 60 trips');
-  assert.ok(BIOMES.forest.eggs.includes(egg.type));
+  assert.ok(nests > 0 && egg, 'a nest raided within 120 trips');
+  assert.ok(Object.values(N.where).some(w => w[egg.type]));
   const { EGG_STEP } = await import('../js/config.js');
   const [lo, hi] = EGG_GENES(EGG_STEP, false);
   for (const { id } of STATS) assert.ok(egg.genes[id] >= lo && egg.genes[id] <= hi);

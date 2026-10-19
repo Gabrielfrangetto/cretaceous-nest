@@ -420,7 +420,7 @@ test('a wild animal keeps away from anything bigger than its fear: it can only b
   for (let i = 0; i < 30; i++) {
     const { s, c, there } = spot('rex', true, i);
     // (a trip that watched wild against wild instead)
-    if (there.some(e => e.kind === 'witness')) continue;
+    if (there.some(e => e.kind === 'witness' || e.kind === 'nest')) continue;
     assert.equal(there.some(e => e.kind === 'fight'), false);
     const sight = there.find(e => e.kind === 'sighting');
     assert.equal(sight.species, 'compy');

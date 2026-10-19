@@ -677,3 +677,51 @@ test('foragers: a Psittacosaurus along finds seeds and gizzard stones more often
   applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
   assert.ok((p.carry.items.raw_egg || 0) === 3 || !partyOf(s, p.id));
 });
+
+test('nests on the way: each kind found as it nests (buried left alone, colonies always guarded, parents on or off their nests), eggs taken or fought for', async () => {
+  const { reach } = await import('./journey-helper.js');
+  const { pendingView, partyOf } = await import('../js/journey.js');
+  const { NEST: N } = await import('../js/config.js');
+  const states = {};
+  const far = landHexes(42).filter(h => hexDist(h) >= 16 && hexDist(h) <= 24).map(h => hexKey(...h));
+  let took = 0, colonyFoes = 0, tried = 0;
+  for (let i = 0; i < 400 && tried < 60; i++) {
+    const s = game(dino('ad', 30, 'm', 'galli'));
+    s.world.trips = i * 3;
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far[i % far.length] }, T0);
+    if (!r.ok) continue;
+    const pend = reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest');
+    if (!pend) continue;
+    tried++;
+    const p = partyOf(s, r.expedition.id), v = pendingView(s, p);
+    (states[v.nest] = states[v.nest] || []).push(v.state);
+    if (v.nest === 'colony') { assert.ok(v.foe.members.length >= N.colony[0] && v.foe.members.length <= N.colony[1]); colonyFoes++; }
+    if (v.state === 'alone') {
+      const step = applyAction(s, 'journey', { id: p.id, nest: 'take' }, r.expedition.leg.arriveAt);
+      const told = step.story.find(e => e.kind === 'nest');
+      assert.ok(told.egg && told.egg.type === v.species && p.carry.eggs.length === 1);
+      took++;
+    }
+  }
+  assert.ok(tried > 10, `${tried} nests`);
+  for (const st of states.buried || []) assert.equal(st, 'alone');
+  for (const st of states.colony || []) assert.equal(st, 'colony');
+  for (const st of states.creche || []) assert.equal(st, 'watched');
+  for (const st of states.watched || []) assert.ok(['watched', 'alone'].includes(st));
+  for (const k of ['brooded', 'guarded']) for (const st of states[k] || []) assert.ok(['empty', 'seen', 'unseen'].includes(st));
+  // a team carrying three eggs can take no more
+  const s = game(dino('ad', 30, 'm', 'galli'));
+  for (let i = 0; i < 300; i++) {
+    s.world.expeditions = []; s.hatched[0].lastFed = T0; delete s.hatched[0].injuredUntil;
+    s.world.trips = i * 5;
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far[i % far.length] }, T0);
+    if (!r.ok) continue;
+    if (!reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest')) continue;
+    const p = partyOf(s, r.expedition.id);
+    p.carry.eggs = [1, 2, 3].map(n => ({ id: `e${n}`, type: 'proto', gen: 1, parents: [], laidAt: 0, genes: { str: 50, agi: 50, vit: 50, res: 50 } }));
+    assert.equal(pendingView(s, p).full, true);
+    applyAction(s, 'journey', { id: p.id, nest: 'take' }, r.expedition.leg.arriveAt);
+    assert.equal(p.carry.eggs.length, 3);
+    break;
+  }
+});

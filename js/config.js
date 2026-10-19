@@ -790,6 +790,46 @@ export const FORAGE = {
   camp: { food: 1.5, water: 1.3 },
 };
 
+// Nests: how eggs are found, as an event on a journey (on foot, past the calm around a settlement).
+// Each hex walked, a nest of each kind may be noticed there, find[kind] of the time (twice as often with a
+// Gallimimus along: FORAGE.by), at most one a leg, its species picked by where[land] (how likely each
+// nests there). What the team finds depends on how the species nests (kind):
+//   buried: eggs buried and left (titanosaurs, like sea turtles): rarely noticed, always alone
+//   watched: eggs buried, a parent nearby watched of the time (else alone)
+//   colony: a nesting colony (hadrosaurs): adults always about, colony adults defend it together
+//   brooded: a parent sits on the eggs; the nest is empty empty.brooded of the time (gone to feed),
+//     else the parent has seen the team at once (seen × how much the team stands out: VISIBILITY) and
+//     warns it off, or hasn't
+//   guarded: a big predator stays close: empty empty.guarded of the time, else as brooded
+//   creche: a parent always with its young
+// Taking an egg from a nest left alone takes a while (cost: hunger and thirst as that many units of
+// travel; a hot-spring nest's fumes may wear someone down, fumes of the time); from an empty one, the
+// parent may come back meanwhile (back[kind]); one with a parent on it unseen can be crept up on (seen
+// again as above), waited out (it leaves wait of the time) or lured away by a quick one (its speed
+// against the parent's, plus lure); taking it by force is a fight with a parent (a prime adult, or
+// colony adults) that never runs. A team carries carry eggs at most.
+export const NEST = {
+  find: { buried: 0.005, watched: 0.012, colony: 0.012, brooded: 0.01, guarded: 0.006, creche: 0.008 },
+  kind: {
+    argent: 'buried', proto: 'watched', trike: 'watched', ankylo: 'watched', stego: 'watched', pachy: 'watched', scelido: 'watched',
+    hypa: 'colony', para: 'colony', raptor: 'brooded', galli: 'brooded', compy: 'brooded', coelo: 'brooded', dilo: 'brooded',
+    rex: 'guarded', allo: 'guarded', spino: 'guarded', bary: 'guarded', psitta: 'creche', hypsi: 'creche',
+  },
+  where: {
+    meadow: { hypa: 3, psitta: 3, para: 2, hypsi: 2, pachy: 1 },
+    forest: { hypsi: 3, pachy: 2, scelido: 2, psitta: 1.5, stego: 1, allo: 0.5 },
+    subtropical: { hypsi: 2, compy: 2, allo: 0.4 },
+    scrub: { galli: 3, dilo: 2, coelo: 2, stego: 1, raptor: 1, ankylo: 0.6, trike: 0.6 },
+    desert: { proto: 5, raptor: 1.5, ankylo: 1 },
+    floodplain: { hypa: 3, para: 2, trike: 1.5, galli: 1.5, coelo: 1, bary: 1, rex: 0.4, argent: 0.4 },
+    swamp: { bary: 2, spino: 0.5 },
+    coast: { compy: 2, scelido: 1, spino: 0.4 },
+    volcano: { argent: 1 },
+  },
+  watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, back: { brooded: 0.25, guarded: 0.35, watched: 0.2 },
+  wait: 0.5, lure: 0.15, cost: 1, colony: [2, 4], fumes: 0.35, carry: 3,
+};
+
 // waypoints a route may be traced through, at most
 export const VIA_MAX = 20;
 export const HAZARD_WOUND = [0.2, 0.35];

@@ -15,15 +15,16 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
-import { teamFight } from './combat.js';
+import { teamFight, unitOf, wildFighter } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
   runnersSpot, eyesChance, standsGround, standoffOf, chaseOf, witnessAt, interveneOptions, lootTable, eggKinds, pickWeighted, bury,
+  teamVisibility, catchChance, caughtDeath,
 } from './world.js';
 
 export const HOME = '0,0';
@@ -291,7 +292,9 @@ export function journeyStep(s, id, choice = {}, now) {
       if (z) suffer(c, z);
       if (!c.gone) survive(c, idx);
       if (c.gone) break;
-      const ev = idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx);
+      // a nest noticed there comes first (and is all that happens at that hex)
+      const nest = nestAt(s, p, idx) ? { kind: 'nest', idx, hex: key } : null;
+      const ev = nest || (idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx));
       if (ev && run(c, ev, null) && !c.gone && !p.pending) afterEvent(c, ev);
     }
   }
@@ -532,6 +535,111 @@ function forage(ctx, idx, cell, h) {
   if (found.length) story.push({ kind: 'forage', hex: p.leg.path[idx], idx, biome: cell.biome, found, by: [...by] });
 }
 
+// ---------- nests ----------
+// the species nesting at a hex walked on a leg, and how (NEST): { species, kind } or null. At most one nest
+// a leg: the first hex where one is noticed (a Gallimimus along notices them twice as often)
+const gallis = (s, p) => foragersOf(s, p.members.filter(id => !isDown(p, id))).some(id => FORAGE.by[explorerOf(s, id).type].includes('nest'));
+function nestRoll(s, p, idx) {
+  const w = W(s), h = parseKey(p.leg.path[idx]), cell = cellAt(w.seed, h);
+  if (!cell || nearOf(w.seed, h) <= NEST_CALM || p.leg.train) return null;
+  // (a Gallimimus notices nests twice as often, a scout sniffs them out too: SCOUT.egg)
+  const here = NEST.where[cell.biome] || {}, rand = seededRand(`nest:${w.seed}:${p.leg.n}:${idx}`);
+  const more = (gallis(s, p) ? FORAGE.more : 1) * (hasScout(s, p.members.filter(id => !isDown(p, id))) ? SCOUT.egg : 1);
+  for (const [kind, chance] of Object.entries(NEST.find)) {
+    const kinds = Object.entries(here).filter(([sp]) => NEST.kind[sp] === kind);
+    if (!kinds.length || rand() >= chance * more) continue;
+    const total = kinds.reduce((t, [, wt]) => t + wt, 0);
+    let r = rand() * total;
+    for (const [sp, wt] of kinds) if ((r -= wt) <= 0) return { species: sp, kind };
+    return { species: kinds.at(-1)[0], kind };
+  }
+  return null;
+}
+function nestAt(s, p, idx) {
+  for (let i = 0; i < idx; i++) if (nestRoll(s, p, i)) return null;
+  return nestRoll(s, p, idx);
+}
+// The nest as the team finds it: { species, name, nest: how it nests (NEST.kind), state: 'alone' (left, or a parent away to feed:
+// empty), 'empty', 'watched' (a parent close by, watching), 'colony', 'unseen' (a parent on it that hasn't
+// seen the team), 'seen' (a parent on it warning the team off), foe: the parent (or colony adults),
+// eggs: how many the team carries, full: it can carry no more, decoys: the quick ones that could lure the
+// parent away [{ id, name, chance }], sneak / wait: their chances }
+export function nestView(s, p, idx) {
+  const w = W(s), nest = nestAt(s, p, idx);
+  if (!nest) return null;
+  const { species, kind } = nest, rand = seededRand(`nest-state:${w.seed}:${p.leg.n}:${idx}`);
+  const units = standingUnits(s, p), team = teamUnits(s, units), biome = biomeAt(w.seed, parseKey(p.leg.path[idx]));
+  const seen = Math.min(0.9, NEST.seen * teamVisibility(team, biome) / VISIBILITY.base);
+  const r = rand();
+  const state = kind === 'buried' ? 'alone' : kind === 'colony' ? 'colony' : kind === 'creche' ? 'watched'
+    : kind === 'watched' ? (r < NEST.watched ? 'watched' : 'alone')
+    : r < NEST.empty[kind] ? 'empty' : rand() < seen ? 'seen' : 'unseen';
+  const n = kind === 'colony' ? NEST.colony[0] + Math.floor(rand() * (NEST.colony[1] - NEST.colony[0] + 1)) : 1;
+  const sp = SPECIES[species];
+  const foe = unitOf(n > 1 ? `${sp.species} colony (${n})` : `Nesting ${sp.species}`, Array.from({ length: n }, () => wildFighter(species, AGES.prime.step)), n > 1);
+  const parent = foe.members[0];
+  const decoys = team.flatMap((u, i) => u.members.map((f, j) => ({ id: units[i].members[j], f }))).filter(({ id, f }) => id !== PLAYER_ID && f.agi >= parent.agi * 0.8)
+    .map(({ id, f }) => ({ id, name: f.name, chance: Math.min(0.9, f.agi / (f.agi + parent.agi) + NEST.lure) }));
+  return { species, name: sp.species, nest: kind, state, foe, eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, wait: NEST.wait, volcano: biome === 'volcano' };
+}
+// an egg taken from a nest of a species, carried home
+function takeEgg(ctx, species, idx) {
+  const { s, p, now } = ctx, w = W(s), rand = seededRand(`egg:${w.seed}:${p.leg.n}:${idx}`);
+  const [lo, hi] = EGG_GENES(EGG_STEP, false);
+  const egg = { id: `egg-${w.seed}-${p.leg.n}-${idx}`, type: species, gen: 1, parents: [], laidAt: now, genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])) };
+  p.carry.eggs.push(egg);
+  return egg;
+}
+// time spent at a nest (digging, waiting): hunger and thirst as NEST.cost units of travel
+function linger(p) {
+  for (const id of p.members) {
+    setLevel(p, 'thirst', id, levelOf(p, 'thirst', id) + SURVIVAL.thirst * NEST.cost);
+    setLevel(p, 'hunger', id, levelOf(p, 'hunger', id) + SURVIVAL.hunger * NEST.cost);
+  }
+}
+// A nest on the way: the decision waits for the player (choice.nest: 'take' (a nest alone or empty: dig
+// it out or snatch it), 'sneak', 'wait', 'lure' (with choice.decoy), 'fight', or anything else: leave it)
+function nestEvent(ctx, ev, choice) {
+  const { s, p, story } = ctx, w = W(s), h = parseKey(ev.hex), v = nestView(s, p, ev.idx);
+  if (!v || !standingUnits(s, p).length) return false;
+  if (choice === null) { p.pending = { kind: 'nest', idx: ev.idx, hex: ev.hex }; return true; }
+  const rand = seededRand(`nest-act:${w.seed}:${p.leg.n}:${ev.idx}`);
+  const told = { kind: 'nest', hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), species: v.species, name: v.name, nest: v.nest, state: v.state, act: 'leave', egg: null };
+  const as = { foe: v.foe, entry: { species: v.species, loot: [['meat', 2, 4], ['bone', 1, 2]] }, step: AGES.prime.step, id: v.species };
+  const battle = () => { const b = fight(ctx, ev, rand, { as, defend: true, guard: true, silent: true }); told.battle = b; if (b.win && !ctx.gone) told.egg = takeEgg(ctx, v.species, ev.idx); };
+  const act = v.full ? 'leave' : choice.nest;
+  const can = {
+    take: ['alone', 'empty'].includes(v.state), fight: true, sneak: v.state === 'unseen', wait: v.state === 'unseen', lure: v.state === 'unseen' && v.decoys.length,
+  };
+  if (!act || !can[act]) { tell(); return true; }
+  told.act = act;
+  if (act === 'take') {
+    linger(p);
+    // a hot spring's fumes, while digging
+    if (v.volcano && rand() < NEST.fumes) { const up = p.members.filter(id => !isDown(p, id)); const who = up[Math.floor(rand() * up.length)]; if (who) { p.health[who] = Math.max(HAZARD_FLOOR, healthOf(p, who) - HAZARD_WOUND[0]); told.fumes = who; } }
+    if (v.state === 'empty' && rand() < (NEST.back[v.nest] || 0)) { told.back = true; battle(); }
+    else told.egg = takeEgg(ctx, v.species, ev.idx);
+  } else if (act === 'sneak') {
+    if (rand() < v.sneak) told.egg = takeEgg(ctx, v.species, ev.idx);
+    else { told.spotted = true; battle(); }
+  } else if (act === 'wait') {
+    linger(p);
+    if (rand() < v.wait) { told.left = true; told.egg = takeEgg(ctx, v.species, ev.idx); }
+  } else if (act === 'lure') {
+    const d = v.decoys.find(x => x.id === choice.decoy) || v.decoys[0];
+    told.decoy = { id: d.id, name: d.name };
+    if (rand() < d.chance) told.egg = takeEgg(ctx, v.species, ev.idx);
+    else {
+      // the parent turned on the one luring it
+      const prey = teamUnits(s, standingUnits(s, p)).flatMap(u => u.members).find(f => f.name === d.name) || v.foe.members[0];
+      if (rand() < catchChance(v.foe, prey, told.biome)) told.caught = fall(ctx, d.id, rand() < caughtDeath(v.foe, prey));
+    }
+  } else if (act === 'fight') battle();
+  tell();
+  return true;
+  function tell() { story.push(told); }
+}
+
 // ---------- what happens on the way ----------
 // At a hex on the way (past the calm around the nest): now and then a hunt, wild against wild, the
 // team watches; otherwise what lives there may notice the team (INTERCEPT): a lair's Alpha often,
@@ -637,6 +745,7 @@ function run(ctx, ev, choice) {
     tell({ ...base, hunted: true, caught, loot: got, coins });
     return true;
   }
+  if (ev.kind === 'nest') return nestEvent(ctx, ev, choice);
   if (ev.kind === 'witness') {
     const wt = witnessOf(s, p, ev.idx);
     if (!wt) return false;
@@ -736,7 +845,7 @@ function fight(ctx, ev, rand, how = {}) {
   const foe = as.foe;
   const fought = how.units || standingUnits(s, p);
   const team = teamUnits(s, fought, id => wornMods(p, id));
-  const opts = { swamp: watery(w.seed, h), biome: biomeAt(w.seed, h), hp: fought.map(u => u.members.map(id => healthOf(p, id))), ...(how.defend ? { defend: true } : {}) };
+  const opts = { swamp: watery(w.seed, h), biome: biomeAt(w.seed, h), hp: fought.map(u => u.members.map(id => healthOf(p, id))), ...(how.defend ? { defend: true } : {}), ...(how.guard ? { guard: true } : {}) };
   const result = teamFight(team, foe, rand, opts);
   const frenzyCount = p.members.filter(id => { const b = id !== PLAYER_ID && explorerOf(s, id); return b && SPECIES[b.type].rival; }).length;
   // everyone ran from a predator: it gives chase, and may catch the slowest
@@ -827,16 +936,7 @@ function gather(ctx, leg) {
     for (const id of standing) for (const [item, min, max, chance = 1] of bodyOf(s, id).forage || []) {
       if (rand() < chance) found.push(carryItem(p, item, min + Math.floor(rand() * (max - min + 1))));
     }
-    const lair = !!(b && b.win && b.lair);
-    const kinds = eggKinds(biomeAt(w.seed, h), EGG_STEP, lair);
-    if (kinds.length && rand() < EGG_CHANCE(EGG_STEP, lair) * (hasScout(s, standing) ? SCOUT.egg : 1)) {
-      const [lo, hi] = EGG_GENES(EGG_STEP, lair);
-      egg = {
-        id: `egg-${w.seed}-${leg.n}`, type: pickWeighted(kinds, rand), gen: 1, parents: [], laidAt: now,
-        genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
-      };
-      p.carry.eggs.push(egg);
-    }
+    // (eggs are found in nests on the way: nestEvent)
     discovered = !w.visited.includes(key);
     if (discovered) { coins = Math.min(hexDist(h), 10) * DISCOVERY_COINS_PER_HEX; w.visited.push(key); p.carry.coins += coins; }
   }
@@ -914,6 +1014,7 @@ export function pendingView(s, p) {
     const wt = witnessOf(s, p, ev.idx);
     return { ...base, ...wt, options: wt ? interveneOptions(s, { team: units }, wt) : [] };
   }
+  if (ev.kind === 'nest') return { ...base, ...nestView(s, p, ev.idx) };
   return { ...base, to: p.leg.to, standing: units.length > 0, down: [...p.down] };
 }
 
@@ -932,7 +1033,7 @@ export function journeyAll(s, id, now, answers = {}) {
 
 
 // ---------- loaded saves ----------
-const PENDING = ['scatter', 'standoff', 'sighting', 'witness', 'go-on'];
+const PENDING = ['scatter', 'standoff', 'sighting', 'witness', 'go-on', 'nest'];
 // keeps the parties of a loaded world inside the rules whatever produced them: real explorers each out
 // once, legs along the real way and never quicker than it takes, carried things that exist. A trip
 // from before journeys becomes a leg from the nest to its hex.

@@ -128,7 +128,7 @@ test('older saves turn a one-explorer trip into a team of one', () => {
   assert.equal(isAway(m, 'a'), true);
 });
 
-test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
+test('a Compsognathus scouts for its team: fewer fights, more nests found', () => {
   // a hex where grown raptors wait (they hunt a Protoceratops; other theropods aren't on their menu,
   // and young ones only take smaller prey)
   const key = landHexes(42).map(h => hexKey(...h)).find(k => {
@@ -148,7 +148,7 @@ test('a Compsognathus scouts for its team: fewer fights, more eggs', () => {
       mins = (r.expedition.returnAt - T0) / 60000;
       const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
       if (c.battle) fights++;
-      if (c.egg) eggs++;
+      eggs += c.story.filter(e => e.kind === 'nest').length;
       s.eggs = [];
     }
     return { fights, eggs, mins };

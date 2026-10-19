@@ -695,9 +695,10 @@ export const ACTIONS = {
   // stood its ground), flee (a predator scattered the player's group: run too), hunt (one spotted at a
   // distance), back (turn back home instead of going on), witness (a hunt watched, stepped into:
   // { act: 'prey' | 'predator', hunter: a unit's id })
-  journey(s, { id, fight, flee, hunt, back, witness }, now) {
+  journey(s, { id, fight, flee, hunt, back, witness, nest, decoy }, now) {
     const w = witness && typeof witness === 'object' && ['prey', 'predator'].includes(witness.act) ? { act: witness.act, hunter: String(witness.hunter || '') } : null;
-    return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w }, now);
+    const n = ['take', 'sneak', 'wait', 'lure', 'fight'].includes(nest) ? nest : null;
+    return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w, nest: n, decoy: decoy == null ? null : String(decoy) }, now);
   },
   equipArms(s, { index }) {
     return equipArms(s, index);
