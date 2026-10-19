@@ -7,6 +7,7 @@ import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
+import { skyAt, sunTimes, sunAltitude, moonPhase } from '../sky.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -156,10 +157,55 @@ function syncWalkers() {
     el.addEventListener('click', () => feed(w));
     scene.appendChild(el);
     walkers.set(b.id, w);
+    sleep(w);
   }
   const empty = document.getElementById('sceneEmpty');
   empty.hidden = walkers.size > 0;
   empty.textContent = S.hatched.length ? 'Everyone is out exploring. Check the World tab.' : 'No babies yet. Hatch an egg in the Incubator tab.';
+}
+
+// ---------- day and night ----------
+const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+const DAY_MS = 86400000;
+// the moon's lit side: right while it waxes, left as it wanes (seen from the north)
+function moonPath(p) {
+  const k = Math.cos(2 * Math.PI * p), rx = (Math.abs(k) * 10).toFixed(2), waxing = p < 0.5;
+  return `M0 -10 A10 10 0 0 ${waxing ? 1 : 0} 0 10 A${rx} 10 0 0 ${waxing === (k > 0) ? 0 : 1} 0 -10Z`;
+}
+// where a body stands on the scene: across it from rising to setting, as high as its altitude
+const across = hours => (6 + Math.min(1, Math.max(0, (hours - 6) / 12)) * 88).toFixed(1) + '%';
+const height = alt => (42 - Math.max(-10, alt) / 75 * 36).toFixed(1) + '%';
+let asleepKey = null;
+function updateSky() {
+  const d = new Date(gameNow()), sky = skyAt(d), st = scene.style;
+  st.setProperty('--dark', sky.dark.toFixed(3));
+  st.setProperty('--glow', Math.max(0, 1 - Math.abs(sky.alt) / 8).toFixed(3));
+  st.setProperty('--stars', Math.max(0, (sky.dark - 0.6) / 0.4).toFixed(3));
+  const hours = d.getHours() + d.getMinutes() / 60;
+  st.setProperty('--sun-x', across(hours)); st.setProperty('--sun-y', height(sky.alt));
+  st.setProperty('--sun-o', sky.alt > -4 ? '1' : '0');
+  // the moon trails the sun by its age through the month: full, it rises at sunset
+  const p = moonPhase(d), lag = p * 24, moonAlt = sunAltitude(new Date(+d - lag * 3600000));
+  st.setProperty('--moon-x', across(((hours - lag) % 24 + 24) % 24)); st.setProperty('--moon-y', height(moonAlt));
+  st.setProperty('--moon-o', moonAlt > -4 && p > 0.03 && p < 0.97 ? (0.35 + 0.65 * sky.dark).toFixed(2) : '0');
+  scene.querySelector('.moon path').setAttribute('d', moonPath(p));
+  const t = sunTimes(d), tomorrow = sunTimes(new Date(+d + DAY_MS));
+  const label = !t ? (sky.phase === 'night' ? 'Polar night' : 'Midnight sun')
+    : sky.phase === 'day' ? `Day · sunset ${clockFmt.format(t.set)}`
+    : sky.phase === 'dusk' ? (d < t.set ? `Dusk · sunset ${clockFmt.format(t.set)}` : 'Dusk')
+    : sky.phase === 'dawn' ? (d < t.rise ? `Dawn · sunrise ${clockFmt.format(t.rise)}` : 'Dawn')
+    : `Night · sunrise ${clockFmt.format(d < t.rise ? t.rise : tomorrow.rise)}`;
+  const chip = document.getElementById('skyTime');
+  if (chip.textContent !== label) chip.textContent = label;
+  // most sleep at night; a night hunter by day; some are awake either way (SPECIES active)
+  asleepKey = sky.phase;
+  for (const w of walkers.values()) sleep(w);
+}
+function sleep(w) {
+  const b = findBaby(w.id), active = b && SPECIES[b.type].active;
+  w.asleep = !!b && active !== 'both' && (asleepKey === 'night' ? active !== 'night' : asleepKey === 'day' && active === 'night');
+  w.el.classList.toggle('asleep', w.asleep);
+  w.el.title = w.asleep ? `${b.name} is asleep` : '';
 }
 
 function popText(w, cls, text) {
@@ -199,7 +245,8 @@ function step(t) {
   for (const w of walkers.values()) {
     const maxX = sw - (w.el.offsetWidth || 70) - 4;
     let moving = false;
-    if (w.pause > 0) w.pause -= dt;
+    if (w.asleep) { /* (lying still) */ }
+    else if (w.pause > 0) w.pause -= dt;
     else {
       moving = true;
       // (one walking with its own feet keeps their pace, hungry or not)
@@ -225,12 +272,15 @@ function runScene(on) {
 const sceneVisible = () => currentTab() === 'nest' && !document.hidden;
 
 export function initNest() {
+  updateSky();
+  setInterval(updateSky, 30000);
   renderBabies();
   // the cards and walkers are rebuilt only while the tab is open; the hungry badge updates everywhere
   subscribe(() => currentTab() === 'nest' ? renderBabies() : checkHunger());
   setInterval(checkHunger, 1000);
   onTabChange(name => {
     if (name === 'nest') {
+      updateSky();
       renderBabies();
       for (const w of walkers.values()) w.x = Math.min(w.x, sceneW() - 70);
     }

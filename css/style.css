@@ -709,3 +709,22 @@ body.guide-room { padding-bottom: 70vh; }
 .codes { display: grid; gap: 8px; margin: 18px 0; }
 .codes h2 { margin: 0; }
 .codes input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); flex: 1 1 180px; min-width: 0; max-width: 260px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* Day and night over the nest (sky.js): --dark from 0 by day to 1 at night, --glow round sunrise and sunset */
+.sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.sky > * { position: absolute; }
+.sky .night { inset: 0; z-index: 1; background: linear-gradient(#0a1430, #22325a 75%); opacity: var(--dark, 0); }
+.sky .glow { inset: 0; z-index: 2; background: linear-gradient(to top, #f0a067 30%, #f6cf9a 50%, transparent 80%); opacity: var(--glow, 0); }
+.sky .stars { inset: 0 0 45% 0; z-index: 3; opacity: var(--stars, 0);
+  background-image: radial-gradient(1.5px 1.5px at 8% 22%, #fff, transparent), radial-gradient(1px 1px at 17% 60%, #fff, transparent), radial-gradient(1.5px 1.5px at 26% 12%, #fff, transparent),
+    radial-gradient(1px 1px at 35% 44%, #fff, transparent), radial-gradient(2px 2px at 47% 18%, #fff, transparent), radial-gradient(1px 1px at 55% 70%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 63% 35%, #fff, transparent), radial-gradient(1px 1px at 71% 8%, #fff, transparent), radial-gradient(1.5px 1.5px at 80% 52%, #fff, transparent),
+    radial-gradient(1px 1px at 88% 25%, #fff, transparent), radial-gradient(1px 1px at 94% 66%, #fff, transparent), radial-gradient(1px 1px at 3% 80%, #fff, transparent); }
+.sky .sun { z-index: 4; width: 34px; height: 34px; border-radius: 50%; left: var(--sun-x, 50%); top: var(--sun-y, 20%); translate: -50% -50%; opacity: var(--sun-o, 1);
+  background: radial-gradient(#fff8d2, #ffd45e 60%, #f4ae3a); box-shadow: 0 0 26px #ffd25e99; }
+.sky .moon { z-index: 4; width: 26px; height: 26px; left: var(--moon-x, 50%); top: var(--moon-y, 20%); translate: -50% -50%; opacity: var(--moon-o, 0); filter: drop-shadow(0 0 8px #f4efd866); }
+.scene .decor, .walker .dino-art, .walker > img, .walker > canvas { filter: brightness(calc(1 - .55 * var(--dark, 0))) saturate(calc(1 - .35 * var(--dark, 0))); }
+.sky-time { position: absolute; top: 10px; right: 12px; z-index: 300; margin: 0; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--panel) 80%, transparent); }
+.walker.asleep::after { content: "z z"; position: absolute; top: -4px; right: -6px; font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #eef2ff; text-shadow: 0 1px 2px #0008; animation: dozing 2.4s ease-in-out infinite; }
+@keyframes dozing { 0%, 100% { opacity: .35; translate: 0 2px; } 50% { opacity: 1; translate: 3px -4px; } }
+@media (prefers-reduced-motion: reduce) { .walker.asleep::after { animation: none; } }

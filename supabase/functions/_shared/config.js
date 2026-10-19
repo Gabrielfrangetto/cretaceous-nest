@@ -121,6 +121,9 @@ const SIZE = {
 //   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
+//   active: when it is awake, from the rings of bone in its eyes (Schmitz & Motani 2011): 'night' for a
+//           night hunter (Velociraptor), 'both' for one awake by day and night (Protoceratops; the
+//           giant plant eaters, which must eat almost all the time); by day otherwise
 //   fear:   what makes it run, before the fight starts (combat.js afraidOf). A predator's comes from
 //           its size: it runs from a bigger predator (one its size doesn't scare it), and from a plant
 //           eater more than one size bigger (one size up it still takes on). A plant eater runs from a
@@ -155,11 +158,11 @@ export const BODY = {
   psitta:  { biped: true, weapon: 'Parrot-like beak', bite: 30, hide: 3, camo: 'forest', digest: 1.5, crack: true, creche: true, role: 'noncombatant', fear: 'small' },
   coelo:   { biped: true, weapon: 'Slim jaws full of small teeth', bite: 32, hide: 0, fullPack: 0.1, fragile: 0.8, hunts: ['theropod', 'ornithopod', 'ceratopsian', 'human'], preyMax: 'small', role: 'attacker', hunt: 15, fear: 'small' },
   hypsi:   { biped: true, weapon: 'Small beak; it runs rather than fights', bite: 30, hide: 0, zigzag: true, forage: [['leaf', 1, 2], ['herb', 1, 1, 0.25]], eyes: true, role: 'noncombatant', fear: 'small' },
-  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large' },
+  proto:   { weapon: 'Hooked beak and a bony frill', bite: 50, hide: 6, beak: true, role: 'defender', charge: 0.3, fear: 'large', active: 'both' },
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'small' },
+  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'small', active: 'night' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: { water: 1.3, land: 1 }, hook: true, fishing: [2, 4], hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
@@ -168,7 +171,7 @@ export const BODY = {
   allo:    { biped: true, weapon: 'Blade-like teeth, slashing bites', bite: 160, hide: 12, rival: true, hunts: ['armored', 'ornithopod', 'pachycephalosaur', 'allo', 'human'], preyMax: 'large', role: 'attacker', hunt: 15, fear: 'huge' },
   spino:   { biped: true, weapon: 'Long jaws and big claws', bite: 180, hide: 18, fisher: { water: 1.5, land: 1, landAgi: 0.6 }, sail: true, hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'huge' },
   rex:     { biped: true, weapon: 'The strongest bite of any land animal', bite: 260, hide: 25, crush: 0.3, boneBreaker: true, hunts: ['ceratopsian', 'ornithopod', 'pachycephalosaur', 'theropod', 'human'], preyMax: 'huge', role: 'attacker', hunt: 10, fear: 'huge' },
-  argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal' },
+  argent:  { weapon: 'Its sheer weight: stomps and a heavy tail', bite: 200, hide: 30, giant: true, haul: 2.5, slow: 2, role: 'defender', charge: 0, fear: 'colossal', active: 'both' },
 };
 // How each role fights:
 //   attacker: the hunters. Strikes the foe every turn.
