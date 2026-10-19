@@ -868,3 +868,17 @@ test('a team whose last one dies on the way is lost, told at the hex where it fe
     assert.ok(Number.isInteger(lost.idx) && lost.idx >= 0 && lost.hex === p.leg.path[lost.idx]);
   } finally { SURVIVAL.thirst = 0; SURVIVAL.hunger = 0; }
 });
+
+test('dinosaurs never set out without the player', async () => {
+  const { EXPEDITION } = await import('../js/config.js');
+  EXPEDITION.needsPlayer = true;
+  try {
+    const to = hexKey(...landHexes(42).filter(h => hexDist(h) === 6)[0]);
+    const s = game(dino('ad', 30, 'm', 'galli'));
+    assert.equal(applyAction(s, 'explore', { babyId: 'ad', hex: to }, T0).reason, 'no-player');
+    assert.equal(applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }], hex: to }, T0).reason, 'no-player');
+    const r = applyAction(s, 'explore', { team: [{ kind: 'player' }, { kind: 'dino', id: 'ad' }], hex: to }, T0);
+    assert.equal(r.ok, true, r.reason);
+    assert.ok(r.expedition.members.includes('player'));
+  } finally { EXPEDITION.needsPlayer = false; }
+});

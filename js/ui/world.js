@@ -51,6 +51,7 @@ const PROBLEMS = {
   water: 'Open water: no one can go there.',
   injured: 'Injured. It heals with time, or sooner with a Healing Herb.',
   'no-team': 'Add someone to the team first.',
+  'no-player': 'Your dinosaurs never set out without you.',
   'team-full': `A team has at most ${TEAM_SLOTS} places.`,
   twice: 'Someone is in the team twice.',
   missing: 'Someone in the team is gone.',
@@ -567,13 +568,10 @@ function sideHTML(t) {
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
-  // the team: kept between hexes; when empty, the first one free to go is suggested
+  // the team: kept between hexes, always led by the player (dinosaurs never set out without you)
   const choices = unitChoices();
-  team = team.filter(u => choices.some(c => unitKey(c) === unitKey(u)));
-  if (!team.length) {
-    const free = choices.find(u => !unitProblem(u, t));
-    if (free) team = [free];
-  }
+  team = team.filter(u => u.kind !== 'player' && choices.some(c => unitKey(c) === unitKey(u)));
+  team.unshift({ kind: 'player', id: PLAYER_ID });
   const problem = exploreProblem(S, team, selected, t);
   const scout = hasScout(S, team.flatMap(membersOf));
   const blocker = team.map(u => unitProblem(u, t)).find(Boolean);
@@ -582,7 +580,7 @@ function sideHTML(t) {
   const rows = team.map((u, i) => {
     const p = unitProblem(u, t);
     return `<li class="team-unit"><span><strong>${esc(unitName(u))}</strong> <span class="hint">${esc(unitLabel(u).split(' · ').slice(1).join(' · '))}</span>${p ? ` <span class="hint warn-text">· ${esc(SHORT[p.label] || p.problem)}</span>` : ''}</span>
-      <button class="ghost" type="button" data-unit-off="${i}" aria-label="Take ${esc(unitName(u))} out of the team">×</button></li>`;
+      ${u.kind === 'player' ? '' : `<button class="ghost" type="button" data-unit-off="${i}" aria-label="Take ${esc(unitName(u))} out of the team">×</button>`}</li>`;
   }).join('');
   const critical = problem === 'injured' && blocker && isCritical(byId(blocker.id), t);
   const why = problem && PROBLEMS[problem]

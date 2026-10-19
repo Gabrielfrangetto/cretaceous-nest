@@ -853,6 +853,9 @@ export const NEST = {
   rarity: { Starter: 1, Common: 1, Uncommon: 0.75, Rare: 0.5, Epic: 0.3, Legendary: 0.15 }, legendary: 0.02,
 };
 
+// Dinosaurs never set out on a journey without the player: every team has the player in it
+export const EXPEDITION = { needsPlayer: true };
+
 // waypoints a route may be traced through, at most
 export const VIA_MAX = 20;
 export const HAZARD_WOUND = [0.2, 0.35];

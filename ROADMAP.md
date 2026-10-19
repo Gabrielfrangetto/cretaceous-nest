@@ -87,6 +87,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Survival on foot: one water flask in the starter kit; making camp to look for water and food and rest; the way shown hex by hex, numbered, before setting off, each point draggable to change it (to follow a river); walking along a river bank takes no crossing
 - [x] Hunger and thirst at a realistic scale (a hex is about 22 km: danger after about 3 hexes without fresh water)
 - [x] Hunger and thirst for everyone, the player too: the nest's trough waters all at home; on a journey fresh water, grazing, kills, carried food, water flasks and rations; worn down, then dying of it (the player collapses)
+- [x] Dinosaurs never set out without the player: every team has the player in it
 - [x] Biome hazards on journeys: sandstorms and heat, volcanic fumes, floods, bogs, cold nights in the north, losing the way in thick forest (they cost time or wear someone down, never kill)
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes

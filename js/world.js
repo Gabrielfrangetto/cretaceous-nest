@@ -9,6 +9,7 @@ import {
   BIOMES, ITEMS, MAP_VERSION, WORLD_SEED, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
   LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS, AMBUSH,
+  EXPEDITION,
 } from './config.js';
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
@@ -220,6 +221,8 @@ export function exploreProblem(s, team, key, now) {
   const units = teamFrom(s, team);
   if (!units || !units.length) return 'no-team';
   if (units.includes(null)) return 'missing';
+  // dinosaurs never set out without the player
+  if (EXPEDITION.needsPlayer && !units.some(u => u.kind === 'player')) return 'no-player';
   if (units.length > TEAM_SLOTS) return 'team-full';
   const h = parseKey(key);
   if (!inWorld(h)) return 'out-of-map';

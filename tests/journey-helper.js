@@ -3,13 +3,16 @@
 // and what it brought home.
 import { applyAction } from '../js/economy.js';
 import { partyOf, HOME } from '../js/journey.js';
-import { SURVIVAL } from '../js/config.js';
+import { SURVIVAL, EXPEDITION } from '../js/config.js';
 
 // The journeys in these tests are about what a team meets: nobody grows hungry or thirsty on the way
 // (the tests of hunger and thirst set it themselves)
 export const REAL_SURVIVAL = { thirst: SURVIVAL.thirst, hunger: SURVIVAL.hunger };
 SURVIVAL.thirst = 0;
 SURVIVAL.hunger = 0;
+// and they are about what each dinosaur does on its own: they may send one out without the player
+// (the test of that rule sets it itself)
+EXPEDITION.needsPlayer = false;
 
 // choice: { fight, flee, hunt, witness } answers every decision; the party always goes on
 export function collect(s, { id, ...choice }, now) {
