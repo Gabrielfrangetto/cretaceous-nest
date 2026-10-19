@@ -153,8 +153,9 @@ const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 // a unit's role and the biggest of a unit
 const roleOf = u => u.members[0].role || 'attacker';
 export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
-// a unit that runs from this foe: the player never does
-export const fears = (u, foe) => !!u.members[0].fear && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
+// a unit that runs from this foe: a predator bigger than it stands up to (BODY fear). A plant eater,
+// however big, is no reason to run: that is the food chain (preyMax), not fear. The player never does.
+export const fears = (u, foe) => !!u.members[0].fear && (foe.members[0].role || 'attacker') === 'attacker' && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
 // The food chain: what a predator hunts (BODY hunts). An animal of a body plan in its diet, no bigger
 // than it takes on (preyMax; a size less for a young one near the nest), that it can hurt at all;
 // anything else it passes by.

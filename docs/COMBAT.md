@@ -19,7 +19,7 @@ Role: attacker (goes for the foe), defender (charges or holds its ground and str
 | Gallimimus | medium | Toothless beak and kicks | 20 | 2 | noncombatant | medium |
 | Hypacrosaurus | large | Tail and kicks | 50 | 6 | noncombatant | large |
 | Pachycephalosaurus | medium | Thick bony dome for ramming | 125 | 8 | defender | large |
-| Velociraptor | small | Sickle claw on each foot | 32 | 0 | attacker | medium |
+| Velociraptor | small | Sickle claw on each foot | 32 | 0 | attacker | small |
 | Stegosaurus | large | Spiked tail (the thagomizer) | 130 | 18 | defender | huge |
 | Baryonyx | large | Huge thumb claws and fish-catching jaws | 140 | 10 | attacker | large |
 | Parasaurolophus | large | Tail and kicks | 55 | 8 | noncombatant | large |

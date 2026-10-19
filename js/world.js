@@ -413,10 +413,10 @@ export function interveneOptions(s, exp, wt) {
     const unit = teamUnits(s, [u])[0], m = unit.members[0], sp = SPECIES[m.type] || {};
     const base = { id: u.id, name: unit.name };
     if (!sp.hunt || (m.role || 'attacker') !== 'attacker') return { ...base, prey: { ok: false, reason: 'wasn\'t a hunter' }, predator: { ok: false, reason: 'wasn\'t a hunter' } };
+    // (fear is of predators: whether it goes after the prey is only whether it hunts it)
     const wary = f => sizeRank(f.size) > sizeRank(m.fear || 'colossal');
     let onPrey;
-    if (wary(prey)) onPrey = { ok: false, reason: 'wouldn\'t go near it' };
-    else if (!isPrey(m, prey)) onPrey = { ok: false, reason: 'didn\'t hunt it' };
+    if (!isPrey(m, prey)) onPrey = { ok: false, reason: 'didn\'t hunt it' };
     else { const o = huntOdds([unit], prey); onPrey = o ? { ok: true, chance: o.chance, backsOff: scares(unit, pred) } : { ok: false, reason: 'didn\'t hunt it' }; }
     let onPred;
     if (wary(pred)) onPred = { ok: false, reason: 'wouldn\'t go near it' };

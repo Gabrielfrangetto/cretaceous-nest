@@ -1248,3 +1248,22 @@ test('a predator that leaves once nothing it hunts is standing is no win; one th
   }
   assert.ok(went > 0, 'the pack left in some fights');
 });
+
+test('fear is of predators, not of prey: a Velociraptor goes for a Protoceratops but runs from a Dilophosaurus', async () => {
+  const { fears } = await import('../js/combat.js');
+  const { keepsAway, teamUnits } = await import('../js/world.js');
+  const raptor = unitOf('r', [fighterOf(dino('r', 60, 'raptor'))]);
+  assert.equal(fears(raptor, encounterUnit({ species: 'proto', loot: [] }, 6)), false);
+  assert.equal(fears(raptor, encounterUnit({ species: 'dilo', loot: [] }, 6)), true);
+  // a plant eater, however big, is no reason to run
+  assert.equal(fears(raptor, encounterUnit({ species: 'trike', loot: [] }, 6)), false);
+  // wild raptors and Coelophysis leave alone a team with a Dilophosaurus, not one with only the player
+  const s = game(dino('d', 60, 'dilo'));
+  const withDilo = teamUnits(s, [{ kind: 'player', id: 'player', members: ['player'] }, { kind: 'dino', id: 'd', members: ['d'] }]);
+  const alone = teamUnits(s, [{ kind: 'player', id: 'player', members: ['player'] }]);
+  for (const species of ['raptor', 'coelo']) {
+    const threat = { entry: { species, pack: [4, 4] }, foe: encounterUnit({ species, pack: [4, 4], loot: [] }, 6) };
+    assert.equal(keepsAway(threat, withDilo), true, species);
+    assert.equal(keepsAway(threat, alone), false, species);
+  }
+});

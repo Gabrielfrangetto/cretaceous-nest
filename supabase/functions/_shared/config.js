@@ -122,10 +122,12 @@ const SIZE = {
 //   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
-//   fear:   the biggest foe it stands up to; it runs from anything bigger, before the fight starts.
-//           Nothing short of a giant sauropod stands up to one: colossal is theirs alone. A
-//           wild one doesn't even show itself to a team with anything bigger: it can only be spotted
-//           at a distance and hunted (hunt)
+//   fear:   the biggest predator it stands up to; it runs from any predator bigger, before the fight
+//           starts. Fear is of predators only: how big a prey it takes on is the food chain
+//           (preyMax), a different thing (a 15 kg Velociraptor went for a Protoceratops many times
+//           its weight, but would run from a Dilophosaurus). Nothing short of a giant sauropod stands
+//           up to one: colossal is theirs alone. A wild one doesn't even show itself to a team with a
+//           predator bigger: it can only be spotted at a distance and hunted (hunt)
 //   hunts:  a predator's diet, from fossil evidence (bite marks, stomach contents, fossils locked in
 //           combat): the body plans (SPECIES build, 'human' for the player) or single species it hunts,
 //           'any' for all;
@@ -158,7 +160,7 @@ export const BODY = {
   galli:   { biped: true, weapon: 'Toothless beak and kicks', bite: 20, hide: 2, runner: true, kick: 1.5, role: 'noncombatant', fear: 'medium' },
   hypa:    { weapon: 'Tail and kicks', bite: 50, hide: 6, growth: 1.5, nurse: true, role: 'noncombatant', fear: 'large' },
   pachy:   { biped: true, weapon: 'Thick bony dome for ramming', bite: 125, hide: 8, dome: true, role: 'defender', charge: 0.35, fear: 'large' },
-  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'medium' },
+  raptor:  { biped: true, weapon: 'Sickle claw on each foot', bite: 32, hide: 0, claw: true, hunts: ['ceratopsian', 'ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 25, fear: 'small' },
   stego:   { weapon: 'Spiked tail (the thagomizer)', bite: 130, hide: 18, spikes: true, guard: true, throat: true, role: 'defender', charge: 0.2, fear: 'huge' },
   bary:    { biped: true, weapon: 'Huge thumb claws and fish-catching jaws', bite: 140, hide: 10, fisher: { water: 1.3, land: 1 }, hook: true, fishing: [2, 4], hunts: ['ornithopod', 'human'], preyMax: 'medium', role: 'attacker', hunt: 5, fear: 'large' },
   para:    { weapon: 'Tail and kicks', bite: 55, hide: 8, alert: true, escape: true, role: 'noncombatant', fear: 'large' },
