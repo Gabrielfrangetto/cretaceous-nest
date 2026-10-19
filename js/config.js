@@ -772,18 +772,20 @@ export const CAMP = {
 };
 // Foraging on the way: each hex walked (past the calm around a settlement) the team may find a handful
 // (min to max) of each of these, way[item][land] of the time ('river': where a river runs). A forager
-// along (ROLES) finds its own kinds (by) more times as often, nests too, once there are nests to find;
-// and in camp the whole team finds food camp.food and water camp.water times as often (CAMP).
+// along (ROLES) finds its own kinds (by) more times as often, nests too, once there are nests to find
+// (and where a kind is found every time, more times as much); in camp the whole team finds food
+// camp.food and water camp.water times as often (CAMP). common: kinds found so often they are only
+// told once a leg ends, as a tally ('gathered').
 export const FORAGE = {
   way: {
     seed: { meadow: 0.06, scrub: 0.07, forest: 0.04, floodplain: 0.04, coast: 0.02, subtropical: 0.04 },
     stone: { river: 0.08, scrub: 0.03, desert: 0.04, volcano: 0.03 },
-    leaf: { meadow: 0.05, forest: 0.06, subtropical: 0.08, floodplain: 0.06, swamp: 0.04, scrub: 0.02 },
+    leaf: { meadow: 1, forest: 1, subtropical: 1, floodplain: 1, swamp: 1, scrub: 0.5, coast: 0.3 },
     fruit: { subtropical: 0.06, forest: 0.03, floodplain: 0.04, meadow: 0.015 },
     insect: { meadow: 0.04, forest: 0.05, subtropical: 0.07, floodplain: 0.04, swamp: 0.05, scrub: 0.03, desert: 0.015 },
     herb: { meadow: 0.02, forest: 0.02, subtropical: 0.03, floodplain: 0.03 },
   },
-  min: 1, max: 2, more: 2,
+  min: 1, max: 2, more: 2, common: ['leaf'],
   by: { psitta: ['seed', 'stone'], galli: ['insect', 'leaf', 'herb', 'nest'], hypa: ['leaf', 'fruit'] },
   camp: { food: 1.5, water: 1.3 },
 };

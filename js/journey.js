@@ -320,6 +320,11 @@ function turnBack(ctx, i) {
 function arrive(ctx) {
   const { s, p, story } = ctx, leg = p.leg, w = W(s);
   p.at = leg.to;
+  // what the team gathered of the common kinds as it walked, told at once
+  if (p.gathered && Object.keys(p.gathered).length) {
+    story.push({ kind: 'gathered', hex: leg.to, idx: Math.max(0, leg.path.length - 1), found: Object.entries(p.gathered).map(([id, n]) => ({ id, n })) });
+    p.gathered = {};
+  }
   // the train: everyone fed and watered aboard, the flasks filled at the station
   if (leg.train) {
     story.push({ kind: 'train', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, stops: trainRoute(w.seed, leg.from, leg.to)?.stops || [leg.from, leg.to] });
@@ -514,10 +519,14 @@ function forage(ctx, idx, cell, h) {
     let chance = Math.max(lands[cell.biome] || 0, cell.river ? lands.river || 0 : 0);
     if (!chance) continue;
     const who = up.find(id => FORAGE.by[explorerOf(s, id).type].includes(item));
-    if (who) chance *= FORAGE.more;
-    if (rand() >= chance) continue;
-    const n = FORAGE.min + Math.floor(rand() * (FORAGE.max - FORAGE.min + 1));
-    found.push(carryItem(p, item, n));
+    // (a forager makes a find likelier; where it is found every time, it gathers more of it)
+    const boost = who ? FORAGE.more : 1, sure = chance >= 1;
+    if (rand() >= Math.min(1, chance * boost)) continue;
+    const n = (FORAGE.min + Math.floor(rand() * (FORAGE.max - FORAGE.min + 1))) * (sure ? boost : 1);
+    const got = carryItem(p, item, n);
+    // (the common kinds are tallied, and told when the leg ends)
+    if (FORAGE.common.includes(item)) { p.gathered = p.gathered || {}; p.gathered[item] = (p.gathered[item] || 0) + n; continue; }
+    found.push(got);
     if (who) by.add(explorerOf(s, who).name);
   }
   if (found.length) story.push({ kind: 'forage', hex: p.leg.path[idx], idx, biome: cell.biome, found, by: [...by] });
@@ -983,6 +992,7 @@ export function cleanParties(s, w) {
     const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)) };
     out.push({
       id: String(e.id), team, members, at, leg, health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
+      gathered: Object.fromEntries(Object.entries(e.gathered && typeof e.gathered === 'object' ? e.gathered : {}).filter(([id, n]) => ITEMS[id] && int(n) > 0).map(([id, n]) => [id, int(n)])),
       camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
       carry: { items, coins: int(c.coins), eggs }, pending,
