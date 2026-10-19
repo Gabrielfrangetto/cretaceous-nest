@@ -1,8 +1,17 @@
 # Event pictures
 
 One picture per event, 16:9 (for example 1280×720), as `<name>.webp` (or `.png`). A journey shows it on
-the event's card when it stops there. An event without a picture of its own uses the general one in
-brackets, and with none at all the card shows only its words.
+the event's card when it stops there. The most fitting picture there is is used: the species met
+first, then the event, then the general one in brackets; with none at all the card shows only its words.
+
+Species ids: dilo, compy, scelido, psitta, coelo, hypsi, proto, galli, hypa, pachy, raptor, stego, bary,
+para, trike, ankylo, allo, spino, rex, argent, and deinosuchus (the crocodile).
+
+- An animal met: `<event>-<species>`, then `<event>`: `fight-rex`, `chase-raptor`, `scatter-allo`,
+  `standoff-trike`, `sighting-galli`, `witness-rex` (the hunter), `backed-off-allo`.
+- A nest: `nest-<species>-<state>`, then `nest-<kind>-<state>`, `nest-<state>`, `nest`: for example
+  `nest-rex-seen`, `nest-guarded-seen`, `nest-seen`. Kinds: buried, watched, colony, brooded, guarded,
+  creche (which species nests how is in config.js, NEST.kind).
 
 | File | When |
 |---|---|

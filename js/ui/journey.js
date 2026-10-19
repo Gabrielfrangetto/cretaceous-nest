@@ -162,13 +162,21 @@ function walkTo(i, done) {
 // ---------- the event card ----------
 // An event the journey stops at (or a decision waiting) comes up over the map on a card: its picture
 // (images/events, 16:9; none drawn yet: no picture), what happened, and the buttons.
-// the pictures that fit an event, the most fitting first
+// the pictures that fit an event, the most fitting first: of the species met, then of the event
+// (fight-rex, then fight; nest-rex-seen, nest-guarded-seen, nest-seen, then nest)
 function artKeys(e) {
+  const pick = (base, sp) => (sp ? [`${base}-${sp}`, base] : [base]);
   switch (e.kind) {
-    case 'fight': return e.scatter ? ['scatter', 'fight'] : e.standoff ? ['standoff', 'fight'] : ['fight'];
+    case 'fight': {
+      const sp = e.battle && e.battle.creature;
+      return e.scatter ? [...pick('scatter', sp), ...pick('fight', sp)] : e.standoff ? [...pick('standoff', sp), ...pick('fight', sp)] : pick('fight', sp);
+    }
+    case 'chase': return e.scatter ? [...pick('scatter', e.sp), ...pick('chase', e.sp)] : pick('chase', e.sp);
+    case 'witness': return pick('witness', e.hunter && e.hunter.species);
     case 'hazard': return [`hazard-${e.hazard}`, 'hazard'];
-    case 'nest': return [`nest-${e.state}`, 'nest'];
-    case 'backedOff': return ['backed-off'];
+    case 'nest': return [`nest-${e.species}-${e.state}`, `nest-${e.nest}-${e.state}`, `nest-${e.state}`, 'nest'];
+    case 'backedOff': return pick('backed-off', e.sp);
+    case 'scatter': case 'standoff': case 'sighting': return pick(e.kind, e.sp);
     default: return [e.kind];
   }
 }

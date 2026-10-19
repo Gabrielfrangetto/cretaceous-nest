@@ -746,6 +746,9 @@ function nestEvent(ctx, ev, choice) {
   return true;
 }
 
+// the species (or creature) a threat is, for the pictures: its id
+const spOf = threat => (threat && threat.entry ? threat.entry.species || threat.entry.creature || null : null);
+
 // ---------- what happens on the way ----------
 // At a hex on the way (past the calm around the nest): now and then a hunt, wild against wild, the
 // team watches; otherwise what lives there may notice the team (INTERCEPT): a lair's Alpha often,
@@ -795,7 +798,7 @@ function run(ctx, ev, choice) {
     if (back && rand() < back) {
       // a rival as big as the team's Spinosaurus sized up its sail and backed off
       const sail = team.flatMap(u => u.members).filter(m => m.type && SPECIES[m.type].sail).reduce((a, m) => (m.power > a.power ? m : a));
-      tell({ kind: 'backedOff', name: threat.foe.name, count: threat.foe.members.length, by: sail.name });
+      tell({ kind: 'backedOff', sp: spOf(threat), name: threat.foe.name, count: threat.foe.members.length, by: sail.name });
       return true;
     }
     // the player was along and some ran: the player decides
@@ -805,13 +808,13 @@ function run(ctx, ev, choice) {
       const chased = chaseOf(team, threat.foe, biomeAt(w.seed, h));
       let caught = null;
       if (chased && rand() < chased.chance) caught = fall(ctx, units[chased.unit].members[chased.member], rand() < chased.death);
-      tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, spotted: 'runners', caught });
+      tell({ kind: 'chase', sp: spOf(threat), name: threat.foe.name, count: threat.foe.members.length, spotted: 'runners', caught });
       return true;
     }
     const eyes = eyesChance(s, p.members, biomeAt(w.seed, h));
     if (!standsGround(threat.foe) && eyes && rand() < eyes) {
       // watchful ones (Hypsilophodon) saw it first: the team scatters in zigzags, nobody is caught
-      tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, spotted: 'eyes', caught: null, scattered: true });
+      tell({ kind: 'chase', sp: spOf(threat), name: threat.foe.name, count: threat.foe.members.length, spotted: 'eyes', caught: null, scattered: true });
       return true;
     }
     if (standsGround(threat.foe)) return ask('standoff');
@@ -828,21 +831,21 @@ function run(ctx, ev, choice) {
     if (r && !safe && rand() < r.chance) {
       // caught: the player (or one who'd fight) turns to fight; one of those who ran may not survive
       if (r.fights) { fight(ctx, ev, rand, { forced: r.id, scatter: sc }); return true; }
-      tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, scatter: scatterView(sc), caught: fall(ctx, r.id, rand() < r.death) });
-    } else tell({ kind: 'chase', name: threat.foe.name, count: threat.foe.members.length, scatter: scatterView(sc), caught: null, ...(safe ? { scattered: true } : {}) });
+      tell({ kind: 'chase', sp: spOf(threat), name: threat.foe.name, count: threat.foe.members.length, scatter: scatterView(sc), caught: fall(ctx, r.id, rand() < r.death) });
+    } else tell({ kind: 'chase', sp: spOf(threat), name: threat.foe.name, count: threat.foe.members.length, scatter: scatterView(sc), caught: null, ...(safe ? { scattered: true } : {}) });
     return true;
   }
   if (ev.kind === 'standoff') {
     if (choice === null) return ask('standoff');
     if (choice.fight) fight(ctx, ev, rand, { standoff: true });
-    else tell({ kind: 'standoff', ...standoffOf(threat), fought: false });
+    else tell({ kind: 'standoff', sp: spOf(threat), ...standoffOf(threat), fought: false });
     return true;
   }
   if (ev.kind === 'sighting') {
     const odds = huntOdds(team, threat.foe.members[0]);
     if (!odds) return false;
     if (choice === null) return ask('sighting');
-    const base = { kind: 'sighting', name: threat.foe.name, species: threat.entry.species, count: threat.foe.members.length, hunter: odds.hunter };
+    const base = { kind: 'sighting', sp: spOf(threat), name: threat.foe.name, species: threat.entry.species, count: threat.foe.members.length, hunter: odds.hunter };
     if (!choice.hunt) { tell({ ...base, hunted: false }); return true; }
     const caught = rand() < odds.chance;
     const got = caught ? carcass(ctx, threat.entry, threat.step, rand) : [];
@@ -1110,7 +1113,7 @@ export function pendingView(s, p) {
   if (!ev || !p.leg) return null;
   const w = W(s), h = parseKey(ev.hex), units = standingUnits(s, p), team = teamUnits(s, units);
   const threat = threatAt(w.seed, h);
-  const base = { kind: ev.kind, hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), swamp: watery(w.seed, h), units: team, hp: units.map(u => u.members.map(id => healthOf(p, id))) };
+  const base = { kind: ev.kind, hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), swamp: watery(w.seed, h), units: team, hp: units.map(u => u.members.map(id => healthOf(p, id))), sp: spOf(threat) };
   if (ev.kind === 'scatter') {
     const sc = scatterOf(s, units, threat);
     return { ...base, ...(sc ? scatterView(sc) : { name: threat.foe.name }), count: threat.foe.members.length, foe: threat.foe, run: sc && runOf(s, units, threat, sc, base.biome) };
