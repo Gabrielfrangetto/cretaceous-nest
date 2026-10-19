@@ -498,6 +498,42 @@ export function travelPath(seed, h, from = [0, 0], around = null) {
   for (let i = end; i >= 0 && i !== start; i = prev[i]) path.unshift(hexOf(i));
   return path;
 }
+// The easiest way from one hex to another that never steps on the hexes kept out (blocked: hex keys):
+// the hexes crossed, the hex itself last; [] when there is none
+export function wayAround(seed, h, from, blocked) {
+  const { cells } = worldMap(seed), start = indexOf(from), end = indexOf(h);
+  if (start < 0 || end < 0 || start === end) return [];
+  const out = new Set([...blocked].map(k => indexOf(parse(k))));
+  out.delete(start);
+  const best = new Map([[start, 0]]), prev = new Map(), open = [[0, start]];
+  // (a binary heap of [cost, hex] by cost)
+  const push = e => { let k = open.push(e) - 1; while (k > 0) { const q = (k - 1) >> 1; if (open[q][0] <= open[k][0]) break; [open[q], open[k]] = [open[k], open[q]]; k = q; } };
+  const pop = () => {
+    const top = open[0], last = open.pop();
+    if (open.length) {
+      open[0] = last;
+      for (let k = 0; ;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === k) break; [open[m], open[k]] = [open[k], open[m]]; k = m; }
+    }
+    return top;
+  };
+  while (open.length) {
+    const [c, i] = pop();
+    if (c > best.get(i)) continue;
+    if (i === end) break;
+    for (let k = 0; k < 6; k++) {
+      const n = NB[i * 6 + k];
+      if (n < 0 || out.has(n)) continue;
+      const cell = cells[n];
+      if (cell.terrain === 'ocean' || cell.terrain === 'lake') continue;
+      const nc = c + stepCost(cell, cells[i]);
+      if (!best.has(n) || nc < best.get(n)) { best.set(n, nc); prev.set(n, i); push([nc, n]); }
+    }
+  }
+  if (!prev.has(end)) return [];
+  const path = [];
+  for (let i = end; i !== start; i = prev.get(i)) path.unshift(hexOf(i));
+  return path;
+}
 // the cost of the easiest way from one hex to another (Infinity: there is none)
 export const routeCost = (seed, from, to) => { const i = indexOf(to); return i < 0 ? Infinity : routes(seed, from).best[i]; };
 

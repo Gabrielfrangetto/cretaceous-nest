@@ -619,3 +619,20 @@ test('the destination is always the last hex a route reaches: a way to a point b
     assert.ok(path.includes(past));
   }
 });
+
+test('a journey never sets foot twice on the same hex: a way that would is worked out again around the hexes walked', async () => {
+  const { routePath } = await import('../js/journey.js');
+  const land = landHexes(42).filter(h => hexDist(h) <= 6).map(h => hexKey(...h));
+  let tried = 0;
+  for (const to of land.slice(0, 12)) for (const pin of land.slice(-8)) {
+    if (pin === to) continue;
+    const path = routePath(42, '0,0', to, [pin]);
+    if (!path.length) continue;
+    tried++;
+    assert.equal(new Set(path).size, path.length, `${to} via ${pin}: ${path.join(' ')}`);
+    assert.ok(!path.includes('0,0'));
+    assert.equal(path.indexOf(to), path.length - 1);
+    for (let i = 1; i < path.length; i++) { const [p, q] = [parseKey(path[i - 1]), parseKey(path[i])]; assert.equal(hexDist([q[0] - p[0], q[1] - p[1]]), 1); }
+  }
+  assert.ok(tried > 20);
+});

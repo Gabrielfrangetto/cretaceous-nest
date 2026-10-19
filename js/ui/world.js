@@ -247,28 +247,22 @@ function paintMap() {
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
     const big = SIZE * scale >= 18, r = big ? SIZE * 0.42 : Math.max(2.5, px(3));
-    // (a hex the way passes more than once shows a dot for each time, one above the other)
-    const visits = new Map();
-    keys.forEach((k, i) => { if (i) visits.set(k, [...(visits.get(k) || []), i]); });
-    for (const [k, nums] of visits) {
-      const [x, y] = center(parseKey(k)), pin = route.includes(k), water = freshWater(w.seed, parseKey(k));
-      const n = nums.length, rr = (pin ? r * 1.25 : r) * (n > 1 ? Math.max(0.6, 1.1 / n + 0.3) : 1), gap = rr * 2.25;
-      nums.forEach((num, j) => {
-        const cx = x, cy = y + (j - (n - 1) / 2) * gap;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
-        ctx.fillStyle = pin ? heart : accent;
-        ctx.fill();
-        if (water) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
-        if (big) {
-          ctx.fillStyle = accentInk;
-          ctx.font = `700 ${(rr * (num > 99 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(String(num), cx, cy + rr * 0.08);
-        }
-      });
-    }
+    keys.forEach((k, i) => {
+      if (!i) return;
+      const [x, y] = pts[i], pin = route.includes(k), rr = pin ? r * 1.25 : r;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.fillStyle = pin ? heart : accent;
+      ctx.fill();
+      if (freshWater(w.seed, parseKey(k))) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
+      if (big) {
+        ctx.fillStyle = accentInk;
+        ctx.font = `700 ${(rr * (i > 99 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i), x, y + rr * 0.08);
+      }
+    });
     if (grab && grab.target) {
       const [tx, ty] = center(parseKey(grab.target));
       ctx.setLineDash([px(6), px(5)]);
@@ -630,7 +624,7 @@ function traceHTML(t) {
   const dest = placeName(cellAt(S.world.seed, parseKey(tracing.to)));
   const sup = party ? party.supplies || {} : null, hexes = plannedPath().length - 1;
   return `<h3>The way to the ${esc(dest)}</h3>
-    <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
+    <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again, never over the same ground twice. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
     <p class="hint">${legMins(S, members, tracing.from, tracing.to, route)} min to get there.</p>
     ${party ? (() => { const dry = dryStretch(S.world.seed, tracing.from, tracing.to, route); return dry.thirst >= SURVIVAL.at ? `<p class="hint ${dry.thirst >= SURVIVAL.faint ? 'warn-text' : ''}">The longest dry stretch: ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water${sup.water ? `, with ${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left in the flasks` : ''}.</p>` : '<p class="hint">Water all the way.</p>'; })() : members.length ? suppliesHTML(members, tracing.to) : ''}
     <div class="row"><button class="btn" type="button" id="traceGo">Set off</button>

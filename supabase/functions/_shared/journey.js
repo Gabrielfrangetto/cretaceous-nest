@@ -19,7 +19,7 @@ import {
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
-import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation } from './map.js';
+import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
@@ -47,18 +47,26 @@ export const legMins = (s, members, from, to, via = []) =>
 // the stops of a route: from, the waypoints, to
 const stopsOf = (from, to, via) => [from, ...via.filter(k => k !== from && k !== to), to];
 const viaCost = (seed, from, to, via) => (via.length ? pathCosts(seed, from, routePath(seed, from, to, via)).reduce((t, c) => t + c, 0) : routeCost(seed, parseKey(from), parseKey(to)));
-// The hexes walked on a route, from excluded, to last: the easiest way from each stop to the next. The
-// destination is always the last hex reached: a way to a stop beyond it goes around it, not through.
+// The hexes walked on a route, from excluded, to last: the easiest way from each stop to the next. A
+// journey never sets foot twice on the same hex: a way that would is worked out again around the hexes
+// already walked (a stop that can't be reached so is left out), and the destination, never crossed on
+// the way, is always the last hex reached.
 export function routePath(seed, from, to, via = []) {
-  const st = stopsOf(from, to, via), path = [];
+  const st = stopsOf(from, to, via), path = [], used = new Set([from]);
+  let at = from;
   for (let i = 1; i < st.length; i++) {
-    let seg = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1])).map(h => hexKey(...h));
-    if (i < st.length - 1 && seg.includes(to)) {
-      const round = travelPath(seed, parseKey(st[i]), parseKey(st[i - 1]), parseKey(to)).map(h => hexKey(...h));
-      if (round.length) seg = round;
+    const stop = st[i], last = i === st.length - 1;
+    if (!last && used.has(stop)) continue;
+    let seg = travelPath(seed, parseKey(stop), parseKey(at)).map(h => hexKey(...h));
+    if (seg.some(k => used.has(k) || (!last && k === to))) {
+      const blocked = new Set(used);
+      if (!last) blocked.add(to);
+      seg = wayAround(seed, parseKey(stop), parseKey(at), blocked).map(h => hexKey(...h));
     }
-    if (!seg.length) return [];
+    if (!seg.length) { if (last) return []; continue; }
+    for (const k of seg) used.add(k);
     path.push(...seg);
+    at = stop;
   }
   return path;
 }
