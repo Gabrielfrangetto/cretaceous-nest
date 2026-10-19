@@ -13,7 +13,7 @@ Role: attacker (goes for the foe), defender (charges or holds its ground and str
 | Compsognathus | tiny | Tiny pointed teeth | 30 | 0 | noncombatant | tiny |
 | Scelidosaurus | medium | Small beak; rows of bony plates | 30 | 10 | defender | huge |
 | Psittacosaurus | small | Parrot-like beak | 30 | 3 | noncombatant | small |
-| Coelophysis | small | Slim jaws full of small teeth | 32 | 0 | attacker | medium |
+| Coelophysis | small | Slim jaws full of small teeth | 32 | 0 | attacker | small |
 | Hypsilophodon | small | Small beak; it runs rather than fights | 30 | 0 | noncombatant | small |
 | Protoceratops | medium | Hooked beak and a bony frill | 50 | 6 | defender | large |
 | Gallimimus | medium | Toothless beak and kicks | 20 | 2 | noncombatant | medium |
