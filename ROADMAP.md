@@ -109,7 +109,7 @@ fights, more eggs). The rest belong to species found as eggs:
 - [x] Fighting — Dilophosaurus and Protoceratops (starters)
 - [x] Exploring — Compsognathus and Hypsilophodon (starters)
 - [x] Foraging: the land gives seeds, gizzard stones, leaves, fruit, insects and herbs along the way; foragers (Psittacosaurus: seeds and stones; Gallimimus: insects, leaves, herbs, and nests once there are nest events; Hypacrosaurus: leaves and fruit) find their kinds twice as often, and the whole team eats and finds water better in camp
-- [x] Nest events on journeys: the only way eggs are found; each species nests where it would (buried and left, buried and watched, colonies, brooded, guarded, creches), the parent there or not; take, creep up, wait, lure or fight for an egg (a Gallimimus notices nests twice as often, a scout half as often again)
+- [x] Nest events on journeys: the only way eggs are found; each species nests where it would (buried and left, buried and watched, colonies, brooded, guarded, creches), the parent there or not; which species: how its nest shows, its rarity and its land (legendaries at most 2%); at most one nest every 10 hexes; take, creep up, wait, send one that would run from the parent as bait (outrun or killed), or fight for an egg (a Gallimimus notices nests twice as often, a scout half as often again)
 - [ ] Hunting and fishing: brings food home (Baryonyx and Spinosaurus fish, Coelophysis hunts)
 - [ ] Carrying: the whole team carries more (Argentinosaurus, Parasaurolophus)
 - [ ] Nest care: eggs hatch sooner, babies grow on fewer meals (Psittacosaurus, hadrosaurs)

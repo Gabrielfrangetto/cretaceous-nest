@@ -791,9 +791,12 @@ export const FORAGE = {
 };
 
 // Nests: how eggs are found, as an event on a journey (on foot, past the calm around a settlement).
-// Each hex walked, a nest of each kind may be noticed there, find[kind] of the time (twice as often with a
-// Gallimimus along: FORAGE.by), at most one a leg, its species picked by where[land] (how likely each
-// nests there). What the team finds depends on how the species nests (kind):
+// Each hex walked, a nest may be noticed there: the chance that a nest of any of the kinds nesting in that
+// land is, find[kind] each (twice as often with a Gallimimus along: FORAGE.by; half as often again with a
+// scout), and at most one nest in every gap hexes of a journey. Which species it is: each nesting there
+// weighs how easily its kind of nest is noticed (sees), how rare it is (rarity) and how much that land is
+// its home (where[land], against its best land); a legendary is never more than legendary of them.
+// What the team finds depends on how the species nests (kind):
 //   buried: eggs buried and left (titanosaurs, like sea turtles): rarely noticed, always alone
 //   watched: eggs buried, a parent nearby watched of the time (else alone)
 //   colony: a nesting colony (hadrosaurs): adults always about, colony adults defend it together
@@ -805,9 +808,10 @@ export const FORAGE = {
 // Taking an egg from a nest left alone takes a while (cost: hunger and thirst as that many units of
 // travel; a hot-spring nest's fumes may wear someone down, fumes of the time); from an empty one, the
 // parent may come back meanwhile (back[kind]); one with a parent on it unseen can be crept up on (seen
-// again as above), waited out (it leaves wait of the time) or lured away by a quick one (its speed
-// against the parent's, plus lure); taking it by force is a fight with a parent (a prime adult, or
-// colony adults) that never runs. A team carries carry eggs at most.
+// again as above), waited out (it leaves wait of the time), or lured away by one of the team that would
+// run from the parent (its fear, BODY) as bait: its agility against the parent's; caught, it is killed.
+// Taking it by force is a fight with a parent (a prime adult, or colony adults) that never runs. A team
+// carries carry eggs at most.
 export const NEST = {
   find: { buried: 0.005, watched: 0.012, colony: 0.012, brooded: 0.01, guarded: 0.006, creche: 0.008 },
   kind: {
@@ -827,7 +831,9 @@ export const NEST = {
     volcano: { argent: 1 },
   },
   watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, back: { brooded: 0.25, guarded: 0.35, watched: 0.2 },
-  wait: 0.5, lure: 0.15, cost: 1, colony: [2, 4], fumes: 0.35, carry: 3,
+  wait: 0.5, cost: 1, colony: [2, 4], fumes: 0.35, carry: 3, gap: 10,
+  sees: { colony: 0.04, creche: 0.02, watched: 0.015, brooded: 0.015, guarded: 0.01, buried: 0.005 },
+  rarity: { Starter: 1, Common: 1, Uncommon: 0.75, Rare: 0.5, Epic: 0.3, Legendary: 0.15 }, legendary: 0.02,
 };
 
 // waypoints a route may be traced through, at most

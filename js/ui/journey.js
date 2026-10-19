@@ -290,10 +290,11 @@ function decide(v) {
     else if (v.state === 'unseen') {
       buttons.push(btn({ nest: 'sneak' }, `Creep up and take one <span class="hint">(${chanceOf(v.sneak)} chance it doesn't notice)</span>`));
       buttons.push(btn({ nest: 'wait' }, `Wait for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
-      for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Lure it away with ${esc(d.name)} <span class="hint">(${chanceOf(d.chance)} chance; it may be chased)</span>`, true));
       buttons.push(fightBtn('Drive it off its nest'));
     } else buttons.push(fightBtn(v.state === 'colony' ? 'Raid the edge of the colony' : v.state === 'seen' ? 'Stand your ground and take an egg' : 'Take an egg by force'));
-    html = `<p>${intro}</p><div class="row wrap">${v.full ? '' : ''}${buttons.join('')}${leave}</div>${v.full || v.state === 'alone' || v.state === 'empty' ? '' : riskHTML(v.units, death)}`;
+    // bait: one that would run from it anyway draws it off, then comes back; caught, it is killed
+    if (!v.full) for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Use ${esc(d.name)} as bait <span class="hint">(${chanceOf(d.chance)} chance to outrun it; caught, it dies)</span>`, true));
+    html = `<p>${intro}</p><div class="row wrap">${buttons.join('')}${leave}</div>${v.full || v.state === 'alone' || v.state === 'empty' ? '' : riskHTML(v.units, death)}`;
   } else if (v.kind === 'go-on') {
     html = `<p>What now? Go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'are' : 'is'} down: carried, out of any fight.</p>` : ''}
@@ -355,7 +356,7 @@ function nestHTML(e) {
     case 'take': return `The team came upon ${found} and ${e.nest === 'buried' || e.nest === 'watched' ? 'dug up an egg' : 'snatched an egg'}.${e.fumes ? ` ${cap(nm(e.fumes))} breathed the hot spring's fumes while digging.` : ''}${e.back ? ` The parent came back and fell on the team.${fought}` : ''}${egg}`;
     case 'sneak': return `The team crept up on ${found}.${e.spotted ? ` It noticed them and attacked.${fought}` : ''}${egg}`;
     case 'wait': return `The team waited near ${found}.${e.left ? ' At last it left to feed, and the nest was theirs for a moment.' : ' It never left.'}${egg}`;
-    case 'lure': return `${esc(e.decoy.name)} lured away ${found}.${e.egg ? ' It worked.' : ` It didn't fall for it and turned on ${esc(e.decoy.name)}${e.caught ? (e.caught.died ? ', who did not survive' : ', who went down') : ', who got away'}.`}${egg}`;
+    case 'lure': return `The team came upon ${found}. ${esc(e.decoy.name)} darted in as bait, and the ${sp} gave chase.${e.egg ? ` ${esc(e.decoy.name)} outran it and circled back to the team.` : ` It ran ${esc(e.decoy.name)} down and killed it.`}${egg}`;
     case 'fight': return `The team went for ${found}, and the ${e.state === 'colony' ? 'adults' : 'parent'} defended it to the end.${fought}${egg}`;
     default: return '';
   }

@@ -725,3 +725,43 @@ test('nests on the way: each kind found as it nests (buried left alone, colonies
     break;
   }
 });
+
+test('which nest is found: each species by how its nest shows, how rare it is and how much the land is its home; legendaries at most 2%', async () => {
+  const { nestShares } = await import('../js/journey.js');
+  const { NEST: N, SPECIES: SP } = await import('../js/config.js');
+  for (const biome of Object.keys(N.where)) {
+    const sh = nestShares(biome);
+    assert.ok(Math.abs(sh.reduce((t, [, x]) => t + x, 0) - 1) < 1e-9, biome);
+    for (const [sp, x] of sh) if (SP[sp].rarity === 'Legendary' && sh.length > 1) assert.ok(x <= N.legendary + 1e-9, `${sp} in ${biome}`);
+  }
+  // colonies show most: in the meadow the Hypacrosaurus colonies are the likeliest
+  const meadow = nestShares('meadow');
+  assert.equal(meadow.reduce((a, b) => (b[1] > a[1] ? b : a))[0], 'hypa');
+});
+
+test('bait: only one that would run from the parent can draw it off; outrun, it comes back with the egg taken, caught, it is killed', async () => {
+  const { reach } = await import('./journey-helper.js');
+  const { pendingView, partyOf } = await import('../js/journey.js');
+  const { fears } = await import('../js/combat.js');
+  const far = landHexes(42).filter(h => hexDist(h) >= 16 && hexDist(h) <= 24).map(h => hexKey(...h));
+  let seen = 0;
+  for (let i = 0; i < 400 && seen < 6; i++) {
+    const s = game(dino('g', 30, 'f', 'galli'), dino('t', 30, 'm', 'trike'));
+    s.world.trips = i * 3;
+    const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'g' }, { kind: 'dino', id: 't' }], hex: far[i % far.length] }, T0);
+    if (!r.ok) continue;
+    if (!reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest')) continue;
+    const p = partyOf(s, r.expedition.id), v = pendingView(s, p);
+    // the Triceratops never runs from anything that could be found nesting, so it is never bait
+    assert.ok(!v.decoys.some(d => d.id === 't'));
+    for (const d of v.decoys) assert.ok(d.chance > 0 && d.chance < 1);
+    if (!v.decoys.length) continue;
+    seen++;
+    const step = applyAction(s, 'journey', { id: p.id, nest: 'lure', decoy: 'g' }, r.expedition.leg.arriveAt);
+    const told = step.story.find(e => e.kind === 'nest');
+    assert.equal(told.act, 'lure');
+    if (told.egg) assert.ok(s.hatched.some(b => b.id === 'g'));
+    else assert.ok(told.caught && told.caught.died && !s.hatched.some(b => b.id === 'g'));
+  }
+  assert.ok(seen > 0);
+});

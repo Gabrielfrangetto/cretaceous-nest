@@ -18,7 +18,7 @@ import {
   DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
-import { teamFight, unitOf, wildFighter } from './combat.js';
+import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
@@ -539,25 +539,46 @@ function forage(ctx, idx, cell, h) {
 // the species nesting at a hex walked on a leg, and how (NEST): { species, kind } or null. At most one nest
 // a leg: the first hex where one is noticed (a Gallimimus along notices them twice as often)
 const gallis = (s, p) => foragersOf(s, p.members.filter(id => !isDown(p, id))).some(id => FORAGE.by[explorerOf(s, id).type].includes('nest'));
+// The species nesting in a land, each with its share of the nests found there (NEST): [[species, share]]
+const shares = new Map();
+export function nestShares(biome) {
+  if (shares.has(biome)) return shares.get(biome);
+  const here = NEST.where[biome] || {};
+  const weight = Object.fromEntries(Object.entries(here).map(([sp, wt]) => {
+    const best = Math.max(...Object.values(NEST.where).map(x => x[sp] || 0)), kind = NEST.kind[sp];
+    return [sp, NEST.sees[kind] * (kind === 'buried' ? 1 : NEST.rarity[SPECIES[sp].rarity]) * wt / best];
+  }));
+  const total = Object.values(weight).reduce((t, x) => t + x, 0) || 1;
+  let out = Object.entries(weight).map(([sp, x]) => [sp, x / total]);
+  // (a legendary is never more than NEST.legendary of them, the rest sharing what it gives up)
+  const capped = out.filter(([sp, x]) => SPECIES[sp].rarity === 'Legendary' && x > NEST.legendary);
+  if (capped.length && capped.length < out.length) {
+    const freed = capped.reduce((t, [, x]) => t + x - NEST.legendary, 0), rest = out.filter(([sp]) => !capped.some(([c]) => c === sp)).reduce((t, [, x]) => t + x, 0);
+    out = out.map(([sp, x]) => [sp, capped.some(([c]) => c === sp) ? NEST.legendary : x + freed * x / rest]);
+  }
+  shares.set(biome, out);
+  return out;
+}
 function nestRoll(s, p, idx) {
   const w = W(s), h = parseKey(p.leg.path[idx]), cell = cellAt(w.seed, h);
   if (!cell || nearOf(w.seed, h) <= NEST_CALM || p.leg.train) return null;
   // (a Gallimimus notices nests twice as often, a scout sniffs them out too: SCOUT.egg)
-  const here = NEST.where[cell.biome] || {}, rand = seededRand(`nest:${w.seed}:${p.leg.n}:${idx}`);
+  const here = nestShares(cell.biome), rand = seededRand(`nest:${w.seed}:${p.leg.n}:${idx}`);
+  if (!here.length) return null;
   const more = (gallis(s, p) ? FORAGE.more : 1) * (hasScout(s, p.members.filter(id => !isDown(p, id))) ? SCOUT.egg : 1);
-  for (const [kind, chance] of Object.entries(NEST.find)) {
-    const kinds = Object.entries(here).filter(([sp]) => NEST.kind[sp] === kind);
-    if (!kinds.length || rand() >= chance * more) continue;
-    const total = kinds.reduce((t, [, wt]) => t + wt, 0);
-    let r = rand() * total;
-    for (const [sp, wt] of kinds) if ((r -= wt) <= 0) return { species: sp, kind };
-    return { species: kinds.at(-1)[0], kind };
-  }
-  return null;
+  const kinds = new Set(here.map(([sp]) => NEST.kind[sp]));
+  const chance = 1 - [...kinds].reduce((t, k) => t * (1 - NEST.find[k]), 1);
+  if (rand() >= Math.min(1, chance * more)) return null;
+  let r = rand();
+  for (const [sp, x] of here) if ((r -= x) <= 0) return { species: sp, kind: NEST.kind[sp] };
+  const [sp] = here.at(-1);
+  return { species: sp, kind: NEST.kind[sp] };
 }
+// a nest noticed at the hex at idx of the leg: none within NEST.gap hexes of the last one
 function nestAt(s, p, idx) {
-  for (let i = 0; i < idx; i++) if (nestRoll(s, p, i)) return null;
-  return nestRoll(s, p, idx);
+  let last = -Infinity;
+  for (let i = 0; i < idx; i++) if (i - last >= NEST.gap && nestRoll(s, p, i)) last = i;
+  return idx - last >= NEST.gap ? nestRoll(s, p, idx) : null;
 }
 // The nest as the team finds it: { species, name, nest: how it nests (NEST.kind), state: 'alone' (left, or a parent away to feed:
 // empty), 'empty', 'watched' (a parent close by, watching), 'colony', 'unseen' (a parent on it that hasn't
@@ -578,8 +599,10 @@ export function nestView(s, p, idx) {
   const sp = SPECIES[species];
   const foe = unitOf(n > 1 ? `${sp.species} colony (${n})` : `Nesting ${sp.species}`, Array.from({ length: n }, () => wildFighter(species, AGES.prime.step)), n > 1);
   const parent = foe.members[0];
-  const decoys = team.flatMap((u, i) => u.members.map((f, j) => ({ id: units[i].members[j], f }))).filter(({ id, f }) => id !== PLAYER_ID && f.agi >= parent.agi * 0.8)
-    .map(({ id, f }) => ({ id, name: f.name, chance: Math.min(0.9, f.agi / (f.agi + parent.agi) + NEST.lure) }));
+  // (bait: one of the team that would run from the parent anyway; its speed against the parent's)
+  const lone = state === 'unseen' || state === 'seen' || state === 'watched';
+  const decoys = !lone ? [] : team.flatMap((u, i) => (fears(u, foe) || (u.members[0].role || 'attacker') === 'noncombatant' ? u.members.map((f, j) => ({ id: units[i].members[j], f })) : []))
+    .filter(({ id }) => id !== PLAYER_ID).map(({ id, f }) => ({ id, name: f.name, chance: f.agi / (f.agi + parent.agi) }));
   return { species, name: sp.species, nest: kind, state, foe, eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, wait: NEST.wait, volcano: biome === 'volcano' };
 }
 // an egg taken from a nest of a species, carried home
@@ -609,7 +632,7 @@ function nestEvent(ctx, ev, choice) {
   const battle = () => { const b = fight(ctx, ev, rand, { as, defend: true, guard: true, silent: true }); told.battle = b; if (b.win && !ctx.gone) told.egg = takeEgg(ctx, v.species, ev.idx); };
   const act = v.full ? 'leave' : choice.nest;
   const can = {
-    take: ['alone', 'empty'].includes(v.state), fight: true, sneak: v.state === 'unseen', wait: v.state === 'unseen', lure: v.state === 'unseen' && v.decoys.length,
+    take: ['alone', 'empty'].includes(v.state), fight: true, sneak: v.state === 'unseen', wait: v.state === 'unseen', lure: v.decoys.length > 0,
   };
   if (!act || !can[act]) { tell(); return true; }
   told.act = act;
@@ -628,12 +651,9 @@ function nestEvent(ctx, ev, choice) {
   } else if (act === 'lure') {
     const d = v.decoys.find(x => x.id === choice.decoy) || v.decoys[0];
     told.decoy = { id: d.id, name: d.name };
+    // outrun, it comes back to the team once the egg is taken; caught, it is killed
     if (rand() < d.chance) told.egg = takeEgg(ctx, v.species, ev.idx);
-    else {
-      // the parent turned on the one luring it
-      const prey = teamUnits(s, standingUnits(s, p)).flatMap(u => u.members).find(f => f.name === d.name) || v.foe.members[0];
-      if (rand() < catchChance(v.foe, prey, told.biome)) told.caught = fall(ctx, d.id, rand() < caughtDeath(v.foe, prey));
-    }
+    else { told.caught = { id: d.id, name: d.name, died: true }; die(ctx, d.id); if (ctx.gone) { story.push(told); return true; } }
   } else if (act === 'fight') battle();
   tell();
   return true;
