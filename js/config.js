@@ -855,7 +855,7 @@ export const NEST = {
   },
   fertile: 0.9, hatched: 0.2,
   watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, candle: { brooded: [0.1, 0.1], guarded: [0.15, 0.15] },
-  cost: 1, colony: [2, 4], fumes: 0.35, carry: 3, gap: 10,
+  cost: 1, colony: [3, 4], fumes: 0.35, carry: 3, gap: 10,
   sees: { colony: 0.04, creche: 0.02, watched: 0.015, brooded: 0.015, guarded: 0.01, buried: 0.005 },
   rarity: { Starter: 1, Common: 1, Uncommon: 0.75, Rare: 0.5, Epic: 0.3, Legendary: 0.15 }, legendary: 0.02,
 };
@@ -956,7 +956,9 @@ export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 // end because of a bug (no real fight comes near it); it then counts as lost.
 export const FIGHT_SAFETY = 10000;
 // a pack or herd's morale: once it has lost this share of its members (one of two, two of three, half
-// of a bigger one), the rest run off and the fight is over for them
+// of a bigger one), the rest run off and the fight is over for them. A predator pack's alpha down
+// counts as two of them (the pack falls apart later, not on the spot); a herd whose alpha is down
+// breaks up and runs (as an elephant herd that loses its matriarch)
 export const ROUT = 0.5;
 // Hunting what keeps away from the team: the team's best hunter (a carnivore with BODY hunt, no
 // smaller than its prey) against the prey's agility: (agility + hunt) / (that + the prey's agility),

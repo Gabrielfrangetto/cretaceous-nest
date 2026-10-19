@@ -629,10 +629,10 @@ export function nestView(s, p, idx) {
     : r < NEST.empty[kind] ? 'empty' : rand() < seen ? 'seen' : 'unseen';
   const n = kind === 'colony' ? NEST.colony[0] + Math.floor(rand() * (NEST.colony[1] - NEST.colony[0] + 1)) : 1;
   const sp = SPECIES[species];
-  // (each parent its own, the same however often this nest is looked at; a colony's strongest its alpha)
+  // (each its own, the same however often this nest is looked at. A colony has no alpha: the nest's two
+  // parents defend it to the end, and the nearest neighbors join in, giving up once badly hurt)
   const foeRand = seededRand(`nest-foe:${w.seed}:${p.leg.n}:${idx}`);
-  const adults = Array.from({ length: n }, () => wildFighter(species, AGES.prime.step, false, foeRand));
-  if (n > 1) { const top = adults.reduce((a, m, i) => (m.power > adults[a].power ? i : a), 0); adults[top] = { ...adults[top], alpha: true }; }
+  const adults = Array.from({ length: n }, (_, i) => ({ ...wildFighter(species, AGES.prime.step, false, foeRand), ...(n > 1 && i >= 2 ? { neighbor: true } : {}) }));
   const foe = unitOf(n > 1 ? `${sp.species} colony (${n})` : `Nesting ${sp.species}`, adults, n > 1);
   const parent = foe.members[0];
   // (bait: one of the team that would run from the parent anyway; its speed against the parent's)

@@ -235,6 +235,8 @@ export function playFight(battle, summary, who) {
         : blow.hooked ? 'Hooked!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!'
         : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.butt ? 'Headbutt!' : blow.stomp ? 'Stomp!' : blow.swipe ? 'Tail swing!' : blow.guard ? 'Tail swing!' : (blow.counter || blow.charge) && blow.spiked ? 'Tail spikes!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(actor, move, 'mad');
+      // a colony's neighbor badly hurt went back to its own nest
+      if (blow.gaveUp) pop(target, 'Went back to its nest', 'miss');
       if (blow.miss) pop(target, 'Miss', 'miss');
       // a blow its hide stops, or a throat covered in bone
       else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : blow.shrugged ? 'Armor held!' : 'No effect', 'miss');

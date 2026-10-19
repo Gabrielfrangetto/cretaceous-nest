@@ -628,6 +628,12 @@ export function teamFight(units, foe, rand, opts = {}) {
       bone = { ...bone, escaped: true };
       herdRuns = true;
     }
+    // a colony's neighbor (not a parent of the nest) badly hurt gives up and goes back to its own
+    if (t === 1 && prey.neighbor && hp[t][v][m] > 0 && hp[t][v][m] < prey.hp * FLIGHT.below) {
+      hp[t][v][m] = 0;
+      brokeAway.add(E(t, v, m));
+      bone = { ...bone, gaveUp: true };
+    }
     // a giant's stomp and tail find one target
     const also = att.giant ? [] : sweep(att, target, hp[t][v], m, x => rounded(hitOf(att, target.members[x], roll) * buff * boost * open));
     log.push(entry(s, u, at, v, m, { dmg, left: hp[t][v][m], ...bone, ...grab, ...(spiked ? { spiked: true } : {}), ...(hooked && dmg > 0 ? { hooked: true } : {}), ...(butt ? { butt: true } : {}), ...(swipe ? { swipe: true } : {}), ...(stomp ? { stomp: true } : {}), ...(also.length ? { also } : {}), ...extra }));
@@ -745,10 +751,17 @@ export function teamFight(units, foe, rand, opts = {}) {
     log.push(selfEntry(s, u, how));
   };
   // morale: a pack or herd that has lost ROUT of its members runs off, ours as well as the foe's
-  const routs = list => list.length >= 2 && list.length - standing(list).length >= list.length * ROUT;
+  const routs = (s, u) => {
+    const list = hp[s][u], unit = S[s][u];
+    if (list.length < 2) return false;
+    const lead = unit.members.findIndex(m => m.alpha), alphaDown = lead >= 0 && list[lead] <= 0;
+    // a herd whose alpha is down breaks up; a pack counts its alpha as two
+    if (alphaDown && roleOf(unit) !== 'attacker') return true;
+    return list.length - standing(list).length + (alphaDown ? 1 : 0) >= list.length * ROUT;
+  };
   const checkRouts = () => {
     for (const s of [0, 1]) for (const u of [...active[s]]) {
-      if (over() || !routs(hp[s][u]) || !alive(s, u).length || (s === 1 && opts.guard)) continue;
+      if (over() || !routs(s, u) || !alive(s, u).length || (s === 1 && opts.guard)) continue;
       runOff(s, u);
     }
   };

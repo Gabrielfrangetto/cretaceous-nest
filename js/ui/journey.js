@@ -351,7 +351,7 @@ function decide(v) {
         alone: v.nest === 'buried' ? `You noticed a patch of churned, warm earth: ${N}, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rose' : ''}.${whose}` : `You came upon ${N}, the eggs buried, and no parent in sight.${whose}`,
         empty: `You came upon ${N} of ${eggs(v.clutch)}, still warm: the parent had gone off to feed, and it wouldn't be long.${whose}`,
         watched: v.nest === 'creche' ? `You came upon ${article(v.name)} <strong>${sp}</strong> with its young and its nest, never leaving them.` : `You came upon ${article(v.name)} <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
-        colony: `You came upon ${article(v.name)} <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
+        colony: `You came upon ${article(v.name)} <strong>${sp}</strong> nesting colony: nest after nest, and adults all about. Go for one, and its parents would defend it, the neighbors joining in.`,
         unseen: `You came upon ${article(v.name)} <strong>${sp}</strong> sitting on its nest. It hadn't seen you yet.`,
         seen: `You came upon ${article(v.name)} <strong>${sp}</strong> on its nest, and it had seen you: it rose, calling and threatening, warning you off. It wouldn't attack unless you came closer.`,
       }[v.state];
@@ -448,7 +448,7 @@ function nestHTML(e) {
     case 'candle': return `You held an egg from the ${e.known === false ? '' : `${sp} `}nest up to the light.${e.back ? ` The parent came back and fell on you.${fought}${looked}` : e.fertile ? ' There was life inside.' : ' There was no life inside.'}${egg}${e.none ? ' There were no eggs left.' : ''}${full}`;
     case 'sneak': return `You crept up on ${found}.${e.spotted ? ` It noticed you and attacked.${fought}${looked}` : ''}${egg}${full}`;
     case 'lure': return `You came upon ${found}. ${esc(e.decoy.name)} darted in as bait, and the ${sp} gave chase.${e.eggs && e.eggs.length ? ` ${esc(e.decoy.name)} outran it and circled back to you.` : e.caught ? ` It ran ${esc(e.decoy.name)} down and killed it.` : ''}${egg}`;
-    case 'fight': return `You went for ${found}, and the ${e.state === 'colony' ? 'adults' : 'parent'} defended it to the end.${fought}${looked}${egg}${full}`;
+    case 'fight': return `You went for ${found}, and ${e.state === 'colony' ? 'the parents defended it to the end, the nearest neighbors joining in' : 'the parent defended it to the end'}.${fought}${looked}${egg}${full}`;
     default: return '';
   }
 }

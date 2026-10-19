@@ -1284,3 +1284,38 @@ test('fear: a predator runs from a bigger predator, and from a plant eater more 
     assert.equal(keepsAway(threat, alone), false, species);
   }
 });
+
+test("a herd whose alpha falls breaks up; a pack's alpha down counts as two of its losses", async () => {
+  const { seededRand: sr } = await import('../js/economy.js');
+  // a herd: its alpha down, it runs at once, whoever else still stands
+  const herd = () => { const u = encounterUnit({ species: 'proto', pack: [4, 4], herd: true, loot: [] }, 6); u.members[0] = { ...u.members[0], alpha: true, hp: 1 }; return u; };
+  const hunters = () => unitOf('p', Array.from({ length: 3 }, (_, i) => ({ ...fighterOf(dino('r' + i, 60, 'rex')), fear: undefined })), true);
+  let broke = 0;
+  for (let i = 0; i < 20; i++) {
+    const r = realFight([hunters()], herd(), sr('herd-alpha' + i));
+    if (r.foeRouted && r.foeHps[0] <= 0 && r.foeHps.slice(1).some(h => h > 0)) broke++;
+  }
+  assert.ok(broke > 0, `${broke} herds broke up with their alpha down`);
+});
+
+test("a colony's nest: its two parents fight to the end, the neighbors give up once badly hurt", async () => {
+  const { reach } = await import('./journey-helper.js');
+  const { pendingView, partyOf } = await import('../js/journey.js');
+  const { NEST: N } = await import('../js/config.js');
+  const far = landHexes(42).filter(h => hexDist(h) >= 16 && hexDist(h) <= 24).map(h => hexKey(...h));
+  let seen = 0;
+  for (let i = 0; i < 600 && seen < 3; i++) {
+    const s = game(dino('ad', 30, 'galli'));
+    s.world.trips = i * 3;
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far[i % far.length] }, T0);
+    if (!r.ok || !reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest')) continue;
+    const v = pendingView(s, partyOf(s, r.expedition.id));
+    if (v.state !== 'colony') continue;
+    seen++;
+    const m = v.foe.members;
+    assert.ok(m.length >= N.colony[0] && m.length <= N.colony[1]);
+    assert.ok(!m.some(x => x.alpha));
+    assert.equal(m.filter(x => !x.neighbor).length, 2);
+  }
+  assert.ok(seen > 0, 'a colony found');
+});
