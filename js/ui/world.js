@@ -247,26 +247,27 @@ function paintMap() {
     pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
     const big = SIZE * scale >= 18, r = big ? SIZE * 0.42 : Math.max(2.5, px(3));
-    // (a hex the way passes more than once shows all its numbers together: "3 · 5")
+    // (a hex the way passes more than once shows a dot for each time, one above the other)
     const visits = new Map();
     keys.forEach((k, i) => { if (i) visits.set(k, [...(visits.get(k) || []), i]); });
     for (const [k, nums] of visits) {
-      const [x, y] = center(parseKey(k)), pin = route.includes(k), rr = pin ? r * 1.25 : r;
-      const label = nums.join(' · ');
-      ctx.font = `700 ${(r * (label.length > 2 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
-      const half = big ? Math.max(0, ctx.measureText(label).width / 2 - rr * 0.6) : 0;
-      ctx.beginPath();
-      if (half) { ctx.arc(x - half, y, rr, Math.PI / 2, Math.PI * 1.5); ctx.arc(x + half, y, rr, -Math.PI / 2, Math.PI / 2); ctx.closePath(); }
-      else ctx.arc(x, y, rr, 0, Math.PI * 2);
-      ctx.fillStyle = pin ? heart : accent;
-      ctx.fill();
-      if (freshWater(w.seed, parseKey(k))) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
-      if (big) {
-        ctx.fillStyle = accentInk;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, x, y + r * 0.08);
-      }
+      const [x, y] = center(parseKey(k)), pin = route.includes(k), water = freshWater(w.seed, parseKey(k));
+      const n = nums.length, rr = (pin ? r * 1.25 : r) * (n > 1 ? Math.max(0.6, 1.1 / n + 0.3) : 1), gap = rr * 2.25;
+      nums.forEach((num, j) => {
+        const cx = x, cy = y + (j - (n - 1) / 2) * gap;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+        ctx.fillStyle = pin ? heart : accent;
+        ctx.fill();
+        if (water) { ctx.lineWidth = Math.max(2, px(2)); ctx.strokeStyle = '#5b95c8'; ctx.stroke(); }
+        if (big) {
+          ctx.fillStyle = accentInk;
+          ctx.font = `700 ${(rr * (num > 99 ? 0.8 : 1)).toFixed(1)}px system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(num), cx, cy + rr * 0.08);
+        }
+      });
     }
     if (grab && grab.target) {
       const [tx, ty] = center(parseKey(grab.target));
