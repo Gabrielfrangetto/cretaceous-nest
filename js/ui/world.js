@@ -558,6 +558,9 @@ function sideHTML(t) {
     <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. You always go, with one of the teams you set up in the Team tab: up to ${TEAM_SLOTS - 1} juvenile or adult dinosaurs, or packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
+  // you are out with a team: it goes on from where it is, no need to come home first
+  const mine = S.world.expeditions.find(e => e.members.includes(PLAYER_ID));
+  if (mine) return goOnHTML(mine, h, d, t);
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
@@ -606,6 +609,26 @@ function sideHTML(t) {
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, after ${STAGES[1].meals} meals.</p>` : ''}`;
+}
+
+// The hex picked while you are out with a team: it goes there from where it waits (or once it gets
+// there, if it is on its way), home included
+function goOnHTML(p, h, d, t) {
+  const title = d === 0 ? 'Your nest' : esc(placeName(cellAt(S.world.seed, h)));
+  const here = selected === p.at;
+  const where = esc(placeName(cellAt(S.world.seed, parseKey(p.at))));
+  if (p.leg) return `<h3>${title}</h3><p class="hint">Your team is on its way ${p.leg.to === '0,0' ? 'home' : `to the ${esc(placeName(cellAt(S.world.seed, parseKey(p.leg.to))))}`}. Once it gets there, it can go on to any hex from where it is.</p>`;
+  if (here) return `<h3>${title}</h3><p class="hint">Your team is here, waiting for your orders.</p>`;
+  if (p.camp) return `<h3>${title}</h3><p class="hint">Your team is in camp in the ${where}. Break camp to go on.</p>`;
+  if (!canReach(S, selected)) return `<h3>${title}</h3><p class="hint">${PROBLEMS.unreachable}</p>`;
+  const units = teamUnits(S, standingUnits(S, p)), path = routePath(S.world.seed, p.at, selected, []);
+  const seen = d === 0 || isRevealed(S, selected), first = d > 0 && !S.world.visited.includes(selected);
+  return `<h3>${title}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
+    <p class="hint">From the ${where}, where your team waits: ${legMins(S, p.members, p.at, selected)} min${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
+    ${units.length ? routeHTML(units, selected, d === 0, path) : ''}
+    <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore from here'}</button></div>
+    <p class="hint">You will see the way there, and can change it before the team sets off.</p>`;
 }
 
 // Tracing a route: the waypoints tapped so far, and what the way would be like
