@@ -26,8 +26,10 @@ export const ANCHORS = {
     f: { head: { x: 0.62, y: 0.1, w: 0.3, r: 0 }, neck: { x: 0.52, y: 0.43, w: 0.28, r: 0 }, body: { x: 0.48, y: 0.63, w: 0.42, r: 0 }, back: { x: 0.35, y: 0.5, w: 0.42, r: -10 } },
   },
 };
-// the female Dilophosaurus, drawn as a hatchling in profile (an adult wears it grown until it has its own)
+// the Dilophosaurus: the female drawn as a hatchling in profile (an adult wears it grown until it has
+// its own), the male as an adult
 ANCHORS.dilo = {
+  m: { head: { x: 0.93, y: 0.15, w: 0.16, r: 0 }, neck: { x: 0.837, y: 0.3, w: 0.1, r: 0 }, body: { x: 0.68, y: 0.42, w: 0.24, r: 0 }, back: { x: 0.6, y: 0.3, w: 0.24, r: 0 } },
   f: { head: { x: 0.904, y: 0.106, w: 0.16, r: 0 }, neck: { x: 0.837, y: 0.255, w: 0.1, r: 0 }, body: { x: 0.698, y: 0.404, w: 0.24, r: 0 }, back: { x: 0.643, y: 0.305, w: 0.24, r: 0 } },
 };
 // species without anchors of their own yet start from a species with a similar body, drawn as their
