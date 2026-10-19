@@ -222,8 +222,8 @@ function choose(choice) {
 }
 function riskHTML(units, death) {
   const at = units.map((u, i) => ({ name: u.name, p: Math.max(...death[i]) })).filter(x => x.p >= 0.01);
-  if (!at.length) return '<p class="hint">Nobody is likely to die if it comes to a fight.</p>';
-  return `<p class="hint warn-text">If it comes to a fight: ${at.map(x => `${esc(x.name)} would be ${riskOf(x.p)}`).join('; ')}.</p>`;
+  if (!at.length) return '<p class="hint">Nobody was likely to die had it come to a fight.</p>';
+  return `<p class="hint warn-text">Had it come to a fight: ${at.map(x => `${esc(x.name)} would have been ${riskOf(x.p)}`).join('; ')}.</p>`;
 }
 const standText = (st, past = false) => {
   const what = `${st.lair ? 'Alpha ' : ''}${st.species}${st.group ? ' ' + st.group : ''}`;
@@ -241,64 +241,64 @@ function decide(v) {
     const { win, death } = teamOdds(v.units, v.foe, 120, opts);
     const r = v.run, chance = r ? r.chance * (1 - r.safe) : 0;
     const runner = r && (r.id === PLAYER_ID ? 'you' : esc(r.fighter.name));
-    const runText = !r || chance < 0.01 ? 'It can\'t catch any of you.'
-      : r.fights ? `It has ${chanceOf(chance)} chance of catching ${runner}, and then there's no escaping the fight.`
-      : `It has ${chanceOf(chance)} chance of catching ${runner}, who would be ${riskOf(chance * r.death)}.`;
-    html = `<p>${esc(listNames(v.prey || []))} ${(v.prey || []).length > 1 ? 'spot' : 'spots'} ${article(v.name)} <strong>${esc(v.name)}</strong> charging the group and ${(v.prey || []).length > 1 ? 'scatter' : 'bolts'}. ${v.mounted ? 'You are still riding one of them.' : v.alone ? 'You are on your own.' : 'You stand with the rest.'}</p>
-      <div class="row">${btn({ fight: true }, `${v.mounted ? 'Jump down and face it' : 'Face it'} <span class="hint">(${dangerOf(win)})</span>`)}${btn({ flee: true }, v.mounted ? 'Ride off' : 'Run for it', true)}</div>
+    const runText = !r || chance < 0.01 ? 'It couldn\'t catch any of you.'
+      : r.fights ? `It had ${chanceOf(chance)} chance of catching ${runner}, and then there would be no escaping the fight.`
+      : `It had ${chanceOf(chance)} chance of catching ${runner}, who would have been ${riskOf(chance * r.death)}.`;
+    html = `<p>${esc(listNames(v.prey || []))} spotted ${article(v.name)} <strong>${esc(v.name)}</strong> charging the group and ${(v.prey || []).length > 1 ? 'scattered' : 'bolted'}. ${v.mounted ? 'You were still riding one of them.' : v.alone ? 'You were on your own.' : 'You stood with the rest.'}</p>
+      <div class="row">${btn({ fight: true }, `${v.mounted ? 'Jumped down and faced it' : 'Faced it'} <span class="hint">(${dangerOf(win)})</span>`)}${btn({ flee: true }, v.mounted ? 'Rode off' : 'Ran for it', true)}</div>
       <p class="hint">${runText}</p>${riskHTML(v.units, death)}`;
   } else if (v.kind === 'standoff') {
     const { win, death } = teamOdds(v.units, v.foe, 120, opts);
-    html = `<p>${standText(v)}</p><div class="row">${btn({ fight: true }, `Fight ${them(v.count)} <span class="hint">(${dangerOf(win)})</span>`)}${btn({}, `Leave ${them(v.count)} be`, true)}</div>${riskHTML(v.units, death)}`;
+    html = `<p>${standText(v, true)}</p><div class="row">${btn({ fight: true }, `Fought ${them(v.count)} <span class="hint">(${dangerOf(win)})</span>`)}${btn({}, `Left ${them(v.count)} be`, true)}</div>${riskHTML(v.units, death)}`;
   } else if (v.kind === 'sighting') {
-    html = `<p>The team spots ${article(v.name)} <strong>${esc(v.name)}</strong> at a distance. Hunt one of them?</p>
-      <div class="row">${btn({ hunt: true }, `Hunt <span class="hint">(${esc(v.hunter || '')}: ${chanceOf(v.chance)} chance)</span>`)}${btn({}, 'Let them be', true)}</div>`;
+    html = `<p>The team spotted ${article(v.name)} <strong>${esc(v.name)}</strong> at a distance. Did it hunt one of them?</p>
+      <div class="row">${btn({ hunt: true }, `Hunted one <span class="hint">(${esc(v.hunter || '')}: ${chanceOf(v.chance)} chance)</span>`)}${btn({}, 'Left them be', true)}</div>`;
   } else if (v.kind === 'witness') {
     const live = standingUnits(S, p);
     const buttons = [], cant = [];
     for (const o of v.options || []) {
-      if (o.prey.ok) buttons.push(btn({ witness: { act: 'prey', hunter: o.id } }, `Hunt the ${esc(v.prey.name)} with ${esc(o.name)} <span class="hint">(${chanceOf(o.prey.chance)} chance${o.prey.backsOff ? '' : ', then the hunter may fight you for it'})</span>`));
+      if (o.prey.ok) buttons.push(btn({ witness: { act: 'prey', hunter: o.id } }, `Hunted the ${esc(v.prey.name)} with ${esc(o.name)} <span class="hint">(${chanceOf(o.prey.chance)} chance${o.prey.backsOff ? '' : ', then the hunter might fight you for it'})</span>`));
       if (o.predator.ok) {
-        let tag = `it runs: ${chanceOf(o.predator.chance)} chance to catch it`;
+        let tag = `it would run: ${chanceOf(o.predator.chance)} chance to catch it`;
         if (!o.predator.chase) {
           const who = live.filter(u => u.kind === 'player' || u.id === o.id);
           const f = teamOdds(teamUnits(S, who), v.hunterFoe, 120, { ...opts, hp: who.map(u => u.members.map(m => healthOf(p, m))), defend: true });
           tag = `a fight: ${dangerOf(f.win)}`;
         }
-        buttons.push(btn({ witness: { act: 'predator', hunter: o.id } }, `Go after the ${esc(v.hunter.name)} with ${esc(o.name)} <span class="hint">(${tag})</span>`));
+        buttons.push(btn({ witness: { act: 'predator', hunter: o.id } }, `Went after the ${esc(v.hunter.name)} with ${esc(o.name)} <span class="hint">(${tag})</span>`));
       }
       if (!o.prey.ok && !o.predator.ok) cant.push(`${esc(o.name)} (${esc(o.prey.reason === o.predator.reason ? o.prey.reason : `prey: ${o.prey.reason}; hunter: ${o.predator.reason}`)})`);
     }
-    html = `<p>${cap(wildName(v.hunter))} ${v.hunter.count > 1 ? 'are' : 'is'} chasing ${wildName(v.prey)}. Do you step in?</p>
-      <div class="row wrap">${buttons.join('')}${btn({}, 'Let it be', true)}</div>${cant.length ? `<p class="hint">Can't step in: ${cant.join(', ')}.</p>` : ''}`;
+    html = `<p>${cap(wildName(v.hunter))} ${v.hunter.count > 1 ? 'were' : 'was'} chasing ${wildName(v.prey)}. Did the team step in?</p>
+      <div class="row wrap">${buttons.join('')}${btn({}, 'Left it be', true)}</div>${cant.length ? `<p class="hint">Couldn't step in: ${cant.join(', ')}.</p>` : ''}`;
   } else if (v.kind === 'nest') {
     const { win, death } = teamOdds(v.units, v.foe, 120, { ...opts, defend: true, guard: true });
     const fightBtn = label => btn({ nest: 'fight' }, `${label} <span class="hint">(${dangerOf(win)})</span>`);
-    const leave = btn({}, 'Leave it be', true);
+    const leave = btn({}, 'Left it be', true);
     const sp = esc(v.name);
     const intro = {
-      alone: v.nest === 'buried' ? `The team notices a patch of churned, warm earth: a <strong>${sp}</strong> nest, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rise' : ''}.` : `A <strong>${sp}</strong> nest, the eggs buried, and no parent in sight.`,
-      empty: `A <strong>${sp}</strong> nest, and the parent gone, off to feed. It won't be long.`,
-      watched: v.nest === 'creche' ? `A <strong>${sp}</strong> with its young and its nest, never leaving them.` : `A <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
-      colony: `A <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
-      unseen: `A <strong>${sp}</strong> sits on its nest. It hasn't seen the team yet.`,
-      seen: `A <strong>${sp}</strong> on its nest has seen the team: it rises, calling and threatening, warning you off. It won't attack unless you come closer.`,
+      alone: v.nest === 'buried' ? `The team noticed a patch of churned, warm earth: a <strong>${sp}</strong> nest, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rose' : ''}.` : `The team came upon a <strong>${sp}</strong> nest, the eggs buried, and no parent in sight.`,
+      empty: `The team came upon a <strong>${sp}</strong> nest, the parent gone, off to feed. It wouldn't be long.`,
+      watched: v.nest === 'creche' ? `The team came upon a <strong>${sp}</strong> with its young and its nest, never leaving them.` : `The team came upon a <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
+      colony: `The team came upon a <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
+      unseen: `The team came upon a <strong>${sp}</strong> sitting on its nest. It hadn't seen the team yet.`,
+      seen: `The team came upon a <strong>${sp}</strong> on its nest, and it had seen them: it rose, calling and threatening, warning them off. It wouldn't attack unless they came closer.`,
     }[v.state];
     const buttons = [];
-    if (v.full) buttons.push(`<span class="hint">The team already carries ${v.eggs} eggs: it can't take another.</span>`);
-    else if (v.state === 'alone' || v.state === 'empty') buttons.push(btn({ nest: 'take' }, `${v.nest === 'buried' || v.nest === 'watched' ? 'Dig up an egg' : 'Snatch an egg'}${v.state === 'empty' ? ' <span class="hint">(it may come back)</span>' : ''}`));
+    if (v.full) buttons.push(`<span class="hint">The team already carried ${v.eggs} eggs: it couldn't take another.</span>`);
+    else if (v.state === 'alone' || v.state === 'empty') buttons.push(btn({ nest: 'take' }, `${v.nest === 'buried' || v.nest === 'watched' ? 'Dug up an egg' : 'Snatched an egg'}${v.state === 'empty' ? ' <span class="hint">(it might come back)</span>' : ''}`));
     else if (v.state === 'unseen') {
-      buttons.push(btn({ nest: 'sneak' }, `Creep up and take one <span class="hint">(${chanceOf(v.sneak)} chance it doesn't notice)</span>`));
-      buttons.push(btn({ nest: 'wait' }, `Wait for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
-      buttons.push(fightBtn('Drive it off its nest'));
-    } else buttons.push(fightBtn(v.state === 'colony' ? 'Raid the edge of the colony' : v.state === 'seen' ? 'Stand your ground and take an egg' : 'Take an egg by force'));
+      buttons.push(btn({ nest: 'sneak' }, `Crept up and took one <span class="hint">(${chanceOf(v.sneak)} chance it wouldn't notice)</span>`));
+      buttons.push(btn({ nest: 'wait' }, `Waited for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
+      buttons.push(fightBtn('Drove it off its nest'));
+    } else buttons.push(fightBtn(v.state === 'colony' ? 'Raided the edge of the colony' : v.state === 'seen' ? 'Stood their ground and took an egg' : 'Took an egg by force'));
     // bait: one that would run from it anyway draws it off, then comes back; caught, it is killed
-    if (!v.full) for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Use ${esc(d.name)} as bait <span class="hint">(${chanceOf(d.chance)} chance to outrun it; caught, it dies)</span>`, true));
+    if (!v.full) for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Used ${esc(d.name)} as bait <span class="hint">(${chanceOf(d.chance)} chance to outrun it; caught, it would die)</span>`, true));
     html = `<p>${intro}</p><div class="row wrap">${buttons.join('')}${leave}</div>${v.full || v.state === 'alone' || v.state === 'empty' ? '' : riskHTML(v.units, death)}`;
   } else if (v.kind === 'go-on') {
-    html = `<p>What now? Go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
-      ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'are' : 'is'} down: carried, out of any fight.</p>` : ''}
-      <div class="row">${btn({}, 'Go on')}${btn({ back: true }, 'Turn back', true)}</div>`;
+    html = `<p>What then? Did the team go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
+      ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
+      <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}</div>`;
   }
   actBox.innerHTML = html;
   actBox.querySelectorAll('[data-choice]').forEach(b => b.addEventListener('click', () => choose(JSON.parse(b.dataset.choice))));

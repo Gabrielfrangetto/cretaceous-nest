@@ -230,14 +230,14 @@ export function playFight(battle, summary, who) {
     } else {
       lunge(actor);
       // what it did: a hold, a claw, a charge, striking back, a blow through an opening...
-      const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Holding on!'
+      const move = blow.gripped ? 'Crushing grip!' : blow.beak === 'pin' ? 'Pinned in its beak!' : blow.beak === 'hold' ? 'Beak hold!' : blow.hold ? 'Held on!'
         : blow.grab === 'hold' ? 'Got a hold!' : blow.grab === 'kill' ? 'Seized!' : blow.grab === 'freed' ? 'Wrenched free!' : blow.latched ? 'Claw!'
         : blow.hooked ? 'Hooked!' : blow.latch === 'cling' ? 'Clinging on!' : blow.latch === 'pin' ? 'Pinned it!' : blow.slash ? 'Slash!' : blow.grab === 'cling' ? 'Grabbed on!'
         : blow.thorns ? 'Spikes!' : blow.gore ? 'Gored!' : blow.butt ? 'Headbutt!' : blow.stomp ? 'Stomp!' : blow.swipe ? 'Tail swing!' : blow.guard ? 'Tail swing!' : (blow.counter || blow.charge) && blow.spiked ? 'Tail spikes!' : blow.charge ? 'Charge!' : blow.counter ? 'Counter!' : blow.opening ? 'Opening!' : '';
       if (move) pop(actor, move, 'mad');
       if (blow.miss) pop(target, 'Miss', 'miss');
       // a blow its hide stops, or a throat covered in bone
-      else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : blow.shrugged ? 'Armor holds!' : 'No effect', 'miss');
+      else if (!blow.dmg) pop(target, blow.dome ? 'Hit the dome!' : blow.throat ? 'Throat guarded!' : blow.shrugged ? 'Armor held!' : 'No effect', 'miss');
       else {
         pop(target, '−' + blow.dmg, 'dmg');
         strike(target);

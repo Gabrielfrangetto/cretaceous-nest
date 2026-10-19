@@ -409,15 +409,15 @@ export function interveneOptions(s, exp, wt) {
   return units.map(u => {
     const unit = teamUnits(s, [u])[0], m = unit.members[0], sp = SPECIES[m.type] || {};
     const base = { id: u.id, name: unit.name };
-    if (!sp.hunt || (m.role || 'attacker') !== 'attacker') return { ...base, prey: { ok: false, reason: 'not a hunter' }, predator: { ok: false, reason: 'not a hunter' } };
+    if (!sp.hunt || (m.role || 'attacker') !== 'attacker') return { ...base, prey: { ok: false, reason: 'wasn\'t a hunter' }, predator: { ok: false, reason: 'wasn\'t a hunter' } };
     const wary = f => sizeRank(f.size) > sizeRank(m.fear || 'colossal');
     let onPrey;
-    if (wary(prey)) onPrey = { ok: false, reason: 'won\'t go near it' };
-    else if (!isPrey(m, prey)) onPrey = { ok: false, reason: 'doesn\'t hunt it' };
-    else { const o = huntOdds([unit], prey); onPrey = o ? { ok: true, chance: o.chance, backsOff: scares(unit, pred) } : { ok: false, reason: 'doesn\'t hunt it' }; }
+    if (wary(prey)) onPrey = { ok: false, reason: 'wouldn\'t go near it' };
+    else if (!isPrey(m, prey)) onPrey = { ok: false, reason: 'didn\'t hunt it' };
+    else { const o = huntOdds([unit], prey); onPrey = o ? { ok: true, chance: o.chance, backsOff: scares(unit, pred) } : { ok: false, reason: 'didn\'t hunt it' }; }
     let onPred;
-    if (wary(pred)) onPred = { ok: false, reason: 'won\'t go near it' };
-    else if (!unit.members.some(x => hitOf(x, pred, 1.25) > 0)) onPred = { ok: false, reason: 'can\'t hurt it' };
+    if (wary(pred)) onPred = { ok: false, reason: 'wouldn\'t go near it' };
+    else if (!unit.members.some(x => hitOf(x, pred, 1.25) > 0)) onPred = { ok: false, reason: 'couldn\'t hurt it' };
     else if (scares(unit, pred)) {
       // it runs from this hunter: a chase, its hunting skill and speed against the quickest of them
       const top = unit.members.reduce((b, x) => (x.agi > b.agi ? x : b));
