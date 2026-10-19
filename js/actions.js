@@ -24,3 +24,11 @@ export async function hatch() {
   if (!res) return { ok: false, reason: 'offline' };
   return res.ok ? { ok: true, ...res.result } : { ok: false, reason: res.reason };
 }
+
+// An event code: for signed-in players only the server knows whether it went in, so its answer is waited for
+export async function redeem(code) {
+  if (!accountActive()) return act('redeem', { code });
+  const res = await sendAction('redeem', { code });
+  if (!res) return { ok: false, reason: 'offline' };
+  return res.ok ? { ok: true, ...res.result } : { ok: false, reason: res.reason };
+}

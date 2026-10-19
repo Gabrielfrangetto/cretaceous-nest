@@ -2,7 +2,7 @@
 import { DAILY_REWARDS, ITEMS, EGG_TRAY_SIZE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { dailyStatus, nextDayAt, achievementList, claimableCount, roomFor } from '../economy.js';
-import { act } from '../actions.js';
+import { act, redeem } from '../actions.js';
 import { now } from '../clock.js';
 import { ITEM_ICONS } from '../art.js';
 import { esc, plural } from '../util.js';
@@ -17,6 +17,7 @@ const CODE_PROBLEMS = {
   invalid: 'That code doesn\'t exist. Check it and try again.',
   used: 'You have already redeemed this code.',
   expired: 'This code has expired.',
+  offline: 'Could not reach the server. Check your connection and try again.',
   'tray-full': `Your egg tray is full (${EGG_TRAY_SIZE} eggs). Hatch one first, then redeem the code.`,
 };
 
@@ -107,13 +108,14 @@ function render() {
     message = `Claimed day ${((r.streak - 1) % DAILY_REWARDS.length) + 1}: ${rewardText(r.reward)}.` + (lost ? ` The ${lost} didn't fit in your inventory.` : '');
     render();
   });
-  document.getElementById('codeForm').addEventListener('submit', ev => {
+  document.getElementById('codeForm').addEventListener('submit', async ev => {
     ev.preventDefault();
     const code = document.getElementById('codeInput').value;
     if (!code.trim()) return;
-    const r = act('redeem', { code });
+    ev.target.querySelector('button').disabled = true;
+    const r = await redeem(code);
     codeOk = r.ok;
-    codeMessage = r.ok ? (r.egg ? 'Code redeemed: an egg is waiting in the Incubator.' : 'Code redeemed.') : CODE_PROBLEMS[r.reason] || 'That code could not be redeemed.';
+    codeMessage = r.ok ? (r.egg ? 'Code redeemed: an egg is waiting in your egg tray, in the Incubator.' : 'Code redeemed.') : CODE_PROBLEMS[r.reason] || 'That code could not be redeemed.';
     render();
   });
   box.querySelectorAll('[data-claim]').forEach(b => b.addEventListener('click', () => {

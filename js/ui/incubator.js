@@ -89,6 +89,7 @@ function renderIncubator() {
           <div class="stages" id="stages"><span>Still</span><span>Wiggling</span><span>Chipping</span><span>Cracking</span><span>Ready</span></div>
         </div>
         <p class="hint" id="hint">Tap the egg to warm it. Each tap saves 1 second.</p>
+        ${(S.eggs || []).length ? `<p class="hint">${S.eggs.length === 1 ? '1 more egg is' : `${S.eggs.length} more eggs are`} waiting in your egg tray, ready once this one hatches.</p>` : ''}
         <div class="row" id="actions"></div>
       </div>
     </div>`;
@@ -236,6 +237,6 @@ export function initIncubator() {
   // only a replaced save redraws from scratch; normal changes are drawn by the actions above
   subscribe(kind => { if (kind === 'reset' && !hatching) { reveal = null; render(); } });
   // eggs laid in the Nest show up in the egg list next time the tab opens
-  onTabChange(name => { if (name === 'incubator' && !S.current && !reveal && !hatching) render(); });
+  onTabChange(name => { if (name === 'incubator' && !reveal && !hatching) render(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && S.current && !reveal && !hatching) update(); });
 }
