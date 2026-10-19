@@ -704,3 +704,8 @@ body.guide-room { padding-bottom: 70vh; }
 .event-art { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--bg); }
 .event-text p { margin: 0; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) { .journey-event, .event-card { transition: none; } }
+
+/* event codes, in the Rewards tab */
+.codes { display: grid; gap: 8px; margin: 18px 0; }
+.codes h2 { margin: 0; }
+.codes input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); flex: 1 1 180px; min-width: 0; max-width: 260px; text-transform: uppercase; letter-spacing: .04em; }

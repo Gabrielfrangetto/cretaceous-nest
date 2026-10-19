@@ -960,6 +960,15 @@ export const EGG_GENES = (d, lair) => {      // [min, max] genes
   return [Math.min(75, lo), Math.min(95, lo + 35)];
 };
 
+// Event codes, given out for events and promotions: each redeemed once per game for its reward
+// (egg: an egg of that species, as one found in a nest). Only each code's SHA-256 is kept here (of
+// 'cretaceous-nest:' and the code in capitals, spaces and hyphens left out), so the codes can't be read from the
+// game's own files. until: the last moment it can be redeemed (ms), or none.
+export const PROMO_SALT = 'cretaceous-nest:';
+export const PROMO_CODES = {
+  'rex-egg': { hash: 'a90ac73eab92cfb63aa2365772291af3071d523f428a357294f104f7695b0696', reward: { egg: 'rex' } },
+};
+
 // The Forge: equipment made from materials. needs: { item: count }.
 export const RECIPES = [
   { id: 'water_skin', needs: { clay: 4, amber: 1 } },

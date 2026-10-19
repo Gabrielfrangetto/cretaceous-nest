@@ -1,5 +1,5 @@
 // Rewards tab: the daily reward streak and the achievements, plus the badge on the tab.
-import { DAILY_REWARDS, ITEMS } from '../config.js';
+import { DAILY_REWARDS, ITEMS, EGG_TRAY_SIZE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { dailyStatus, nextDayAt, achievementList, claimableCount, roomFor } from '../economy.js';
 import { act } from '../actions.js';
@@ -12,6 +12,13 @@ const COIN = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" 
 const TROPHY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4a5 5 0 0 1-10 0V3Z" fill="#e9b83a" stroke="#a87812" stroke-width="1.2"/><path d="M7 5H4a3 3 0 0 0 3 4M17 5h3a3 3 0 0 1-3 4" fill="none" stroke="#a87812" stroke-width="1.4"/><path d="M10.5 12h3l.7 4h-4.4l.7-4Z" fill="#c9952a"/><rect x="7.5" y="16" width="9" height="3.2" rx="1" fill="#9c7240"/></svg>';
 
 let message = '';
+let codeMessage = '', codeOk = false;
+const CODE_PROBLEMS = {
+  invalid: 'That code doesn\'t exist. Check it and try again.',
+  used: 'You have already redeemed this code.',
+  expired: 'This code has expired.',
+  'tray-full': `Your egg tray is full (${EGG_TRAY_SIZE} eggs). Hatch one first, then redeem the code.`,
+};
 
 const itemsText = items => Object.entries(items || {}).map(([id, n]) => n + ' ' + (n === 1 ? ITEMS[id].name.toLowerCase() : ITEMS[id].plural)).join(', ');
 const rewardText = r => [`${r.coins} coins`, itemsText(r.items)].filter(Boolean).join(' and ');
@@ -80,6 +87,13 @@ function render() {
       ${daily}
     </section>
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}
+    <section class="codes">
+      <h2>Event codes</h2>
+      <p class="hint">Got a code from an event? Type it here. Each code works once.</p>
+      <form class="row" id="codeForm"><input type="text" id="codeInput" maxlength="32" autocomplete="off" spellcheck="false" placeholder="XXX-XXXX-XXXX" aria-label="Event code">
+        <button class="btn" type="submit">Redeem</button></form>
+      ${codeMessage ? `<p class="hint ${codeOk ? '' : 'warn-text'}" role="status">${esc(codeMessage)}</p>` : ''}
+    </section>
     <section class="achievements">
       <div class="collection-head"><h2>Achievements</h2><span class="count">${claimedCount} of ${list.length} claimed</span></div>
       <ul class="ach-list">${cards}</ul>
@@ -93,6 +107,15 @@ function render() {
     message = `Claimed day ${((r.streak - 1) % DAILY_REWARDS.length) + 1}: ${rewardText(r.reward)}.` + (lost ? ` The ${lost} didn't fit in your inventory.` : '');
     render();
   });
+  document.getElementById('codeForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const code = document.getElementById('codeInput').value;
+    if (!code.trim()) return;
+    const r = act('redeem', { code });
+    codeOk = r.ok;
+    codeMessage = r.ok ? (r.egg ? 'Code redeemed: an egg is waiting in the Incubator.' : 'Code redeemed.') : CODE_PROBLEMS[r.reason] || 'That code could not be redeemed.';
+    render();
+  });
   box.querySelectorAll('[data-claim]').forEach(b => b.addEventListener('click', () => {
     const r = act('claimAchievement', { id: b.dataset.claim });
     if (!r.ok) return;
@@ -104,7 +127,7 @@ function render() {
 export function initRewards() {
   updateBadge();
   subscribe(() => { updateBadge(); if (currentTab() === 'rewards') render(); });
-  onTabChange(name => { if (name === 'rewards') { message = ''; render(); } });
+  onTabChange(name => { if (name === 'rewards') { message = ''; codeMessage = ''; render(); } });
   // the day can change while the page is open
   setInterval(() => { updateBadge(); if (currentTab() === 'rewards' && !document.hidden) render(); }, 30000);
 }

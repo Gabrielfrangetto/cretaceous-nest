@@ -4,8 +4,9 @@ import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET, HUNGER_MIN_S, HUNGER_SPREAD_S,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
   OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, NEST_HUNGER, PLAYER_HUNGER_MIN, PLAYER_DIET,
+  PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
 } from './config.js';
-import { hashId, newId } from './util.js';
+import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
 import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
@@ -494,6 +495,33 @@ export function setOutfit(s, babyId, outfitId) {
 // ---------- breeding ----------
 export const trayFull = s => (s.eggs || []).length >= EGG_TRAY_SIZE;
 
+// ---------- event codes ----------
+// the event code typed, as the table knows it (PROMO_CODES): its id, or null
+export function promoOf(code) {
+  const hash = sha256(PROMO_SALT + String(code ?? '').replace(/[\s-]+/g, '').toUpperCase());
+  return Object.keys(PROMO_CODES).find(id => PROMO_CODES[id].hash === hash) || null;
+}
+// redeems an event code once per game: its reward (an egg, as one found in a nest) goes in
+export function redeemCode(s, code, now) {
+  const id = promoOf(code);
+  if (!id) return { ok: false, reason: 'invalid' };
+  const promo = PROMO_CODES[id];
+  if ((s.redeemed || []).includes(id)) return { ok: false, reason: 'used' };
+  if (promo.until && now > promo.until) return { ok: false, reason: 'expired' };
+  const r = promo.reward, out = { ok: true, id };
+  if (r.egg) {
+    if (trayFull(s)) return { ok: false, reason: 'tray-full' };
+    // (its genes and sex settled now, the same for the same game)
+    const rand = seededRand(`promo:${id}:${(s.world && s.world.seed) || 1}`), [lo, hi] = EGG_GENES(EGG_STEP, false);
+    const egg = { id: `promo-${id}`, type: r.egg, gen: 1, parents: [], laidAt: now, genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])) };
+    egg.sex = rand() < 0.5 ? 'm' : 'f';
+    s.eggs = [...(s.eggs || []), egg];
+    out.egg = egg;
+  }
+  s.redeemed = [...(s.redeemed || []), id];
+  return out;
+}
+
 // why this pair can't breed, or null when it can
 export function breedProblem(s, maleId, femaleId) {
   const m = s.hatched.find(b => b.id === maleId), f = s.hatched.find(b => b.id === femaleId);
@@ -780,6 +808,10 @@ export const ACTIONS = {
   },
   buyPack(s, { k }) {
     return buyPack(s, k);
+  },
+  // an event code, typed by the player: { code }
+  redeem(s, { code }, now) {
+    return redeemCode(s, code, now);
   },
   claimDaily(s, args, now) {
     return claimDaily(s, now);

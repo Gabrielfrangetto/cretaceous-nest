@@ -37,7 +37,7 @@ function renderChooser() {
     return;
   }
   stage.innerHTML = `<div><h2>Pick an egg to hatch</h2>
-    <p class="sub">Found on expeditions or laid by your breeding pairs. The baby inherits the egg's genes.</p></div>
+    <p class="sub">Found in nests on expeditions, laid by your breeding pairs, or given by event codes. The baby inherits the egg's genes.</p></div>
     <div class="eggs">${eggs.map(e => {
       // (an egg of a species never hatched here: no one knows whose it is until it hatches)
       const sp = SPECIES[e.type];

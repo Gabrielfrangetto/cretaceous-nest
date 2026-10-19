@@ -1,7 +1,7 @@
 // The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
-import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
+import { PROMO_CODES, GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, eggSex, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
@@ -18,6 +18,7 @@ export function freshState() {
     saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
     daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
     eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
+    redeemed: [],     // the event codes already redeemed (PROMO_CODES)
     known: [],        // the species the player has hatched, whose eggs and nests they know (starters from the start: knows)
     starter: false,   // the starter baby is not picked yet
     player: newPlayer(),
@@ -166,6 +167,7 @@ function sanitize(s) {
   });
   // the egg in the incubator: its genes and sex settled, whatever reloads
   if (s.current) Object.assign(s.current, { genes: cleanGenes(s.current.genes, `stats:egg:${s.current.type}:${s.current.startedAt}`), sex: eggSex(s.current) });
+  s.redeemed = [...new Set((Array.isArray(s.redeemed) ? s.redeemed : []).filter(id => PROMO_CODES[id]))];
   // the species hatched: the ones kept, and every baby's (older saves)
   s.known = [...new Set([...(Array.isArray(s.known) ? s.known : []), ...s.hatched.map(b => b.type)].filter(t => SPECIES[t]))];
   s.player = cleanPlayer(s.player);
