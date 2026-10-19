@@ -9,7 +9,7 @@ import { fight, fighterOf, creatureFighter, wildFighter, encounterUnit, teamFigh
 const hungry = f => ({ ...f, hunts: 'any', preyMax: 'colossal' });
 const teamFight = (units, foe, rand, opts) => realFight(units, foe.members ? { ...foe, members: foe.members.map(hungry) } : hungry(foe), rand, opts);
 import { ALL_HEXES, hexKey, hexDist, newWorld, isLair, threatAt, tripMins, injuredLeft, exploreProblem, keepsAway, teamUnits, landHexes } from '../js/world.js';
-import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER } from '../js/config.js';
+import { CREATURES, BIOMES, SPECIES, INJURY_MINS, CRITICAL_MINS, HEAL_MINS, LAIR_MIN_DIST, SIZE_ORDER, FORAGE } from '../js/config.js';
 // whether what waits in a hex shows itself to a team whose biggest is size (it keeps away otherwise)
 // whether what waits in a hex comes for a team of one dinosaur of this kind: a predator, not keeping
 // away from it, nor passing it by (the food chain)
@@ -97,7 +97,9 @@ test('losing brings nothing, still maps the land, and leaves the dinosaur injure
   const { s, key, r, back } = lostAtLair();
   const coins = 0;
   assert.equal(r.battle.win, false);
-  assert.deepEqual(r.loot, []);
+  // nothing from the hex (what the land gave on the way is still carried home)
+  assert.deepEqual(r.story.find(e => e.kind === 'arrived').found, []);
+  for (const l of r.loot) assert.ok(Object.keys(FORAGE.way).includes(l.id), l.id);
   assert.equal(r.coins, 0);
   assert.equal(s.coins, coins);
   assert.equal(s.world.visited.includes(key), false);

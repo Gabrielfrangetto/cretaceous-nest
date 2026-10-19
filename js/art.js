@@ -66,6 +66,12 @@ export const NEST = `<svg class="nest" viewBox="0 0 260 80" aria-hidden="true">
 // ---------- icons ----------
 const SHELL_PATH = 'M2 8 L4.5 6 L6.5 8.5 L8.5 5.5 L10.5 8.5 L12 6.5 L14 8 C14 12.5 11.5 15 8 15 C4.5 15 2 12.5 2 8Z';
 export const ITEM_ICONS = {
+  // a few seeds, cracked one showing its kernel
+  seed: '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="5" cy="9" rx="2.6" ry="3.6" transform="rotate(-25 5 9)" fill="#a8743c" stroke="#6b4521" stroke-width=".8"/><ellipse cx="10.5" cy="6.5" rx="2.4" ry="3.3" transform="rotate(20 10.5 6.5)" fill="#c08a4a" stroke="#6b4521" stroke-width=".8"/><ellipse cx="10.5" cy="12" rx="2.2" ry="2.9" transform="rotate(70 10.5 12)" fill="#e8d3a0" stroke="#6b4521" stroke-width=".8"/></svg>',
+  // a round fruit with a leaf
+  fruit: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="9.5" r="5" fill="#d8673a" stroke="#8a3a1c" stroke-width="1"/><circle cx="6.3" cy="7.8" r="1.2" fill="#f2a27a"/><path d="M8 4.5 L8.6 2" stroke="#5b3a1e" stroke-width="1.1"/><path d="M8.6 3 C10.5 1.5 12.5 2.2 13 3.2 C11.5 4 9.8 4 8.6 3Z" fill="#6fa64a"/></svg>',
+  // two smooth, rounded pebbles
+  stone: '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="6" cy="10" rx="4.2" ry="3.2" fill="#9c958a" stroke="#5e584f" stroke-width="1"/><ellipse cx="11" cy="7" rx="3.2" ry="2.5" fill="#bdb6aa" stroke="#5e584f" stroke-width="1"/><path d="M4 9 C5 8.2 6.5 8 7.5 8.4 M9.8 6.2 C10.6 5.7 11.6 5.7 12.4 6" stroke="#e8e4dc" stroke-width=".9" fill="none" stroke-linecap="round"/></svg>',
   // a bundle wrapped in cloth and tied with cord
   ration: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="5" width="11" height="7.5" rx="2" fill="#c9a46a" stroke="#7a5a33" stroke-width="1"/><path d="M8 5 L8 12.5 M2.5 8.7 L13.5 8.7" stroke="#7a3f2a" stroke-width="1.2"/><path d="M8 5 C6.5 3 5 3.5 5.5 4.6 M8 5 C9.5 3 11 3.5 10.5 4.6" stroke="#7a3f2a" stroke-width="1" fill="none"/></svg>',
   // a clay flask with a resin stopper

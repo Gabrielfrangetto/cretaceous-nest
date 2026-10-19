@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
 import { teamFight } from './combat.js';
@@ -199,10 +199,13 @@ export function breakCamp(s, id, now) {
   const told = { kind: 'camp', hex: p.at, idx: 0, biome, early, water: false, fed: [], meat: 0 };
   if (!early) {
     const fresh = freshWater(w.seed, h) || neighbors(h).some(n => freshWater(w.seed, n));
-    told.water = fresh || rand() < (CAMP.water[biome] || 0);
+    told.water = fresh;
     const up = p.members.filter(id => !isDown(p, id));
+    // (a forager along: the whole team finds food and water more easily)
+    const boost = foragersOf(s, up).length ? FORAGE.camp : { food: 1, water: 1 };
+    if (!fresh) told.water = rand() < (CAMP.water[biome] || 0) * boost.water;
     const hunted = up.some(id => dietOf(s, id).includes('meat')) && rand() < CAMP.hunt * (BIOMES[biome].density || 0);
-    const foraged = rand() < (CAMP.forage[biome] || 0);
+    const foraged = rand() < (CAMP.forage[biome] || 0) * boost.food;
     for (const id of up) {
       const sp = id === PLAYER_ID ? {} : bodyOf(s, id), diet = dietOf(s, id);
       const ate = (diet.includes('leaf') && SURVIVAL.green.includes(biome)) || (diet.includes('meat') && hunted) || (id === PLAYER_ID && foraged) || (sp.fishing && fresh) || sp.selfFeed;
@@ -468,10 +471,12 @@ function survive(ctx, idx) {
     }
     if (sup.water <= 0) tell({ kind: 'dry' });
   }
-  // a meal of what the team carries (the player's rations first)
+  // what the land gives as the team walks (foragers find their kinds more easily)
+  forage(ctx, idx, cell, h);
+  // a meal of what the team carries (the player's rations first; eggs are never eaten on the way)
   for (const id of p.members) {
     if (levelOf(p, 'hunger', id) < SURVIVAL.at) continue;
-    const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => (p.carry.items[x] || 0) > 0);
+    const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => x !== 'raw_egg' && (p.carry.items[x] || 0) > 0);
     if (!food) continue;
     if (food === 'ration') sup.ration -= 1;
     else if (!(p.carry.items[food] -= 1)) delete p.carry.items[food];
@@ -492,6 +497,30 @@ function survive(ctx, idx) {
     die(ctx, id);
     if (ctx.gone) return;
   }
+}
+
+// The foragers along (ROLES, FORAGE.by): the team members whose kinds of finds come more easily
+const foragersOf = (s, members) => members.filter(id => id !== PLAYER_ID && FORAGE.by[(explorerOf(s, id) || {}).type]);
+// What the land gives at a hex as the team walks it (FORAGE.way): a handful of seeds, stones, leaves,
+// fruit, insects or herbs, carried; a forager finds its own kinds more easily (FORAGE.more)
+function forage(ctx, idx, cell, h) {
+  const { s, p, story } = ctx, w = W(s);
+  if (nearOf(w.seed, h) <= NEST_CALM) return;
+  const up = foragersOf(s, p.members.filter(id => !isDown(p, id)));
+  if (!p.members.some(id => !isDown(p, id))) return;
+  const rand = seededRand(`forage:${w.seed}:${p.leg.n}:${idx}`);
+  const found = [], by = new Set();
+  for (const [item, lands] of Object.entries(FORAGE.way)) {
+    let chance = Math.max(lands[cell.biome] || 0, cell.river ? lands.river || 0 : 0);
+    if (!chance) continue;
+    const who = up.find(id => FORAGE.by[explorerOf(s, id).type].includes(item));
+    if (who) chance *= FORAGE.more;
+    if (rand() >= chance) continue;
+    const n = FORAGE.min + Math.floor(rand() * (FORAGE.max - FORAGE.min + 1));
+    found.push(carryItem(p, item, n));
+    if (who) by.add(explorerOf(s, who).name);
+  }
+  if (found.length) story.push({ kind: 'forage', hex: p.leg.path[idx], idx, biome: cell.biome, found, by: [...by] });
 }
 
 // ---------- what happens on the way ----------
@@ -779,7 +808,9 @@ function gather(ctx, leg) {
   const standing = standingUnits(s, p).flatMap(u => u.members);
   if (!beaten && standing.length) {
     const haul = teamHaul(s, standing);
-    for (const l of lootTable(s, key)) if (rand() < l.chance) found.push(carryItem(p, l.id, Math.round(roll(l) * haul)));
+    // (a forager along finds its own kinds more easily: FORAGE)
+    const finds = new Set(foragersOf(s, standing).flatMap(id => FORAGE.by[explorerOf(s, id).type]));
+    for (const l of lootTable(s, key)) if (rand() < l.chance * (finds.has(l.id) ? FORAGE.more : 1)) found.push(carryItem(p, l.id, Math.round(roll(l) * haul)));
     if (watery(w.seed, h)) for (const id of standing) {
       const f = bodyOf(s, id).fishing;
       if (f) found.push(carryItem(p, 'fish', f[0] + Math.floor(rand() * (f[1] - f[0] + 1))));

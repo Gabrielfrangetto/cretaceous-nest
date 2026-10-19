@@ -108,7 +108,8 @@ fights, more eggs). The rest belong to species found as eggs:
 
 - [x] Fighting — Dilophosaurus and Protoceratops (starters)
 - [x] Exploring — Compsognathus and Hypsilophodon (starters)
-- [ ] Foraging: more leaves, herbs, insects and amber (Psittacosaurus, hadrosaurs)
+- [x] Foraging: the land gives seeds, gizzard stones, leaves, fruit, insects and herbs along the way; foragers (Psittacosaurus: seeds and stones; Gallimimus: insects, leaves, herbs, and nests once there are nest events; Hypacrosaurus: leaves and fruit) find their kinds half as often again, and the whole team eats and finds water better in camp
+- [ ] Nest events on journeys: how eggs are found (Gallimimus finds them more easily)
 - [ ] Hunting and fishing: brings food home (Baryonyx and Spinosaurus fish, Coelophysis hunts)
 - [ ] Carrying: the whole team carries more (Argentinosaurus, Parasaurolophus)
 - [ ] Nest care: eggs hatch sooner, babies grow on fewer meals (Psittacosaurus, hadrosaurs)

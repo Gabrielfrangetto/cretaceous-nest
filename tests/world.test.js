@@ -650,3 +650,30 @@ test('the warning before setting off weighs the way planned, not the easiest one
   const round = routeRisk(s, team, to, routePath(42, '0,0', to, [far]).map(parseKey));
   assert.ok(round.stopped >= easy.stopped);
 });
+
+test('foragers: a Psittacosaurus along finds seeds and gizzard stones more often; eggs are never eaten on the way', async () => {
+  const { FORAGE: F } = await import('../js/config.js');
+  // the same legs walked with and without a forager: the forager's kinds turn up more often
+  const count = (type, kinds) => {
+    let n = 0;
+    for (let trip = 0; trip < 30; trip++) {
+      const s = game(dino('ad', 30, 'm', type));
+      s.world.trips = trip * 7;
+      const to = hexKey(...landHexes(42).filter(h => hexDist(h) >= 15 && hexDist(h) <= 25)[trip * 3]);
+      const r = applyAction(s, 'explore', { babyId: 'ad', hex: to }, T0);
+      if (!r.ok) continue;
+      const c = collect(s, { id: r.expedition.id, flee: true }, r.expedition.leg.arriveAt);
+      for (const e of c.story.filter(e => e.kind === 'forage')) for (const f of e.found) if (kinds.includes(f.id)) n += 1;
+    }
+    return n;
+  };
+  assert.ok(count('psitta', F.by.psitta) > count('scelido', F.by.psitta));
+  // a hungry omnivore carrying only eggs goes hungry rather than eat them
+  const { partyOf, levelOf } = await import('../js/journey.js');
+  const s = game(dino('ad', 30, 'm', 'galli'));
+  const r = applyAction(s, 'explore', { babyId: 'ad', hex: hexKey(...landHexes(42).filter(h => hexDist(h) === 6)[0]) }, T0);
+  const p = partyOf(s, r.expedition.id);
+  p.hunger = { ad: 0.6 }; p.carry.items = { raw_egg: 3 };
+  applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
+  assert.ok((p.carry.items.raw_egg || 0) === 3 || !partyOf(s, p.id));
+});

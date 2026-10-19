@@ -14,37 +14,37 @@ const SPECIES_LIST = {
              'Crested Egg', '#e9dccb', '#9a3f2c', 'speckle', '#b5603e', '#e3b53a', 'Crest', 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.'),
   compy:   S_('Compsognathus', 'theropod', 'Starter', ['meat', 'insect'], { str: 40, agi: 85, vit: 40, res: 35 },
              'Tiny Egg', '#e6e1cf', '#7d8a5a', 'speckle', '#8aa05a', '#d7b847', 'Pip', 'Compsognathus was about the size of a chicken and hunted lizards and insects.'),
-  scelido: S_('Scelidosaurus', 'armored', 'Common', ['leaf'], { str: 30, agi: 30, vit: 55, res: 85 },
+  scelido: S_('Scelidosaurus', 'armored', 'Common', ['leaf', 'fruit', 'seed'], { str: 30, agi: 30, vit: 55, res: 85 },
              'Knobbly Egg', '#d8d2bf', '#5d6b4a', 'spots', '#7d8a5c', '#c9b27a', 'Knobs', 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.'),
-  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Common', ['leaf'], { str: 35, agi: 35, vit: 80, res: 50 },
+  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Common', ['leaf', 'fruit', 'seed'], { str: 35, agi: 35, vit: 80, res: 50 },
              'Pebble Egg', '#e3dcc4', '#6d6a4a', 'spots', '#b59a5e', '#7a5a33', 'Beaky', 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.'),
   // common
   coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
              'Banded Egg', '#efd9c8', '#a4553b', 'stripes', '#c27a52', '#4a4640', 'Dash', 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.'),
-  hypsi:   S_('Hypsilophodon', 'ornithopod', 'Starter', ['leaf'], { str: 45, agi: 55, vit: 50, res: 50 },
+  hypsi:   S_('Hypsilophodon', 'ornithopod', 'Starter', ['leaf', 'fruit', 'seed'], { str: 45, agi: 55, vit: 50, res: 50 },
              'Mossy Egg', '#d9e3c6', '#4f7a4a', 'stripes', '#6f9b6a', '#c9d38a', 'Hop', 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.'),
   // uncommon
-  proto:   S_('Protoceratops', 'ceratopsian', 'Starter', ['leaf'], { str: 45, agi: 30, vit: 50, res: 75 },
+  proto:   S_('Protoceratops', 'ceratopsian', 'Starter', ['leaf', 'fruit', 'seed'], { str: 45, agi: 30, vit: 50, res: 75 },
              'Spotted Egg', '#eadcbf', '#8b6a44', 'spots', '#c79d63', '#d9662f', 'Popcorn', 'Fossil embryos suggest Protoceratops eggs took about 83 days to hatch.'),
-  galli:   S_('Gallimimus', 'theropod', 'Uncommon', ['leaf', 'insect', 'raw_egg', 'meat'], { str: 40, agi: 95, vit: 50, res: 45 },
+  galli:   S_('Gallimimus', 'theropod', 'Uncommon', ['leaf', 'fruit', 'insect', 'seed', 'raw_egg', 'meat'], { str: 40, agi: 95, vit: 50, res: 45 },
              'Speedy Egg', '#ece4d2', '#8a7a5a', 'speckle', '#c8a56a', '#6f5a3a', 'Zippy', 'Gallimimus was built like an ostrich and may have run at more than 40 km/h. It ate almost anything.'),
-  hypa:    S_('Hypacrosaurus', 'ornithopod', 'Uncommon', ['leaf'], { str: 45, agi: 50, vit: 85, res: 50 },
+  hypa:    S_('Hypacrosaurus', 'ornithopod', 'Uncommon', ['leaf', 'fruit', 'seed'], { str: 45, agi: 50, vit: 85, res: 50 },
              'Striped Egg', '#d6e2cc', '#5c7b4f', 'stripes', '#78a463', '#d8bd3e', 'Sprout', 'Teeth from Hypacrosaurus embryos suggest almost 6 months inside the egg.'),
-  pachy:   S_('Pachycephalosaurus', 'pachycephalosaur', 'Uncommon', ['leaf'], { str: 80, agi: 50, vit: 55, res: 45 },
+  pachy:   S_('Pachycephalosaurus', 'pachycephalosaur', 'Uncommon', ['leaf', 'fruit', 'seed'], { str: 80, agi: 50, vit: 55, res: 45 },
              'Domed Egg', '#e4d8c4', '#7a5a8a', 'spots', '#9a7fae', '#e3c9a0', 'Bonk', 'Pachycephalosaurus had a skull dome up to 25 cm thick, perhaps for head-butting rivals.'),
   // rare
   raptor:  S_('Velociraptor', 'theropod', 'Rare', ['meat'], { str: 65, agi: 100, vit: 50, res: 45 },
              'Speckled Egg', '#cfd6e4', '#46557a', 'speckle', '#6a7ca8', '#e3ae45', 'Sparky', 'An adult Velociraptor was about 2 m long including the tail, and its body was covered in feathers.'),
-  stego:   S_('Stegosaurus', 'armored', 'Rare', ['leaf'], { str: 70, agi: 30, vit: 65, res: 95 },
+  stego:   S_('Stegosaurus', 'armored', 'Rare', ['leaf', 'fruit', 'seed'], { str: 70, agi: 30, vit: 65, res: 95 },
              'Plated Egg', '#dfe0c8', '#8a5a3a', 'stripes', '#7e9a6a', '#d0663a', 'Spike', 'Stegosaurus swung a tail tipped with four long spikes, and its brain was about the size of a walnut.'),
   bary:    S_('Baryonyx', 'theropod', 'Rare', ['fish', 'meat'], { str: 90, agi: 55, vit: 65, res: 50 },
              'River Egg', '#d4e0de', '#3f6a6a', 'speckle', '#6a8a7a', '#c9b06a', 'Hook', 'Baryonyx had a huge hooked claw on each thumb and a long snout for catching fish.'),
-  para:    S_('Parasaurolophus', 'ornithopod', 'Rare', ['leaf'], { str: 50, agi: 55, vit: 100, res: 55 },
+  para:    S_('Parasaurolophus', 'ornithopod', 'Rare', ['leaf', 'fruit', 'seed'], { str: 50, agi: 55, vit: 100, res: 55 },
              'Horned Egg', '#e6dccb', '#a0553a', 'stripes', '#c97a4a', '#e8d27a', 'Toot', 'Parasaurolophus had a long hollow head crest that may have worked like a trumpet.'),
   // epic
-  trike:   S_('Triceratops', 'ceratopsian', 'Epic', ['leaf'], { str: 90, agi: 35, vit: 70, res: 90 },
+  trike:   S_('Triceratops', 'ceratopsian', 'Epic', ['leaf', 'fruit', 'seed'], { str: 90, agi: 35, vit: 70, res: 90 },
              'Shield Egg', '#e2d6bd', '#6a4a2a', 'spots', '#8a6a4a', '#d9c08a', 'Trixie', 'Triceratops had three horns and a bony frill, and lived alongside Tyrannosaurus.'),
-  ankylo:  S_('Ankylosaurus', 'armored', 'Epic', ['leaf'], { str: 65, agi: 25, vit: 75, res: 120 },
+  ankylo:  S_('Ankylosaurus', 'armored', 'Epic', ['leaf', 'fruit', 'seed'], { str: 65, agi: 25, vit: 75, res: 120 },
              'Studded Egg', '#d6d0bc', '#5a4a3a', 'spots', '#8a7a5a', '#c9a96a', 'Tank', 'Ankylosaurus was covered in bony armor and swung a heavy club at the end of its tail.'),
   allo:    S_('Allosaurus', 'theropod', 'Epic', ['meat'], { str: 100, agi: 80, vit: 60, res: 45 },
              'Ridged Egg', '#e8d6c4', '#8a3a2a', 'stripes', '#a85a3a', '#e8c06a', 'Fang', 'Allosaurus was the top hunter of the Late Jurassic, with dozens of serrated teeth.'),
@@ -53,7 +53,7 @@ const SPECIES_LIST = {
              'Sail Egg', '#d6e2e6', '#2f5a7a', 'speckle', '#5a7a9a', '#d96a3a', 'Sail', 'Spinosaurus had a tall sail on its back and spent much of its life in rivers, hunting fish.'),
   rex:     S_('Tyrannosaurus', 'theropod', 'Legendary', ['meat'], { str: 110, agi: 45, vit: 90, res: 65 },
              'Golden Egg', '#f0cd68', '#b48114', 'gold', '#a35b40', '#f0cd68', 'Rex', 'A newly hatched tyrannosaur is estimated to have been about 90 cm long.'),
-  argent:  S_('Argentinosaurus', 'sauropod', 'Legendary', ['leaf'], { str: 75, agi: 25, vit: 140, res: 70 },
+  argent:  S_('Argentinosaurus', 'sauropod', 'Legendary', ['leaf', 'fruit', 'seed'], { str: 75, agi: 25, vit: 140, res: 70 },
              'Giant Egg', '#e8e2d2', '#7a6a4a', 'spots', '#9a8a6a', '#c9b98a', 'Titan', 'Argentinosaurus may have weighed as much as ten elephants, yet hatched from an egg the size of a melon.'),
 };
 
@@ -206,6 +206,10 @@ export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
   proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
   compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals (or to ride), but a team it leads sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
+  // foragers: on a journey they find their kind of food (FORAGE), and in camp the whole team eats better
+  psitta: { role: 'Forager', text: 'Its parrot beak cracks seeds, and it swallows smooth stones to grind them. A team it walks with finds seeds and gizzard stones more easily, and eats better in camp.' },
+  galli: { role: 'Forager', text: 'Eats almost anything and misses nothing on the ground: a team it walks with finds insects, leaves and herbs more easily, and eats better in camp.' },
+  hypa: { role: 'Forager', text: 'A browser that reaches high into the trees, knocking down fruit and leaves for the team as it goes. A team it walks with eats better in camp.' },
   hypsi: { role: 'Explorer', ability: 'scout', text: 'Good at a bit of everything. It would rather run than fight, darting in zigzags that bigger animals struggle to follow. A team it leads keeps clear of danger and finds more eggs; it browses on the way and brings plants home, and in a herd its many eyes often spot a predator in time for everyone to scatter.' },
 };
 // a team with a scout in it: it leads the team around danger and sniffs out eggs. It doesn't make the
@@ -248,6 +252,9 @@ export const ITEMS = {
   transfusion:  { name: 'Blood Transfusion', plural: 'blood transfusions', desc: 'Allosaurus blood and healing herbs. Heals a critically injured dinosaur on the spot.' },
   ration:       { name: 'Trail Ration', plural: 'trail rations', desc: 'Dried meat, nuts and hard bread, wrapped for the road. Your own food on a journey: packed when you set out.' },
   water_skin:   { name: 'Water Flask', plural: 'water flasks', desc: 'A clay flask stoppered with resin. Holds a few drinks for the dry stretches; packed when a team sets out, refilled wherever there is fresh water.' },
+  seed:         { name: 'Seeds', plural: 'seeds', food: true, desc: 'A handful of cycad and conifer seeds. Plant eaters crack them, and so can you.' },
+  fruit:        { name: 'Fruit', plural: 'fruit', food: true, desc: 'Fruit from high branches, knocked down by browsers that reach up into the trees. Plant eaters and you can eat it.' },
+  stone:        { name: 'Gizzard Stone', plural: 'gizzard stones', desc: 'A smooth, rounded pebble. Plant eaters swallow them to grind tough food in the gizzard: Psittacosaurus skeletons are found with dozens inside.' },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -349,7 +356,7 @@ export const HUNGER_SPREAD_S = 150;  // its own rhythm picked from its id
 export const NEST_HUNGER = { baby: 1, juvenile: 2, adult: 4 };
 // the player gets hungry every this many minutes, and eats the first of these in the inventory
 export const PLAYER_HUNGER_MIN = 30;
-export const PLAYER_DIET = ['ration', 'fish', 'meat', 'raw_egg'];
+export const PLAYER_DIET = ['ration', 'fish', 'meat', 'fruit', 'seed', 'raw_egg'];
 // Hunger and thirst on a journey (at home the nest's trough, built by the colonists, waters everyone).
 // Both go from 0 (fed, watered) to 1, rising with every step of the way (a hex's travel cost): thirst
 // and hunger a unit of cost, times dry in the thirstier lands. Fresh water (a river, a lake beside, a
@@ -543,14 +550,14 @@ export const WILD = {
 // wild: the animals met there (WILD); eggs: the species whose eggs can be found there
 // (which of them turn up depends on rarity and distance, see RARITIES)
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
-  forest:   { name: 'Conifer Forest', color: '#5f8f4e', density: 0.5, wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['seed', 1, 2, 0.3], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
+  forest:   { name: 'Conifer Forest', color: '#5f8f4e', density: 0.5, wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['seed', 1, 2, 0.2], ['fruit', 1, 2, 0.1], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
   swamp:    { name: 'Swamp', color: '#6f8f7a', density: 0.45, wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
-  desert:   { name: 'Desert Dunes', color: '#e2c78c', density: 0.2, wild: WILD.desert, eggs: ['proto', 'raptor', 'ankylo'], loot: [['bone', 2, 4], ['raw_egg', 1, 2, 0.4], ['insect', 1, 2, 0.4], ['amber', 1, 1, 0.05]] },
-  scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['bone', 1, 2], ['raw_egg', 1, 1, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
-  floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4], ['raw_egg', 1, 1, 0.2]] },
+  desert:   { name: 'Desert Dunes', color: '#e2c78c', density: 0.2, wild: WILD.desert, eggs: ['proto', 'raptor', 'ankylo'], loot: [['bone', 2, 4], ['stone', 1, 2, 0.25], ['raw_egg', 1, 2, 0.4], ['insect', 1, 2, 0.4], ['amber', 1, 1, 0.05]] },
+  scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['seed', 1, 3, 0.35], ['stone', 1, 2, 0.15], ['bone', 1, 2], ['raw_egg', 1, 1, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
+  floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['fruit', 1, 2, 0.2], ['stone', 1, 2, 0.15], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4], ['raw_egg', 1, 1, 0.2]] },
   coast:    { name: 'Coast & Lagoons', color: '#d8cfa4', density: 0.35, wild: WILD.coast, eggs: ['compy', 'bary', 'psitta'], loot: [['fish', 2, 4], ['seashell', 1, 3], ['amber', 1, 1, 0.12], ['feather', 1, 1, 0.3]] },
-  subtropical: { name: 'Subtropical Forest', color: '#4e8a5c', density: 0.55, ambush: true, wild: WILD.subtropical, eggs: ['compy', 'coelo', 'para', 'hypa', 'raptor', 'allo'], loot: [['amber', 1, 2, 0.4], ['insect', 2, 3], ['leaf', 2, 4], ['herb', 1, 2, 0.4], ['feather', 1, 1, 0.3]] },
+  subtropical: { name: 'Subtropical Forest', color: '#4e8a5c', density: 0.55, ambush: true, wild: WILD.subtropical, eggs: ['compy', 'coelo', 'para', 'hypa', 'raptor', 'allo'], loot: [['amber', 1, 2, 0.4], ['insect', 2, 3], ['leaf', 2, 4], ['fruit', 1, 3, 0.4], ['herb', 1, 2, 0.4], ['feather', 1, 1, 0.3]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
 };
 
@@ -763,6 +770,24 @@ export const CAMP = {
   water: { meadow: 0.6, forest: 0.7, subtropical: 0.85, swamp: 1, floodplain: 1, coast: 0.5, scrub: 0.35, desert: 0.1, volcano: 0.15 },
   forage: { meadow: 0.6, forest: 0.6, subtropical: 0.7, swamp: 0.5, floodplain: 0.7, coast: 0.6, scrub: 0.4, desert: 0.15, volcano: 0.1 },
 };
+// Foraging on the way: each hex walked (past the calm around a settlement) the team may find a handful
+// (min to max) of each of these, way[item][land] of the time ('river': where a river runs). A forager
+// along (ROLES) finds its own kinds (by) more times as often, nests too, once there are nests to find;
+// and in camp the whole team finds food camp.food and water camp.water times as often (CAMP).
+export const FORAGE = {
+  way: {
+    seed: { meadow: 0.06, scrub: 0.07, forest: 0.04, floodplain: 0.04, coast: 0.02, subtropical: 0.04 },
+    stone: { river: 0.08, scrub: 0.03, desert: 0.04, volcano: 0.03 },
+    leaf: { meadow: 0.05, forest: 0.06, subtropical: 0.08, floodplain: 0.06, swamp: 0.04, scrub: 0.02 },
+    fruit: { subtropical: 0.06, forest: 0.03, floodplain: 0.04, meadow: 0.015 },
+    insect: { meadow: 0.04, forest: 0.05, subtropical: 0.07, floodplain: 0.04, swamp: 0.05, scrub: 0.03, desert: 0.015 },
+    herb: { meadow: 0.02, forest: 0.02, subtropical: 0.03, floodplain: 0.03 },
+  },
+  min: 1, max: 2, more: 1.5,
+  by: { psitta: ['seed', 'stone'], galli: ['insect', 'leaf', 'herb', 'nest'], hypa: ['leaf', 'fruit'] },
+  camp: { food: 1.5, water: 1.3 },
+};
+
 // waypoints a route may be traced through, at most
 export const VIA_MAX = 20;
 export const HAZARD_WOUND = [0.2, 0.35];

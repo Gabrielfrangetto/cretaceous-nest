@@ -359,6 +359,10 @@ function entryHTML(e) {
     }
     case 'backedOff': return `${cap(article(e.name))} ${esc(e.name)} sized up ${esc(e.by)}'s sail and backed off.`;
     case 'hazard': return hazardHTML(e);
+    case 'forage': {
+      const got = lootText(e.found || []);
+      return e.by && e.by.length ? `${esc(listNames(e.by))} found ${listNames(got)} along the way.` : `The team picked up ${listNames(got)} along the way.`;
+    }
     case 'train': {
       const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || '?'));
       const via = (e.stops || []).slice(1, -1);

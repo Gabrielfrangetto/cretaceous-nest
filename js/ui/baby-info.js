@@ -1,6 +1,6 @@
 // Detail window for one baby, opened from its card in "Your babies": stats, combat numbers,
 // equipment (equip and take off) and family.
-import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL } from '../config.js';
+import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL, ROLES } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
@@ -97,6 +97,7 @@ function render() {
       <div>
         <h2 id="babyTitle">${esc(b.name)} ${SEX[sex].sym}</h2>
         <p class="hint">${SPECIES[b.type].species} · ${SEX[sex].word} · Gen ${b.gen || 1}</p>
+        ${ROLES[b.type] ? `<p class="hint"><strong>${esc(ROLES[b.type].role)}.</strong> ${esc(ROLES[b.type].text)}</p>` : ''}
         <p class="info-total">${powerText(b)}</p>
         <p class="hint">${genesText(b.genes)}</p>
       </div>
