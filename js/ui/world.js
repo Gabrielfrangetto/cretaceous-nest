@@ -665,9 +665,9 @@ function campHTML(p, t) {
 }
 // what a camp found, in words
 function campText(c) {
-  if (c.early) return 'The team broke camp early and moved on with nothing found.';
+  if (c.early) return 'You broke camp early and moved on with nothing found.';
   const fed = c.fed.map(id => (id === PLAYER_ID ? 'you' : esc((byId(id) || { name: '?' }).name)));
-  return `${c.water ? 'The team found fresh water: everyone drank, and the flasks were filled.' : 'The team searched all around, but found no water.'}`
+  return `${c.water ? 'You found fresh water: everyone drank, and the flasks were filled.' : 'You searched all around, but found no water.'}`
     + `${fed.length ? ` ${cap(listNames(fed))} ate${c.meat ? `, and the hunters brought down small game (${c.meat} meat carried)` : ''}.` : ' Nobody found anything to eat.'} Everyone rested.`;
 }
 // a station's name: the nest's, or its city's
@@ -817,7 +817,7 @@ function render() {
     const { to, party } = tracing, names = team.map(unitName);
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
     const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
-    message = r.ok ? `${party ? 'The team' : esc(listNames(names))} set off. There in ${mins} min: then they wait for your orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    message = r.ok ? `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${mins} min: then you wait there for orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
   });
@@ -851,27 +851,27 @@ function bindTrips(box) {
   }));
   box.querySelectorAll('[data-camp]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('camp', { id: btn.dataset.camp });
-    message = r.ok ? `The team made camp. In ${CAMP.mins} min you will see what they found.` : 'The team could not make camp here.';
+    message = r.ok ? `You made camp. In ${CAMP.mins} min you will see what you found.` : 'You could not make camp here.';
     render();
   }));
   box.querySelectorAll('[data-break-camp]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('breakCamp', { id: btn.dataset.breakCamp });
-    message = r.ok ? campText(r.story[0]) : 'The team could not break camp.';
+    message = r.ok ? campText(r.story[0]) : 'You could not break camp.';
     render();
   }));
   box.querySelectorAll('[data-order]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('order', { id: btn.dataset.order, hex: btn.dataset.hex });
-    message = r.ok ? (btn.dataset.hex === '0,0' ? 'The team set off for home.' : 'The team set off.') : 'The team could not go there.';
+    message = r.ok ? (btn.dataset.hex === '0,0' ? 'You set off for home.' : 'You set off.') : 'You could not go there.';
     render();
   }));
   box.querySelectorAll('[data-train]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('order', { id: btn.dataset.train, hex: btn.dataset.hex, train: true });
-    message = r.ok ? `The team boarded the maglev for ${esc(stationName(btn.dataset.hex))}.` : r.reason === 'coins' ? 'Not enough coins for the fare.' : 'The team could not board.';
+    message = r.ok ? `You boarded the maglev for ${esc(stationName(btn.dataset.hex))}.` : r.reason === 'coins' ? 'Not enough coins for the fare.' : 'The team could not board.';
     render();
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('recall', { id: btn.dataset.recall });
-    message = !r.ok ? 'The team could not be called back.' : r.home ? 'Called back before it got far: the team is home.' : 'Called back. The team turns for home from where it is, and the way back has its dangers too.';
+    message = !r.ok ? 'You could not turn back.' : r.home ? 'You turned back before getting far: you are home.' : 'You turn for home from where you are, and the way back has its dangers too.';
     render();
   }));
 }

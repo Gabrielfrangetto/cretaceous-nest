@@ -88,6 +88,8 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Hunger and thirst at a realistic scale (a hex is about 22 km: danger after about 3 hexes without fresh water)
 - [x] Hunger and thirst for everyone, the player too: the nest's trough waters all at home; on a journey fresh water, grazing, kills, carried food, water flasks and rations; worn down, then dying of it (the player collapses)
 - [x] Dinosaurs never set out without the player: every team has the player in it; out with a team, any hex picked on the map is explored from where it waits, no need to come home first
+- [x] Events told as what you did (You…), each on a card that comes up over the map with its picture (images/events, 16:9: see its README for the names), the words and the choices
+- [ ] Event pictures: one per event in images/events (names in its README)
 - [x] Team tab: up to 5 named teams of 4 places (the player always goes besides), each place filled from a picker of dinosaur and pack cards; on the World map the player picks which team goes with them, or no one
 - [x] Biome hazards on journeys: sandstorms and heat, volcanic fumes, floods, bogs, cold nights in the north, losing the way in thick forest (they cost time or wear someone down, never kill)
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events

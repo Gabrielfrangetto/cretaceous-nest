@@ -195,6 +195,8 @@ export function guideArt(height = 180) {
 // image paths are resolved from this file, not from the page, so pages in other folders
 // (tools/anchors.html) find the same pictures
 const asset = path => new URL('../' + path, import.meta.url).href;
+// an event's picture (images/events/<key>.webp or .png, 16:9): the addresses to try, in order
+export const eventArtUrls = keys => keys.flatMap(k => ['webp', 'png'].map(ext => asset(`images/events/${k}.${ext}`)));
 const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor', 'rex'].map(type =>
   [type, { m: asset(`sprites/${type}-m.png`), f: asset(`sprites/${type}-f.png`) }]));
 // babies redrawn in profile, one sex at a time (animated .webp: their idle plays on their own); the other
