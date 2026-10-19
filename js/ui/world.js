@@ -275,6 +275,32 @@ function paintMap() {
     }
     ctx.restore();
   }
+  // each party's way: walked so far (solid), still ahead (dashed), to where it is by now
+  for (const e of w.expeditions) {
+    if (!e.leg) continue;
+    const g = progressOf(S, e, t), pts = [e.leg.from, ...e.leg.path].map(k => center(parseKey(k)));
+    const k = g.i + 1, [ax, ay] = pts[k], [bx, by] = pts[Math.min(k + 1, pts.length - 1)];
+    const here = [ax + (bx - ax) * g.f, ay + (by - ay) * g.f];
+    const line = (list, dash, color, width) => {
+      if (list.length < 2) return;
+      ctx.save();
+      ctx.lineJoin = ctx.lineCap = 'round';
+      ctx.setLineDash(dash.map(px));
+      ctx.lineWidth = Math.max(2, px(width));
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      list.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+      ctx.restore();
+    };
+    line([...pts.slice(0, k + 1), here], [], accent, 3.5);
+    line([here, ...pts.slice(k + 1)], [2, 6], 'rgba(255, 246, 220, .85)', 3);
+    // (where it is, on the way itself)
+    ctx.beginPath();
+    ctx.arc(here[0], here[1], Math.max(3, px(3.5)), 0, Math.PI * 2);
+    ctx.fillStyle = accent;
+    ctx.fill();
+  }
   // where each party is by now: waiting somewhere, or along its way
   for (const e of w.expeditions) {
     // (on its way: between the last hex reached and the next, as far as the time says)
