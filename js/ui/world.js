@@ -82,11 +82,11 @@ function stretchOf(i) {
 }
 // the team being put together: [{ kind: 'dino' | 'player' | 'pack', id }]
 let team = [];
+let goWith = -1;   // the team (a preset of the Team tab) going with the player, or -1: the player alone
 const isMe = b => b && b.id === PLAYER_ID;
 const name = b => isMe(b) ? b.name : `${b.name} ${SEX[sexOf(b)].sym}`;
 const byId = id => explorerOf(S, id);
 const itemName = (id, n) => n === 1 ? ITEMS[id].name : ITEMS[id].plural;
-const unitKey = u => `${u.kind}:${u.id}`;
 const packById = id => (S.packs || []).find(p => p.id === id);
 // a team unit's name, as on its row
 function unitName(u) {
@@ -97,14 +97,6 @@ function unitName(u) {
 }
 const membersOf = u => u.kind === 'pack' ? (packById(u.id) || { members: [] }).members : [u.kind === 'player' ? PLAYER_ID : u.id];
 
-// everyone who could join a team: you, each pack, each dinosaur old enough and not in a pack
-function unitChoices() {
-  return [
-    { kind: 'player', id: PLAYER_ID },
-    ...(S.packs || []).map(p => ({ kind: 'pack', id: p.id })),
-    ...S.hatched.filter(b => stageOf(b).id !== 'baby' && !packOf(S, b.id)).map(b => ({ kind: 'dino', id: b.id })),
-  ];
-}
 function unitLabel(u) {
   if (u.kind === 'player') return `${S.player.name} · you, on foot`;
   if (u.kind === 'pack') { const p = packById(u.id); return `${p.name} · pack of ${p.members.length} ${SPECIES[p.type].species}`; }
@@ -563,25 +555,24 @@ function landHTML(cell) {
 function sideHTML(t) {
   if (tracing) return traceHTML(t);
   if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. Put together a team of up to ${TEAM_SLOTS}: yourself, juvenile or adult dinosaurs, and packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
+    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. You always go, with one of the teams you set up in the Team tab: up to ${TEAM_SLOTS - 1} juvenile or adult dinosaurs, or packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
-  // the team: kept between hexes, always led by the player (dinosaurs never set out without you)
-  const choices = unitChoices();
-  team = team.filter(u => u.kind !== 'player' && choices.some(c => unitKey(c) === unitKey(u)));
-  team.unshift({ kind: 'player', id: PLAYER_ID });
+  // the team: the player, with one of the teams set up in the Team tab (dinosaurs never set out without you)
+  const presets = cleanTeams(S);
+  if (goWith >= 0 && !(presets[goWith] && presets[goWith].slots.some(Boolean))) goWith = -1;
+  team = [{ kind: 'player', id: PLAYER_ID }, ...(goWith >= 0 ? presets[goWith].slots.filter(Boolean) : [])];
   const problem = exploreProblem(S, team, selected, t);
   const scout = hasScout(S, team.flatMap(membersOf));
   const blocker = team.map(u => unitProblem(u, t)).find(Boolean);
   const units = teamUnits(S, (teamFrom(S, team) || []).filter(Boolean));
-  const left = choices.filter(c => !team.some(u => unitKey(u) === unitKey(c)));
   const rows = team.map((u, i) => {
     const p = unitProblem(u, t);
     return `<li class="team-unit"><span><strong>${esc(unitName(u))}</strong> <span class="hint">${esc(unitLabel(u).split(' · ').slice(1).join(' · '))}</span>${p ? ` <span class="hint warn-text">· ${esc(SHORT[p.label] || p.problem)}</span>` : ''}</span>
-      ${u.kind === 'player' ? '' : `<button class="ghost" type="button" data-unit-off="${i}" aria-label="Take ${esc(unitName(u))} out of the team">×</button>`}</li>`;
+</li>`;
   }).join('');
   const critical = problem === 'injured' && blocker && isCritical(byId(blocker.id), t);
   const why = problem && PROBLEMS[problem]
@@ -598,7 +589,7 @@ function sideHTML(t) {
     <p class="hint">On foot: ${legMins(S, members, '0,0', selected)} min, and the dangers of the way.</p>
     ${units.length ? routeHTML(units, selected, true) : ''}
     ${team.length ? suppliesHTML(members, selected) : ''}
-    ${teamFieldHTML(rows, left, t)}
+    ${teamFieldHTML(rows)}
     <div class="row"><button class="btn" type="button" id="sendTrain" ${problem || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Take the maglev</button><button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}`;
@@ -609,7 +600,7 @@ function sideHTML(t) {
     ${threatHTML(h, units, scout)}
     ${units.length ? routeHTML(units, selected) : ''}
     ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
-    ${teamFieldHTML(rows, left, t)}
+    ${teamFieldHTML(rows)}
     ${rivalsHTML(team.flatMap(membersOf))}
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
@@ -633,17 +624,14 @@ function traceHTML(t) {
       <button class="ghost" type="button" id="traceCancel">Cancel</button></div>`;
 }
 
-// the team being put together, and who else could join it
-function teamFieldHTML(rows, left, t) {
-  // the teams set up in the Team tab, loaded in one go
-  const ready = cleanTeams(S).map((x, i) => ({ ...x, i })).filter(x => x.slots.some(Boolean));
-  return `<div class="field"><span class="label">Team <span class="hint">${team.length} / ${TEAM_SLOTS} places · a pack takes one</span></span>
-      ${ready.length ? `<div class="team-preset-use"><span class="hint">Load:</span>${ready.map(x => `<button class="ghost" type="button" data-use-team="${x.i}">${esc(x.name)}</button>`).join('')}</div>` : ''}
-      ${rows ? `<ul class="team-list">${rows}</ul>` : '<p class="hint">No one yet.</p>'}
-      ${team.length < TEAM_SLOTS && left.length ? `<div class="row team-add"><select id="addUnit" aria-label="Add to the team">${left.map(u => {
-        const p = unitProblem(u, t);
-        return `<option value="${esc(unitKey(u))}">${esc(unitLabel(u))}${p ? ` · ${esc(SHORT[p.label] || p.problem)}` : ''}</option>`;
-      }).join('')}</select><button class="ghost" type="button" id="addUnitBtn">Add</button></div>` : ''}
+// who goes: the player, with one of the teams set up in the Team tab
+function teamFieldHTML(rows) {
+  const ready = cleanTeams(S).map((x, i) => ({ ...x, i, n: x.slots.filter(Boolean).length })).filter(x => x.n);
+  const pick = (i, label) => `<button class="${goWith === i ? 'btn' : 'ghost'}" type="button" data-go-with="${i}" aria-pressed="${goWith === i}">${label}</button>`;
+  return `<div class="field"><span class="label">Who goes with you</span>
+      <div class="team-preset-use">${pick(-1, 'No one')}${ready.map(x => pick(x.i, `${esc(x.name)} <span class="hint">${x.n}</span>`)).join('')}</div>
+      ${ready.length ? '' : '<p class="hint">Set up a team in the Team tab to take your dinosaurs along.</p>'}
+      <ul class="team-list">${rows}</ul>
     </div>`;
 }
 // a team in camp: how long it has left, and breaking camp (early: nothing found)
@@ -772,21 +760,9 @@ function render() {
     message = r.ok ? '' : r.reason === 'room' ? 'Your inventory is full.' : 'That could not be taken off.';
     render();
   }));
-  const add = document.getElementById('addUnitBtn');
-  if (add) add.addEventListener('click', () => {
-    const [kind, ...rest] = document.getElementById('addUnit').value.split(':');
-    team.push({ kind, id: rest.join(':') });
+  box.querySelectorAll('[data-go-with]').forEach(btn => btn.addEventListener('click', () => {
+    goWith = +btn.dataset.goWith;
     message = '';
-    render();
-  });
-  box.querySelectorAll('[data-use-team]').forEach(btn => btn.addEventListener('click', () => {
-    const preset = cleanTeams(S)[+btn.dataset.useTeam];
-    team = [{ kind: 'player', id: PLAYER_ID }, ...preset.slots.filter(Boolean)];
-    message = '';
-    render();
-  }));
-  box.querySelectorAll('[data-unit-off]').forEach(btn => btn.addEventListener('click', () => {
-    team.splice(+btn.dataset.unitOff, 1);
     render();
   }));
   const kit = document.getElementById('transfuseBtn');
