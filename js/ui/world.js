@@ -627,7 +627,7 @@ function goOnHTML(p, h, d, t) {
     <p class="hint">From the ${where}, where your team waits: ${legMins(S, p.members, p.at, selected)} min${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
     ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
     ${units.length ? routeHTML(units, selected, d === 0, path) : ''}
-    <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore from here'}</button></div>
+    <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore'}</button></div>
     <p class="hint">You will see the way there, and can change it before the team sets off.</p>`;
 }
 
@@ -692,13 +692,12 @@ function tripsHTML(t) {
   return `<ul class="trips">${list.map(p => {
     const names = `<strong>${esc(listNames(p.team.map(unitName)))}</strong>`;
     if (!p.leg) {
-      // waiting somewhere for orders: home, or on to the hex picked on the map
-      const there = selected && selected !== p.at && canReach(S, selected) ? selected : null;
+      // waiting somewhere for orders: home, or on to the hex picked on the map (its panel's Explore)
       return `<li class="trip-row">
         <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
         ${partyStatusHTML(p)}
         ${p.camp ? campHTML(p, t) : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
-        ${there ? `<button class="ghost" type="button" data-trace="${esc(p.id)}" data-hex="${esc(there)}">Go to the ${esc(placeName(cellAt(S.world.seed, parseKey(there))))}…</button>` : '<span class="hint">Pick a hex on the map to send them on.</span>'}
+        <span class="hint">Pick a hex on the map to explore on from here.</span>
         ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(${CAMP.mins} min: look for water and food, rest)</span></button>`}</div>`}
       </li>`;
     }
