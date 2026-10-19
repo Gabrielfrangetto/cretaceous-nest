@@ -7,7 +7,7 @@ import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
-import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf } from '../sun.js';
+import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime } from '../sun.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -44,7 +44,7 @@ function renderBabies() {
     box.innerHTML = '<p class="empty">The nest is still empty. Babies show up here once they hatch.</p>';
   } else {
     box.className = 'babies';
-    const df = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const df = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
     for (const b of S.hatched) {
       const sp = SPECIES[b.type], sex = sexOf(b);
       // the whole card opens the baby's details
@@ -56,7 +56,7 @@ function renderBabies() {
       card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit, stageOf(b).id));
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
-      const dt = document.createElement('span'); dt.textContent = `Hatched ${df.format(new Date(b.at))} · ${ageLabel(ageOf(b, gameNow()))}`;
+      const dt = document.createElement('span'); dt.textContent = `Hatched ${df.format(new Date(worldTime(b.at)))} · ${ageLabel(ageOf(b, gameNow()))}`;
       const grow = document.createElement('span'); grow.className = 'growth'; grow.textContent = growthText(b);
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
@@ -165,9 +165,10 @@ function syncWalkers() {
 }
 
 // ---------- day and night ----------
-// the nest's own sun time (its longitude's, sun.js); sunrise and sunset are told on the player's clock
+// the nest's own sun time (its longitude's, sun.js), the world's clock for every player
 const NEST_PLACE = placeOf([0, 0]);
-const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+const clockFmt = { format: t => nestClock.format(new Date(worldTime(t))) };
+const nestClock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 const DAY_MS = 86400000;
 // the moon's lit side: right while it waxes, left as it wanes (seen from the north)
 function moonPath(p) {
@@ -192,11 +193,11 @@ function updateSky() {
   st.setProperty('--moon-o', moonAlt > -4 && p > 0.03 && p < 0.97 ? (0.35 + 0.65 * sky.dark).toFixed(2) : '0');
   scene.querySelector('.moon path').setAttribute('d', moonPath(p));
   const t = sunTimes(d, NEST_PLACE), tomorrow = sunTimes(d + DAY_MS, NEST_PLACE);
-  const label = !t ? (sky.phase === 'night' ? 'Polar night' : 'Midnight sun')
+  const label = clockFmt.format(d) + ' · ' + (!t ? (sky.phase === 'night' ? 'Polar night' : 'Midnight sun')
     : sky.phase === 'day' ? `Day · sunset ${clockFmt.format(t.set)}`
     : sky.phase === 'dusk' ? (d < t.set ? `Dusk · sunset ${clockFmt.format(t.set)}` : 'Dusk')
     : sky.phase === 'dawn' ? (d < t.rise ? `Dawn · sunrise ${clockFmt.format(t.rise)}` : 'Dawn')
-    : `Night · sunrise ${clockFmt.format(d < t.rise ? t.rise : tomorrow.rise)}`;
+    : `Night · sunrise ${clockFmt.format(d < t.rise ? t.rise : tomorrow.rise)}`);
   const chip = document.getElementById('skyTime');
   if (chip.textContent !== label) chip.textContent = label;
   // most sleep at night; a night hunter by day; some are awake either way (SPECIES active)

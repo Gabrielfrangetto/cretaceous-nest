@@ -10,7 +10,7 @@ import {
 import { packOf } from '../packs.js';
 import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits } from '../journey.js';
 import { isStation } from '../map.js';
-import { skyAt, sunTimes, sunHours, placeOf } from '../sun.js';
+import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
@@ -599,14 +599,14 @@ function rivalsHTML(members) {
 }
 
 // the land's own dangers there (HAZARDS), in a line
-// the time of day there: its own sun time, and when the light turns (on the player's clock)
-const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+// the time of day there, and when the light turns: its own sun time, the same for every player
+const clockFmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 const PHASE_WORD = { day: 'day', dawn: 'dawn', dusk: 'dusk', night: 'night' };
 function timeHTML(h, t) {
-  const place = placeOf(h), sky = skyAt(t, place), hrs = sunHours(t, place.lon);
-  const local = `${((Math.floor(hrs) + 11) % 12) + 1}:${String(Math.floor(hrs % 1 * 60)).padStart(2, '0')} ${hrs < 12 ? 'AM' : 'PM'}`;
+  const place = placeOf(h), sky = skyAt(t, place), at = x => clockFmt.format(new Date(worldTime(x, place.lon)));
+  const local = at(t);
   const times = sunTimes(t, place), next = sky.phase === 'day' || sky.phase === 'dusk' ? times && times.set : times && (t < times.rise ? times.rise : sunTimes(t + 86400000, place).rise);
-  const turn = next && next > t ? `; ${sky.phase === 'day' || sky.phase === 'dusk' ? 'sunset' : 'sunrise'} at ${clockFmt.format(next)} your time` : '';
+  const turn = next && next > t ? `; ${sky.phase === 'day' || sky.phase === 'dusk' ? 'sunset' : 'sunrise'} at ${at(next)}` : '';
   const night = sky.phase === 'night' ? ' Most animals are asleep, night hunters are out, and a team is harder to see in the dark.' : '';
   return `<p class="hint">It is ${local} there, ${PHASE_WORD[sky.phase]}${turn}.${night}</p>`;
 }

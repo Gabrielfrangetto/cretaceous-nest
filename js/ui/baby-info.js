@@ -8,12 +8,13 @@ import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
+import { worldTime } from '../sun.js';
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
 
 const dialog = document.getElementById('babyDialog');
 const body = document.getElementById('babyBody');
-const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 let openId = null, message = '';
 
 const PROBLEMS = { room: 'Your inventory is full. Make room to take this off.', 'not-adult': 'Only adults can wear equipment.', 'too-heavy': 'Too heavy: that would be more than it can carry.' };
@@ -120,7 +121,7 @@ function render() {
     </details>
     <dl class="info-facts">
       <div><dt>Parents</dt><dd>${esc(parentsText(b))}</dd></div>
-      <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
+      <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(worldTime(b.at)))}</dd></div>
       <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>

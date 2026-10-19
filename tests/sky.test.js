@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { skyAt, sunTimes, moonPhase, sunHours, placeOf } from '../js/sun.js';
+import { skyAt, sunTimes, moonPhase, sunHours, placeOf, worldTime, NEST_LON } from '../js/sun.js';
 import { SPECIES, CREATURES, NIGHT, MAP } from '../js/config.js';
 import { encounterChance, awake } from '../js/world.js';
 
@@ -66,4 +66,12 @@ test('in the dark a team stands out less, but not to a night hunter', () => {
   assert.ok(Math.abs(encounterChance(threat('dilo'), units, 'meadow', false, 'night') - day * NIGHT.asleep * NIGHT.unseen) < 1e-9);
   const raptorDay = encounterChance(threat('raptor'), units, 'meadow', false, 'day') / NIGHT.asleep;
   assert.ok(Math.abs(encounterChance(threat('raptor'), units, 'meadow', false, 'night') - Math.min(1, raptorDay * NIGHT.prowl)) < 1e-9);
+});
+
+test("the world's clock is the same for every player: the place's sun time, noon when the sun is highest", () => {
+  const t = at(2026, 9, 19, 18), noon = t + (12 - sunHours(t, NEST.lon)) * 3600000;
+  assert.equal(NEST_LON, NEST.lon);
+  assert.equal(new Date(worldTime(noon)).getUTCHours(), 12);
+  const west = placeOf([-MAP.west, 0]);
+  assert.ok(new Date(worldTime(noon, west.lon)).getUTCHours() < 12);
 });
