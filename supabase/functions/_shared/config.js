@@ -9,19 +9,19 @@
 const S_ = (species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact) =>
   ({ species, build, rarity, diet, base, egg, shell, mark, pattern, body, acc, nick, fact });
 const SPECIES_LIST = {
-  // starters: a new player picks one, a fighter or an explorer (ROLES)
-  dilo:    S_('Dilophosaurus', 'theropod', 'Starter', ['meat'], { str: 75, agi: 50, vit: 40, res: 35 },
+  // (starters: STARTERS, a new player picks one)
+  dilo:    S_('Dilophosaurus', 'theropod', 'Rare', ['meat'], { str: 98, agi: 65, vit: 52, res: 45 },
              'Crested Egg', '#e9dccb', '#9a3f2c', 'speckle', '#b5603e', '#e3b53a', 'Crest', 'Dilophosaurus wore two thin bony crests on its head and was one of the biggest hunters of its time.'),
-  compy:   S_('Compsognathus', 'theropod', 'Starter', ['meat', 'insect'], { str: 40, agi: 85, vit: 40, res: 35 },
+  compy:   S_('Compsognathus', 'theropod', 'Rare', ['meat', 'insect'], { str: 52, agi: 110, vit: 52, res: 46 },
              'Tiny Egg', '#e6e1cf', '#7d8a5a', 'speckle', '#8aa05a', '#d7b847', 'Pip', 'Compsognathus was about the size of a chicken and hunted lizards and insects.'),
   scelido: S_('Scelidosaurus', 'armored', 'Common', ['leaf', 'fruit', 'seed'], { str: 30, agi: 30, vit: 55, res: 85 },
              'Knobbly Egg', '#d8d2bf', '#5d6b4a', 'spots', '#7d8a5c', '#c9b27a', 'Knobs', 'Scelidosaurus was one of the first armored dinosaurs, its back studded with rows of bony plates.'),
-  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Common', ['leaf', 'fruit', 'seed'], { str: 35, agi: 35, vit: 80, res: 50 },
+  psitta:  S_('Psittacosaurus', 'ceratopsian', 'Starter', ['leaf', 'fruit', 'seed'], { str: 35, agi: 35, vit: 80, res: 50 },
              'Pebble Egg', '#e3dcc4', '#6d6a4a', 'spots', '#b59a5e', '#7a5a33', 'Beaky', 'Psittacosaurus means "parrot lizard": it had a strong beak and a tuft of quills on its tail.'),
   // common
-  coelo:   S_('Coelophysis', 'theropod', 'Common', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
+  coelo:   S_('Coelophysis', 'theropod', 'Starter', ['meat', 'insect'], { str: 55, agi: 65, vit: 45, res: 35 },
              'Banded Egg', '#efd9c8', '#a4553b', 'stripes', '#c27a52', '#4a4640', 'Dash', 'Coelophysis lived in herds; one quarry in New Mexico holds more than a thousand of their skeletons.'),
-  hypsi:   S_('Hypsilophodon', 'ornithopod', 'Starter', ['leaf', 'fruit', 'seed'], { str: 45, agi: 55, vit: 50, res: 50 },
+  hypsi:   S_('Hypsilophodon', 'ornithopod', 'Common', ['leaf', 'fruit', 'seed'], { str: 45, agi: 55, vit: 50, res: 50 },
              'Mossy Egg', '#d9e3c6', '#4f7a4a', 'stripes', '#6f9b6a', '#c9d38a', 'Hop', 'Hypsilophodon was a fast little runner, about 2 m long, that browsed on low plants.'),
   // uncommon
   proto:   S_('Protoceratops', 'ceratopsian', 'Starter', ['leaf', 'fruit', 'seed'], { str: 45, agi: 30, vit: 50, res: 75 },
@@ -33,7 +33,7 @@ const SPECIES_LIST = {
   pachy:   S_('Pachycephalosaurus', 'pachycephalosaur', 'Uncommon', ['leaf', 'fruit', 'seed'], { str: 80, agi: 50, vit: 55, res: 45 },
              'Domed Egg', '#e4d8c4', '#7a5a8a', 'spots', '#9a7fae', '#e3c9a0', 'Bonk', 'Pachycephalosaurus had a skull dome up to 25 cm thick, perhaps for head-butting rivals.'),
   // rare
-  raptor:  S_('Velociraptor', 'theropod', 'Rare', ['meat'], { str: 65, agi: 100, vit: 50, res: 45 },
+  raptor:  S_('Velociraptor', 'theropod', 'Starter', ['meat'], { str: 50, agi: 77, vit: 38, res: 35 },
              'Speckled Egg', '#cfd6e4', '#46557a', 'speckle', '#6a7ca8', '#e3ae45', 'Sparky', 'An adult Velociraptor was about 2 m long including the tail, and its body was covered in feathers.'),
   stego:   S_('Stegosaurus', 'armored', 'Rare', ['leaf', 'fruit', 'seed'], { str: 70, agi: 30, vit: 65, res: 95 },
              'Plated Egg', '#dfe0c8', '#8a5a3a', 'stripes', '#7e9a6a', '#d0663a', 'Spike', 'Stegosaurus swung a tail tipped with four long spikes, and its brain was about the size of a walnut.'),
@@ -198,7 +198,8 @@ export const SPECIES = Object.fromEntries(Object.entries(SPECIES_LIST).map(([k, 
   ...sp, mins: RARITIES[sp.rarity].mins, size: SIZE[k], ...BODY[k],
 }]));
 export const ORDER = Object.keys(SPECIES_LIST);
-export const STARTERS = ['dilo', 'proto', 'compy', 'hypsi'];
+// the first dinosaurs, common in the fossil record and small: two meat eaters and two plant eaters
+export const STARTERS = ['coelo', 'raptor', 'psitta', 'proto'];
 
 // What a species is best at outside its stats. Every activity will have species that are good at it
 // (fighting, exploring, foraging, hunting and fishing, carrying, nest care, guarding, scouting,
@@ -207,6 +208,8 @@ export const STARTERS = ['dilo', 'proto', 'compy', 'hypsi'];
 export const ROLES = {
   dilo: { role: 'Fighter', text: 'Hits hard rather than takes hits: strong jaws and clawed hands, but a thin hide.' },
   proto: { role: 'Fighter', text: 'Takes hits rather than hits hard: a tough body, a bony frill and a hooked beak. One was found locked in battle with a Velociraptor.' },
+  coelo: { role: 'Fighter', text: 'A slim, quick hunter of small prey, found by the hundreds: light on its feet, fragile bones, and better in a pack.' },
+  raptor: { role: 'Fighter', text: 'Small and very quick, with a sickle claw on each foot that latches onto prey. One was found locked in battle with a Protoceratops.' },
   compy: { role: 'Explorer', ability: 'scout', text: 'The quickest of them all. Too small to fight big animals (or to ride), but a team it leads sneaks past danger and sniffs out more eggs. It hunts lizards and insects along the way, so it comes home fed.' },
   // foragers: on a journey they find their kind of food (FORAGE), and in camp the whole team eats better
   psitta: { role: 'Forager', text: 'Its parrot beak cracks seeds, and it swallows smooth stones to grind them. A team it walks with finds seeds and gizzard stones more easily, and eats better in camp.' },

@@ -88,6 +88,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [x] Hunger and thirst at a realistic scale (a hex is about 22 km: danger after about 3 hexes without fresh water)
 - [x] Hunger and thirst for everyone, the player too: the nest's trough waters all at home; on a journey fresh water, grazing, kills, carried food, water flasks and rations; worn down, then dying of it (the player collapses)
 - [x] Dinosaurs never set out without the player: every team has the player in it; out with a team, any hex picked on the map is explored from where it waits, no need to come home first
+- [x] Starters common in the fossil record and small: Coelophysis and Velociraptor (meat), Psittacosaurus and Protoceratops (plants); Dilophosaurus and Compsognathus now Rare, Hypsilophodon Common
 - [x] Health and bite by body mass: each species' real weight (and the player's), health from vitality × (mass / 350 kg)^0.6, a growing one weighing less (juveniles half) and biting weaker (mass^⅔); a predator's bite that lands on something an eighth its weight or less kills it outright
 - [x] Event codes (Rewards tab): each redeemed once per game for its reward, kept in the game only as hashes; the first gives a Tyrannosaurus egg
 - [x] Events told as what you did (You…), each on a card that comes up over the map with its picture (images/events, 16:9: see its README for the names), the words and the choices

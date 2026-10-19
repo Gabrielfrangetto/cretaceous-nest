@@ -77,31 +77,34 @@ test('the incubator only hatches eggs you have', () => {
 test('a new game starts by picking one of four starter babies, a fighter or an explorer of each diet, once', () => {
   const s = game();
   assert.equal(s.starter, false);
-  assert.deepEqual(STARTERS, ['dilo', 'proto', 'compy', 'hypsi']);
-  assert.deepEqual(STARTERS.map(t => [ROLES[t].role, DIET[t][0]]), [['Fighter', 'meat'], ['Fighter', 'leaf'], ['Explorer', 'meat'], ['Explorer', 'leaf']]);
-  assert.equal(applyAction(s, 'pickStarter', { type: 'psitta' }, T0).reason, 'unknown-species');
+  // common in the fossil record and small: two meat eaters and two plant eaters
+  assert.deepEqual(STARTERS, ['coelo', 'raptor', 'psitta', 'proto']);
+  assert.deepEqual(STARTERS.map(t => DIET[t][0]), ['meat', 'meat', 'leaf', 'leaf']);
+  for (const t of STARTERS) assert.ok(ROLES[t] && ROLES[t].role, t);
+  assert.equal(applyAction(s, 'pickStarter', { type: 'dilo' }, T0).reason, 'unknown-species');
   assert.equal(applyAction(s, 'pickStarter', { type: 'rex' }, T0).reason, 'unknown-species');
-  const r = applyAction(s, 'pickStarter', { type: 'dilo' }, T0);
+  const r = applyAction(s, 'pickStarter', { type: 'coelo' }, T0);
   assert.equal(r.ok, true);
   assert.equal(s.hatched.length, 1);
-  assert.equal(s.hatched[0].type, 'dilo');
-  assert.equal(applyAction(s, 'pickStarter', { type: 'compy' }, T0).reason, 'picked');
+  assert.equal(s.hatched[0].type, 'coelo');
+  assert.equal(applyAction(s, 'pickStarter', { type: 'raptor' }, T0).reason, 'picked');
   // the same save offers the same baby in the browser and on the server
   const twin = game();
-  applyAction(twin, 'pickStarter', { type: 'dilo' }, T0);
+  applyAction(twin, 'pickStarter', { type: 'coelo' }, T0);
   assert.deepEqual([twin.hatched[0].sex, twin.hatched[0].genes], [s.hatched[0].sex, s.hatched[0].genes]);
   // games from before starters have already started
   const old = game(); delete old.starter; old.saveVersion = 8;
   assert.equal(migrate(old).starter, true);
 });
 
-test('one fighter hits harder and the other is tougher; one explorer is quicker and the other balanced', async () => {
+test('the starters each stand out: the quickest hunter, the hardest-hitting one, the toughest and the sturdiest forager', async () => {
   const { SPECIES_BASE: B } = await import('../js/config.js');
-  assert.ok(B.dilo.str > B.dilo.res && B.proto.res > B.proto.str);
-  assert.ok(B.compy.agi > B.hypsi.agi + 20 && B.compy.agi === Math.max(...STARTERS.map(t => B[t].agi)));
-  const h = Object.values(B.hypsi);
-  assert.ok(Math.max(...h) - Math.min(...h) <= 10);
-  assert.deepEqual(STARTERS.map(t => DIET[t][0]), ['meat', 'leaf', 'meat', 'leaf']);
+  // Velociraptor the quickest of them, Coelophysis hits harder than it, Protoceratops the toughest,
+  // Psittacosaurus the most vital
+  assert.equal(B.raptor.agi, Math.max(...STARTERS.map(t => B[t].agi)));
+  assert.ok(B.coelo.str > B.raptor.str);
+  assert.equal(B.proto.res, Math.max(...STARTERS.map(t => B[t].res)));
+  assert.equal(B.psitta.vit, Math.max(...STARTERS.map(t => B[t].vit)));
 });
 
 test('rarer species have higher base totals, and every species has a diet and eggs somewhere', async () => {

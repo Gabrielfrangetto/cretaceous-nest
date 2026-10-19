@@ -55,7 +55,7 @@ function renderChooser() {
 // a brand-new game: pick the first baby, a fighter or an explorer
 function renderStarters() {
   stage.innerHTML = `<div><h2>Choose your first dinosaur</h2>
-    <p class="sub">Every keeper starts with one baby: a fighter or an explorer. More species, each good at something of its own, hatch from eggs your explorers find.</p></div>
+    <p class="sub">Every keeper starts with one baby, of the small dinosaurs most often found as fossils: two meat eaters and two plant eaters. More species, each good at something of its own, hatch from eggs found in nests on your journeys.</p></div>
     <div class="eggs starters">${STARTERS.map(type => {
       const sp = SPECIES[type], b = starterBaby(S, type);
       return `<button class="egg-card starter" type="button" data-type="${type}">

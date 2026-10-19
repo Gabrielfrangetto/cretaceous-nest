@@ -454,7 +454,8 @@ test('a Protoceratops striking back may clamp its beak on: a smaller foe is pinn
   const proto = () => unitOf('p', [fighterOf(dino('p', 70, 'proto'))]);
   let pins = 0, holds = 0, loose = 0;
   for (let i = 0; i < 60; i++) {
-    for (const [foe, mode] of [[wildFighter('raptor', 4), 'pin'], [wildFighter('dilo', 4), 'hold']]) {
+    // (the Velociraptor made tough enough to outlast the first bite and show the pin)
+    for (const [foe, mode] of [[{ ...wildFighter('raptor', 4), hp: 400 }, 'pin'], [wildFighter('dilo', 4), 'hold']]) {
       const r = teamFight([proto()], foe, seededRand('beak' + mode + i));
       let gripping = false;
       for (const e of r.log) {
@@ -809,7 +810,9 @@ test("a Psittacosaurus gets hungry more slowly, and its beak may crack a small f
     // (a prey animal runs before any fight: the rule is for one cornered, so it stands here as a defender)
     const ps = unitOf('p', [{ ...fighterOf(dino('p', 70, 'psitta')), fear: undefined, role: 'defender' }]);
     const me = unitOf('m', [{ ...fighterOf(dino('m', 70, 'dilo')), fear: undefined }]);
-    for (const e of teamFight([me, ps], encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 3), seededRand('cr' + i)).log)
+    // (the raptors made tough enough to last until one goes for the Psittacosaurus)
+    const pack = encounterUnit({ species: 'raptor', pack: [4, 4], loot: [] }, 3);
+    for (const e of teamFight([me, ps], { ...pack, members: pack.members.map(m => ({ ...m, hp: 400 })) }, seededRand('cr' + i)).log)
       if (e.by === 1 && e.cracked) { cracked++; assert.ok(e.counter); }
   }
   assert.ok(cracked > 0);
