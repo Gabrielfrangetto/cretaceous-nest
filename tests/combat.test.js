@@ -1285,7 +1285,7 @@ test('fear: a predator runs from a bigger predator, and from a plant eater more 
   }
 });
 
-test("a herd whose alpha falls breaks up; a pack's alpha down counts as two of its losses", async () => {
+test("a herd whose alpha falls breaks up (a predator pack's alpha is one loss like any other)", async () => {
   const { seededRand: sr } = await import('../js/economy.js');
   // a herd: its alpha down, it runs at once, whoever else still stands
   const herd = () => { const u = encounterUnit({ species: 'proto', pack: [4, 4], herd: true, loot: [] }, 6); u.members[0] = { ...u.members[0], alpha: true, hp: 1 }; return u; };

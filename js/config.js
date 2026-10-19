@@ -956,9 +956,9 @@ export const PLAYER_SIZE = 'small';            // a person, 70–80 kg
 // end because of a bug (no real fight comes near it); it then counts as lost.
 export const FIGHT_SAFETY = 10000;
 // a pack or herd's morale: once it has lost this share of its members (one of two, two of three, half
-// of a bigger one), the rest run off and the fight is over for them. A predator pack's alpha down
-// counts as two of them (the pack falls apart later, not on the spot); a herd whose alpha is down
-// breaks up and runs (as an elephant herd that loses its matriarch)
+// of a bigger one), the rest run off and the fight is over for them. A predator pack's alpha down is
+// one loss like any other; a herd whose alpha is down breaks up and runs (as an elephant herd that
+// loses its matriarch)
 export const ROUT = 0.5;
 // Hunting what keeps away from the team: the team's best hunter (a carnivore with BODY hunt, no
 // smaller than its prey) against the prey's agility: (agility + hunt) / (that + the prey's agility),

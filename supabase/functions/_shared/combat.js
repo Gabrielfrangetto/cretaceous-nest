@@ -755,9 +755,9 @@ export function teamFight(units, foe, rand, opts = {}) {
     const list = hp[s][u], unit = S[s][u];
     if (list.length < 2) return false;
     const lead = unit.members.findIndex(m => m.alpha), alphaDown = lead >= 0 && list[lead] <= 0;
-    // a herd whose alpha is down breaks up; a pack counts its alpha as two
+    // a herd whose alpha is down breaks up; a predator pack's alpha is one loss like any other
     if (alphaDown && roleOf(unit) !== 'attacker') return true;
-    return list.length - standing(list).length + (alphaDown ? 1 : 0) >= list.length * ROUT;
+    return list.length - standing(list).length >= list.length * ROUT;
   };
   const checkRouts = () => {
     for (const s of [0, 1]) for (const u of [...active[s]]) {
