@@ -218,6 +218,12 @@ const ADULT_SCALE = { raptor: { m: 0.7, f: 0.75 } };
 export const adultScale = (type, sex) => (ADULT_SCALE[type] || {})[sex] || 1;
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
+// juvenile sprites drawn so far (sprites/juvenile/), and how tall each is drawn against the others;
+// juveniles without one keep their baby sprite, scaled up
+export const JUVENILE_SPRITES = { dilo: { m: asset('sprites/juvenile/dilo-m.webp') } };
+const JUVENILE_SCALE = { dilo: { m: 0.8 } };
+export const juvenileSpriteUrl = (type, sex) => (JUVENILE_SPRITES[type] && JUVENILE_SPRITES[type][sex]) || null;
+
 // pixel-art fallback for species without a sprite, or when an image fails to load
 const BASE = [
   '................', '..........####..', '.........######.', '.........##o####', '.........#######',
@@ -285,14 +291,15 @@ export const spriteUrl = (type, sex) => (SPRITES[type] && SPRITES[type][sex]) ||
 const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + ' baby';
 
 // The baby as it looks at its growth stage: its outfit's sprite if it wears one, otherwise its own sprite
-// (the adult one for adults, when it exists), drawn larger as it grows, with its small accessories
+// (the juvenile or adult one, when it exists), drawn larger as it grows, with its small accessories
 // (DRAWN_SLOTS) on top. Returns the plain sprite when nothing is drawn over it, otherwise a box holding
 // the sprite and one layer per accessory.
 export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby') {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
-  const own = stage === 'adult' ? adultSpriteUrl(type, sex) : null;
-  const size = look ? 1 : own ? adultScale(type, sex) : ((BABY_SCALE[type] || {})[sex] || 1);
+  const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
+  const size = look ? 1 : !own ? ((BABY_SCALE[type] || {})[sex] || 1)
+    : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
   const base = babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
