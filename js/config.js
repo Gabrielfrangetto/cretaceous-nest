@@ -358,10 +358,10 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin',
 // animal for meat, fish, insects and eggs (richer food; the player too), from today's mammals (an
 // elephant's 150 kg of plants, a lion's 7 kg of meat) at 60% (a dinosaur's metabolism between a
 // reptile's and a mammal's). A meal in the nest is meal of a day's food (at least one item). On a
-// journey days pass for real: a unit of the way's cost is hours of walking, and a meal from what the
-// team carries fills one up as far as its kilos go. A carcass gives edible of its weight in meat, as
+// journey days pass for real (CLOCK), and a meal from what the team carries fills one up as far as its
+// kilos go. A carcass gives edible of its weight in meat, as
 // much as the team can carry: haul of each one's weight (the player playerHaul kg).
-export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, hours: 3.5, edible: 0.5, haul: 0.15, playerHaul: 20 };
+export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, edible: 0.5, haul: 0.15, playerHaul: 20 };
 // what each species eats, favourite first; a meal uses the first of these in the inventory
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
@@ -464,6 +464,11 @@ export const PACK_BONUS = 0.05;              // +5% damage for each other member
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
 // Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
 // terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
+// The world's clock: a unit of a way's cost is walk hours on foot (a flat hex, about 14 km, at about
+// 4 km/h); a team walks day hours a day and spends the rest eating, drinking and sleeping, so a unit
+// is UNIT_HOURS of the world (a flat hex about half a day, a day's march about 2.3 flat hexes).
+export const CLOCK = { walk: 3.5, day: 8 };
+export const UNIT_HOURS = CLOCK.walk * 24 / CLOCK.day;
 export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
 // On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,

@@ -8,7 +8,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 const dino = (id, fed, sex = 'm', type = 'rex') => ({ id, type, sex, name: id, at: 0, gen: 1, fed, lastFed: T0, genes: { str: 50, agi: 50, vit: 50, res: 50 }, equip: {} });
@@ -910,4 +910,11 @@ test('wild animals are rolled anew at every meeting, within their kind; the map 
   assert.equal(a.foe.members.length, b.foe.members.length);
   assert.notDeepEqual(a.foe.members.map(m => m.power), b.foe.members.map(m => m.power));
   for (const m of a.foe.members) assert.ok(Math.abs(m.power - typical.foe.members[0].power) <= typical.foe.members[0].power * 0.2);
+});
+
+test("the world's day is a day's march: a flat hex is about half a day, a day about 2.3 flat hexes", () => {
+  assert.equal(UNIT_HOURS, CLOCK.walk * 24 / CLOCK.day);
+  const hexDays = TRAVEL.terrain.flat * UNIT_HOURS / 24;
+  assert.ok(hexDays > 0.4 && hexDays < 0.5);
+  assert.ok(1 / hexDays > 2.2 && 1 / hexDays < 2.4);
 });

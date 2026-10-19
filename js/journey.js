@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -495,7 +495,7 @@ function survive(ctx, idx) {
   // what the land gives as the team walks (foragers find their kinds more easily)
   forage(ctx, idx, cell, h);
   // a meal of what the team carries (the player's rations first; eggs are never eaten on the way): as
-  // much as it takes to fill one up, as far as there is (FOOD: the days its hunger stands for, at its
+  // much as it takes to fill one up, as far as there is (CLOCK: the days its hunger stands for, at its
   // day's food)
   for (const id of p.members) {
     const level = levelOf(p, 'hunger', id);
@@ -503,12 +503,12 @@ function survive(ctx, idx) {
     const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => x !== 'raw_egg' && (p.carry.items[x] || 0) > 0);
     if (!food) continue;
     const who = explorerOf(s, id), day = dailyKg(who, food), each = ITEMS[food].kg || 1;
-    const days = level / SURVIVAL.hunger * FOOD.hours / 24;
+    const days = level / SURVIVAL.hunger * UNIT_HOURS / 24;
     const have = food === 'ration' ? sup.ration : p.carry.items[food];
     const n = Math.min(have, Math.max(1, Math.ceil(days * day / each)));
     if (food === 'ration') sup.ration -= n;
     else if (!(p.carry.items[food] -= n)) delete p.carry.items[food];
-    setLevel(p, 'hunger', id, level - n * each / day * 24 / FOOD.hours * SURVIVAL.hunger);
+    setLevel(p, 'hunger', id, level - n * each / day * 24 / UNIT_HOURS * SURVIVAL.hunger);
   }
   // at the end of one's strength
   for (const id of [...p.members]) {
