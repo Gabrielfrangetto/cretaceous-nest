@@ -783,7 +783,7 @@ export const FORAGE = {
     insect: { meadow: 0.04, forest: 0.05, subtropical: 0.07, floodplain: 0.04, swamp: 0.05, scrub: 0.03, desert: 0.015 },
     herb: { meadow: 0.02, forest: 0.02, subtropical: 0.03, floodplain: 0.03 },
   },
-  min: 1, max: 2, more: 1.5,
+  min: 1, max: 2, more: 2,
   by: { psitta: ['seed', 'stone'], galli: ['insect', 'leaf', 'herb', 'nest'], hypa: ['leaf', 'fruit'] },
   camp: { food: 1.5, water: 1.3 },
 };
