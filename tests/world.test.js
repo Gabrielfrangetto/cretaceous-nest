@@ -292,10 +292,10 @@ test('the same journey is told the same in the browser and on the server', () =>
   assert.deepEqual(tell(a), tell(b));
 });
 
-test("what lives in a hex is of an age: young, old, adult or in its prime (a lair's Alpha the strongest); no predators near the nest", () => {
+test("what lives in a hex is of an age: young, old, adult or in its prime (a lair's the strongest); no predators near the nest", () => {
   const land = landHexes(42);
   const ages = new Set(land.map(h => threatAt(42, h).age));
-  for (const a of [...Object.keys(AGES), 'alpha']) assert.ok(ages.has(a), a);
+  for (const a of [...Object.keys(AGES), 'lair']) assert.ok(ages.has(a), a);
   const power = age => { const t = land.map(h => threatAt(42, h)).filter(t => t.age === age); return t.reduce((x, y) => x + y.power / y.foe.members.length, 0) / t.length; };
   assert.ok(power('prime') > power('adult') && power('adult') > power('young'));
   // no big predator nearer than NEST_FAR: a newcomer doesn't run into a Tyrannosaurus by chance

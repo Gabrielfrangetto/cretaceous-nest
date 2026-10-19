@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, KG, MASS, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, KG, MASS, ALPHA, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand, massOf, hpForMass, biteForMass } from './economy.js';
@@ -73,9 +73,9 @@ const youngHide = (hide, level) => Math.round(hide * Math.min(1, level / CREATUR
 const wildStats = (base, level) => Object.fromEntries(Object.entries(base).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
 
 // a wild dinosaur of one of the game's species, at a distance from the nest, stronger in a lair
-export function wildFighter(type, dist, lair = false) {
+export function wildFighter(type, dist, lair = false, boost = 1) {
   const sp = SPECIES[type];
-  const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
+  const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1) * boost;
   const stats = wildStats(sp.base, level);
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair), young = size !== sp.size;
   const kg = KG[type] * (young ? MASS.young : 1);
@@ -96,8 +96,10 @@ export function encounterUnit(entry, dist, lair = false) {
   }
   const sp = SPECIES[entry.species];
   const n = !entry.pack ? 1 : lair ? entry.pack[1] : Math.round(entry.pack[0] + (entry.pack[1] - entry.pack[0]) * Math.max(0, dist - 1) / (WORLD_RADIUS - 1));
-  const name = (lair ? 'Alpha ' : '') + (n > 1 ? `${sp.species} ${entry.herd ? 'herd' : 'pack'} (${n})` : sp.species);
-  return unitOf(name, Array.from({ length: n }, () => wildFighter(entry.species, dist, lair)), n > 1);
+  const name = n > 1 ? `${sp.species} ${entry.herd ? 'herd' : 'pack'} (${n})` : sp.species;
+  // (a pack's or herd's first is its alpha, stronger than the rest)
+  const members = Array.from({ length: n }, (_, i) => (n > 1 && !i ? { ...wildFighter(entry.species, dist, lair, ALPHA.level), alpha: true } : wildFighter(entry.species, dist, lair)));
+  return unitOf(name, members, n > 1);
 }
 
 // an animal that isn't a dinosaur (CREATURES), at a distance from the nest, stronger in a lair
@@ -108,7 +110,7 @@ export function creatureFighter(id, dist, lair = false) {
   const power = Object.values(stats).reduce((t, v) => t + v, 0);
   const derived = deriveCombat(stats), size = youngSize(c.size, dist, lair), young = size !== c.size;
   const kg = KG[id] * (young ? MASS.young : 1);
-  return { name: (lair ? 'Alpha ' : '') + c.name, ...derived, hp: hpForMass(derived.hp, kg), agi: stats.agi, str: stats.str, res: stats.res, power, level, size, young, kg,
+  return { name: c.name, ...derived, hp: hpForMass(derived.hp, kg), agi: stats.agi, str: stats.str, res: stats.res, power, level, size, young, kg,
     bite: biteForMass(c.bite ?? BITE[c.size], kg, KG[id]), hide: youngHide(c.hide ?? HIDE[c.size], level), role: 'attacker', fear: c.fear, hunts: c.hunts || null, preyMax: c.preyMax || null };
 }
 

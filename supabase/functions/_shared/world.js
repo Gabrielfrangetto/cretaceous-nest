@@ -7,7 +7,7 @@
 // (a pack's members as they were when it set out); members lists everyone out on it.
 import {
   BIOMES, ITEMS, MAP_VERSION, WORLD_SEED, TRAVEL, EXPEDITION_SLOTS, TEAM_SLOTS, INTERCEPT, DISCOVERY_COINS_PER_HEX, LOOT_PER_HEX,
-  LAIR_SHARE, LAIR_MIN_DIST, AGES, ALPHA_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
+  LAIR_SHARE, LAIR_MIN_DIST, AGES, LAIR_STEP, EGG_STEP, NEST_CALM, NEST_FAR, WIN_COINS_PER_HEX, GEAR_DROP, INJURY_MINS, BRUISE_MINS, HEAL_MINS, CRITICAL_MINS,
   EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, PLAYER_ID, SPECIES, RARITIES, ROLES, SCOUT, FRENZY_DROPS, PACK_LIMITS, FRILL, TOUGH, SIZE_ORDER, PACK_BONUS, VISIBILITY, PLAYER_SIZE, RUNNER, DEATH, PACK_MIN, WATER_BIOMES, SAIL, ZIGZAG, EYES, CHASE, WITNESS, AMBUSH,
   EXPEDITION,
 } from './config.js';
@@ -15,6 +15,7 @@ import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf, afraidOf } from './combat.js';
 import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES } from './map.js';
+import { alphaOf } from './packs.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -78,7 +79,7 @@ export const wildFor = (seed, h) => {
   return calm.length ? calm : BIOMES.meadow.wild.filter(e => !isPredatorEntry(e));
 };
 // what waits in a hex: one of its biome's wild animals (WILD), the same every time, how old it is (AGES:
-// a lair holds an Alpha), how likely a fight is (the biome's density), and whether it is a lair. foe is
+// a lair holds a stronger one), how likely a fight is (the biome's density), and whether it is a lair. foe is
 // the unit it fights as; id names it (a species or a creature); step is its strength (AGES).
 export function threatAt(seed, h) {
   const lair = isLair(seed, h);
@@ -86,8 +87,8 @@ export function threatAt(seed, h) {
   let x = cell(seed, 0x165667b1, ...h) * list.reduce((t, e) => t + e.weight, 0);
   const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
   let y = cell(seed, 0x7f4a7c15, ...h) * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
-  const age = lair ? 'alpha' : Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult';
-  const step = lair ? ALPHA_STEP : AGES[age].step;
+  const age = lair ? 'lair' : Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult';
+  const step = lair ? LAIR_STEP : AGES[age].step;
   const unit = encounterUnit(entry, step, lair);
   const label = lair ? '' : AGES[age].name;
   const foe = label ? { ...unit, name: `${label} ${unit.name}` } : unit;
@@ -251,7 +252,8 @@ export function teamUnits(s, units, extra = null) {
   return units.map(u => {
     const pack = u.kind === 'pack' && (s.packs || []).find(p => p.id === u.id);
     const bonus = fullPackMods(pack ? pack.type : null, u.members.length);
-    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(b => fighterOf(b, extra ? [...bonus, ...extra(b.id)] : bonus));
+    const lead = pack ? alphaOf(s, pack) : null;
+    const fighters = u.members.map(id => explorerOf(s, id)).filter(Boolean).map(b => ({ ...fighterOf(b, extra ? [...bonus, ...extra(b.id)] : bonus), ...(b.id === lead ? { alpha: true } : {}) }));
     return unitOf(u.kind === 'pack' ? (pack ? pack.name : 'Pack') : (fighters[0] || { name: '?' }).name, fighters, u.kind === 'pack');
   }).filter(u => u.members.length);
 }
@@ -294,7 +296,7 @@ export function keepsAway(threat, team) {
 }
 
 // the chance a wild predator as big as a sail's owner backs off after sizing it up (SAIL), or 0: none
-// in the team, not a predator, or a lair's Alpha. The strongest sail counts.
+// in the team, not a predator, or what holds a lair. The strongest sail counts.
 // (where: by the water, or the biome)
 export function sailBackOff(threat, team, where) {
   const sp = threat.entry.species && SPECIES[threat.entry.species];

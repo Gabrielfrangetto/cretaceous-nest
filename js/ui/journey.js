@@ -283,7 +283,7 @@ function riskHTML(units, death) {
   return `<p class="hint warn-text">Had it come to a fight: ${at.map(x => `${esc(x.name)} would have been ${riskOf(x.p)}`).join('; ')}.</p>`;
 }
 const standText = (st, past = false) => {
-  const what = `${st.lair ? 'Alpha ' : ''}${st.species}${st.group ? ' ' + st.group : ''}`;
+  const what = `${st.species}${st.group ? ' ' + st.group : ''}`;
   const ground = past ? (st.count > 1 ? `${st.count} stood their ground` : 'stood its ground') : (st.count > 1 ? `${st.count} stay their ground` : 'stays its ground');
   return `${cap(article(what))} <strong>${esc(what)}</strong> ${past ? 'spotted' : 'spots'} you and ${ground} to drive you off.`;
 };

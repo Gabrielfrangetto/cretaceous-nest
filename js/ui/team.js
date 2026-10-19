@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, wornGear, isHungry } from '../economy.js';
 import { act } from '../actions.js';
 import { isAway, injuredLeft } from '../world.js';
-import { packOf } from '../packs.js';
+import { packOf, alphaOf } from '../packs.js';
 import { cleanTeams, PRESET_SLOTS } from '../teams.js';
 import { dressedArt } from '../art.js';
 import { esc } from '../util.js';
@@ -45,7 +45,7 @@ function cardHTML(u, extra = '') {
   if (u.kind === 'pack') {
     const p = packById(u.id), st = status(p.members);
     return `<span class="team-art" data-pack="${esc(p.id)}"></span><strong>${esc(p.name)}</strong>
-      <span class="hint">Pack of ${p.members.length} ${esc(SPECIES[p.type].species)}</span>${st ? `<span class="hint warn-text">${st}</span>` : ''}${extra}`;
+      <span class="hint">Pack of ${p.members.length} ${esc(SPECIES[p.type].species)}${(() => { const a = dinoOf(alphaOf(S, p)); return a ? `, led by ${esc(a.name)}` : ''; })()}</span>${st ? `<span class="hint warn-text">${st}</span>` : ''}${extra}`;
   }
   const b = dinoOf(u.id), st = status([b.id]);
   return `<span class="team-art" data-dino="${esc(b.id)}"></span><strong>${esc(b.name)} ${SEX[sexOf(b)].sym}</strong>

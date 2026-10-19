@@ -2,11 +2,21 @@
 // Pure rules on the state passed in, shared by the browser and the server.
 // s.packs = [{ id, type, name, members: [babyId] }]
 import { PACK_LIMITS, PACK_MIN, SPECIES, HERDS } from './config.js';
-import { stageOf } from './economy.js';
+import { stageOf, statSheet } from './economy.js';
 import { isAway } from './world.js';
 
 export const packOf = (s, babyId) => (s.packs || []).find(p => p.members.includes(babyId)) || null;
 export const canPack = type => !!PACK_LIMITS[type];
+// a pack's alpha: its strongest, by the average of its stats (the first of equals)
+export function alphaOf(s, pack) {
+  let best = null, top = -1;
+  for (const id of pack.members) {
+    const b = s.hatched.find(x => x.id === id);
+    const st = b ? statSheet(b).stats : null, avg = st ? Object.values(st).reduce((t, v) => t + v, 0) / Object.keys(st).length : -1;
+    if (avg > top) { top = avg; best = id; }
+  }
+  return best;
+}
 
 // why these dinosaurs can't be this pack, or null when they can
 export function packProblem(s, type, members, packId = null) {

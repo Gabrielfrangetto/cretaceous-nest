@@ -303,3 +303,14 @@ test('a pack or herd that loses half its members runs off', () => {
 test('Parasaurolophus can be formed into a herd of up to six', () => {
   assert.equal(PACK_LIMITS.para, 6);
 });
+
+test("a pack's alpha is its strongest, by the average of its stats", async () => {
+  const { alphaOf } = await import('../js/packs.js');
+  const { teamUnits } = await import('../js/world.js');
+  const s = game(dino('r1', 'raptor', 40), dino('r2', 'raptor', 90), dino('r3', 'raptor', 60));
+  assert.equal(applyAction(s, 'formPack', { type: 'raptor', members: ['r1', 'r2', 'r3'] }).ok, true);
+  const p = s.packs[0];
+  assert.equal(alphaOf(s, p), 'r2');
+  const [u] = teamUnits(s, [{ kind: 'pack', id: p.id, members: p.members }]);
+  assert.deepEqual(u.members.filter(m => m.alpha).map(m => m.name), ['r2']);
+});

@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, stageOf } from '../economy.js';
 import { act } from '../actions.js';
 import { isAway } from '../world.js';
-import { packOf } from '../packs.js';
+import { packOf, alphaOf } from '../packs.js';
 import { esc } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 
@@ -20,7 +20,7 @@ const PROBLEMS = {
 };
 // the dinosaurs that could run in a pack of this species: old enough, and not in another pack
 const free = (type, pack = null) => S.hatched.filter(b => b.type === type && stageOf(b).id !== 'baby' && (!packOf(S, b.id) || (pack && packOf(S, b.id) === pack)));
-const label = b => `${esc(b.name)} ${SEX[sexOf(b)].sym} <span class="hint">${stageOf(b).name}${isAway(S, b.id) ? ' · away' : ''}</span>`;
+const label = (b, lead = false) => `${esc(b.name)} ${SEX[sexOf(b)].sym} <span class="hint">${stageOf(b).name}${lead ? ' · alpha' : ''}${isAway(S, b.id) ? ' · away' : ''}</span>`;
 
 // a species whose full pack fights better says so, and how far this pack is from it
 function fullNote(type, n) {
@@ -30,8 +30,9 @@ function fullNote(type, n) {
   return `<p class="hint ${full ? 'pack-full' : ''}">${full ? 'Full pack' : `${PACK_LIMITS[type] - n} more for a full pack`}: every member gets +${Math.round(sp.fullPack * 100)}% to every stat in a fight.</p>`;
 }
 
-function picks(list, chosen, group) {
-  return `<ul class="pack-picks">${list.map(b => `<li><label><input type="checkbox" data-group="${esc(group)}" value="${esc(b.id)}" ${chosen.includes(b.id) ? 'checked' : ''}> ${label(b)}</label></li>`).join('')}</ul>`;
+// (lead: the pack's alpha, its strongest)
+function picks(list, chosen, group, lead = null) {
+  return `<ul class="pack-picks">${list.map(b => `<li><label><input type="checkbox" data-group="${esc(group)}" value="${esc(b.id)}" ${chosen.includes(b.id) ? 'checked' : ''}> ${label(b, b.id === lead)}</label></li>`).join('')}</ul>`;
 }
 
 function render() {
@@ -48,7 +49,7 @@ function render() {
       <div class="pack-title"><input type="text" maxlength="24" value="${esc(p.name)}" data-pack-name="${esc(p.id)}" aria-label="Pack name" ${away ? 'disabled' : ''}>
         <span class="hint">${p.members.length} / ${PACK_LIMITS[p.type]} ${esc(SPECIES[p.type].species)}${away ? ' · out exploring' : ''}</span></div>
       ${fullNote(p.type, p.members.length)}
-      ${away ? '' : `${picks(free(p.type, p), p.members, p.id)}
+      ${away ? '' : `${picks(free(p.type, p), p.members, p.id, alphaOf(S, p))}
       <div class="row"><button class="ghost" type="button" data-pack-save="${esc(p.id)}">Save changes</button>
         <button class="ghost" type="button" data-pack-off="${esc(p.id)}">Break up the pack</button></div>`}
     </div>`;

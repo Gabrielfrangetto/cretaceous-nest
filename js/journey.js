@@ -764,7 +764,7 @@ const spOf = threat => (threat && threat.entry ? threat.entry.species || threat.
 
 // ---------- what happens on the way ----------
 // At a hex on the way (past the calm around the nest): now and then a hunt, wild against wild, the
-// team watches; otherwise what lives there may notice the team (INTERCEPT): a lair's Alpha often,
+// team watches; otherwise what lives there may notice the team (INTERCEPT): what holds a lair often,
 // anything else by how much the team stands out
 function wayEvent(ctx, idx) {
   const { s, p } = ctx, w = W(s), key = p.leg.path[idx], h = parseKey(key);

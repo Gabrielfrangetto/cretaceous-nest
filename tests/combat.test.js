@@ -55,7 +55,13 @@ test('every biome has its wild animals, stronger and in bigger packs farther out
       assert.ok(e.loot.length && e.weight > 0);
       assert.ok(power(encounterUnit(e, 5)) > power(encounterUnit(e, 2)));
       assert.ok(power(encounterUnit(e, 5, true)) > power(encounterUnit(e, 5)));
-      assert.match(encounterUnit(e, 5, true).name, /^Alpha /);
+      // no "Alpha" for a lair: an alpha is a pack's or herd's strongest only
+      assert.doesNotMatch(encounterUnit(e, 5, true).name, /Alpha/);
+      if (e.pack) {
+        const u = encounterUnit(e, 7);
+        assert.equal(u.members.filter(m => m.alpha).length, 1);
+        assert.ok(u.members[0].alpha && u.members[0].power > u.members[1].power);
+      }
       if (e.pack) assert.ok(encounterUnit(e, 7).members.length > encounterUnit(e, 1).members.length);
     }
   }
@@ -897,7 +903,7 @@ test("Baryonyx hooks with its thumb claw; Spinosaurus is clumsy on land and stro
   const { teamWinChance } = await import('../js/combat.js');
   assert.ok(teamWinChance([spino()], foe, 200, { biome: 'swamp' }) > teamWinChance([spino()], foe, 200, { biome: 'scrub' }));
   // its sail: a smaller predator (Allosaurus) keeps away; a Tyrannosaurus (as big as it) doesn't, but
-  // may back off after sizing it up, likelier in the water; a lair's Alpha never does
+  // may back off after sizing it up, likelier in the water; what holds a lair never does
   const { sailBackOff } = await import('../js/world.js');
   // (a Stegosaurus beside: something an Allosaurus does hunt)
   const s = game(dino('s', 60, 'spino'), dino('a', 60, 'stego'));

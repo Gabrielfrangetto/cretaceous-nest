@@ -460,8 +460,8 @@ export const INTERCEPT = { share: 0.12, lair: 0.3 };
 export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
-// What lives in each biome: one of these waits in each hex, picked by its weight (a lair holds an
-// "Alpha"). species are the game's own (wild, at CREATURE_LEVEL of their base stats; packs of
+// What lives in each biome: one of these waits in each hex, picked by its weight (a lair holds a
+// stronger one, at home there). species are the game's own (wild, at CREATURE_LEVEL of their base stats; packs of
 // pack[0] next to the nest up to pack[1] at the edge); creature is an animal that isn't a dinosaur
 // (CREATURES). loot is extra, on top of the hex's, when it is beaten.
 export const WILD = {
@@ -575,12 +575,12 @@ export const CREATURES = {
 };
 // (× 1.13 since genes moved to 70–100%: a creature keeps up with a dinosaur of middling genes)
 export const CREATURE_LEVEL = d => (0.3 + 0.07 * d) * 1.13;  // 0.42 next to the nest, 0.89 at the edge
-export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger "Alpha"
+export const LAIR_SHARE = 0.12;              // share of hexes 3+ away that are lairs: always a fight, a stronger one
 export const LAIR_MIN_DIST = 3;
 export const LAIR_LEVEL = 1.25;
 export const ENCOUNTER_CHANCE = d => Math.min(0.8, 0.2 + 0.07 * d);
 // How old the animal living in a hex is (fixed for the hex): its strength step (as CREATURE_LEVEL takes
-// it: young ones, step 3 or less, are a size smaller) and how often. A lair's Alpha is at its prime and
+// it: young ones, step 3 or less, are a size smaller) and how often. What holds a lair is at its prime and
 // stronger still (LAIR_LEVEL). Its loot and the coins and equipment it brings scale with the step.
 export const AGES = {
   young: { step: 2, weight: 25, name: 'Young' },
@@ -588,7 +588,10 @@ export const AGES = {
   adult: { step: 6, weight: 45, name: '' },
   prime: { step: 8, weight: 15, name: 'Prime' },
 };
-export const ALPHA_STEP = 7;
+export const LAIR_STEP = 7;
+// A pack or herd has an alpha: its strongest, by the average of its stats (a wild one's alpha has
+// level times the stats of the rest; in the player's own, whichever is strongest)
+export const ALPHA = { level: 1.1 };
 // eggs are found at this step's genes and chance (no longer by distance: rarer kinds are just rarer)
 export const EGG_STEP = 5;
 // near the nest (hexes): no predators live there, and no big ones (large or bigger) nearer than far
@@ -881,7 +884,7 @@ export const RUNNER = { trip: 0.5, eye: 0.25 };
 // (up to maxBleed wounds).
 // a sail (Spinosaurus) against a wild predator as big as its owner: the rival sizes it up and may back
 // off, likelier in the water (where its owner is at home) and the stronger its owner is next to it
-// (power ratio, clamped); a lair's Alpha defends its ground and never backs off
+// (power ratio, clamped); what holds a lair defends its ground and never backs off
 export const SAIL = { land: 0.35, water: 0.55, ratio: [0.5, 1.5], max: 0.85 };
 // zigzag running (Hypsilophodon): this much more dodge a size step the attacker is bigger (within the
 // usual cap), and a hunter needs this much more to run one down
