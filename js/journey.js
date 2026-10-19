@@ -629,7 +629,11 @@ export function nestView(s, p, idx) {
     : r < NEST.empty[kind] ? 'empty' : rand() < seen ? 'seen' : 'unseen';
   const n = kind === 'colony' ? NEST.colony[0] + Math.floor(rand() * (NEST.colony[1] - NEST.colony[0] + 1)) : 1;
   const sp = SPECIES[species];
-  const foe = unitOf(n > 1 ? `${sp.species} colony (${n})` : `Nesting ${sp.species}`, Array.from({ length: n }, () => wildFighter(species, AGES.prime.step)), n > 1);
+  // (each parent its own, the same however often this nest is looked at; a colony's strongest its alpha)
+  const foeRand = seededRand(`nest-foe:${w.seed}:${p.leg.n}:${idx}`);
+  const adults = Array.from({ length: n }, () => wildFighter(species, AGES.prime.step, false, foeRand));
+  if (n > 1) { const top = adults.reduce((a, m, i) => (m.power > adults[a].power ? i : a), 0); adults[top] = { ...adults[top], alpha: true }; }
+  const foe = unitOf(n > 1 ? `${sp.species} colony (${n})` : `Nesting ${sp.species}`, adults, n > 1);
   const parent = foe.members[0];
   // (bait: one of the team that would run from the parent anyway; its speed against the parent's)
   const lone = state === 'unseen' || state === 'seen' || state === 'watched';
@@ -773,7 +777,7 @@ function wayEvent(ctx, idx) {
   if (!units.length) return null;
   const rand = seededRand(`way:${w.seed}:${p.leg.n}:${idx}`);
   if (rand() < WITNESS.way && witnessOf(s, p, idx)) return { kind: 'witness', idx, hex: key };
-  const t = threatAt(w.seed, h), team = teamUnits(s, units);
+  const t = metAt(s, p, idx), team = teamUnits(s, units);
   if (isAttacker(t.foe) && keepsAway(t, team) && !huntOdds(team, t.foe.members[0])) return null;
   const chance = t.lair ? INTERCEPT.lair : encounterChance(t, team, biomeAt(w.seed, h), hasScout(s, p.members)) * INTERCEPT.share;
   return rand() < chance ? { kind: 'meet', idx, hex: key } : null;
@@ -786,9 +790,11 @@ function endEvent(ctx, idx) {
   if (!units.length) return null;
   const rand = seededRand(`end:${w.seed}:${p.leg.n}`);
   if (rand() < WITNESS.chance && witnessOf(s, p, idx)) return { kind: 'witness', idx, hex: key };
-  const t = threatAt(w.seed, h);
+  const t = metAt(s, p, idx);
   return rand() < encounterChance(t, teamUnits(s, units), biomeAt(w.seed, h), hasScout(s, p.members)) ? { kind: 'meet', idx, hex: key } : null;
 }
+// what lives at the hex at idx of the leg, the very animals met there this time (each wild one its own)
+const metAt = (s, p, idx) => threatAt(W(s).seed, parseKey(p.leg.path[idx]), seededRand(`met:${W(s).seed}:${p.leg.n}:${idx}`));
 const witnessOf = (s, p, idx) => witnessAt(W(s).seed, parseKey(p.leg.path[idx]), seededRand(`wit:${W(s).seed}:${p.leg.n}:${idx}`));
 
 // Plays an event: one waiting for a decision is left pending (choice null) or played with it. Returns
@@ -797,7 +803,7 @@ function run(ctx, ev, choice) {
   const { s, p, story, now } = ctx, w = W(s), h = parseKey(ev.hex);
   const rand = seededRand(`ev:${w.seed}:${p.leg.n}:${ev.idx}:${ev.kind}`);
   const units = standingUnits(s, p), team = teamUnits(s, units);
-  const threat = threatAt(w.seed, h);
+  const threat = metAt(s, p, ev.idx);
   const tell = x => story.push({ hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), ...x });
   const ask = kind => { p.pending = { kind, idx: ev.idx, hex: ev.hex }; return true; };
   if (!units.length) return false;
@@ -963,7 +969,7 @@ function die(ctx, id) {
 // carcass (unless it got away badly hurt) and coins. Returns the battle, for the replay.
 function fight(ctx, ev, rand, how = {}) {
   const { s, p, story } = ctx, w = W(s), h = parseKey(ev.hex);
-  const threat = threatAt(w.seed, h);
+  const threat = metAt(s, p, ev.idx);
   const as = how.as || { foe: threat.foe, entry: threat.entry, step: threat.step, lair: threat.lair, id: threat.id };
   const foe = as.foe;
   const fought = how.units || standingUnits(s, p);
@@ -1125,7 +1131,7 @@ export function pendingView(s, p) {
   const ev = p.pending;
   if (!ev || !p.leg) return null;
   const w = W(s), h = parseKey(ev.hex), units = standingUnits(s, p), team = teamUnits(s, units);
-  const threat = threatAt(w.seed, h);
+  const threat = metAt(s, p, ev.idx);
   const base = { kind: ev.kind, hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), swamp: watery(w.seed, h), units: team, hp: units.map(u => u.members.map(id => healthOf(p, id))), sp: spOf(threat) };
   if (ev.kind === 'scatter') {
     const sc = scatterOf(s, units, threat);

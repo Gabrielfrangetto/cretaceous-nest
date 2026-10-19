@@ -81,7 +81,8 @@ export const wildFor = (seed, h) => {
 // what waits in a hex: one of its biome's wild animals (WILD), the same every time, how old it is (AGES:
 // a lair holds a stronger one), how likely a fight is (the biome's density), and whether it is a lair. foe is
 // the unit it fights as; id names it (a species or a creature); step is its strength (AGES).
-export function threatAt(seed, h) {
+// (rand: the very animals met there this time, each its own; none: its kind as it is, to tell of it)
+export function threatAt(seed, h, rand = null) {
   const lair = isLair(seed, h);
   const list = wildFor(seed, h);
   let x = cell(seed, 0x165667b1, ...h) * list.reduce((t, e) => t + e.weight, 0);
@@ -89,8 +90,7 @@ export function threatAt(seed, h) {
   let y = cell(seed, 0x7f4a7c15, ...h) * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
   const age = lair ? 'lair' : Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult';
   const step = lair ? LAIR_STEP : AGES[age].step;
-  // (the animals there, each its own, the same every time)
-  const unit = encounterUnit(entry, step, lair, seededRand(`wild:${seed}:${h[0]},${h[1]}`));
+  const unit = encounterUnit(entry, step, lair, rand);
   const label = lair ? '' : AGES[age].name;
   const foe = label ? { ...unit, name: `${label} ${unit.name}` } : unit;
   return {
@@ -379,7 +379,7 @@ export function runOf(s, units, threat, sc = scatterOf(s, units, threat), biome)
 // { hunter, prey: { name, species, count, entry }, hunterFoe, preyFoe: the two as they fight, outcome:
 // how it ends if the team lets it be ('kill', 'escaped' or 'repelled') }
 export function witnessAt(seed, h, rand) {
-  const biome = biomeAt(seed, h), threat = threatAt(seed, h);
+  const biome = biomeAt(seed, h), threat = threatAt(seed, h, rand);
   const list = wildFor(seed, h);
   let x = rand() * list.reduce((t, e) => t + e.weight, 0);
   const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];

@@ -899,3 +899,15 @@ test('a team on its way is somewhere between two hexes, further along as time go
   }
   assert.equal(progressOf(s, p, arriveAt).i, p.leg.path.length - 1);
 });
+
+test('wild animals are rolled anew at every meeting, within their kind; the map tells of the kind as it is', async () => {
+  const { seededRand } = await import('../js/economy.js');
+  const h = landHexes(42).filter(x => hexDist(x) === 9)[0];
+  const typical = threatAt(42, h), again = threatAt(42, h);
+  assert.deepEqual(typical.foe.members.map(m => m.power), again.foe.members.map(m => m.power));
+  const a = threatAt(42, h, seededRand('meet-a')), b = threatAt(42, h, seededRand('meet-b'));
+  assert.equal(a.entry, b.entry);
+  assert.equal(a.foe.members.length, b.foe.members.length);
+  assert.notDeepEqual(a.foe.members.map(m => m.power), b.foe.members.map(m => m.power));
+  for (const m of a.foe.members) assert.ok(Math.abs(m.power - typical.foe.members[0].power) <= typical.foe.members[0].power * 0.2);
+});
