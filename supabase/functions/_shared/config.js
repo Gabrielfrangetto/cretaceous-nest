@@ -122,12 +122,12 @@ const SIZE = {
 //   kick:   its blows back land this many times as hard (a long-legged kick)
 //   haul:   brings home this many times the loot an expedition finds (a team takes its best hauler)
 //   slow:   an expedition with it takes this many times as long
-//   fear:   the biggest predator it stands up to; it runs from any predator bigger, before the fight
-//           starts. Fear is of predators only: how big a prey it takes on is the food chain
-//           (preyMax), a different thing (a 15 kg Velociraptor went for a Protoceratops many times
-//           its weight, but would run from a Dilophosaurus). Nothing short of a giant sauropod stands
-//           up to one: colossal is theirs alone. A wild one doesn't even show itself to a team with a
-//           predator bigger: it can only be spotted at a distance and hunted (hunt)
+//   fear:   what makes it run, before the fight starts (combat.js afraidOf). A predator's comes from
+//           its size: it runs from a bigger predator (one its size doesn't scare it), and from a plant
+//           eater more than one size bigger (one size up it still takes on). A plant eater runs from a
+//           predator bigger than this, the biggest it stands up to. Nothing short of a giant sauropod
+//           stands up to one: colossal is theirs alone. A wild one doesn't even show itself to a team
+//           with something it is afraid of: it can only be spotted at a distance and hunted (hunt)
 //   hunts:  a predator's diet, from fossil evidence (bite marks, stomach contents, fossils locked in
 //           combat): the body plans (SPECIES build, 'human' for the player) or single species it hunts,
 //           'any' for all;

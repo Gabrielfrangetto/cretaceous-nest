@@ -205,8 +205,8 @@ test('a Tyrannosaurus bite crushes through armor and breaks bones: legs get lame
   assert.ok(hitOf(rex, ankylo, 1) > hitOf({ ...rex, crush: 0 }, ankylo, 1));
   let necks = 0, lames = 0;
   for (let i = 0; i < 60; i++) {
-    // (an Allosaurus: a Stegosaurus' throat is covered in bone)
-    const r = teamFight([unitOf('a', [fighterOf(dino('a', 50, 'allo'))])], rex, seededRand('b' + i));
+    // (an Allosaurus, made to stand its ground: a Stegosaurus' throat is covered in bone)
+    const r = teamFight([unitOf('a', [{ ...fighterOf(dino('a', 50, 'allo')), fear: undefined }])], rex, seededRand('b' + i));
     for (const e of r.log) if (e.by === 'foe') {
       if (e.kill) { necks++; assert.equal(e.left, 0); }
       if (e.lame) { lames++; assert.ok(r.lamed.length === 0 || true); }
@@ -548,7 +548,8 @@ test('two legs and two arms, or four legs: a low tail blow only finds legs, a bi
   const seen = { arm: 0, bipedLeg: 0, quadLeg: 0 };
   for (let i = 0; i < 60; i++) {
     // a Tyrannosaurus bites an Allosaurus (two arms, two legs) and an Ankylosaurus (four legs)
-    for (const e of teamFight([unitOf('a', [fighterOf(dino('a', 60, 'allo'))])], wildFighter('rex', 6), seededRand('arm' + i)).log) {
+    // (the Allosaurus made to stand its ground: it would run from a bigger predator)
+    for (const e of teamFight([unitOf('a', [{ ...fighterOf(dino('a', 60, 'allo')), fear: undefined }])], wildFighter('rex', 6), seededRand('arm' + i)).log) {
       if (e.by !== 'foe' || !e.part) continue;
       assert.ok(!QUAD_LEGS.includes(e.part), e.part);
       if (e.armBroken) { seen.arm++; assert.ok(ARMS.includes(e.part)); assert.ok(!e.lame); }
@@ -1249,14 +1250,18 @@ test('a predator that leaves once nothing it hunts is standing is no win; one th
   assert.ok(went > 0, 'the pack left in some fights');
 });
 
-test('fear is of predators, not of prey: a Velociraptor goes for a Protoceratops but runs from a Dilophosaurus', async () => {
+test('fear: a predator runs from a bigger predator, and from a plant eater more than one size up; a Velociraptor goes for a Protoceratops but runs from a Dilophosaurus', async () => {
   const { fears } = await import('../js/combat.js');
   const { keepsAway, teamUnits } = await import('../js/world.js');
   const raptor = unitOf('r', [fighterOf(dino('r', 60, 'raptor'))]);
   assert.equal(fears(raptor, encounterUnit({ species: 'proto', loot: [] }, 6)), false);
   assert.equal(fears(raptor, encounterUnit({ species: 'dilo', loot: [] }, 6)), true);
-  // a plant eater, however big, is no reason to run
-  assert.equal(fears(raptor, encounterUnit({ species: 'trike', loot: [] }, 6)), false);
+  // a plant eater one size up it takes on; more than that, it runs from
+  assert.equal(fears(raptor, encounterUnit({ species: 'trike', loot: [] }, 6)), true);
+  // a predator its own size doesn't scare it, a bigger one does
+  assert.equal(fears(raptor, encounterUnit({ species: 'coelo', loot: [] }, 6)), false);
+  assert.equal(fears(unitOf('c', [fighterOf(dino('c', 60, 'coelo'))]), encounterUnit({ species: 'raptor', loot: [] }, 6)), false);
+  assert.equal(fears(unitOf('d', [fighterOf(dino('d', 60, 'dilo'))]), encounterUnit({ species: 'allo', loot: [] }, 6)), true);
   // wild raptors and Coelophysis leave alone a team with a Dilophosaurus, not one with only the player
   const s = game(dino('d', 60, 'dilo'));
   const withDilo = teamUnits(s, [{ kind: 'player', id: 'player', members: ['player'] }, { kind: 'dino', id: 'd', members: ['d'] }]);

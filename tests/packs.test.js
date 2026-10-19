@@ -165,7 +165,8 @@ test('Allosaurus hunt alone: no packs, and two in one team may turn on each othe
   const s = game(dino('a1', 'allo'), dino('a2', 'allo'));
   assert.equal(applyAction(s, 'formPack', { type: 'allo', members: ['a1', 'a2'] }).reason, 'not-pack-species');
   const foe = wildFighter('rex', 7);
-  const pair = () => [unitOf('a1', [fighterOf(dino('a1', 'allo'))]), unitOf('a2', [fighterOf(dino('a2', 'allo'))])];
+  // (made to stand their ground: they would run from a bigger predator)
+  const pair = () => [unitOf('a1', [{ ...fighterOf(dino('a1', 'allo')), fear: undefined }]), unitOf('a2', [{ ...fighterOf(dino('a2', 'allo')), fear: undefined }])];
   let clashes = 0;
   for (let i = 0; i < 60; i++) {
     const r = teamFight(pair(), foe, seededRand('rivals' + i));

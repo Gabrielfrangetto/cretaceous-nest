@@ -153,9 +153,18 @@ const sizeRank = size => SIZE_ORDER.indexOf(size || 'small');
 // a unit's role and the biggest of a unit
 const roleOf = u => u.members[0].role || 'attacker';
 export const biggest = u => u.members.reduce((b, m) => sizeRank(m.size) > sizeRank(b) ? m.size : b, u.members[0].size);
-// a unit that runs from this foe: a predator bigger than it stands up to (BODY fear). A plant eater,
-// however big, is no reason to run: that is the food chain (preyMax), not fear. The player never does.
-export const fears = (u, foe) => !!u.members[0].fear && (foe.members[0].role || 'attacker') === 'attacker' && sizeRank(biggest(foe)) > sizeRank(u.members[0].fear);
+// Whether one animal (f) is afraid of another (g). A predator fears another predator only if it is
+// bigger than itself, and a plant eater only if it is more than one size bigger (one size up it
+// still takes on). A plant eater fears only predators, bigger than it stands up to (BODY fear). The
+// player never runs, nor anything with no fear at all.
+export const afraidOf = (f, g) => {
+  if (!f.type || !f.fear) return false;
+  const other = (g.role || 'attacker') === 'attacker';
+  if ((f.role || 'attacker') === 'attacker') return sizeRank(g.size) > sizeRank(f.size) + (other ? 0 : 1);
+  return other && !!f.fear && sizeRank(g.size) > sizeRank(f.fear);
+};
+// a unit that runs from this foe: afraid of its biggest
+export const fears = (u, foe) => afraidOf(u.members[0], foe.members.reduce((a, m) => (sizeRank(m.size) > sizeRank(a.size) ? m : a)));
 // The food chain: what a predator hunts (BODY hunts). An animal of a body plan in its diet, no bigger
 // than it takes on (preyMax; a size less for a young one near the nest), that it can hurt at all;
 // anything else it passes by.

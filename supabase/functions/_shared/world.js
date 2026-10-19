@@ -13,7 +13,7 @@ import {
 } from './config.js';
 import { CREATURES } from './config.js';
 import { addItem, removeItem, countItem, earn, stageOf, isHungry, hungerEvery, seededRand } from './economy.js';
-import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf } from './combat.js';
+import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf, afraidOf } from './combat.js';
 import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES } from './map.js';
 
 // ---------- hex geometry ----------
@@ -288,9 +288,9 @@ export function keepsAway(threat, team) {
   if (!sp || !sp.fear) return false;
   // prey animals (noncombatants) run from any team: they can only be spotted and hunted
   if (sp.role === 'noncombatant') return true;
-  const size = sizeRank(threat.foe.members[0].size), predator = sp.role === 'attacker';
-  // (it runs from a predator bigger than it stands up to; a big plant eater it simply leaves alone)
-  return team.some(u => u.members.some(m => ((m.role || 'attacker') === 'attacker' && sizeRank(m.size) > sizeRank(sp.fear)) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
+  const wild = threat.foe.members[0], size = sizeRank(wild.size), predator = sp.role === 'attacker';
+  // (whatever it is afraid of in the team, it keeps away from: afraidOf; a predator sizes up a sail too)
+  return team.some(u => u.members.some(m => afraidOf({ ...wild, type: threat.entry.species }, m) || (predator && m.type && SPECIES[m.type].sail && size < sizeRank(m.size))));
 }
 
 // the chance a wild predator as big as a sail's owner backs off after sizing it up (SAIL), or 0: none
@@ -397,8 +397,8 @@ export function witnessAt(seed, h, rand) {
   } else outcome = r.win ? 'repelled' : 'kill';
   return { hunter: who(hunter), prey: who(prey), hunterFoe: hunter.foe, preyFoe: prey.foe, outcome };
 }
-// a hunter that scares a predator off: one of it is a predator bigger than it stands up to
-const scares = (unit, pred) => unit.members.some(m => (m.role || 'attacker') === 'attacker' && sizeRank(m.size) > sizeRank(pred.fear || 'colossal'));
+// a hunter that scares a predator off: one of it the predator is afraid of
+const scares = (unit, pred) => unit.members.some(m => afraidOf({ ...pred, type: pred.type || 'wild' }, m));
 // Who in the team could step into a hunt the team watches, and how (for each unit but the player):
 // { id, name, prey: going after the prey, predator: going after the hunter }, each { ok, reason } or
 // { ok, chance (of running it down), backsOff (prey: the hunter lets it have it), chase (predator: it
@@ -414,7 +414,7 @@ export function interveneOptions(s, exp, wt) {
     const base = { id: u.id, name: unit.name };
     if (!sp.hunt || (m.role || 'attacker') !== 'attacker') return { ...base, prey: { ok: false, reason: 'wasn\'t a hunter' }, predator: { ok: false, reason: 'wasn\'t a hunter' } };
     // (fear is of predators: whether it goes after the prey is only whether it hunts it)
-    const wary = f => sizeRank(f.size) > sizeRank(m.fear || 'colossal');
+    const wary = f => afraidOf(m, f);
     let onPrey;
     if (!isPrey(m, prey)) onPrey = { ok: false, reason: 'didn\'t hunt it' };
     else { const o = huntOdds([unit], prey); onPrey = o ? { ok: true, chance: o.chance, backsOff: scares(unit, pred) } : { ok: false, reason: 'didn\'t hunt it' }; }
