@@ -589,9 +589,10 @@ export const AGES = {
   prime: { step: 8, weight: 15, name: 'Prime' },
 };
 export const LAIR_STEP = 7;
-// A pack or herd has an alpha: its strongest, by the average of its stats (a wild one's alpha has
-// level times the stats of the rest; in the player's own, whichever is strongest)
-export const ALPHA = { level: 1.1 };
+// Wild animals differ: each stat of each one lands within spread of its kind's, at random (the same
+// animal every time a hex is met). A pack or herd has an alpha: its strongest, by the average of its
+// stats (the player's own packs too).
+export const WILD_SPREAD = 0.15;
 // eggs are found at this step's genes and chance (no longer by distance: rarer kinds are just rarer)
 export const EGG_STEP = 5;
 // near the nest (hexes): no predators live there, and no big ones (large or bigger) nearer than far

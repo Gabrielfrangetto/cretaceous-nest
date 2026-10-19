@@ -6,7 +6,7 @@
 // turns. Each blow can be dodged (dodge chance); otherwise it lands (see hitOf): damage ±25%, never
 // more than the attacker's bite, × (1 − reduction), minus the target's hide; a blow the hide stops
 // does nothing. They fight until one is down: there is no turn limit.
-import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, KG, MASS, ALPHA, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
+import { CREATURES, CREATURE_LEVEL, LAIR_LEVEL, FIGHT_SAFETY, ROUT, PACK_BONUS, RIVAL_CLASH, FRENZY_DAMAGE, REACH_SLOTS, KG, MASS, WILD_SPREAD, SIZE_DODGE, DODGE_MAX, MISS_FLOOR, SIZE_DODGE_MAX, BLEED_BIGGER, BLEED_SMALLER, BLEED_MIN, BONE_BREAKER, FRILL, ARMOR, CLUB, GRAB, LATCH, CLAW, BEAK, SPIKES, THROAT, DOME, RISE, STANCE, GIANT, ALERT, ESCAPE, FLIGHT, GIVE_UP, CAMO, CRACK, DEATH, HIT_PARTS, ARMS, BIPED_LEGS, QUAD_LEGS, LIMBS, isLeg, isArm, ROLE_TARGET, CHARGE_DAMAGE, CHARGE_EXPOSED, OPENING, WATER_BIOMES, HOOK, ZIGZAG,
   SPECIES, SIZE_ORDER, SIZE_EDGE, PLAYER_SIZE, PLAYER_ID, BITE, HIDE, WORLD_RADIUS } from './config.js';
 const YOUNG_DIST = 3;   // creatures this close to the nest are young
 import { deriveCombat, statSheet, gearMods, seededRand, massOf, hpForMass, biteForMass } from './economy.js';
@@ -73,10 +73,12 @@ const youngHide = (hide, level) => Math.round(hide * Math.min(1, level / CREATUR
 const wildStats = (base, level) => Object.fromEntries(Object.entries(base).map(([k, v]) => [k, Math.max(1, Math.round(v * level))]));
 
 // a wild dinosaur of one of the game's species, at a distance from the nest, stronger in a lair
-export function wildFighter(type, dist, lair = false, boost = 1) {
+// (rand: each stat within WILD_SPREAD of its kind's; none: just its kind's)
+export function wildFighter(type, dist, lair = false, rand = null) {
   const sp = SPECIES[type];
-  const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1) * boost;
+  const level = CREATURE_LEVEL(dist) * (lair ? LAIR_LEVEL : 1);
   const stats = wildStats(sp.base, level);
+  if (rand) for (const k of Object.keys(stats)) stats[k] = Math.max(1, Math.round(stats[k] * (1 - WILD_SPREAD + 2 * WILD_SPREAD * rand())));
   const derived = deriveCombat(stats), size = youngSize(sp.size, dist, lair), young = size !== sp.size;
   const kg = KG[type] * (young ? MASS.young : 1);
   return {
@@ -89,7 +91,8 @@ export function wildFighter(type, dist, lair = false, boost = 1) {
 
 // what waits in a hex (an entry of WILD) as the unit it fights as: one animal, or a pack or herd
 // that grows from pack[0] next to the nest to pack[1] at the edge (the largest in a lair)
-export function encounterUnit(entry, dist, lair = false) {
+// (rand: each animal of it different, the strongest of a pack or herd its alpha)
+export function encounterUnit(entry, dist, lair = false, rand = null) {
   if (entry.creature) {
     const f = creatureFighter(entry.creature, dist, lair);
     return unitOf(f.name, [f]);
@@ -97,8 +100,9 @@ export function encounterUnit(entry, dist, lair = false) {
   const sp = SPECIES[entry.species];
   const n = !entry.pack ? 1 : lair ? entry.pack[1] : Math.round(entry.pack[0] + (entry.pack[1] - entry.pack[0]) * Math.max(0, dist - 1) / (WORLD_RADIUS - 1));
   const name = n > 1 ? `${sp.species} ${entry.herd ? 'herd' : 'pack'} (${n})` : sp.species;
-  // (a pack's or herd's first is its alpha, stronger than the rest)
-  const members = Array.from({ length: n }, (_, i) => (n > 1 && !i ? { ...wildFighter(entry.species, dist, lair, ALPHA.level), alpha: true } : wildFighter(entry.species, dist, lair)));
+  const members = Array.from({ length: n }, () => wildFighter(entry.species, dist, lair, rand));
+  // a pack's or herd's alpha: the strongest by the average of its stats (the first of equals)
+  if (n > 1) { const top = members.reduce((a, m, i) => (m.power > members[a].power ? i : a), 0); members[top] = { ...members[top], alpha: true }; }
   return unitOf(name, members, n > 1);
 }
 

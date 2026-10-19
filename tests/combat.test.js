@@ -57,10 +57,12 @@ test('every biome has its wild animals, stronger and in bigger packs farther out
       assert.ok(power(encounterUnit(e, 5, true)) > power(encounterUnit(e, 5)));
       // no "Alpha" for a lair: an alpha is a pack's or herd's strongest only
       assert.doesNotMatch(encounterUnit(e, 5, true).name, /Alpha/);
+      // each wild one its own: the strongest of a pack or herd, by the average of its stats, its alpha
       if (e.pack) {
-        const u = encounterUnit(e, 7);
+        const u = encounterUnit(e, 7, false, seededRand('alpha' + e.species));
         assert.equal(u.members.filter(m => m.alpha).length, 1);
-        assert.ok(u.members[0].alpha && u.members[0].power > u.members[1].power);
+        assert.equal(u.members.find(m => m.alpha).power, Math.max(...u.members.map(m => m.power)));
+        assert.ok(new Set(u.members.map(m => m.power)).size > 1);
       }
       if (e.pack) assert.ok(encounterUnit(e, 7).members.length > encounterUnit(e, 1).members.length);
     }

@@ -89,7 +89,8 @@ export function threatAt(seed, h) {
   let y = cell(seed, 0x7f4a7c15, ...h) * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
   const age = lair ? 'lair' : Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult';
   const step = lair ? LAIR_STEP : AGES[age].step;
-  const unit = encounterUnit(entry, step, lair);
+  // (the animals there, each its own, the same every time)
+  const unit = encounterUnit(entry, step, lair, seededRand(`wild:${seed}:${h[0]},${h[1]}`));
   const label = lair ? '' : AGES[age].name;
   const foe = label ? { ...unit, name: `${label} ${unit.name}` } : unit;
   return {
@@ -384,7 +385,7 @@ export function witnessAt(seed, h, rand) {
   const entry = list.find(e => (x -= e.weight) < 0) || list[list.length - 1];
   let y = rand() * Object.values(AGES).reduce((t, a) => t + a.weight, 0);
   const age = AGES[Object.keys(AGES).find(k => (y -= AGES[k].weight) < 0) || 'adult'];
-  const visitor = { entry, foe: (u => (age.name ? { ...u, name: `${age.name} ${u.name}` } : u))(encounterUnit(entry, age.step, false)) };
+  const visitor = { entry, foe: (u => (age.name ? { ...u, name: `${age.name} ${u.name}` } : u))(encounterUnit(entry, age.step, false, rand)) };
   const resident = { entry: threat.entry, foe: threat.foe };
   const hunts = (a, b) => (a.foe.members[0].role || 'attacker') === 'attacker' && isPrey(a.foe.members[0], b.foe.members[0]);
   const [hunter, prey] = hunts(resident, visitor) ? [resident, visitor] : hunts(visitor, resident) ? [visitor, resident] : [];
