@@ -38,7 +38,7 @@ export function partyStatusHTML(p) {
   const packed = [sup.water_skin ? `${sup.water_skin} ${itemName('water_skin', sup.water_skin)} (${sup.water ? `${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left` : 'empty'})` : '', sup.ration ? `${sup.ration} ${itemName('ration', sup.ration)}` : ''].filter(Boolean);
   const items = Object.entries(p.carry.items).filter(([, n]) => n > 0).map(([id, n]) => `${n} ${esc(itemName(id, n))}`);
   if (p.carry.coins) items.push(`${p.carry.coins} coins`);
-  for (const egg of p.carry.eggs) items.push(`a ${esc(SPECIES[egg.type].egg)}`);
+  for (const egg of p.carry.eggs) items.push(`a ${esc(SPECIES[egg.type].egg)}${egg.unseen ? ' (not yet held to the light)' : ''}`);
   return `<p class="hint party-health">${who}</p>${items.length ? `<p class="hint">Carrying ${listNames(items)}.</p>` : ''}${packed.length ? `<p class="hint">Supplies: ${listNames(packed)}.</p>` : ''}`;
 }
 
@@ -274,27 +274,44 @@ function decide(v) {
   } else if (v.kind === 'nest') {
     const { win, death } = teamOdds(v.units, v.foe, 120, { ...opts, defend: true, guard: true });
     const fightBtn = label => btn({ nest: 'fight' }, `${label} <span class="hint">(${dangerOf(win)})</span>`);
-    const leave = btn({}, 'Left it be', true);
-    const sp = esc(v.name);
-    const intro = {
-      alone: v.nest === 'buried' ? `The team noticed a patch of churned, warm earth: a <strong>${sp}</strong> nest, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rose' : ''}.` : `The team came upon a <strong>${sp}</strong> nest, the eggs buried, and no parent in sight.`,
-      empty: `The team came upon a <strong>${sp}</strong> nest, the parent gone, off to feed. It wouldn't be long.`,
-      watched: v.nest === 'creche' ? `The team came upon a <strong>${sp}</strong> with its young and its nest, never leaving them.` : `The team came upon a <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
-      colony: `The team came upon a <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
-      unseen: `The team came upon a <strong>${sp}</strong> sitting on its nest. It hadn't seen the team yet.`,
-      seen: `The team came upon a <strong>${sp}</strong> on its nest, and it had seen them: it rose, calling and threatening, warning them off. It wouldn't attack unless they came closer.`,
-    }[v.state];
-    const buttons = [];
-    if (v.full) buttons.push(`<span class="hint">The team already carried ${v.eggs} eggs: it couldn't take another.</span>`);
-    else if (v.state === 'alone' || v.state === 'empty') buttons.push(btn({ nest: 'take' }, `${v.nest === 'buried' || v.nest === 'watched' ? 'Dug up an egg' : 'Snatched an egg'}${v.state === 'empty' ? ' <span class="hint">(it might come back)</span>' : ''}`));
-    else if (v.state === 'unseen') {
-      buttons.push(btn({ nest: 'sneak' }, `Crept up and took one <span class="hint">(${chanceOf(v.sneak)} chance it wouldn't notice)</span>`));
-      buttons.push(btn({ nest: 'wait' }, `Waited for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
-      buttons.push(fightBtn('Drove it off its nest'));
-    } else buttons.push(fightBtn(v.state === 'colony' ? 'Raided the edge of the colony' : v.state === 'seen' ? 'Stood their ground and took an egg' : 'Took an egg by force'));
-    // bait: one that would run from it anyway draws it off, then comes back; caught, it is killed
-    if (!v.full) for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Used ${esc(d.name)} as bait <span class="hint">(${chanceOf(d.chance)} chance to outrun it; caught, it would die)</span>`, true));
-    html = `<p>${intro}</p><div class="row wrap">${buttons.join('')}${leave}</div>${v.full || v.state === 'alone' || v.state === 'empty' ? '' : riskHTML(v.units, death)}`;
+    const sp = esc(v.name), eggs = n => `${n} ${n === 1 ? 'egg' : 'eggs'}`;
+    const backHint = `<span class="hint">(${chanceOf(v.chance)} chance the parent came back meanwhile)</span>`;
+    if (v.phase === 'empty') {
+      html = `<p>${v.left === v.clutch ? `The parent had gone off to feed, leaving its ${eggs(v.clutch)}.` : `The parent was still away. ${cap(eggs(v.left))} ${v.left === 1 ? 'was' : 'were'} left to look at.`}</p>
+        <div class="row wrap">${btn({ nest: 'candle' }, `Held ${v.left === v.clutch ? 'an egg' : 'another'} to the light ${backHint}`)}${btn({ nest: 'take' }, `Grabbed one without looking, and went`, true)}${btn({}, v.left === v.clutch ? 'Left it be' : 'Went on with what they had', true)}</div>`;
+    } else if (v.phase === 'dud') {
+      html = `<p>Against the light, the egg showed no life inside: it would never hatch.</p>
+        <div class="row wrap">${btn({ nest: 'keep' }, 'Kept it as food')}${btn({}, 'Put it back', true)}</div>`;
+    } else if (v.phase === 'duds') {
+      html = `<p>Against the light, ${v.duds === 1 ? 'one egg showed' : `${v.duds} eggs showed`} no life inside: ${v.duds === 1 ? 'it' : 'they'} would never hatch.</p>
+        <div class="row wrap">${btn({ nest: 'keep' }, `Took ${v.duds === 1 ? 'it' : 'them'} as food`)}${btn({}, `Left ${v.duds === 1 ? 'it' : 'them'}`, true)}</div>`;
+    } else {
+      const intro = {
+        hatched: `The team came upon ${article(v.name)} <strong>${sp}</strong> nest, the shells broken open and the young long gone. ${v.leftovers === 1 ? 'One egg had' : `${v.leftovers} eggs had`} never hatched.`,
+        alone: v.nest === 'buried' ? `The team noticed a patch of churned, warm earth: ${article(v.name)} <strong>${sp}</strong> nest, the eggs buried and left${v.volcano ? ' in the heat of a hot spring, where foul fumes rose' : ''}.` : `The team came upon ${article(v.name)} <strong>${sp}</strong> nest, the eggs buried, and no parent in sight.`,
+        empty: `The team came upon ${article(v.name)} <strong>${sp}</strong> nest of ${eggs(v.clutch)}, the parent gone, off to feed. It wouldn't be long.`,
+        watched: v.nest === 'creche' ? `The team came upon ${article(v.name)} <strong>${sp}</strong> with its young and its nest, never leaving them.` : `The team came upon ${article(v.name)} <strong>${sp}</strong> nest, the eggs buried, and a parent close by, watching.`,
+        colony: `The team came upon ${article(v.name)} <strong>${sp}</strong> nesting colony: nest after nest, and adults all about.`,
+        unseen: `The team came upon ${article(v.name)} <strong>${sp}</strong> sitting on its nest. It hadn't seen the team yet.`,
+        seen: `The team came upon ${article(v.name)} <strong>${sp}</strong> on its nest, and it had seen them: it rose, calling and threatening, warning them off. It wouldn't attack unless they came closer.`,
+      }[v.state];
+      const buttons = [];
+      if (v.state === 'hatched') buttons.push(btn({ nest: 'keep' }, `Took ${v.leftovers === 1 ? 'it' : 'them'} as food`));
+      else if (v.full) buttons.push(`<span class="hint">The team already carried ${v.eggs} eggs: it couldn't take another.</span>`);
+      else if (v.state === 'alone') buttons.push(btn({ nest: 'take' }, 'Dug up the clutch and held each egg to the light'));
+      else if (v.state === 'empty') {
+        buttons.push(btn({ nest: 'take' }, 'Snatched an egg without looking, and went'));
+        buttons.push(btn({ nest: 'candle' }, `Held an egg to the light first ${backHint}`));
+      } else if (v.state === 'unseen') {
+        buttons.push(btn({ nest: 'sneak' }, `Crept up and grabbed one <span class="hint">(${chanceOf(v.sneak)} chance it wouldn't notice)</span>`));
+        buttons.push(btn({ nest: 'wait' }, `Waited for it to leave <span class="hint">(${chanceOf(v.wait)} chance; hunger and thirst meanwhile)</span>`, true));
+        buttons.push(fightBtn('Drove it off its nest'));
+      } else buttons.push(fightBtn(v.state === 'colony' ? 'Raided the edge of the colony' : v.state === 'seen' ? 'Stood their ground and went for the nest' : 'Went for the nest by force'));
+      // bait: one that would run from it anyway draws it off, then comes back; caught, it is killed
+      if (!v.full) for (const d of v.decoys) buttons.push(btn({ nest: 'lure', decoy: d.id }, `Used ${esc(d.name)} as bait <span class="hint">(${chanceOf(d.chance)} chance to outrun it; caught, it would die)</span>`, true));
+      const calmNote = v.state === 'colony' ? '<p class="hint">Even if the team won, the other adults would close in: there would only be time to grab one egg.</p>' : '';
+      html = `<p>${intro}</p>${calmNote}<div class="row wrap">${buttons.join('')}${btn({}, 'Left it be', true)}</div>${v.full || ['alone', 'empty', 'hatched'].includes(v.state) ? '' : riskHTML(v.units, death)}`;
+    }
   } else if (v.kind === 'go-on') {
     html = `<p>What then? Did the team go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
@@ -348,16 +365,28 @@ const fightOutcome = b => (b.escaped ? 'Everyone ran from it.' : b.win ? 'The te
 
 // a nest found on the way, and what the team did
 function nestHTML(e) {
-  const sp = esc(e.name), egg = e.egg ? ` The team carries off a ${esc(SPECIES[e.egg.type].egg)}.` : '';
+  const sp = esc(e.name), list = e.eggs || [];
+  const eggWord = n => (n === 1 ? 'egg' : 'eggs');
+  const egg = list.length ? (e.unseen ? ` The team carried off a ${esc(SPECIES[list[0].type].egg)}, with no time to see whether it would hatch.`
+    : ` The team carried off ${list.length === 1 ? `a fertile ${esc(SPECIES[list[0].type].egg)}` : `${list.length} fertile ${esc(SPECIES[list[0].type].egg)}s`}.`) : '';
+  const full = e.full ? ' The team couldn\'t carry any more.' : '';
   const fought = e.battle ? ` ${e.battle.win ? 'The team won' : 'The team was beaten, and got away as best it could'}.${(e.battle.downed || []).length ? ` ${cap(listNames(e.battle.downed.map(nm)))} went down.` : ''}${(e.battle.died || []).length ? ` ${esc(listNames(e.battle.died.map(x => x.name)))} did not survive.` : ''}` : '';
-  const found = { alone: `a ${sp} nest left alone`, empty: `a ${sp} nest, the parent away`, watched: `a ${sp} nest with a parent close by`, colony: `a ${sp} nesting colony`, unseen: `a ${sp} on its nest`, seen: `a ${sp} on its nest, warning the team off` }[e.state];
+  const an = article(e.name);
+  const found = { hatched: `${an} ${sp} nest that had already hatched`, alone: `${an} ${sp} nest left alone`, empty: `${an} ${sp} nest, the parent away`, watched: `${an} ${sp} nest with a parent close by`, colony: `${an} ${sp} nesting colony`, unseen: `${an} ${sp} on its nest`, seen: `${an} ${sp} on its nest, warning the team off` }[e.state];
+  const n = e.looked, f = e.fertile;
+  const looked = n ? ` Held to the light, ${!f ? `none of the ${n} ${eggWord(n)} was` : f === n ? (n === 1 ? 'the egg was' : `all ${n} eggs were`) : `${f} of the ${n} eggs ${f === 1 ? 'was' : 'were'}`} fertile${e.duds && f ? `, ${e.duds} would never hatch` : ''}.` : '';
   switch (e.act) {
-    case 'leave': return `The team came upon ${found}, and left it be.`;
-    case 'take': return `The team came upon ${found} and ${e.nest === 'buried' || e.nest === 'watched' ? 'dug up an egg' : 'snatched an egg'}.${e.fumes ? ` ${cap(nm(e.fumes))} breathed the hot spring's fumes while digging.` : ''}${e.back ? ` The parent came back and fell on the team.${fought}` : ''}${egg}`;
-    case 'sneak': return `The team crept up on ${found}.${e.spotted ? ` It noticed them and attacked.${fought}` : ''}${egg}`;
-    case 'wait': return `The team waited near ${found}.${e.left ? ' At last it left to feed, and the nest was theirs for a moment.' : ' It never left.'}${egg}`;
-    case 'lure': return `The team came upon ${found}. ${esc(e.decoy.name)} darted in as bait, and the ${sp} gave chase.${e.egg ? ` ${esc(e.decoy.name)} outran it and circled back to the team.` : ` It ran ${esc(e.decoy.name)} down and killed it.`}${egg}`;
-    case 'fight': return `The team went for ${found}, and the ${e.state === 'colony' ? 'adults' : 'parent'} defended it to the end.${fought}${egg}`;
+    case 'leave': return e.duds ? `The team left ${e.duds === 1 ? 'the egg' : `the ${e.duds} eggs`} that would never hatch.` : `The team came upon ${found}, and left it be.`;
+    case 'keep': return e.state === 'hatched' ? `The team came upon ${found}, and took ${e.duds === 1 ? 'the egg' : `the ${e.duds} eggs`} that never hatched, as food.` : 'The team kept what would never hatch, as food.';
+    case 'putback': return 'The team put the egg that would never hatch back.';
+    case 'went': return 'The team went on with what it had.';
+    case 'take': return e.state === 'alone' ? `The team came upon ${found} and dug up the clutch.${e.fumes ? ` ${cap(nm(e.fumes))} breathed the hot spring's fumes while digging.` : ''}${looked}${egg}${full}`
+      : `The team snatched an egg from ${found}.${egg}`;
+    case 'candle': return `The team held an egg from the ${sp} nest up to the light.${e.back ? ` The parent came back and fell on the team.${fought}${looked}` : e.fertile ? ' There was life inside.' : ' There was no life inside.'}${egg}${e.none ? ' There were no eggs left.' : ''}${full}`;
+    case 'sneak': return `The team crept up on ${found}.${e.spotted ? ` It noticed them and attacked.${fought}${looked}` : ''}${egg}${full}`;
+    case 'wait': return `The team waited near ${found}.${e.left ? ' At last it left to feed, and the nest was theirs for a while.' : ' It never left.'}`;
+    case 'lure': return `The team came upon ${found}. ${esc(e.decoy.name)} darted in as bait, and the ${sp} gave chase.${e.eggs && e.eggs.length ? ` ${esc(e.decoy.name)} outran it and circled back to the team.` : e.caught ? ` It ran ${esc(e.decoy.name)} down and killed it.` : ''}${egg}`;
+    case 'fight': return `The team went for ${found}, and the ${e.state === 'colony' ? 'adults' : 'parent'} defended it to the end.${fought}${looked}${egg}${full}`;
     default: return '';
   }
 }
@@ -430,7 +459,8 @@ function entryHTML(e) {
     case 'home': {
       const got = lootText(e.loot || []);
       if (e.coins) got.push(`${e.coins} coins`);
-      const eggs = (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)} (${esc(SPECIES[g.type].species)}) is waiting in the Incubator!`)).join('');
+      const eggs = (e.duds || []).map(t => ` Held to the light, the ${esc(SPECIES[t].egg)} showed no life inside: it would never hatch, and went to the food.`).join('')
+        + (e.eggs || []).map(g => (g.lost ? ` A ${esc(SPECIES[g.type].egg)} had to stay behind: your egg tray is full.` : ` A ${esc(SPECIES[g.type].egg)} (${esc(SPECIES[g.type].species)}) is waiting in the Incubator!`)).join('');
       const hurt = (e.injured || []).map(x => `${cap(nm(x.id))} ${x.id === PLAYER_ID ? 'are' : 'is'} ${x.critical ? 'critically injured: herbs won\'t help, a Blood Transfusion will' : `injured for ${x.mins} min`}.`);
       const fed = (e.fedSelf || []).map(nm);
       const hungryIds = (e.hungry || (e.members || []).filter(id => id !== PLAYER_ID && !(e.fedSelf || []).includes(id))).filter(id => id !== PLAYER_ID);

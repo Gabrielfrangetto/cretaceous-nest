@@ -696,19 +696,35 @@ test('nests on the way: each kind found as it nests (buried left alone, colonies
     const p = partyOf(s, r.expedition.id), v = pendingView(s, p);
     (states[v.nest] = states[v.nest] || []).push(v.state);
     if (v.nest === 'colony') { assert.ok(v.foe.members.length >= N.colony[0] && v.foe.members.length <= N.colony[1]); colonyFoes++; }
+    // a whole clutch of the species' size; left alone, every fertile egg held to the light and taken (as
+    // many as fit), then those that would never hatch, kept as food if wanted
+    const [lo, hi] = N.clutch[v.species];
+    assert.ok(v.clutch >= lo && v.clutch <= hi, `${v.species} ${v.clutch}`);
     if (v.state === 'alone') {
       const step = applyAction(s, 'journey', { id: p.id, nest: 'take' }, r.expedition.leg.arriveAt);
       const told = step.story.find(e => e.kind === 'nest');
-      assert.ok(told.egg && told.egg.type === v.species && p.carry.eggs.length === 1);
+      assert.ok(told.eggs.length >= 1 && told.eggs.every(g => g.type === v.species && !g.unseen) && p.carry.eggs.length === told.eggs.length);
+      if (told.duds) {
+        const w2 = pendingView(s, p);
+        assert.equal(w2.phase, 'duds');
+        applyAction(s, 'journey', { id: p.id, nest: 'keep' }, r.expedition.leg.arriveAt);
+        assert.equal(p.carry.items.raw_egg, told.duds);
+      }
       took++;
+    }
+    // hatched: only the eggs that never hatched, free
+    if (v.state === 'hatched') {
+      applyAction(s, 'journey', { id: p.id, nest: 'keep' }, r.expedition.leg.arriveAt);
+      assert.equal(p.carry.items.raw_egg, v.leftovers);
+      assert.equal(p.carry.eggs.length, 0);
     }
   }
   assert.ok(tried > 10, `${tried} nests`);
-  for (const st of states.buried || []) assert.equal(st, 'alone');
-  for (const st of states.colony || []) assert.equal(st, 'colony');
-  for (const st of states.creche || []) assert.equal(st, 'watched');
-  for (const st of states.watched || []) assert.ok(['watched', 'alone'].includes(st));
-  for (const k of ['brooded', 'guarded']) for (const st of states[k] || []) assert.ok(['empty', 'seen', 'unseen'].includes(st));
+  for (const st of states.buried || []) assert.ok(['alone', 'hatched'].includes(st));
+  for (const st of states.colony || []) assert.ok(['colony', 'hatched'].includes(st));
+  for (const st of states.creche || []) assert.ok(['watched', 'hatched'].includes(st));
+  for (const st of states.watched || []) assert.ok(['watched', 'alone', 'hatched'].includes(st));
+  for (const k of ['brooded', 'guarded']) for (const st of states[k] || []) assert.ok(['empty', 'seen', 'unseen', 'hatched'].includes(st));
   // a team carrying three eggs can take no more
   const s = game(dino('ad', 30, 'm', 'galli'));
   for (let i = 0; i < 300; i++) {
@@ -760,8 +776,51 @@ test('bait: only one that would run from the parent can draw it off; outrun, it 
     const step = applyAction(s, 'journey', { id: p.id, nest: 'lure', decoy: 'g' }, r.expedition.leg.arriveAt);
     const told = step.story.find(e => e.kind === 'nest');
     assert.equal(told.act, 'lure');
-    if (told.egg) assert.ok(s.hatched.some(b => b.id === 'g'));
+    // in the rush, one egg, grabbed without a look
+    if (told.eggs.length) assert.ok(s.hatched.some(b => b.id === 'g') && told.eggs.length === 1 && told.eggs[0].unseen);
     else assert.ok(told.caught && told.caught.died && !s.hatched.some(b => b.id === 'g'));
   }
   assert.ok(seen > 0);
+});
+
+test("an empty nest: an egg snatched unseen, or held to the light one by one, the parent likelier back at each; an unseen dud shows once home", async () => {
+  const { reach } = await import('./journey-helper.js');
+  const { pendingView, partyOf } = await import('../js/journey.js');
+  const { NEST: N } = await import('../js/config.js');
+  const far = landHexes(42).filter(h => hexDist(h) >= 16 && hexDist(h) <= 24).map(h => hexKey(...h));
+  let looked = 0, backs = 0, snatched = 0;
+  for (let i = 0; i < 1500 && (looked < 4 || snatched < 2); i++) {
+    const s = game(dino('ad', 30, 'm', 'galli'));
+    s.world.trips = i * 3;
+    const r = applyAction(s, 'explore', { babyId: 'ad', hex: far[i % far.length] }, T0);
+    if (!r.ok) continue;
+    if (!reach(s, r.expedition.id, r.expedition.leg.arriveAt, v => v.kind === 'nest')) continue;
+    const p = partyOf(s, r.expedition.id), v = pendingView(s, p), t = r.expedition.leg.arriveAt;
+    if (v.state !== 'empty') continue;
+    if (snatched < 2) {
+      snatched++;
+      const told = applyAction(s, 'journey', { id: p.id, nest: 'take' }, t).story.find(e => e.kind === 'nest');
+      assert.ok(told.eggs.length === 1 && told.eggs[0].unseen && p.carry.eggs.length === 1);
+      // home: a dud goes to the food, a fertile one to the tray
+      const dud = !!p.carry.eggs[0].dud;
+      const { collect } = await import('./journey-helper.js');
+      const { countItem } = await import('../js/economy.js');
+      const home = collect(s, { id: p.id, back: true }, t + 1e8).story.find(e => e.kind === 'home');
+      if (home) assert.ok(dud ? countItem(s, 'raw_egg') >= 1 && home.duds.length === 1 : s.eggs.some(g => g.id === told.eggs[0].id && !('unseen' in g)));
+      continue;
+    }
+    looked++;
+    // held up one by one: each look is likelier to bring the parent back
+    let w = v, prev = 0, n = 0;
+    for (let k = 0; k < 40; k++) {
+      const c = w.phase === 'dud' ? { nest: 'keep' } : { nest: 'candle' };
+      if (c.nest === 'candle') { assert.ok(w.chance > prev); prev = w.chance; n++; }
+      const told = applyAction(s, 'journey', { id: p.id, ...c }, t).story.find(e => e.kind === 'nest');
+      if (told.back) { backs++; break; }
+      w = pendingView(s, p);
+      if (!w || w.kind !== 'nest') break;
+    }
+    assert.ok(p.carry.eggs.length <= N.carry && p.carry.eggs.every(g => !g.unseen));
+  }
+  assert.ok(looked >= 1 && snatched >= 1, `${looked} looked, ${snatched} snatched`);
 });

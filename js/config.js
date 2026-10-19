@@ -236,7 +236,7 @@ export const ITEMS = {
   meat:         { name: 'Meat', plural: 'meat', desc: 'Food for meat eaters. Each meal uses 1 meat.' },
   insect:       { name: 'Insects', plural: 'insects', food: true, desc: 'A crunchy handful. Small hunters and omnivores like them. Each meal uses 1.' },
   fish:         { name: 'Fish', plural: 'fish', food: true, desc: 'Fresh from the swamp. Fish eaters like Baryonyx and Spinosaurus love it. Each meal uses 1.' },
-  raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, desc: 'An egg that will never hatch. Omnivores like Gallimimus eat it. Each meal uses 1.' },
+  raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, desc: 'An egg that will never hatch, found only in nests. Omnivores like Gallimimus eat it. Each meal uses 1.' },
   shell:        { name: 'Eggshell', plural: 'eggshells', desc: 'Left over from an egg that hatched in the nest.' },
   golden_shell: { name: 'Golden eggshell', plural: 'golden eggshells', desc: 'A piece of the rare Golden Egg, where the Tyrannosaurus hatches from.' },
   amber:        { name: 'Amber', plural: 'amber', desc: "Fossilized resin from the planet's own ancient forests. Some pieces hold insects millions of years old." },
@@ -550,12 +550,12 @@ export const WILD = {
 // wild: the animals met there (WILD); eggs: the species whose eggs can be found there
 // (which of them turn up depends on rarity and distance, see RARITIES)
 export const BIOMES = {
-  meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['seed', 1, 2, 0.3], ['insect', 1, 2, 0.5], ['raw_egg', 1, 1, 0.2], ['herb', 1, 1, 0.35]] },
+  meadow:   { name: 'Fern Meadow', color: '#a8c17c', density: 0.35, wild: WILD.meadow, eggs: ['dilo', 'compy', 'scelido', 'psitta', 'galli'], loot: [['leaf', 2, 4], ['seed', 1, 2, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.35]] },
   forest:   { name: 'Conifer Forest', color: '#5f8f4e', density: 0.5, wild: WILD.forest, eggs: ['coelo', 'hypsi', 'pachy', 'raptor', 'stego', 'allo'], loot: [['leaf', 2, 4], ['seed', 1, 2, 0.2], ['fruit', 1, 2, 0.1], ['feather', 1, 2], ['insect', 1, 3, 0.6], ['amber', 1, 1, 0.15], ['herb', 1, 1, 0.25]] },
   swamp:    { name: 'Swamp', color: '#6f8f7a', density: 0.45, wild: WILD.swamp, eggs: ['psitta', 'hypa', 'bary', 'para', 'spino'], loot: [['fish', 1, 3], ['meat', 1, 2], ['clay', 1, 3], ['leaf', 1, 2], ['insect', 1, 2, 0.4], ['herb', 1, 1, 0.2]] },
-  desert:   { name: 'Desert Dunes', color: '#e2c78c', density: 0.2, wild: WILD.desert, eggs: ['proto', 'raptor', 'ankylo'], loot: [['bone', 2, 4], ['stone', 1, 2, 0.25], ['raw_egg', 1, 2, 0.4], ['insect', 1, 2, 0.4], ['amber', 1, 1, 0.05]] },
-  scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['seed', 1, 3, 0.35], ['stone', 1, 2, 0.15], ['bone', 1, 2], ['raw_egg', 1, 1, 0.3], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
-  floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['fruit', 1, 2, 0.2], ['stone', 1, 2, 0.15], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4], ['raw_egg', 1, 1, 0.2]] },
+  desert:   { name: 'Desert Dunes', color: '#e2c78c', density: 0.2, wild: WILD.desert, eggs: ['proto', 'raptor', 'ankylo'], loot: [['bone', 2, 4], ['stone', 1, 2, 0.25], ['insect', 1, 2, 0.4], ['amber', 1, 1, 0.05]] },
+  scrub:    { name: 'Dry Scrubland', color: '#bdb27a', density: 0.3, wild: WILD.scrub, eggs: ['galli', 'psitta', 'pachy', 'scelido', 'dilo'], loot: [['leaf', 1, 3], ['seed', 1, 3, 0.35], ['stone', 1, 2, 0.15], ['bone', 1, 2], ['insect', 1, 2, 0.5], ['herb', 1, 1, 0.15]] },
+  floodplain: { name: 'River Floodplain', color: '#7fb062', density: 0.55, wild: WILD.floodplain, eggs: ['hypa', 'para', 'trike', 'pachy'], loot: [['fish', 1, 3], ['clay', 1, 2], ['meat', 1, 2], ['leaf', 2, 3], ['fruit', 1, 2, 0.2], ['stone', 1, 2, 0.15], ['herb', 1, 1, 0.4], ['insect', 1, 2, 0.4]] },
   coast:    { name: 'Coast & Lagoons', color: '#d8cfa4', density: 0.35, wild: WILD.coast, eggs: ['compy', 'bary', 'psitta'], loot: [['fish', 2, 4], ['seashell', 1, 3], ['amber', 1, 1, 0.12], ['feather', 1, 1, 0.3]] },
   subtropical: { name: 'Subtropical Forest', color: '#4e8a5c', density: 0.55, ambush: true, wild: WILD.subtropical, eggs: ['compy', 'coelo', 'para', 'hypa', 'raptor', 'allo'], loot: [['amber', 1, 2, 0.4], ['insect', 2, 3], ['leaf', 2, 4], ['fruit', 1, 3, 0.4], ['herb', 1, 2, 0.4], ['feather', 1, 1, 0.3]] },
   volcano:  { name: 'Volcanic Slopes', color: '#8a5a4a', density: 0.45, wild: WILD.volcano, eggs: ['allo', 'rex', 'argent'], loot: [['obsidian', 1, 3], ['bone', 1, 2], ['amber', 1, 1, 0.2]] },
@@ -805,13 +805,22 @@ export const FORAGE = {
 //     warns it off, or hasn't
 //   guarded: a big predator stays close: empty empty.guarded of the time, else as brooded
 //   creche: a parent always with its young
-// Taking an egg from a nest left alone takes a while (cost: hunger and thirst as that many units of
-// travel; a hot-spring nest's fumes may wear someone down, fumes of the time); from an empty one, the
-// parent may come back meanwhile (back[kind]); one with a parent on it unseen can be crept up on (seen
-// again as above), waited out (it leaves wait of the time), or lured away by one of the team that would
-// run from the parent (its fear, BODY) as bait: its agility against the parent's; caught, it is killed.
-// Taking it by force is a fight with a parent (a prime adult, or colony adults) that never runs. A team
-// carries carry eggs at most.
+// Each nest holds a clutch of its species (clutch: how many eggs, the fewest and the most; theropods laid
+// them in pairs, one from each oviduct, so theirs is even), fertile of them fertile: a parent can't tell
+// one that will never hatch, and broods and defends the whole clutch. hatched of the nests found have
+// already hatched: the young gone, only the eggs that never hatched left, free to take.
+// Taking eggs from a nest left alone takes a while (cost: hunger and thirst as that many units of
+// travel; a hot-spring nest's fumes may wear someone down, fumes of the time), and with time the team
+// holds each egg to the light (candling): the fertile ones are taken, those that won't hatch only if the
+// player wants them, as food. From an empty one, an egg can be snatched unseen and the team gone, or
+// held to the light one by one, the parent coming back candle[kind][0] of the time at the first and
+// candle[kind][1] more at each one after. One with a parent on it unseen can be crept up on (seen again as
+// above) or lured away by one of the team that would run from the parent (its fear, BODY) as bait (its
+// agility against the parent's; caught, it is killed): one egg grabbed, unseen. Or it can be waited out:
+// it leaves to feed wait of the time, and the nest is empty. Taking it by force is a fight with a parent
+// (a prime adult, or colony adults) that never runs: won, the nest is the team's to look over, but at a
+// colony the other adults close in, so one egg is grabbed, unseen. An egg taken unseen shows what it is
+// once home. A team carries carry eggs at most.
 export const NEST = {
   find: { buried: 0.005, watched: 0.012, colony: 0.012, brooded: 0.01, guarded: 0.006, creche: 0.008 },
   kind: {
@@ -830,7 +839,14 @@ export const NEST = {
     coast: { compy: 2, scelido: 1, spino: 0.4 },
     volcano: { argent: 1 },
   },
-  watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, back: { brooded: 0.25, guarded: 0.35, watched: 0.2 },
+  clutch: {
+    argent: [15, 40], proto: [12, 20], hypa: [15, 25], para: [20, 30], hypsi: [10, 20], psitta: [8, 16],
+    rex: [16, 30], allo: [16, 24], spino: [10, 20], bary: [10, 20], raptor: [10, 20], galli: [10, 20],
+    dilo: [10, 20], coelo: [10, 20], compy: [6, 12], trike: [10, 20], ankylo: [10, 20], stego: [10, 20],
+    pachy: [6, 15], scelido: [6, 15],
+  },
+  fertile: 0.9, hatched: 0.2,
+  watched: 0.75, empty: { brooded: 0.15, guarded: 0.07 }, seen: 0.35, candle: { brooded: [0.1, 0.1], guarded: [0.15, 0.1] },
   wait: 0.5, cost: 1, colony: [2, 4], fumes: 0.35, carry: 3, gap: 10,
   sees: { colony: 0.04, creche: 0.02, watched: 0.015, brooded: 0.015, guarded: 0.01, buried: 0.005 },
   rarity: { Starter: 1, Common: 1, Uncommon: 0.75, Rare: 0.5, Epic: 0.3, Legendary: 0.15 }, legendary: 0.02,
@@ -1014,7 +1030,7 @@ export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp
 // food costs less than a meal pays, so feeding always comes out ahead
 export const FOOD_PACKS = [
   { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
-  { id: 'fish', qty: 5, price: 15 }, { id: 'raw_egg', qty: 3, price: 12 }, { id: 'herb', qty: 3, price: 20 },
+  { id: 'fish', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 },
   { id: 'ration', qty: 3, price: 15 }, { id: 'water_skin', qty: 2, price: 40 },
 ];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450

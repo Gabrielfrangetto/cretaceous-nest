@@ -110,6 +110,7 @@ fights, more eggs). The rest belong to species found as eggs:
 - [x] Exploring — Compsognathus and Hypsilophodon (starters)
 - [x] Foraging: the land gives seeds, gizzard stones, leaves, fruit, insects and herbs along the way; foragers (Psittacosaurus: seeds and stones; Gallimimus: insects, leaves, herbs, and nests once there are nest events; Hypacrosaurus: leaves and fruit) find their kinds twice as often, and the whole team eats and finds water better in camp
 - [x] Nest events on journeys: the only way eggs are found; each species nests where it would (buried and left, buried and watched, colonies, brooded, guarded, creches), the parent there or not; which species: how its nest shows, its rarity and its land (legendaries at most 2%); at most one nest every 10 hexes; take, creep up, wait, send one that would run from the parent as bait (outrun or killed), or fight for an egg (a Gallimimus notices nests twice as often, a scout half as often again)
+- [x] Clutches: each species lays as many eggs as it would (theropods in pairs), about 1 in 10 never hatching, and unfertilized eggs come only from nests; hatched nests leave the eggs that never hatched, free; with time and calm (a nest left alone, or won) every egg is held to the light, the fertile taken (as many as fit) and the rest kept as food if wanted; from an empty nest an egg is snatched unseen, or held to the light one by one, the parent likelier back at each; in a rush (creeping up, bait, a colony) one egg is grabbed unseen, shown for what it is once home
 - [ ] Hunting and fishing: brings food home (Baryonyx and Spinosaurus fish, Coelophysis hunts)
 - [ ] Carrying: the whole team carries more (Argentinosaurus, Parasaurolophus)
 - [ ] Nest care: eggs hatch sooner, babies grow on fewer meals (Psittacosaurus, hadrosaurs)
@@ -125,7 +126,7 @@ the fight, from anything bigger. Wild encounters are the game's own species (pac
 
 - [ ] Mounts: the player riding a fast species (Gallimimus) runs off with it instead of being left alone
 - [ ] Training: a trained noncombatant attacks foes up to its fear size (never its predators)
-- [ ] Other encounters: a herd passing by, an abandoned nest with an egg, a storm
+- [ ] Other encounters: a herd passing by, a storm
 - [ ] Body parts: blows aimed at the head, body or neck (a Triceratops' frill, a neck critical)
 
 ## Phase 5 — Monetization

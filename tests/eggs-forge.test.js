@@ -44,7 +44,7 @@ test('eggs are taken from nests found on the way: of a species that nests there,
     t = r.expedition.leg.arriveAt;
     const c = collect(s, { id: r.expedition.id, nest: 'fight' }, t);
     nests += c.story.filter(e => e.kind === 'nest').length;
-    egg = c.story.map(e => e.kind === 'nest' && e.egg).find(Boolean) || null;
+    egg = c.story.flatMap(e => (e.kind === 'nest' && !e.unseen ? e.eggs || [] : [])).find(Boolean) || null;
     t += 1e7;
   }
   assert.ok(nests > 0 && egg, 'a nest raided within 120 trips');

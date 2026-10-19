@@ -268,7 +268,7 @@ export function journeyStep(s, id, choice = {}, now) {
     const ev = p.pending;
     p.pending = null;
     if (ev.kind === 'go-on') { if (choice && choice.back) turnBack(ctx, ev.idx); }
-    else if (run(ctx, ev, choice || {}) && !ctx.gone) afterEvent(ctx, ev);
+    else if (run(ctx, ev, choice || {}) && !ctx.gone && !p.pending) afterEvent(ctx, ev);
   }
   walk(ctx);
   return {
@@ -580,19 +580,36 @@ function nestAt(s, p, idx) {
   for (let i = 0; i < idx; i++) if (i - last >= NEST.gap && nestRoll(s, p, i)) last = i;
   return idx - last >= NEST.gap ? nestRoll(s, p, idx) : null;
 }
-// The nest as the team finds it: { species, name, nest: how it nests (NEST.kind), state: 'alone' (left, or a parent away to feed:
+// A nest's clutch: how many eggs (NEST.clutch, even for a theropod: laid in pairs) and which are fertile
+export function clutchOf(seed, n, idx, species) {
+  const rand = seededRand(`nest-clutch:${seed}:${n}:${idx}`), [lo, hi] = NEST.clutch[species] || [10, 20];
+  let size = lo + Math.floor(rand() * (hi - lo + 1));
+  if (SPECIES[species].build === 'theropod' && size % 2) size += size < hi ? 1 : -1;
+  return { size, fertile: Array.from({ length: size }, () => rand() < NEST.fertile) };
+}
+// the eggs of a hatched nest left behind: those that never hatched (one at least)
+const leftoversOf = c => Math.max(1, c.fertile.filter(f => !f).length);
+// the chance the parent of an empty nest comes back while the team holds its looks-th egg to the light
+const candleChance = (kind, looks) => { const [a, b] = NEST.candle[kind] || NEST.candle.brooded; return Math.min(0.9, a + b * looks); };
+// The nest as the team finds it: { species, name, nest: how it nests (NEST.kind), state: 'hatched' (the
+// young gone, the eggs that never hatched left: leftovers), 'alone' (left, or a parent away to feed:
 // empty), 'empty', 'watched' (a parent close by, watching), 'colony', 'unseen' (a parent on it that hasn't
 // seen the team), 'seen' (a parent on it warning the team off), foe: the parent (or colony adults),
-// eggs: how many the team carries, full: it can carry no more, decoys: the quick ones that could lure the
-// parent away [{ id, name, chance }], sneak / wait: their chances }
+// clutch: how many eggs, eggs: how many the team carries, full: it can carry no more, decoys: the quick
+// ones that could lure the parent away [{ id, name, chance }], sneak / wait: their chances }. Mid-way
+// through (the decision waiting is this nest's): phase ('empty': the parent away, eggs held to the light
+// one by one; 'dud': the last one held up would never hatch; 'duds': looked over in calm, these would
+// never hatch), left: the eggs not yet looked at, chance: that the parent comes back at the next look }
 export function nestView(s, p, idx) {
   const w = W(s), nest = nestAt(s, p, idx);
   if (!nest) return null;
   const { species, kind } = nest, rand = seededRand(`nest-state:${w.seed}:${p.leg.n}:${idx}`);
   const units = standingUnits(s, p), team = teamUnits(s, units), biome = biomeAt(w.seed, parseKey(p.leg.path[idx]));
   const seen = Math.min(0.9, NEST.seen * teamVisibility(team, biome) / VISIBILITY.base);
+  const clutch = clutchOf(w.seed, p.leg.n, idx, species);
   const r = rand();
-  const state = kind === 'buried' ? 'alone' : kind === 'colony' ? 'colony' : kind === 'creche' ? 'watched'
+  const hatched = seededRand(`nest-hatched:${w.seed}:${p.leg.n}:${idx}`)() < NEST.hatched;
+  const state = hatched ? 'hatched' : kind === 'buried' ? 'alone' : kind === 'colony' ? 'colony' : kind === 'creche' ? 'watched'
     : kind === 'watched' ? (r < NEST.watched ? 'watched' : 'alone')
     : r < NEST.empty[kind] ? 'empty' : rand() < seen ? 'seen' : 'unseen';
   const n = kind === 'colony' ? NEST.colony[0] + Math.floor(rand() * (NEST.colony[1] - NEST.colony[0] + 1)) : 1;
@@ -603,16 +620,26 @@ export function nestView(s, p, idx) {
   const lone = state === 'unseen' || state === 'seen' || state === 'watched';
   const decoys = !lone ? [] : team.flatMap((u, i) => (fears(u, foe) || (u.members[0].role || 'attacker') === 'noncombatant' ? u.members.map((f, j) => ({ id: units[i].members[j], f })) : []))
     .filter(({ id }) => id !== PLAYER_ID).map(({ id, f }) => ({ id, name: f.name, chance: f.agi / (f.agi + parent.agi) }));
-  return { species, name: sp.species, nest: kind, state, foe, eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, wait: NEST.wait, volcano: biome === 'volcano' };
+  const pe = p.pending && p.pending.kind === 'nest' && p.pending.idx === idx && p.pending.phase ? p.pending : null;
+  const looked = pe ? pe.looked || 0 : 0;
+  return {
+    species, name: sp.species, nest: kind, state, foe, clutch: clutch.size, leftovers: leftoversOf(clutch),
+    eggs: p.carry.eggs.length, full: p.carry.eggs.length >= NEST.carry, decoys, sneak: 1 - seen, wait: NEST.wait, volcano: biome === 'volcano',
+    phase: pe ? pe.phase : null, left: clutch.size - looked, duds: pe ? pe.duds || 0 : 0, chance: candleChance(kind, pe ? pe.looks || 0 : 0),
+  };
 }
-// an egg taken from a nest of a species, carried home
-function takeEgg(ctx, species, idx) {
-  const { s, p, now } = ctx, w = W(s), rand = seededRand(`egg:${w.seed}:${p.leg.n}:${idx}`);
+// the i-th egg of a nest of a species, carried home (unseen: grabbed without looking, a dud if it would
+// never hatch; that shows once home)
+function takeEgg(ctx, species, idx, i, unseen = null) {
+  const { s, p, now } = ctx, w = W(s), rand = seededRand(`egg:${w.seed}:${p.leg.n}:${idx}:${i}`);
   const [lo, hi] = EGG_GENES(EGG_STEP, false);
-  const egg = { id: `egg-${w.seed}-${p.leg.n}-${idx}`, type: species, gen: 1, parents: [], laidAt: now, genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])) };
+  const egg = { id: `egg-${w.seed}-${p.leg.n}-${idx}-${i}`, type: species, gen: 1, parents: [], laidAt: now, genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])) };
+  if (unseen) { egg.unseen = true; if (unseen.dud) egg.dud = true; }
   p.carry.eggs.push(egg);
   return egg;
 }
+// eggs that would never hatch, kept as food
+function keepDuds(p, n) { if (n > 0) p.carry.items.raw_egg = (p.carry.items.raw_egg || 0) + n; }
 // time spent at a nest (digging, waiting): hunger and thirst as NEST.cost units of travel
 function linger(p) {
   for (const id of p.members) {
@@ -620,44 +647,100 @@ function linger(p) {
     setLevel(p, 'hunger', id, levelOf(p, 'hunger', id) + SURVIVAL.hunger * NEST.cost);
   }
 }
-// A nest on the way: the decision waits for the player (choice.nest: 'take' (a nest alone or empty: dig
-// it out or snatch it), 'sneak', 'wait', 'lure' (with choice.decoy), 'fight', or anything else: leave it)
+// A nest on the way: the decision waits for the player, and may lead to another (ev.phase). First
+// (choice.nest): 'keep' (a hatched nest: take the eggs left), 'take' (a nest alone: dig it out and look
+// the eggs over; an empty one: snatch an egg and go), 'candle' (an empty one: hold an egg to the light),
+// 'sneak', 'wait', 'lure' (with choice.decoy), 'fight', or anything else: leave it. Then, phase 'empty':
+// 'candle' again, 'take' (one more, unseen, and go) or leave; 'dud': 'keep' it as food or put it back;
+// 'duds': 'keep' them as food or leave them.
 function nestEvent(ctx, ev, choice) {
   const { s, p, story } = ctx, w = W(s), h = parseKey(ev.hex), v = nestView(s, p, ev.idx);
   if (!v || !standingUnits(s, p).length) return false;
   if (choice === null) { p.pending = { kind: 'nest', idx: ev.idx, hex: ev.hex }; return true; }
-  const rand = seededRand(`nest-act:${w.seed}:${p.leg.n}:${ev.idx}`);
-  const told = { kind: 'nest', hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), species: v.species, name: v.name, nest: v.nest, state: v.state, act: 'leave', egg: null };
+  const step = ev.step || 0, rand = seededRand(`nest-act:${w.seed}:${p.leg.n}:${ev.idx}:${step}`);
+  const clutch = clutchOf(w.seed, p.leg.n, ev.idx, v.species);
+  let looked = ev.looked || 0, looks = ev.looks || 0;
+  const told = { kind: 'nest', hex: ev.hex, idx: ev.idx, biome: biomeAt(w.seed, h), species: v.species, name: v.name, nest: v.nest, state: v.state, clutch: v.clutch, act: 'leave', eggs: [] };
   const as = { foe: v.foe, entry: { species: v.species, loot: [['meat', 2, 4], ['bone', 1, 2]] }, step: AGES.prime.step, id: v.species };
-  const battle = () => { const b = fight(ctx, ev, rand, { as, defend: true, guard: true, silent: true }); told.battle = b; if (b.win && !ctx.gone) told.egg = takeEgg(ctx, v.species, ev.idx); };
-  const act = v.full ? 'leave' : choice.nest;
-  const can = {
-    take: ['alone', 'empty'].includes(v.state), fight: true, sneak: v.state === 'unseen', wait: v.state === 'unseen', lure: v.decoys.length > 0,
+  const next = (phase, extra = {}) => { p.pending = { kind: 'nest', idx: ev.idx, hex: ev.hex, phase, looked, looks, step: step + 1, ...extra }; };
+  const space = () => NEST.carry - p.carry.eggs.length;
+  // one egg grabbed without a look
+  const grab = () => { if (looked < clutch.size && space() > 0) { told.eggs.push(takeEgg(ctx, v.species, ev.idx, looked, { dud: !clutch.fertile[looked] })); told.unseen = true; looked++; } };
+  // with time and calm, every egg left held to the light: the fertile taken, as many as fit, the rest asked
+  const calm = () => {
+    let duds = 0, fertile = 0;
+    told.looked = clutch.size - looked;
+    for (; looked < clutch.size; looked++) {
+      if (!clutch.fertile[looked]) duds++;
+      else if (fertile++, space() > 0) told.eggs.push(takeEgg(ctx, v.species, ev.idx, looked));
+      else told.full = true;
+    }
+    told.duds = duds; told.fertile = fertile;
+    if (duds) next('duds', { duds });
   };
-  if (!act || !can[act]) { tell(); return true; }
-  told.act = act;
-  if (act === 'take') {
-    linger(p);
-    // a hot spring's fumes, while digging
-    if (v.volcano && rand() < NEST.fumes) { const up = p.members.filter(id => !isDown(p, id)); const who = up[Math.floor(rand() * up.length)]; if (who) { p.health[who] = Math.max(HAZARD_FLOOR, healthOf(p, who) - HAZARD_WOUND[0]); told.fumes = who; } }
-    if (v.state === 'empty' && rand() < (NEST.back[v.nest] || 0)) { told.back = true; battle(); }
-    else told.egg = takeEgg(ctx, v.species, ev.idx);
-  } else if (act === 'sneak') {
-    if (rand() < v.sneak) told.egg = takeEgg(ctx, v.species, ev.idx);
-    else { told.spotted = true; battle(); }
-  } else if (act === 'wait') {
-    linger(p);
-    if (rand() < v.wait) { told.left = true; told.egg = takeEgg(ctx, v.species, ev.idx); }
-  } else if (act === 'lure') {
-    const d = v.decoys.find(x => x.id === choice.decoy) || v.decoys[0];
-    told.decoy = { id: d.id, name: d.name };
-    // outrun, it comes back to the team once the egg is taken; caught, it is killed
-    if (rand() < d.chance) told.egg = takeEgg(ctx, v.species, ev.idx);
-    else { told.caught = { id: d.id, name: d.name, died: true }; die(ctx, d.id); if (ctx.gone) { story.push(told); return true; } }
-  } else if (act === 'fight') battle();
-  tell();
+  // the parent away: hold the next egg to the light; it may come back meanwhile
+  const candle = () => {
+    told.act = 'candle';
+    if (rand() < candleChance(v.nest, looks)) { told.back = true; battle(); return; }
+    looks++;
+    const i = looked++;
+    if (clutch.fertile[i]) { told.fertile = true; told.eggs.push(takeEgg(ctx, v.species, ev.idx, i)); goOn(); } else { told.fertile = false; next('dud'); }
+  };
+  // on looking, while there is room and eggs left (none: told why)
+  const goOn = () => { if (looked >= clutch.size) told.none = true; else if (space() <= 0) told.full = true; else next('empty'); };
+  // a fight with the parent (never running): won, the nest is the team's, but at a colony the others close in
+  const battle = () => {
+    const b = fight(ctx, ev, rand, { as, defend: true, guard: true, silent: true });
+    told.battle = b;
+    if (!b.win || ctx.gone) return;
+    if (v.state === 'colony') grab(); else calm();
+  };
+  const act = choice.nest;
+  if (ev.phase === 'dud') {
+    told.act = act === 'keep' ? 'keep' : 'putback';
+    if (act === 'keep') keepDuds(p, 1);
+    goOn();
+  } else if (ev.phase === 'duds') {
+    told.act = act === 'keep' ? 'keep' : 'leave';
+    told.duds = ev.duds || 0;
+    if (act === 'keep') keepDuds(p, told.duds);
+  } else if (ev.phase === 'empty') {
+    if (act === 'candle') candle();
+    else if (act === 'take') { told.act = 'take'; grab(); }
+    else told.act = 'went';
+  } else {
+    const can = {
+      keep: v.state === 'hatched', take: !v.full && ['alone', 'empty'].includes(v.state), candle: !v.full && v.state === 'empty',
+      fight: !v.full && v.state !== 'hatched' && v.state !== 'alone' && v.state !== 'empty',
+      sneak: !v.full && v.state === 'unseen', wait: !v.full && v.state === 'unseen', lure: !v.full && v.decoys.length > 0,
+    };
+    if (act && can[act]) {
+      told.act = act;
+      if (act === 'keep') { told.duds = v.leftovers; keepDuds(p, v.leftovers); }
+      else if (act === 'take' && v.state === 'empty') grab();
+      else if (act === 'take') {
+        linger(p);
+        // a hot spring's fumes, while digging
+        if (v.volcano && rand() < NEST.fumes) { const up = p.members.filter(id => !isDown(p, id)); const who = up[Math.floor(rand() * up.length)]; if (who) { p.health[who] = Math.max(HAZARD_FLOOR, healthOf(p, who) - HAZARD_WOUND[0]); told.fumes = who; } }
+        calm();
+      } else if (act === 'candle') candle();
+      else if (act === 'sneak') {
+        if (rand() < v.sneak) grab();
+        else { told.spotted = true; battle(); }
+      } else if (act === 'wait') {
+        linger(p);
+        if (rand() < v.wait) { told.left = true; next('empty'); }
+      } else if (act === 'lure') {
+        const d = v.decoys.find(x => x.id === choice.decoy) || v.decoys[0];
+        told.decoy = { id: d.id, name: d.name };
+        // outrun, it comes back to the team once the egg is taken; caught, it is killed
+        if (rand() < d.chance) grab();
+        else { told.caught = { id: d.id, name: d.name, died: true }; die(ctx, d.id); if (ctx.gone) { story.push(told); return true; } }
+      } else if (act === 'fight') battle();
+    }
+  }
+  story.push(told);
   return true;
-  function tell() { story.push(told); }
 }
 
 // ---------- what happens on the way ----------
@@ -972,9 +1055,12 @@ function gather(ctx, leg) {
 function comeHome(ctx) {
   const { s, p, story, now } = ctx, w = W(s);
   const loot = [];
+  // the eggs grabbed without a look are held to the light at the nest: those that would never hatch are food
+  const duds = p.carry.eggs.filter(g => g.dud);
+  if (duds.length) p.carry.items.raw_egg = (p.carry.items.raw_egg || 0) + duds.length;
   for (const [item, n] of Object.entries(p.carry.items)) if (n > 0) loot.push({ id: item, n, lost: addItem(s, item, n) });
   if (p.carry.coins) earn(s, p.carry.coins);
-  const eggs = p.carry.eggs.map(egg => {
+  const eggs = p.carry.eggs.filter(g => !g.dud).map(({ unseen, ...egg }) => {
     s.eggs = s.eggs || [];
     if (s.eggs.length < EGG_TRAY_SIZE) { s.eggs.push(egg); return egg; }
     return { ...egg, lost: true };
@@ -1005,7 +1091,7 @@ function comeHome(ctx) {
   w.expeditions = w.expeditions.filter(x => x !== p);
   p.leg = null;
   ctx.gone = true;
-  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, injured, fedSelf, hungry, died: p.dead, team: p.team, members: p.members });
+  story.push({ kind: 'home', hex: HOME, idx: -1, loot, coins: p.carry.coins, eggs, duds: duds.map(g => g.type), injured, fedSelf, hungry, died: p.dead, team: p.team, members: p.members });
 }
 
 // ---------- the decision waiting, for the screens ----------
@@ -1054,6 +1140,19 @@ export function journeyAll(s, id, now, answers = {}) {
 
 // ---------- loaded saves ----------
 const PENDING = ['scatter', 'standoff', 'sighting', 'witness', 'go-on', 'nest'];
+const NEST_PHASES = ['empty', 'dud', 'duds'];
+// a nest's decision part-way through can only be one the nest led to: eggs looked at one by one with the
+// parent away (gone to feed, or waited out), the last one a dud, or duds left after a calm look
+function nestPhaseFits(s, p) {
+  const pe = p.pending, w = W(s), v = nestView(s, p, pe.idx);
+  if (!v) return false;
+  const c = clutchOf(w.seed, p.leg.n, pe.idx, v.species), duds = c.fertile.filter(f => !f).length;
+  if (pe.looked > c.size) return false;
+  const away = v.state === 'empty' || (v.state === 'unseen' && seededRand(`nest-act:${w.seed}:${p.leg.n}:${pe.idx}:0`)() < NEST.wait);
+  if (pe.phase === 'empty') return away && pe.looked < c.size;
+  if (pe.phase === 'dud') return away && pe.looked > 0 && !c.fertile[pe.looked - 1];
+  return !['colony', 'hatched'].includes(v.state) && pe.duds <= duds;
+}
 // keeps the parties of a loaded world inside the rules whatever produced them: real explorers each out
 // once, legs along the real way and never quicker than it takes, carried things that exist. A trip
 // from before journeys becomes a leg from the nest to its hex.
@@ -1096,7 +1195,8 @@ export function cleanParties(s, w) {
     if (!land(at) || (!leg && at === HOME)) continue;
     const pe = leg && e.pending && typeof e.pending === 'object' ? e.pending : null;
     const pidx = pe ? Math.floor(Number(pe.idx)) : -1;
-    const pending = pe && PENDING.includes(pe.kind) && pidx >= 0 && pidx < leg.step ? { kind: pe.kind, idx: pidx, hex: leg.path[pidx] } : null;
+    let pending = pe && PENDING.includes(pe.kind) && pidx >= 0 && pidx < leg.step ? { kind: pe.kind, idx: pidx, hex: leg.path[pidx] } : null;
+    if (pending && pending.kind === 'nest' && NEST_PHASES.includes(pe.phase)) pending = { ...pending, phase: pe.phase, looked: int(pe.looked), looks: int(pe.looks), step: int(pe.step, 1), ...(pe.phase === 'duds' ? { duds: int(pe.duds, 1) } : {}) };
     const health = {};
     for (const id of members) if (e.health && e.health[id] != null) health[id] = Math.max(0, Math.min(1, Number(e.health[id]) || 0));
     const inParty = list => [...new Set((Array.isArray(list) ? list : []).filter(id => members.includes(id)))];
@@ -1104,7 +1204,7 @@ export function cleanParties(s, w) {
     const items = {};
     for (const [id, n] of Object.entries(c.items && typeof c.items === 'object' ? c.items : {})) if (ITEMS[id] && int(n) > 0) items[id] = int(n);
     const eggs = (Array.isArray(c.eggs) ? c.eggs : []).filter(g => g && SPECIES[g.type]).slice(0, 3).map(g => ({
-      id: String(g.id), type: g.type, gen: 1, parents: [], laidAt: num(g.laidAt),
+      id: String(g.id), type: g.type, gen: 1, parents: [], laidAt: num(g.laidAt), ...(g.unseen === true ? { unseen: true, ...(g.dud === true ? { dud: true } : {}) } : {}),
       genes: Object.fromEntries(STATS.map(({ id }) => [id, Math.min(geneMax, int(g.genes && g.genes[id]))])),
     }));
     const level = src => Object.fromEntries(members.filter(id => src && src[id] != null).map(id => [id, Math.max(0, Math.min(1, Number(src[id]) || 0))]));
@@ -1119,6 +1219,8 @@ export function cleanParties(s, w) {
       carry: { items, coins: int(c.coins), eggs }, pending,
       hex: leg ? leg.to : at, trip: leg ? leg.n : int(e.trip, 1), startedAt: leg ? leg.startedAt : num(e.startedAt), returnAt: leg ? leg.arriveAt : num(e.returnAt),
     });
+    const q = out[out.length - 1];
+    if (pending && pending.phase && !nestPhaseFits(s, q)) q.pending = { kind: 'nest', idx: pending.idx, hex: pending.hex };
   }
   return out;
 }

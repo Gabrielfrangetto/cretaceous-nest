@@ -697,7 +697,7 @@ export const ACTIONS = {
   // { act: 'prey' | 'predator', hunter: a unit's id })
   journey(s, { id, fight, flee, hunt, back, witness, nest, decoy }, now) {
     const w = witness && typeof witness === 'object' && ['prey', 'predator'].includes(witness.act) ? { act: witness.act, hunter: String(witness.hunter || '') } : null;
-    const n = ['take', 'sneak', 'wait', 'lure', 'fight'].includes(nest) ? nest : null;
+    const n = ['take', 'candle', 'keep', 'sneak', 'wait', 'lure', 'fight'].includes(nest) ? nest : null;
     return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w, nest: n, decoy: decoy == null ? null : String(decoy) }, now);
   },
   equipArms(s, { index }) {
