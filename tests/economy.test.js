@@ -2,8 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addItem, removeItem, countItem, roomFor, moveSlot, sortInventory, splitStack,
-  startEgg, eggProgress, warmEgg, hatchEgg, feedBaby, hungerEvery, buyRow, buyPack, rowPrice,
-} from '../js/economy.js';
+  startEgg, eggProgress, warmEgg, hatchEgg, feedBaby, hungerEvery, buyRow, buyPack, rowPrice, mealSize } from '../js/economy.js';
 import { freshState } from '../js/state.js';
 import { ITEMS, SLOTS, MAX_STACK, FEED_COINS, HATCH_COINS, SPECIES } from '../js/config.js';
 
@@ -116,8 +115,11 @@ test('feeding needs a hungry baby and the right food', () => {
   assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'full');
 
   const meat = countItem(s, 'meat'), coins = s.coins;
-  assert.equal(feedBaby(s, baby.id, hungryAt).ok, true);
-  assert.equal(countItem(s, 'meat'), meat - 1);
+  // a meal is a quarter of its day's food, by its weight: a baby Tyrannosaurus' takes several cuts
+  const r = feedBaby(s, baby.id, hungryAt);
+  assert.equal(r.ok, true);
+  assert.ok(r.n > 1 && r.n === mealSize(baby, 'meat'));
+  assert.equal(countItem(s, 'meat'), meat - r.n);
   assert.equal(s.coins, coins + FEED_COINS);
 
   removeItem(s, 'meat', 99);
@@ -145,3 +147,16 @@ test('food packs need coins and room', () => {
   assert.equal(roomFor(s, 'leaf'), 0);
   assert.equal(buyPack(s, 0).reason, 'room');
 });
+
+test('a day of food grows with the weight^0.75, plants more than meat; a meal is a quarter of it, one at the least', async () => {
+  const { dailyKg } = await import('../js/economy.js');
+  const adult = t => ({ id: t, type: t, fed: 999 });
+  // a small starter eats one item a meal; a Tyrannosaurus' meal is many cuts, an Argentinosaurus' many armfuls
+  for (const t of ['coelo', 'raptor', 'psitta']) assert.equal(mealSize(adult(t), DIET_OF[t]), 1, t);
+  assert.ok(mealSize(adult('rex'), 'meat') > 10 && mealSize(adult('argent'), 'leaf') > 100);
+  // plants feed less than meat: a plant eater eats more kilos than a meat eater its weight
+  assert.ok(dailyKg(adult('trike'), 'leaf') > dailyKg(adult('rex'), 'meat'));
+  // a juvenile eats less than a grown one
+  assert.ok(mealSize({ id: 'j', type: 'rex', fed: 12 }, 'meat') < mealSize(adult('rex'), 'meat'));
+});
+const DIET_OF = { coelo: 'meat', raptor: 'meat', psitta: 'leaf' };

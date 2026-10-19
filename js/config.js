@@ -237,11 +237,11 @@ export const ROW = 10;
 export const MAX_STACK = 99;
 
 export const ITEMS = {
-  leaf:         { name: 'Leaf', plural: 'leaves', desc: 'Food for plant eaters. Each meal uses 1 leaf.' },
-  meat:         { name: 'Meat', plural: 'meat', desc: 'Food for meat eaters. Each meal uses 1 meat.' },
-  insect:       { name: 'Insects', plural: 'insects', food: true, desc: 'A crunchy handful. Small hunters and omnivores like them. Each meal uses 1.' },
-  fish:         { name: 'Fish', plural: 'fish', food: true, desc: 'Fresh from the swamp. Fish eaters like Baryonyx and Spinosaurus love it. Each meal uses 1.' },
-  raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, desc: 'An egg that will never hatch, found only in nests. Omnivores like Gallimimus eat it. Each meal uses 1.' },
+  leaf:         { name: 'Leaf', plural: 'leaves', kg: 1, desc: 'Food for plant eaters: a bundle of leafy branches and fronds, about 1 kg. The bigger the eater, the more a meal takes.' },
+  meat:         { name: 'Meat', plural: 'meat', kg: 1, desc: 'Food for meat eaters: a cut of about 1 kg. The bigger the eater, the more a meal takes.' },
+  insect:       { name: 'Insects', plural: 'insects', food: true, kg: 0.1, desc: 'A crunchy handful, about 100 g. Small hunters and omnivores like them.' },
+  fish:         { name: 'Fish', plural: 'fish', food: true, kg: 1, desc: 'Fresh from the swamp, about 1 kg. Fish eaters like Baryonyx and Spinosaurus love it.' },
+  raw_egg:      { name: 'Unfertilized egg', plural: 'unfertilized eggs', food: true, kg: 0.5, desc: 'An egg that will never hatch, found only in nests, about 500 g. Omnivores like Gallimimus eat it.' },
   shell:        { name: 'Eggshell', plural: 'eggshells', desc: 'Left over from an egg that hatched in the nest.' },
   golden_shell: { name: 'Golden eggshell', plural: 'golden eggshells', desc: 'A piece of the rare Golden Egg, where the Tyrannosaurus hatches from.' },
   amber:        { name: 'Amber', plural: 'amber', desc: "Fossilized resin from the planet's own ancient forests. Some pieces hold insects millions of years old." },
@@ -255,10 +255,10 @@ export const ITEMS = {
   allo_tooth:   { name: 'Serrated Allosaurus Tooth', plural: 'serrated Allosaurus teeth', desc: 'Lost in a frenzy, when Allosaurus turned on each other. Serrated like a steak knife: they shed and regrew teeth all their lives.' },
   allo_blood:   { name: 'Allosaurus Blood', plural: 'Allosaurus blood', desc: 'Spilled when Allosaurus turned on each other in a frenzy. Used in the Forge for blood transfusions.' },
   transfusion:  { name: 'Blood Transfusion', plural: 'blood transfusions', desc: 'Allosaurus blood and healing herbs. Heals a critically injured dinosaur on the spot.' },
-  ration:       { name: 'Trail Ration', plural: 'trail rations', desc: 'Dried meat, nuts and hard bread, wrapped for the road. Your own food on a journey: packed when you set out.' },
+  ration:       { name: 'Trail Ration', plural: 'trail rations', kg: 2, desc: 'Dried meat, nuts and hard bread, wrapped for the road. Your own food on a journey: packed when you set out.' },
   water_skin:   { name: 'Water Flask', plural: 'water flasks', desc: 'A clay flask stoppered with resin. Holds a few drinks for the dry stretches; packed when a team sets out, refilled wherever there is fresh water.' },
-  seed:         { name: 'Seeds', plural: 'seeds', food: true, desc: 'A handful of cycad and conifer seeds. Plant eaters crack them, and so can you.' },
-  fruit:        { name: 'Fruit', plural: 'fruit', food: true, desc: 'Fruit from high branches, knocked down by browsers that reach up into the trees. Plant eaters and you can eat it.' },
+  seed:         { name: 'Seeds', plural: 'seeds', kg: 0.2, food: true, desc: 'A handful of cycad and conifer seeds. Plant eaters crack them, and so can you.' },
+  fruit:        { name: 'Fruit', plural: 'fruit', kg: 0.5, food: true, desc: 'Fruit from high branches, knocked down by browsers that reach up into the trees. Plant eaters and you can eat it.' },
   stone:        { name: 'Gizzard Stone', plural: 'gizzard stones', desc: 'A smooth, rounded pebble. Plant eaters swallow them to grind tough food in the gizzard: Psittacosaurus skeletons are found with dozens inside.' },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
@@ -353,6 +353,15 @@ export const OUTFITS = {};
 export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1]];
 
 // Feeding
+// How much one eats (food kg: each food item's kg; a trail ration, dried and dense, counts as a day of a
+// person's food): a day's food grows with mass^0.75 (Kleiber), plant per kg^0.75 for plant food,
+// animal for meat, fish, insects and eggs (richer food; the player too), from today's mammals (an
+// elephant's 150 kg of plants, a lion's 7 kg of meat) at 60% (a dinosaur's metabolism between a
+// reptile's and a mammal's). A meal in the nest is meal of a day's food (at least one item). On a
+// journey days pass for real: a unit of the way's cost is hours of walking, and a meal from what the
+// team carries fills one up as far as its kilos go. A carcass gives edible of its weight in meat, as
+// much as the team can carry: haul of each one's weight (the player playerHaul kg).
+export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, hours: 3.5, edible: 0.5, haul: 0.15, playerHaul: 20 };
 // what each species eats, favourite first; a meal uses the first of these in the inventory
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
 export const HUNGER_MIN_S = 90;      // each baby gets hungry every 90 to 240 s,
@@ -1066,11 +1075,12 @@ export const STAGES = [
 export const FEED_COINS = 5;
 export const HATCH_COINS = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, RARITIES[sp.rarity].coins]));
 export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.rarity === 'Legendary' ? 'golden_shell' : 'shell']));
-// food costs less than a meal pays, so feeding always comes out ahead
+// a small one's meal pays more than its food costs; a big one's costs more than it pays
 export const FOOD_PACKS = [
   { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
   { id: 'fish', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 },
   { id: 'ration', qty: 3, price: 15 }, { id: 'water_skin', qty: 2, price: 40 },
+  { id: 'leaf', qty: 50, price: 80 }, { id: 'meat', qty: 50, price: 120 },
 ];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 

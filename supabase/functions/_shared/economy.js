@@ -6,6 +6,7 @@ import {
   OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CRECHE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, NEST_HUNGER, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
   KG, PLAYER_KG, MASS,
+  FOOD,
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
@@ -306,8 +307,14 @@ export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 :
 // (a player who has never eaten yet isn't hungry)
 export const isHungry = (b, now) => (b.id === PLAYER_ID && b.lastFed == null ? false : now - (b.lastFed || b.at) >= hungerEvery(b));
 
-// the meal a species would eat now: its favourite food that is in the inventory, or null
-export const mealFor = (s, type) => (type ? DIET[type] : PLAYER_DIET).find(food => countItem(s, food) > 0) || null;
+// A day's food (kg) for one (a dinosaur at its stage, or the player) of this food: FOOD
+const PLANT_FOOD = ['leaf', 'fruit', 'seed'];
+export const dailyKg = (b, food) => (b.id !== PLAYER_ID && PLANT_FOOD.includes(food) ? FOOD.plant : FOOD.animal) * Math.pow(massOf(b), 0.75);
+// how many items of a food a meal in the nest takes: a quarter of a day's food, one at the least
+export const mealSize = (b, food) => Math.max(1, Math.round(dailyKg(b, food) * FOOD.meal / ((ITEMS[food] && ITEMS[food].kg) || 1)));
+// the meal one would eat now: its favourite food there is enough of in the inventory for a meal, or
+// null (who: the dinosaur, or the player, for the size of the meal; none: one item)
+export const mealFor = (s, type, who = null) => (type ? DIET[type] : PLAYER_DIET).find(food => countItem(s, food) >= (who ? mealSize(who, food) : 1)) || null;
 // "Meat eater", "Plant eater", "Omnivore" or "Fish eater", from what it eats
 export function dietLabel(type) {
   const d = DIET[type];
@@ -322,16 +329,17 @@ export function feedBaby(s, id, now) {
   if (!b) return { ok: false, reason: 'missing' };
   if (isAway(s, id)) return { ok: false, reason: 'away' };
   if (!isHungry(b, now)) return { ok: false, reason: 'full' };
-  const food = mealFor(s, b.type);
-  if (!food) return { ok: false, reason: 'no-food', food: DIET[b.type][0] };
-  removeItem(s, food, 1);
+  const food = mealFor(s, b.type, b);
+  if (!food) return { ok: false, reason: 'no-food', food: DIET[b.type][0], n: mealSize(b, DIET[b.type][0]) };
+  const n = mealSize(b, food);
+  removeItem(s, food, n);
   const before = stageOf(b);
   b.lastFed = now;
   b.fed = (b.fed || 0) + 1;
   earn(s, FEED_COINS);
   bump(s, 'meals');
   const after = stageOf(b);
-  return { ok: true, food, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
+  return { ok: true, food, n, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
 }
 
 // the player eats (in the nest): no coins for it, and nothing to grow
@@ -339,11 +347,12 @@ function feedPlayer(s, now) {
   const p = s.player;
   if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
   if (!isHungry(p, now)) return { ok: false, reason: 'full' };
-  const food = mealFor(s, null);
+  const food = mealFor(s, null, p);
   if (!food) return { ok: false, reason: 'no-food', food: PLAYER_DIET[0] };
-  removeItem(s, food, 1);
+  const n = mealSize(p, food);
+  removeItem(s, food, n);
   p.lastFed = now;
-  return { ok: true, food, coins: 0, grewTo: null };
+  return { ok: true, food, n, coins: 0, grewTo: null };
 }
 
 // ---------- shop ----------

@@ -1,7 +1,7 @@
 // Nest tab: the walking babies, their hunger and feeding, and the collection of hatched babies.
 import { SPECIES, SEX, DIET, ITEMS, STAGES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor } from '../economy.js';
+import { sexOf, isHungry, countItem, wornGear, stageOf, nextStage, mealFor, mealSize } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, injuredLeft, isCritical } from '../world.js';
 import { now as gameNow } from '../clock.js';
@@ -101,16 +101,17 @@ function checkHunger() {
   for (const w of walkers.values()) {
     if (!w.hungry) continue;
     const b = findBaby(w.id); if (!b) continue;
-    const meal = mealFor(S, b.type);
-    const key = meal || 'none';
+    // (a meal is a quarter of its day's food: the bigger, the more it takes)
+    const meal = mealFor(S, b.type, b), n = meal ? mealSize(b, meal) : 0;
+    const key = meal ? `${meal}:${n}` : 'none';
     if (w.askFor === key) continue;
     w.askFor = key;
-    w.bubble.innerHTML = ITEM_ICONS[meal || DIET[b.type][0]] + `<span>${meal ? 'Wants ' + ITEMS[meal].plural : 'Out of food!'}</span>`;
+    w.bubble.innerHTML = ITEM_ICONS[meal || DIET[b.type][0]] + `<span>${meal ? `Wants ${n} ${n === 1 ? ITEMS[meal].name.toLowerCase() : ITEMS[meal].plural}` : 'Out of food!'}</span>`;
   }
   const fs = document.getElementById('foodStock');
   const have = FOODS.map(id => [id, countItem(S, id)]).filter(([, n]) => n);
   const fsText = have.length
-    ? `Food in your inventory: ${have.map(([id, n]) => `${n} ${n === 1 ? ITEMS[id].name.toLowerCase() : ITEMS[id].plural}`).join(', ')}. Each meal uses 1 of a food the baby eats.`
+    ? `Food in your inventory: ${have.map(([id, n]) => `${n} ${n === 1 ? ITEMS[id].name.toLowerCase() : ITEMS[id].plural}`).join(', ')}. A meal is a quarter of a day's food: the bigger the dinosaur, the more it takes.`
     : 'No food in your inventory. Buy some in the Shop, or bring it back from the World.';
   if (fs.textContent !== fsText) fs.textContent = fsText;
   const pill = document.getElementById('hungryPill');
@@ -189,7 +190,7 @@ function feed(w) {
     }
   } else if (result.reason === 'no-food') {
     const b = S.hatched.find(x => x.id === w.id);
-    popText(w, 'say', 'It eats ' + DIET[b.type].map(id => ITEMS[id].plural).join(' or '));
+    popText(w, 'say', `A meal takes ${result.n} ${ITEMS[result.food].plural}: it eats ${DIET[b.type].map(id => ITEMS[id].plural).join(' or ')}`);
   } else if (result.reason === 'full') {
     w.hop = 0.45;
     popText(w, 'say', "I'm full");

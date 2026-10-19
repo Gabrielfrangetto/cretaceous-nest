@@ -15,9 +15,9 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY,
+  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD,
 } from './config.js';
-import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex } from './economy.js';
+import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
 import {
@@ -494,14 +494,21 @@ function survive(ctx, idx) {
   }
   // what the land gives as the team walks (foragers find their kinds more easily)
   forage(ctx, idx, cell, h);
-  // a meal of what the team carries (the player's rations first; eggs are never eaten on the way)
+  // a meal of what the team carries (the player's rations first; eggs are never eaten on the way): as
+  // much as it takes to fill one up, as far as there is (FOOD: the days its hunger stands for, at its
+  // day's food)
   for (const id of p.members) {
-    if (levelOf(p, 'hunger', id) < SURVIVAL.at) continue;
+    const level = levelOf(p, 'hunger', id);
+    if (level < SURVIVAL.at || SURVIVAL.hunger <= 0) continue;
     const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => x !== 'raw_egg' && (p.carry.items[x] || 0) > 0);
     if (!food) continue;
-    if (food === 'ration') sup.ration -= 1;
-    else if (!(p.carry.items[food] -= 1)) delete p.carry.items[food];
-    setLevel(p, 'hunger', id, levelOf(p, 'hunger', id) - SURVIVAL.eat);
+    const who = explorerOf(s, id), day = dailyKg(who, food), each = ITEMS[food].kg || 1;
+    const days = level / SURVIVAL.hunger * FOOD.hours / 24;
+    const have = food === 'ration' ? sup.ration : p.carry.items[food];
+    const n = Math.min(have, Math.max(1, Math.ceil(days * day / each)));
+    if (food === 'ration') sup.ration -= n;
+    else if (!(p.carry.items[food] -= n)) delete p.carry.items[food];
+    setLevel(p, 'hunger', id, level - n * each / day * 24 / FOOD.hours * SURVIVAL.hunger);
   }
   // at the end of one's strength
   for (const id of [...p.members]) {
@@ -867,7 +874,7 @@ function run(ctx, ev, choice) {
     const base = { kind: 'sighting', sp: spOf(threat), name: threat.foe.name, species: threat.entry.species, count: threat.foe.members.length, hunter: odds.hunter };
     if (!choice.hunt) { tell({ ...base, hunted: false }); return true; }
     const caught = rand() < odds.chance;
-    const got = caught ? carcass(ctx, threat.entry, threat.step, rand) : [];
+    const got = caught ? carcass(ctx, threat.entry, threat.step, rand, [threat.foe.members[0]]) : [];
     const coins = caught ? threat.step * WIN_COINS_PER_HEX * (threat.lair ? 2 : 1) : 0;
     p.carry.coins += coins;
     tell({ ...base, hunted: true, caught, loot: got, coins });
@@ -889,13 +896,13 @@ function run(ctx, ev, choice) {
       const hunterAs = { foe: wt.hunterFoe, entry: wt.hunter.entry, step, name: wt.hunter.name };
       if (act === 'prey') {
         told.caught = rand() < go.chance;
-        if (told.caught && go.backsOff) told.loot.push(...carcass(ctx, wt.prey.entry, step, rand));
+        if (told.caught && go.backsOff) told.loot.push(...carcass(ctx, wt.prey.entry, step, rand, [wt.preyFoe.members[0]]));
         else if (told.caught) {
           // the hunter comes for the kill: the player and the one who ran it down fight it for it
           told.contested = true;
           const b = fight(ctx, ev, rand, { as: hunterAs, units: [...me, by], defend: true, silent: true });
           told.battle = b;
-          if (b.win) told.loot.push(...carcass(ctx, wt.prey.entry, step, rand));
+          if (b.win) told.loot.push(...carcass(ctx, wt.prey.entry, step, rand, [wt.preyFoe.members[0]]));
         } else if (!passesBy({ entry: wt.hunter.entry, foe: wt.hunterFoe }, team)) {
           // its meal got away: it turns on the team, if anything in it is on its menu
           told.turned = true;
@@ -904,7 +911,7 @@ function run(ctx, ev, choice) {
       } else if (go.chase) {
         // it runs from this hunter, and the prey runs too
         told.caught = rand() < go.chance;
-        if (told.caught) told.loot.push(...carcass(ctx, wt.hunter.entry, step, rand));
+        if (told.caught) told.loot.push(...carcass(ctx, wt.hunter.entry, step, rand, [wt.hunterFoe.members[0]]));
       } else told.battle = fight(ctx, ev, rand, { as: hunterAs, units: [...me, by], defend: true, silent: true });
       if (told.loot.length && !told.battle) { told.coins = step * WIN_COINS_PER_HEX; p.carry.coins += told.coins; }
     }
@@ -917,9 +924,14 @@ function run(ctx, ev, choice) {
 const scatterView = sc => ({ name: sc.name, prey: sc.prey, mounted: sc.mounted, alone: sc.alone });
 
 // the carcass of what the team brought down: its loot, more the stronger it was (AGES), carried home
-function carcass(ctx, entry, step, rand) {
+// What a kill brings home: its meat by weight (the edible share of the ones brought down, kills, as much
+// as the team can still carry: FOOD), and the rest of what it leaves (its loot, more the farther out)
+function carcass(ctx, entry, step, rand, kills = []) {
   const mult = 1 + (step - 1) * LOOT_PER_HEX, got = [];
+  const meat = Math.min(Math.round(kills.reduce((t, k) => t + (k.kg || 0), 0) * FOOD.edible), haulRoom(ctx.s, ctx.p));
+  if (meat > 0) got.push(carryItem(ctx.p, 'meat', meat));
   for (const [item, min, max] of entry.loot || []) {
+    if (item === 'meat' && kills.length) continue;
     const lo = Math.round(min * mult), hi = Math.round(max * mult);
     const n = lo + Math.floor(rand() * (hi - lo + 1));
     if (n > 0) got.push(carryItem(ctx.p, item, n));
@@ -927,6 +939,12 @@ function carcass(ctx, entry, step, rand) {
   // the meat eaters eat their fill of it there and then
   for (const id of ctx.p.members) if (dietOf(ctx.s, id).includes('meat')) setLevel(ctx.p, 'hunger', id, 0);
   return got;
+}
+// how many more kg of food the team can carry: each standing one haul of its weight, the player playerHaul
+function haulRoom(s, p) {
+  const cap = p.members.filter(id => !isDown(p, id)).reduce((t, id) => t + (id === PLAYER_ID ? FOOD.playerHaul : massOf(explorerOf(s, id)) * FOOD.haul), 0);
+  const held = Object.entries(p.carry.items).reduce((t, [id, n]) => t + n * ((ITEMS[id] && ITEMS[id].kg) || 0), 0);
+  return Math.max(0, Math.floor(cap - held));
 }
 function carryItem(p, item, n) {
   if (!ITEMS[item] || n <= 0) return { id: item, n: 0 };
@@ -1016,7 +1034,7 @@ function fight(ctx, ev, rand, how = {}) {
   battle.died = died.map(id => ({ id, name: names[id] }));
   // the spoils of a win
   if (result.win) {
-    battle.loot = as.entry && !result.foeFled ? carcass(ctx, as.entry, as.step, rand) : [];
+    battle.loot = as.entry && !result.foeFled ? carcass(ctx, as.entry, as.step, rand, foe.members.filter((_, k) => (result.foeHps[k] ?? 0) <= 0)) : [];
     battle.coins = as.step * WIN_COINS_PER_HEX * (as.lair ? 2 : 1);
     if (result.frenzy.length) for (const drop of FRENZY_DROPS) if (rand() < drop.chance(frenzyCount)) {
       const lo = drop.min(frenzyCount), hi = drop.max(frenzyCount);
