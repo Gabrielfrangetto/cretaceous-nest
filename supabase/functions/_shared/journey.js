@@ -17,7 +17,7 @@ import {
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
   DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY,
 } from './config.js';
-import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand } from './economy.js';
+import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround } from './map.js';
 import {
@@ -637,7 +637,9 @@ export function nestView(s, p, idx) {
 function takeEgg(ctx, species, idx, i, unseen = null) {
   const { s, p, now } = ctx, w = W(s), rand = seededRand(`egg:${w.seed}:${p.leg.n}:${idx}:${i}`);
   const [lo, hi] = EGG_GENES(EGG_STEP, false);
+  // (its genes and sex are what they are from the moment it is taken: nothing rerolls them at hatching)
   const egg = { id: `egg-${w.seed}-${p.leg.n}-${idx}-${i}`, type: species, gen: 1, parents: [], laidAt: now, genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])) };
+  egg.sex = rand() < 0.5 ? 'm' : 'f';
   if (unseen) { egg.unseen = true; if (unseen.dud) egg.dud = true; }
   p.carry.eggs.push(egg);
   return egg;
@@ -1205,7 +1207,7 @@ export function cleanParties(s, w) {
     const items = {};
     for (const [id, n] of Object.entries(c.items && typeof c.items === 'object' ? c.items : {})) if (ITEMS[id] && int(n) > 0) items[id] = int(n);
     const eggs = (Array.isArray(c.eggs) ? c.eggs : []).filter(g => g && SPECIES[g.type]).slice(0, 3).map(g => ({
-      id: String(g.id), type: g.type, gen: 1, parents: [], laidAt: num(g.laidAt), ...(g.unseen === true ? { unseen: true, ...(g.dud === true ? { dud: true } : {}) } : {}),
+      id: String(g.id), type: g.type, sex: eggSex(g), gen: 1, parents: [], laidAt: num(g.laidAt), ...(g.unseen === true ? { unseen: true, ...(g.dud === true ? { dud: true } : {}) } : {}),
       genes: Object.fromEntries(STATS.map(({ id }) => [id, Math.min(geneMax, int(g.genes && g.genes[id]))])),
     }));
     const level = src => Object.fromEntries(members.filter(id => src && src[id] != null).map(id => [id, Math.max(0, Math.min(1, Number(src[id]) || 0))]));

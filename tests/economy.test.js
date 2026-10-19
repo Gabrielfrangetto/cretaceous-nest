@@ -81,7 +81,7 @@ test('splitStack moves half into the first empty slot', () => {
 
 test('an egg hatches only when its time is up, and pays coins and a shell', () => {
   const s = freshState();
-  startEgg(s, 'proto', 0);
+  startEgg(s, 'proto', 0, { sex: 'm' });
   assert.equal(hatchEgg(s, 30 * 1000), null);
   const r = hatchEgg(s, PROTO, () => 0.1);
   assert.equal(r.baby.type, 'proto');

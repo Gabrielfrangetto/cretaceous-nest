@@ -230,11 +230,13 @@ export function discardOne(s, i) {
 // egg is a bred egg from the tray (carrying its genes and family), or null for a free egg
 // nest-mates that care for eggs and hatchlings (NURSE), at home
 const nurses = (s, adults) => s.hatched.filter(b => SPECIES[b.type] && SPECIES[b.type].nurse && !isAway(s, b.id) && (!adults || stageOf(b).id === 'adult'));
+// an egg's sex, fixed when it was taken or laid (older eggs: one of their own, from their id)
+export const eggSex = e => (e.sex === 'm' || e.sex === 'f' ? e.sex : hashId(String(e.id || `${e.type}:${e.startedAt}`)) % 2 ? 'm' : 'f');
 export function startEgg(s, type, now, egg = null) {
   // an adult that nests in colonies looks after it: it hatches sooner
   const nursed = nurses(s, true).length > 0;
   s.current = { type, startedAt: now, duration: Math.round(SPECIES[type].mins * 60000 * (nursed ? 1 - NURSE.hatch : 1)), bonus: 0, ...(nursed ? { nursed } : {}) };
-  if (egg) Object.assign(s.current, { genes: egg.genes, gen: egg.gen, parents: egg.parents });
+  if (egg) Object.assign(s.current, { genes: egg.genes, gen: egg.gen, parents: egg.parents, sex: eggSex(egg) });
 }
 
 export function eggProgress(egg, now) {
@@ -261,7 +263,8 @@ export function hatchEgg(s, now, rand = Math.random) {
   const egg = s.current;
   if (!egg || eggProgress(egg, now).frac < 1) return null;
   const type = egg.type;
-  const baby = { id: newId(), type, sex: rand() < 0.5 ? 'm' : 'f', name: suggestName(s, type), at: now };
+  // (sex and genes were settled when the egg was taken or laid)
+  const baby = { id: newId(), type, sex: eggSex(egg), name: suggestName(s, type), at: now };
   baby.genes = egg.genes ? { ...egg.genes } : wildGenes(rand);
   baby.gen = egg.gen || 1;
   if (egg.parents) baby.parents = [...egg.parents];
@@ -520,7 +523,7 @@ export function collectEgg(s, now, rand = Math.random) {
   s.breeding = null;
   if (!m || !f) return { ok: false, reason: 'missing' };
   const egg = {
-    id: newId(), type: br.type, genes: inheritGenes(m.genes, f.genes, rand),
+    id: newId(), type: br.type, genes: inheritGenes(m.genes, f.genes, rand), sex: rand() < 0.5 ? 'm' : 'f',
     gen: Math.max(m.gen || 1, f.gen || 1) + 1, parents: [m.id, f.id], laidAt: now,
   };
   s.eggs = [...(s.eggs || []), egg];

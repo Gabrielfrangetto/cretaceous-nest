@@ -40,9 +40,11 @@ function renderChooser() {
     <p class="sub">Found on expeditions or laid by your breeding pairs. The baby inherits the egg's genes.</p></div>
     <div class="eggs">${eggs.map(e => {
       // (an egg of a species never hatched here: no one knows whose it is until it hatches)
-      const sp = SPECIES[e.type], known = knows(S, e.type);
+      const sp = SPECIES[e.type];
+      if (!knows(S, e.type)) return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
+        ${eggSVG(sp)}<strong>${sp.egg}</strong><span>Whose it is, no one knows until it hatches.</span></button>`;
       return `<button class="egg-card bred" type="button" data-egg="${esc(e.id)}">
-        ${eggSVG(sp)}<strong>${known ? sp.species : `${sp.egg}: whose?`}</strong><span>${known ? sp.rarity : 'Unknown'} · Gen ${e.gen} · ${genesText(e.genes)}</span>
+        ${eggSVG(sp)}<strong>${sp.species}</strong><span>${sp.rarity} · Gen ${e.gen} · ${genesText(e.genes)}</span>
         <span>Hatches in ${minsLabel(sp.mins)}</span>${statsHTML(e, { compact: true })}</button>`;
     }).join('')}</div>`;
   stage.querySelectorAll('.egg-card').forEach(b => b.addEventListener('click', () => {

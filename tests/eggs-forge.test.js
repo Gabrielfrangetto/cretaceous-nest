@@ -60,7 +60,11 @@ test('eggs are taken from nests found on the way: of a species that nests there,
   const { knows } = await import('../js/journey.js');
   const { hatchEgg } = await import('../js/economy.js');
   assert.equal(knows(s, egg.type), SPECIES[egg.type].rarity === 'Starter' || egg.type === 'rex');
-  assert.ok(hatchEgg(s, t + 1e10));
+  // its sex was settled when it was taken: whatever the dice at hatching, the baby is that sex
+  assert.ok(['m', 'f'].includes(egg.sex));
+  const h = hatchEgg(s, t + 1e10, () => (egg.sex === 'm' ? 0.99 : 0));
+  assert.equal(h.baby.sex, egg.sex);
+  assert.deepEqual(h.baby.genes, egg.genes);
   assert.ok(knows(s, egg.type) && s.known.includes(egg.type));
 });
 

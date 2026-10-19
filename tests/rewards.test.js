@@ -73,8 +73,8 @@ test('achievements unlock from progress and pay once', () => {
 
 test('meals, pairs and coins earned are counted for achievements', () => {
   const s = freshState();
-  startEgg(s, 'proto', 0); hatchEgg(s, PROTO, () => 0.1);   // male
-  startEgg(s, 'proto', 0); hatchEgg(s, PROTO, () => 0.9);   // female
+  startEgg(s, 'proto', 0, { sex: 'm' }); hatchEgg(s, PROTO);   // male
+  startEgg(s, 'proto', 0, { sex: 'f' }); hatchEgg(s, PROTO);   // female
   const baby = s.hatched[0];
   feedBaby(s, baby.id, baby.at + hungerEvery(baby));
   const list = Object.fromEntries(achievementList(s).map(a => [a.id, a]));

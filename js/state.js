@@ -2,7 +2,7 @@
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
 import { GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE } from './config.js';
-import { addItem, wildGenes, seededRand, cleanGenes, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
+import { addItem, wildGenes, seededRand, cleanGenes, eggSex, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
 import { cleanPacks } from './packs.js';
@@ -146,7 +146,7 @@ function sanitize(s) {
     equip: Object.fromEntries(GEAR_SLOTS.map(({ id }) => [id, b.equip && b.equip[id]]).filter(([slot, item]) => isGear(item) && ITEMS[item].slot === slot)),
   }));
   s.eggs = (Array.isArray(s.eggs) ? s.eggs : []).filter(e => e && SPECIES[e.type] && e.id).slice(0, EGG_TRAY_SIZE).map(e => ({
-    id: e.id, type: e.type, genes: cleanGenes(e.genes, 'stats:' + e.id),
+    id: e.id, type: e.type, sex: eggSex(e), genes: cleanGenes(e.genes, 'stats:' + e.id),
     gen: Math.max(1, Math.floor(Number(e.gen) || 1)), parents: Array.isArray(e.parents) ? e.parents.slice(0, 2) : [], laidAt: Number(e.laidAt) || 0,
   }));
   const br = s.breeding;
@@ -162,7 +162,8 @@ function sanitize(s) {
     const { outfit, ...rest } = b;
     return rest;
   });
-  if (s.current && s.current.genes) s.current.genes = cleanGenes(s.current.genes, 'stats:egg');
+  // the egg in the incubator: its genes and sex settled, whatever reloads
+  if (s.current) Object.assign(s.current, { genes: cleanGenes(s.current.genes, `stats:egg:${s.current.type}:${s.current.startedAt}`), sex: eggSex(s.current) });
   // the species hatched: the ones kept, and every baby's (older saves)
   s.known = [...new Set([...(Array.isArray(s.known) ? s.known : []), ...s.hatched.map(b => b.type)].filter(t => SPECIES[t]))];
   s.player = cleanPlayer(s.player);
