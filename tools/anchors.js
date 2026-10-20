@@ -110,9 +110,9 @@ function renderScars() {
   const a = current();
   if (a) { $('w').value = a.w; $('r').value = Math.round(here(a).r || 0); showReadout(a); }
   showFrame();
-  const own = scarsOf()[part] && scarsOf()[part].c;
-  $('swatch').style.background = own || SPECIES[type].body;
-  $('swatch').title = own ? 'Picked here' : 'The species colour, not picked yet';
+  const own = scarsOf()[part] && scarsOf()[part].c, other = SCARS.parts.map(pt => scarsOf()[pt] && scarsOf()[pt].c).find(Boolean);
+  $('swatch').style.background = own || other || SPECIES[type].body;
+  $('swatch').title = own ? 'Picked for this part' : other ? 'Picked on another part of this drawing' : 'The species colour, not picked yet';
   $('out').value = output();
 }
 // the frame, its keys, and the dashed box round the scar being placed, where it is now
@@ -239,6 +239,7 @@ function render() {
 // The skin's colour where a scar goes, picked off the drawing (the frame on screen, without its scars):
 // a sewn-up wound heals into it
 let picking = false;
+const SEWN = ['claw'];   // the kinds of wound sewn up in the hospital, so far drawn
 async function pickAt(e) {
   picking = false;
   $('canvas').classList.remove('picking');
@@ -264,8 +265,11 @@ async function pickAt(e) {
   }
   if (!n) { $('msg').textContent = 'No skin there: pick on the body itself.'; return; }
   editable().c = '#' + sum.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+  // (shown at once: only a sewn-up wound, past its first crimson, takes it, and only the kinds sewn up)
+  if (!['s0.6', 's0.25'].includes($('wound').value)) $('wound').value = 's0.25';
+  if (!SEWN.includes($('look').value)) $('look').value = SEWN[0];
   save(); render();
-  $('msg').textContent = `The skin here is ${editable().c}: a sewn-up wound on this part heals into it.`;
+  $('msg').textContent = `The skin here is ${editable().c}: a wound sewn up on this part heals into it (shown nearly healed).`;
 }
 $('pick').addEventListener('click', () => { picking = true; $('canvas').classList.add('picking'); $('msg').textContent = 'Click the skin where this scar goes.'; });
 $('unpick').addEventListener('click', () => { const a = scarsOf()[$('slot').value]; if (a) delete a.c; save(); render(); $('msg').textContent = 'Back to the species colour.'; });

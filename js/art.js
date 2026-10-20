@@ -336,8 +336,13 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null) 
   return src ? { key: src, src: asset(src), scale: 1, tint: t, ...(sewn && skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
-// the skin's colour where a part's scar goes: picked in tools/anchors.html, or the species' own
-const skinAt = (type, sex, part, stage) => { const a = scarAnchor(type, sex, part, stage); return (a && a.c) || (SPECIES[type] && SPECIES[type].body) || null; };
+// the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
+// the same drawing, or the species' own
+const skinAt = (type, sex, part, stage) => {
+  const a = scarAnchor(type, sex, part, stage), mine = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex]) || {};
+  const other = SCARS.parts.map(pt => mine[pt] && mine[pt].c).find(Boolean);
+  return (a && a.c) || other || (SPECIES[type] && SPECIES[type].body) || null;
+};
 // the giver of the worst a part got (a species or a creature), as the kind of blow it gave
 // (or the kind itself, as the anchors tool shows it)
 const styleBy = who => (!who ? 'any' : SCARS.style[who] ? who : scarStyle(SPECIES[who] ? { species: who } : { creature: who }));
