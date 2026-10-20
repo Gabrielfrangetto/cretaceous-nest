@@ -86,7 +86,9 @@ input[type="text"] { width: 100%; max-width: 320px; font: inherit; font-size: 18
 .count { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .babies { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .baby { display: grid; justify-items: center; gap: 2px; padding: 14px 10px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); text-align: center; min-width: 0; }
-.baby canvas { image-rendering: pixelated; margin-bottom: 6px; }
+.baby canvas { margin-bottom: 6px; }
+/* (only the pixel-art stand-in is drawn in hard pixels; a sprite drawn frame by frame is smooth) */
+canvas.pixel-art { image-rendering: pixelated; }
 .baby strong { font-family: var(--display); font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
 .baby span { font-size: 12px; color: var(--muted); }
 .empty { margin: 0; padding: 22px; border: 2px dashed var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
@@ -149,7 +151,7 @@ h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 19px; 
 .scene .decor { position: absolute; inset: 0; width: 100%; height: 100%; }
 .scene-empty { position: absolute; inset: auto 16px 40%; margin: 0; text-align: center; color: var(--muted); font-size: 15px; z-index: 1; }
 .walker { position: absolute; left: 0; display: grid; justify-items: center; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; will-change: transform; }
-.walker canvas { display: block; image-rendering: pixelated; }
+.walker canvas { display: block; }
 .walker img { display: block; pointer-events: none; }
 img.baby-pop { image-rendering: auto; }
 .baby > img, .baby > canvas, .baby > .dino-art { margin-bottom: 6px; }
@@ -262,7 +264,6 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 /* the whole dressed baby is mirrored, so its equipment turns with it */
 .water-dino > * { transform: scaleX(-1); }
 .water-dino > img, .water-dino > canvas, .water-dino .dino-base { display: block; max-height: 195px; width: auto; }
-.water-dino canvas { image-rendering: pixelated; }
 @keyframes water-in { from { transform: translateY(40px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .water-pop.in { animation: none; } }
 
@@ -350,7 +351,6 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .info-head h2 { overflow-wrap: anywhere; }
 .info-art { flex: none; }
 .info-art > img, .info-art > canvas, .info-art .dino-base { display: block; max-height: 136px; width: auto; }
-.info-art canvas { image-rendering: pixelated; }
 .info-total { margin: 4px 0 0; font-family: var(--display); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
 .info-facts { display: grid; gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }
 .info-facts div { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 10px; }

@@ -554,10 +554,13 @@ function tick(now) {
   ticking = drawing.size > 0;
   if (ticking) requestAnimationFrame(tick);
 }
+const SHARP = 2;
 export function drawFrame(cv, frame) {
   const s = cv.sheet, img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return;
   const ctx = cv.getContext('2d');
+  ctx.setTransform(SHARP, 0, 0, SHARP, 0, 0);
+  ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0, 0, s.w, s.h);
   ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
   ctx.globalCompositeOperation = 'source-atop';
@@ -584,7 +587,8 @@ export function drawFrame(cv, frame) {
 // animated sprite itself, should the sheet not load
 export function sheetArt(sheet, px, label, scars, fallback) {
   const cv = document.createElement('canvas');
-  cv.width = sheet.w; cv.height = sheet.h;
+  // (drawn at twice the sprite's size, so the scars over it keep their own detail)
+  cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
   Object.assign(cv, { sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
@@ -615,7 +619,7 @@ export function babyArt(type, px, sex = 'f', pixelOnly = false, srcOverride = nu
     img.style.width = 'auto';
     img.addEventListener('error', () => {
       const c = babyArt(type, px, sex, true);
-      c.className = img.className; c.style.transform = img.style.transform;
+      c.className = img.className; c.classList.add('pixel-art'); c.style.transform = img.style.transform;
       img.replaceWith(c);
     });
     return img;
@@ -634,5 +638,6 @@ export function babyArt(type, px, sex = 'f', pixelOnly = false, srcOverride = nu
   }
   cv.setAttribute('role', 'img');
   cv.setAttribute('aria-label', babyLabel(type, sex));
+  cv.classList.add('pixel-art');
   return cv;
 }
