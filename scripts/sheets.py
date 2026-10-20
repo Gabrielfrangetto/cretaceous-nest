@@ -13,7 +13,11 @@ from PIL import Image
 STEP, R, S = 16, 8, 10   # grid spacing, patch radius, how far a point is looked for between frames
 
 
-def motion(frames):
+# (ref: the frame the points are taken on, when not the first of these: a walk is followed from its
+# idle's first frame, which scars and equipment are placed on, its feet looked for farther)
+def motion(frames, ref=None, S=S):
+    if ref is not None:
+        frames = [ref] + frames
     h, w = frames[0].shape[:2]
     pad = R + S
     lum = [np.pad(np.where(f[..., 3] < 60, -200.0, f[..., :3] @ [0.3, 0.59, 0.11]), pad, constant_values=-200.0) for f in frames]
@@ -56,6 +60,8 @@ def motion(frames):
                 if not ok[j, i]:
                     b, a = idx[np.argmin(((idx - (j, i)) ** 2).sum(1))]
                     d[:, j, i] = d[:, b, a]
+    if ref is not None:
+        d = d[1:]
     raw = np.clip(np.round(d), -127, 127).astype(np.int8).tobytes()
     return {'step': STEP, 'gw': len(xs), 'gh': len(ys), 'moves': base64.b64encode(raw).decode()}
 
@@ -74,7 +80,7 @@ def durations(path):
 
 sheets = {}
 for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
-    if path.startswith('sprites/sheets/') or path.startswith('sprites/gear/') or path.endswith('-walk.webp'):
+    if path.startswith('sprites/sheets/') or path.startswith('sprites/gear/'):
         continue
     im = Image.open(path)
     n = getattr(im, 'n_frames', 1)
@@ -93,7 +99,13 @@ for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
     out = 'sprites/sheets/' + path[len('sprites/'):]
     os.makedirs(os.path.dirname(out), exist_ok=True)
     sheet.save(out, 'WEBP', quality=88, method=6)
-    sheets[path] = {'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **motion(frames)}
+    walk = path.endswith('-walk.webp')
+    idle = None
+    if walk:
+        base = Image.open(path.replace('-walk.webp', '.webp'))
+        base.seek(0)
+        idle = np.asarray(base.convert('RGBA')).astype(np.float32)
+    sheets[path] = {'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **motion(frames, idle, 28 if walk else S)}
     print(f'{out}: {n} frames, {os.path.getsize(out) // 1024} KB')
 
 with open('js/sheets.js', 'w') as f:

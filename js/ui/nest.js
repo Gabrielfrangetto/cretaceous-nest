@@ -6,7 +6,7 @@ import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
-import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
+import { dressedArt, ITEM_ICONS, adultWalk, sheetFor } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
 import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime } from '../sun.js';
 import { powerText } from './stats.js';
@@ -16,13 +16,19 @@ import { currentTab, onTabChange } from './tabs.js';
 const scene = document.getElementById('scene');
 const walkers = new Map();
 // An adult with a walk cycle of its own (and no outfit over it) walks with it, at the pace its feet carry
-// it: { src: the walk, idle: its standing sprite, speed in px/s }, or null
+// it: { speed in px/s, swap(walking): to its walk and back }, or null
 function gaitOf(b, art) {
   const g = stageOf(b).id === 'adult' && !b.outfit ? adultWalk(b.type, sexOf(b)) : null;
-  const img = art.tagName === 'IMG' ? art : art.querySelector('.dino-base');
-  if (!g || !img || img.tagName !== 'IMG') return null;
-  const tall = parseFloat(img.style.height) || 70;
-  return { img, src: g.src, idle: img.src, speed: g.step * tall / (g.frames / 2 * g.ms / 1000) };
+  const img = art.tagName === 'IMG' || art.tagName === 'CANVAS' ? art : art.querySelector('.dino-base');
+  if (!g || !img) return null;
+  const tall = parseFloat(img.style.height) || 70, speed = g.step * tall / (g.frames / 2 * g.ms / 1000);
+  // (drawn from its sheets, with its scars and equipment: the walk's sheet while it walks)
+  if (img.tagName === 'CANVAS') {
+    const walk = sheetFor(g.src), idle = img.sheet;
+    return walk && idle ? { speed, swap: on => { img.sheet = on ? walk : idle; img.dirty = true; } } : null;
+  }
+  const still = img.src;
+  return { speed, swap: on => { img.src = on ? g.src : still; } };
 }
 const sceneW = () => scene.clientWidth || 600;
 const findBaby = id => S.hatched.find(b => b.id === id);
@@ -285,7 +291,7 @@ function step(t) {
       if (w.walk <= 0) { w.pause = 0.6 + Math.random() * 2.4; w.walk = 1.5 + Math.random() * 4; if (Math.random() < .45) w.dir *= -1; }
     }
     // its own walk when it has one (its body already bobs in it), a little bounce otherwise
-    if (w.gait && moving !== w.walking) { w.walking = moving; w.gait.img.src = moving ? w.gait.src : w.gait.idle; }
+    if (w.gait && moving !== w.walking) { w.walking = moving; w.gait.swap(moving); }
     let lift = moving && !w.gait ? Math.abs(Math.sin(w.t)) * 3 : 0;
     if (w.hop > 0) { w.hop -= dt; lift += Math.sin(Math.PI * (1 - Math.max(0, w.hop) / 0.45)) * 16; }
     w.el.style.transform = `translate(${w.x.toFixed(1)}px, ${(-lift).toFixed(1)}px)`;

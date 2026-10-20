@@ -220,6 +220,8 @@ export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp') }, ra
 // frames and their time, so the walker moves exactly as fast as its feet carry it
 export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } } };
 export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
+// an animated picture's sheet (js/sheets.js), if it has one
+export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || null;
 // how tall an adult sprite is drawn: in proportion to how tall the animal stands (to the top of its
 // head, in metres; HEIGHT_REF metres drawn at the usual size), so a Tyrannosaurus towers over a
 // Velociraptor as it did. Animated sprites (.webp) play their idle on their own. (A Velociraptor male
@@ -423,8 +425,9 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
       : scarMark(styleBy(scarBy && scarBy[pt]), l)]));
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
-  // (a walker with its own walk keeps its picture, which it swaps for the walk)
-  const base = sheet && (scarred.length || (wearing && !adultWalk(type, sex)))
+  // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
+  const walk = stage === 'adult' && adultWalk(type, sex);
+  const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarAnchor(type, sex, part, stage), mark, part]).filter(([a]) => a), src)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
