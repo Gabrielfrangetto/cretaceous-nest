@@ -217,11 +217,16 @@ export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp') }, ra
 // frames and their time, so the walker moves exactly as fast as its feet carry it
 export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } } };
 export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
-// how tall an adult sprite is drawn, against the others (a long-tailed one in profile is drawn smaller,
-// so it isn't twice as wide as the rest); animated sprites (.webp) play their idle on their own
-// (a Velociraptor male a little smaller than the female, as in hawks)
-const ADULT_SCALE = { raptor: { m: 0.7, f: 0.75 }, dilo: { m: 0.8 }, rex: { m: 0.9 } };
-export const adultScale = (type, sex) => (ADULT_SCALE[type] || {})[sex] || 1;
+// how tall an adult sprite is drawn: by how tall the animal stands (to the top of its head, in metres),
+// so a Tyrannosaurus towers over a Velociraptor; the difference is softened (HEIGHT_POW) so the small
+// stay visible and the giants fit. Animated sprites (.webp) play their idle on their own. (A
+// Velociraptor male a little smaller than the female, as in hawks.)
+const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7 } };
+const HEIGHT_REF = 2.6, HEIGHT_POW = 0.6;
+export const adultScale = (type, sex) => {
+  const h = (ADULT_HEIGHT[type] || {})[sex];
+  return h ? Math.round(Math.pow(h / HEIGHT_REF, HEIGHT_POW) * 100) / 100 : 1;
+};
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
 // juvenile sprites drawn so far (sprites/juvenile/), and how tall each is drawn against the others;
