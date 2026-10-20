@@ -120,7 +120,7 @@ function alertNow(test = false) {
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
   // the water scene has a fixed size, so every stage is drawn as big as a baby there
-  dino.appendChild(dressedArt(baby.type, DINO_PX / stageOf(baby).scale, sex, wornGear(baby), baby.outfit, stageOf(baby).id, baby.scars));
+  dino.appendChild(dressedArt(baby.type, DINO_PX / stageOf(baby).scale, sex, wornGear(baby), baby.outfit, stageOf(baby).id, baby.scars, baby.scarBy));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 

@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, scarAt, drawFrame } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, scarAt, drawFrame, SCAR_LOOKS } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here
@@ -31,6 +31,9 @@ const fillSex = () => {
   $('sex').value = adultSpriteUrl(type, keep) ? keep : adultSpriteUrl(type, 'm') ? 'm' : adultSpriteUrl(type, 'f') ? 'f' : keep || 'm';
 };
 fillSex();
+const LOOKS = { claw: 'Claws', bigBite: 'Big bite', bite: 'Bite', horns: 'Horns', club: 'Club', stomp: 'Stomp', butt: 'Head-butt', croc: 'Crocodile', any: 'Any other' };
+fill($('look'), SCAR_LOOKS.map(k => [k, LOOKS[k] || k]));
+$('look').value = 'claw';
 fill($('slot'), GEAR_SLOTS.filter(s => DRAWN_SLOTS.includes(s.id)).map(s => [s.id, s.name]));
 const fillItems = () => fill($('item'), gearFor($('slot').value).map(([id, it]) => [id, it.name]));
 fillItems();
@@ -80,7 +83,8 @@ const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - 
 function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
   const all = Object.fromEntries(SCARS.parts.map(pt => [pt, SCARS.deep]));
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all));
+  const look = Object.fromEntries(SCARS.parts.map(pt => [pt, $('look').value]));
+  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look));
   const base = art.querySelector('.dino-base');
   if (base) base.style.height = TALL + 'px';
   sheetCv = base && base.sheet ? base : null;
@@ -196,7 +200,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -268,6 +272,7 @@ for (const id of ['sex', 'item', 'all']) $(id).addEventListener('change', render
 $('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { if (!scarring()) fillItems(); render(); });
 $('stage').addEventListener('change', render);
+$('look').addEventListener('change', render);
 $('mode').addEventListener('change', () => {
   if (scarring()) fill($('slot'), SCARS.parts.map(pt => [pt, PARTS[pt]]));
   else { fill($('slot'), GEAR_SLOTS.filter(g => DRAWN_SLOTS.includes(g.id)).map(g => [g.id, g.name])); fillItems(); }

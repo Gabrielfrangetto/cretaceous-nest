@@ -54,7 +54,7 @@ function cardHTML(u, extra = '') {
 function drawArt(root) {
   root.querySelectorAll('[data-dino]').forEach(el => {
     const b = dinoOf(el.dataset.dino);
-    if (b) el.appendChild(dressedArt(b.type, 3.2, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars));
+    if (b) el.appendChild(dressedArt(b.type, 3.2, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy));
   });
   root.querySelectorAll('[data-pack]').forEach(el => {
     const p = packById(el.dataset.pack);
