@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { MAP, SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, countItem } from '../economy.js';
 import {
@@ -10,8 +10,8 @@ import {
 import { packOf } from '../packs.js';
 import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits, flightBill, flightMins, stopOf } from '../journey.js';
 import { isStation } from '../map.js';
-import { skyAt, sunTimes, placeOf, worldTime, sunAltitude } from '../sun.js';
-import { citiesOf, cityAt, isWater } from '../world.js';
+import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
+import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
@@ -122,7 +122,6 @@ const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds(
 function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
     <p class="sr-only" id="mapFocus" aria-live="polite"></p>
-    <figure class="globe" aria-label="Day and night across the planet"><canvas id="globe" width="240" height="120"></canvas><figcaption id="globeNote"></figcaption></figure>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
     <details class="legend-fold"><summary>Map legend</summary><p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p></details>`;
 }
@@ -189,49 +188,7 @@ function nightPicture(t) {
   g.putImageData(img, 0, 0);
   return (shade = { minute, canvas: c });
 }
-// The whole planet (as big as the Earth), flat, with day and night on it as they are now: the line
-// between them curving with the seasons, the twilight a soft band along it; the continent where it lies
-// (MAP.lat, 49° wide from the nest's meridian), the nest on it. Made again each minute.
-let globe = null;
-function drawGlobe(t) {
-  const cv = document.getElementById('globe');
-  if (!cv) return;
-  const minute = Math.floor(t / 60000), seed = S.world.seed;
-  if (globe && globe.minute === minute && globe.cv === cv) return;
-  const W = cv.width, H = cv.height, g = cv.getContext('2d'), img = g.createImageData(W, H);
-  // (the continent's land, worked out once: each pixel's latitude and longitude as a hex of the map)
-  if (!globe || globe.seed !== seed) {
-    const land = new Uint8Array(W * H);
-    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-      const lon = -180 + (i + 0.5) / W * 360, lat = 90 - (j + 0.5) / H * 180;
-      if (lat > MAP.lat[0] || lat < MAP.lat[1] || Math.abs(lon) > MAP.lonSpan / 2) continue;
-      const r = Math.floor((MAP.lat[0] - lat) / (MAP.lat[0] - MAP.lat[1]) * MAP.rows) - MAP.north;
-      const c = Math.round(lon / MAP.lonSpan * MAP.cols);
-      land[j * W + i] = isWater(seed, [c - Math.floor(r / 2), r]) ? 1 : 2;
-    }
-    globe = { seed, land };
-  }
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    const lon = -180 + (i + 0.5) / W * 360, lat = 90 - (j + 0.5) / H * 180, k = (j * W + i) * 4, l = globe.land[j * W + i];
-    const base = l === 2 ? [126, 156, 96] : l === 1 ? [64, 112, 150] : [52, 92, 134];
-    const alt = sunAltitude(t, { lat, lon }), dark = Math.min(1, Math.max(0, (6 - alt) / 18)) * 0.72;
-    const night = [10, 18, 46];
-    for (let c = 0; c < 3; c++) img.data[k + c] = base[c] * (1 - dark) + night[c] * dark;
-    img.data[k + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  // the continent's frame, and the nest
-  const x = lon => (lon + 180) / 360 * W, y = lat => (90 - lat) / 180 * H;
-  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1;
-  g.strokeRect(x(-MAP.lonSpan / 2), y(MAP.lat[0]), x(MAP.lonSpan / 2) - x(-MAP.lonSpan / 2), y(MAP.lat[1]) - y(MAP.lat[0]));
-  const home = placeOf([0, 0]);
-  g.fillStyle = '#ffb347'; g.beginPath(); g.arc(x(home.lon), y(home.lat), 2.6, 0, Math.PI * 2); g.fill();
-  globe.minute = minute; globe.cv = cv;
-  const sky = skyAt(t, home);
-  document.getElementById('globeNote').textContent = `The nest: ${{ day: 'day', dawn: 'dawn', dusk: 'dusk', night: 'night' }[sky.phase]}, ${clockFmt.format(new Date(worldTime(t)))}`;
-}
 function shadeNight(ctx, f, x1, y1, t) {
-  drawGlobe(t);
   const b = mapBounds(), pic = nightPicture(t);
   ctx.save();
   ctx.imageSmoothingEnabled = true;
