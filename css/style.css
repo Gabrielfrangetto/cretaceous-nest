@@ -893,3 +893,19 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
   .wrap > .you-panel { padding: 14px 12px; }
   .site-footer { max-width: 1600px; padding-left: calc(16px + 200px + 20px); }
 }
+
+/* the sections in the top bar, on the same line as the coins */
+.topbar { backdrop-filter: none; background: var(--bg); padding-block: 0; min-height: 56px; }
+.topbar .brand { flex: none; }
+.topbar nav.tabs { flex: 1 1 auto; justify-content: center; align-self: stretch; border-bottom: 0; margin: 0; overflow: visible; }
+.topbar nav.tabs .tab { align-self: stretch; padding: 0 10px; border-bottom-width: 3px; margin-bottom: -1px; }
+/* (on a middling screen, just the icons; the words stay for screen readers and as a tip) */
+@media (min-width: 721px) and (max-width: 1180px) {
+  .topbar nav.tabs .tab > span:not(.pill) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .topbar nav.tabs .tab { padding: 0 12px; }
+  .topbar nav.tabs .tab-ico { width: 22px; height: 22px; }
+}
+@media (max-width: 720px) {
+  .topbar { min-height: 52px; }
+  .topbar nav.tabs .tab { align-self: auto; padding: 6px 0 5px; margin: 0; }
+}
