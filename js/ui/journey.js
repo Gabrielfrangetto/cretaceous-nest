@@ -514,7 +514,6 @@ function entryHTML(e) {
     case 'arrived': {
       if (e.beaten) return `You reached the ${esc(place(e.hex))}, but beaten, you found nothing.`;
       const got = lootText(e.found || []);
-      if (e.coins) got.push(`${e.coins} coins for a first visit`);
       if (e.egg) got.push(`a ${esc(SPECIES[e.egg.type].egg)}, carried with care`);
       return `You reached the ${esc(place(e.hex))}${got.length ? ` and found ${listNames(got)}` : ', and found nothing'}.`;
     }

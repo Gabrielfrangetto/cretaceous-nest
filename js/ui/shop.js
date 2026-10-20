@@ -75,6 +75,8 @@ function render() {
       <h3>How to earn coins</h3>
       <ul>
         <li>Give a young dinosaur its growth capsule: +${FEED_COINS}</li>
+        <li>Sell what you bring home to the Scientists, in the Inventory: they pay well for specimens (teeth, blood, shells, amber, bone) and little for food, which they grow in plenty</li>
+        <li>Win a fight out in the wild</li>
         <li>Hatch an egg: ${Object.entries(RARITIES).filter(([name]) => name !== 'Starter').map(([name, r]) => `+${r.coins} (${name})`).join(', ')}</li>
       </ul>
     </div>`;

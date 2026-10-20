@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, DISCOVERY_COINS_PER_HEX, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, mealFor } from '../economy.js';
 import {
@@ -667,7 +667,7 @@ function sideHTML(t) {
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}`;
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected, route)} min to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${legMins(S, team.flatMap(membersOf), '0,0', selected, route)} min to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ' · never visited' : ''}</p>
     ${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
@@ -694,7 +694,7 @@ function goOnHTML(p, h, d, t) {
   const units = teamUnits(S, standingUnits(S, p)), path = routePath(S.world.seed, p.at, selected, []);
   const seen = d === 0 || isRevealed(S, selected), first = d > 0 && !S.world.visited.includes(selected);
   return `<h3>${title}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">From the ${where}, where your team waits: ${legMins(S, p.members, p.at, selected)} min${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ` · first visit pays ${Math.min(d, 10) * DISCOVERY_COINS_PER_HEX} coins` : ''}</p>
+    <p class="hint">From the ${where}, where your team waits: ${legMins(S, p.members, p.at, selected)} min${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ' · never visited' : ''}</p>
     ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
     ${units.length ? routeHTML(units, selected, d === 0, path) : ''}
     <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore'}</button></div>

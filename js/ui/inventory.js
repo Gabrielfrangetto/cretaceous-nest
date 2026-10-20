@@ -1,6 +1,7 @@
 // Inventory tab: the slot grid and item details. A click selects an item; moving it takes a drag
 // (mouse: press and drag; touch: press and hold, then drag; keyboard: arrow keys on the selected item).
-import { ITEMS, SLOTS, ROW, MAX_STACK } from '../config.js';
+import { ITEMS, SLOTS, ROW, MAX_STACK, FACTIONS, HOME_FACTION } from '../config.js';
+import { valueOf } from '../economy.js';
 import { S, subscribe } from '../state.js';
 import { act } from '../actions.js';
 import { ITEM_ICONS } from '../art.js';
@@ -54,34 +55,54 @@ function render() {
   renderSide();
 }
 
+let sold = '';   // what was just sold, said under the item
 function renderSide() {
   const side = document.getElementById('invSide');
   const s = sel >= 0 ? S.inv[sel] : null;
   if (!s) {
-    side.innerHTML = `<h2>No item selected</h2>
+    side.innerHTML = `${sold ? `<p class="hint" role="status">${esc(sold)}</p>` : ''}<h2>No item selected</h2>
       <p class="hint">Tap an item to see its details. Drag it to another slot to move it, stack it or swap places. On a touch screen, press and hold the item, then drag.</p>
       <p class="hint">Each slot holds one kind of item, up to ${MAX_STACK}. You start with one row of ${ROW} slots.</p>`;
     return;
   }
   const it = ITEMS[s.id];
   const hasEmpty = S.inv.some((x, k) => !x && k < S.invSize);
+  // what the nest's faction pays for it
+  const v = valueOf(s.id), who = FACTIONS[HOME_FACTION].name;
+  const one = Math.floor(v + 1e-9), all = Math.floor(s.n * v + 1e-9);
+  const worth = !v ? `The ${who} have no use for it.`
+    : v >= 1 ? `The ${who} pay ${plural(one, 'coin', 'coins')} for one.`
+    : `The ${who} have plenty: ${Math.ceil(1 / v - 1e-9)} ${it.plural} fetch a coin.`;
   side.innerHTML = `<div class="big">${ITEM_ICONS[s.id]}</div>
     <h2>${esc(it.name)}</h2>
     ${it.kind === 'gear' || it.kind === 'arms' ? `<p class="hint">${it.kind === 'arms' ? 'Your weapons and armor' : 'Dinosaur equipment'} · ${(it.kind === 'arms' ? PLAYER_SLOTS : GEAR_SLOTS).find(g => g.id === it.slot).name} · weight ${it.weight}</p>${modsHTML(it.mods)}` : `<p class="qty">${s.n} / ${MAX_STACK}</p>`}
     <p class="fact">${esc(it.desc)}${it.kind === 'gear' ? ' Equip it from a baby’s window in the Nest.' : ''}</p>
+    <p class="hint">${esc(worth)}</p>
+    ${sold ? `<p class="hint" role="status">${esc(sold)}</p>` : ''}
     <div class="row">
+      ${one >= 1 ? `<button class="ghost" id="invSell1" type="button">Sell 1 (+${one})</button>` : ''}
+      ${s.n > 1 && all >= 1 ? `<button class="ghost" id="invSellAll" type="button">Sell all ${s.n} (+${all})</button>` : ''}
       ${s.n > 1 && hasEmpty ? '<button class="ghost" id="invSplit" type="button">Split stack</button>' : ''}
       <button class="ghost" id="invDrop" type="button">Discard 1</button>
     </div>`;
   const split = document.getElementById('invSplit');
   if (split) split.addEventListener('click', () => act('split', { i: sel }));
   document.getElementById('invDrop').addEventListener('click', () => act('discard', { i: sel }));
+  const sell = n => {
+    const r = act('sell', { i: sel, n });
+    sold = r.ok ? `Sold ${r.n} ${r.n === 1 ? ITEMS[r.id].name.toLowerCase() : ITEMS[r.id].plural} to the ${who} for ${plural(r.coins, 'coin', 'coins')}.` : '';
+    if (r.ok && !S.inv[sel]) sel = -1;
+    render();
+  };
+  document.getElementById('invSell1')?.addEventListener('click', () => sell(1));
+  document.getElementById('invSellAll')?.addEventListener('click', () => sell(s.n));
 }
 
 // a click or tap only selects; moving takes a drag
 function onSlot(i) {
   if (suppressClick) return;
   sel = sel === i || !S.inv[i] ? -1 : i;
+  sold = '';
   render();
 }
 

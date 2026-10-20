@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET,
   FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
+  FACTIONS, HOME_FACTION, OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
   KG, PLAYER_KG, MASS,
   FOOD,
@@ -237,6 +237,31 @@ export function discardOne(s, i) {
   slot.n -= 1;
   if (!slot.n) s.inv[i] = null;
   return true;
+}
+
+// ---------- selling ----------
+// what a faction pays for one of an item (FACTIONS): its own value, or for equipment a share of its price
+// or its makings and the work
+export function valueOf(id, faction = HOME_FACTION) {
+  const f = FACTIONS[faction], it = ITEMS[id];
+  if (!f || !it) return 0;
+  if (f.value[id] != null) return f.value[id];
+  if (it.price) return it.price * f.gear;
+  const r = RECIPES.find(x => x.id === id);
+  return r ? Object.entries(r.needs).reduce((t, [k, n]) => t + valueOf(k, faction) * n, 0) * f.work : 0;
+}
+// sells n of the item in slot i to the nest's faction, for whole coins
+export function sellItems(s, i, n) {
+  const slot = s.inv[i];
+  if (!slot) return { ok: false, reason: 'empty-slot' };
+  n = Math.min(slot.n, Math.max(1, Math.floor(Number(n) || 1)));
+  const coins = Math.floor(n * valueOf(slot.id) + 1e-9);
+  if (coins < 1) return { ok: false, reason: 'worthless' };
+  const id = slot.id;
+  slot.n -= n;
+  if (!slot.n) s.inv[i] = null;
+  earn(s, coins);
+  return { ok: true, id, n, coins };
 }
 
 // ---------- eggs ----------
@@ -820,6 +845,10 @@ export const ACTIONS = {
   discard(s, { i }) {
     if (!slotIndex(s, i)) return fail('bad-slot');
     return discardOne(s, i) ? { ok: true } : fail('empty-slot');
+  },
+  sell(s, { i, n }) {
+    if (!slotIndex(s, i)) return fail('bad-slot');
+    return sellItems(s, i, n);
   },
   buyRow(s) {
     return buyRow(s);

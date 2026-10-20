@@ -159,3 +159,31 @@ test('a day of food grows with the weight^0.75, plants more than meat; a meal is
   assert.ok(mealSize({ id: 'j', type: 'rex', fed: 12 }, 'meat') < mealSize(adult('rex'), 'meat'));
 });
 const DIET_OF = { coelo: 'meat', raptor: 'meat', psitta: 'leaf' };
+
+test('the Scientists buy what is brought home: specimens dear, food cheap, never for more than the Shop asks', async () => {
+  const { valueOf, sellItems } = await import('../js/economy.js');
+  const { FOOD_PACKS, FACTIONS, RECIPES } = await import('../js/config.js');
+  assert.ok(valueOf('allo_tooth') > valueOf('bone') && valueOf('bone') > valueOf('meat'));
+  for (const p of FOOD_PACKS) assert.ok(valueOf(p.id) < p.price / p.qty, p.id);
+  // equipment: half its price, or its makings and the work
+  assert.equal(valueOf('heavy_armor'), ITEMS.heavy_armor.price * FACTIONS.scientists.gear);
+  const r = RECIPES.find(x => x.id === 'bone_sword');
+  assert.equal(valueOf('bone_sword'), Object.entries(r.needs).reduce((t, [k, n]) => t + valueOf(k) * n, 0) * FACTIONS.scientists.work);
+  const s = freshState();
+  for (let i = 0; i < s.inv.length; i++) s.inv[i] = null;
+  addItem(s, 'amber', 2); addItem(s, 'leaf', 12);
+  const coins = s.coins;
+  assert.deepEqual(sellItems(s, 0, 1), { ok: true, id: 'amber', n: 1, coins: 30 });
+  assert.equal(countItem(s, 'amber'), 1);
+  // a leaf alone fetches nothing; a dozen, two coins
+  assert.equal(sellItems(s, 1, 1).reason, 'worthless');
+  assert.equal(sellItems(s, 1, 12).coins, 2);
+  assert.equal(countItem(s, 'leaf'), 0);
+  assert.equal(s.coins, coins + 32);
+  assert.equal(sellItems(s, 1, 1).reason, 'empty-slot');
+});
+
+test('the player gets hungry as in life, four meals a day', async () => {
+  const { PLAYER_HUNGER_MIN } = await import('../js/config.js');
+  assert.equal(PLAYER_HUNGER_MIN, 6 * 60);
+});

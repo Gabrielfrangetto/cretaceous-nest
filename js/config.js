@@ -379,8 +379,9 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin',
 export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, edible: 0.5, haul: 0.15, playerHaul: 20 };
 // what each species eats, favourite first; a meal uses the first of these in the inventory
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
-// the player gets hungry every this many minutes, and eats the first of these in the inventory
-export const PLAYER_HUNGER_MIN = 30;
+// the player gets hungry every this many minutes, as in life (four meals a day, each a quarter of a
+// day's food: FOOD.meal), and eats the first of these in the inventory
+export const PLAYER_HUNGER_MIN = 6 * 60;
 export const PLAYER_DIET = ['ration', 'fish', 'meat', 'fruit', 'seed', 'raw_egg'];
 // Hunger and thirst on a journey (at home the nest's trough, built by the colonists, waters everyone).
 // Both go from 0 (fed, watered) to 1, rising with every step of the way (a hex's travel cost): thirst
@@ -485,7 +486,6 @@ export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, vol
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
 // and the team meets it instead of what waits at the end.
 export const INTERCEPT = { share: 0.12, lair: 0.3 };
-export const DISCOVERY_COINS_PER_HEX = 5;    // first visit to a hex: 5 coins per hex of distance
 export const LOOT_PER_HEX = 0.25;            // each hex of distance past the first adds 25% to the loot
 // loot: [item, min, max, chance] rolled on every visit (chance defaults to 1)
 // What lives in each biome: one of these waits in each hex, picked by its weight (a lair holds a
@@ -1105,11 +1105,26 @@ export const HATCH_COINS = Object.fromEntries(Object.entries(SPECIES).map(([k, s
 export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.rarity === 'Legendary' ? 'golden_shell' : 'shell']));
 // a small one's meal pays more than its food costs; a big one's costs more than it pays
 export const FOOD_PACKS = [
-  { id: 'leaf', qty: 5, price: 10 }, { id: 'meat', qty: 5, price: 15 }, { id: 'insect', qty: 5, price: 10 },
-  { id: 'fish', qty: 5, price: 15 }, { id: 'herb', qty: 3, price: 20 }, { id: 'capsule', qty: 10, price: 20 },
-  { id: 'ration', qty: 3, price: 15 }, { id: 'water_skin', qty: 2, price: 40 },
-  { id: 'leaf', qty: 50, price: 80 }, { id: 'meat', qty: 50, price: 120 },
+  { id: 'leaf', qty: 5, price: 2 }, { id: 'meat', qty: 5, price: 4 }, { id: 'insect', qty: 5, price: 2 },
+  { id: 'fish', qty: 5, price: 4 }, { id: 'herb', qty: 3, price: 15 }, { id: 'capsule', qty: 10, price: 20 },
+  { id: 'ration', qty: 3, price: 6 }, { id: 'water_skin', qty: 2, price: 40 },
+  { id: 'leaf', qty: 50, price: 15 }, { id: 'meat', qty: 50, price: 30 },
 ];
+// Factions: the sanctuary's peoples, each paying for what it lacks and little for what it has plenty
+// of, and asking more than it pays. The nest belongs to the Scientists: they grow food for the dinosaurs
+// in plenty (it sells for little, and the Shop's is cheap) and are after specimens for their research
+// (teeth, blood, shells, amber). value: the coins they pay for one; equipment with a price is worth gear
+// of it, the rest its makings (RECIPES) and work more for the making.
+export const FACTIONS = {
+  scientists: {
+    name: 'Scientists', gear: 0.5, work: 1.25,
+    value: {
+      leaf: 0.2, meat: 0.4, insect: 0.1, fish: 0.4, raw_egg: 0.5, seed: 0.1, fruit: 0.3, ration: 1, herb: 2, capsule: 1, water_skin: 10,
+      shell: 4, golden_shell: 40, amber: 30, feather: 3, clay: 2, bone: 3, seashell: 2, obsidian: 6, stone: 0.5, allo_tooth: 25, allo_blood: 20,
+    },
+  },
+};
+export const HOME_FACTION = 'scientists';
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 
 // Daily reward. The game day starts at midnight in this UTC offset (UTC itself, the nest's own time),

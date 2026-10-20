@@ -183,14 +183,15 @@ test('a journey: out to a hex where the party waits, everything carried until it
   assert.equal(out.pending, null);
   const arrived = out.story.find(e => e.kind === 'arrived');
   assert.equal(arrived.discovered, true);
-  assert.equal(arrived.coins, 10);
+  // (exploring pays no coins: they come from what is sold)
+  assert.equal(arrived.coins, undefined);
   assert.ok(arrived.found.length > 0);
   for (const { id: item, n } of arrived.found) assert.ok(n >= 1 && BIOMES[arrived.biome].loot.some(l => l[0] === item));
   // it waits there, carrying what it found; nothing is home yet
   const p = s.world.expeditions[0];
   assert.equal(p.at, '2,0');
   assert.equal(p.leg, null);
-  assert.equal(p.carry.coins, 10);
+  assert.equal(p.carry.coins, 0);
   assert.equal(s.coins, before);
   assert.equal(countItem(s, 'leaf'), leaves);
   assert.equal(isAway(s, 'ad'), true);
@@ -214,14 +215,13 @@ test('a journey: out to a hex where the party waits, everything carried until it
   assert.ok(home);
   assert.equal(s.world.expeditions.length, 0);
   assert.equal(s.coins, before + home.coins);
-  assert.ok(home.coins >= 10 + 15);
   if (home.loot.some(l => l.id === 'leaf')) assert.ok(countItem(s, 'leaf') > leaves);
   // (fed by the keepers at home: a journey leaves a dinosaur's growth capsules as they were)
   assert.equal(s.hatched[0].lastFed, T0);
-  // a second visit pays no discovery coins
+  // a second visit is no discovery
   const again = applyAction(s, 'explore', { babyId: 'ad', hex: '2,0' }, t3);
   const second = collect(s, { id: again.expedition.id }, again.expedition.returnAt);
-  assert.equal(second.story.find(e => e.kind === 'arrived').coins, 0);
+  assert.equal(second.story.find(e => e.kind === 'arrived').discovered, false);
 });
 
 test('after something on the way out the player may go on or turn back; the way back has its dangers too', () => {

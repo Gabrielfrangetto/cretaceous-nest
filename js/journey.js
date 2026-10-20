@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  DISCOVERY_COINS_PER_HEX, EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -1074,7 +1074,7 @@ function gather(ctx, leg) {
   const b = ctx.endBattle;
   const beaten = b && !b.win && !b.escaped && !b.foeWent;
   const found = [];
-  let coins = 0, egg = null, discovered = false;
+  let egg = null, discovered = false;
   const roll = ({ min, max }) => min + Math.floor(rand() * (max - min + 1));
   const standing = standingUnits(s, p).flatMap(u => u.members);
   if (!beaten && standing.length) {
@@ -1091,12 +1091,12 @@ function gather(ctx, leg) {
     }
     // (eggs are found in nests on the way: nestEvent)
     discovered = !w.visited.includes(key);
-    if (discovered) { coins = Math.min(hexDist(h), 10) * DISCOVERY_COINS_PER_HEX; w.visited.push(key); p.carry.coins += coins; }
+    if (discovered) w.visited.push(key);
   }
   // even a beaten team saw the land around it
   reveal(s, neighbors(h).map(n => hexKey(...n)));
   ctx.endBattle = null;
-  story.push({ kind: 'arrived', hex: key, idx: leg.path.length - 1, biome: biomeAt(w.seed, h), found: found.filter(x => x.n > 0), coins, egg, discovered, beaten: !!beaten });
+  story.push({ kind: 'arrived', hex: key, idx: leg.path.length - 1, biome: biomeAt(w.seed, h), found: found.filter(x => x.n > 0), egg, discovered, beaten: !!beaten });
 }
 
 // Home: what was carried is brought in, wounds become injuries (down: critical; a lost fight or a lamed
