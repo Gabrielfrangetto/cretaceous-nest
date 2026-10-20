@@ -1,7 +1,7 @@
 // The player's save: versioned migrations, the in-memory copy the screens show, and a tiny change feed
 // the UI modules subscribe to. The real save lives on the server (every game needs an account); the
 // browser keeps nothing, except in the local dev mode and an old guest game waiting to be moved.
-import { PROMO_CODES, GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE, CAPSULES } from './config.js';
+import { PROMO_CODES, GUIDE, SPECIES, ITEMS, STARTER, SLOTS, BASE_SLOTS, ROW, EGG_TRAY_SIZE, GEAR_SLOTS, OUTFITS, FRILL, NURSE, CAPSULES, SCARS } from './config.js';
 import { addItem, wildGenes, seededRand, cleanGenes, eggSex, maxStack, isGear, outfitFits, newPlayer, cleanPlayer } from './economy.js';
 import { newWorld, cleanWorld } from './world.js';
 import { cleanParties } from './journey.js';
@@ -155,6 +155,9 @@ function sanitize(s) {
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
     ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined, hospital: b.hospital === true || undefined } : { injuredUntil: undefined, critical: undefined, hospital: undefined }),
+    // the health lost in fights on each part of its body (SCARS), and who gave the worst of it
+    scars: b.scars && typeof b.scars === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => Number(b.scars[pt]) > 0).map(pt => [pt, Math.min(99, Number(b.scars[pt]))])) : undefined,
+    scarBy: b.scarBy && typeof b.scarBy === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => typeof b.scarBy[pt] === 'string').map(pt => [pt, b.scarBy[pt].slice(0, 24)])) : undefined,
     // flown home by air, landing then
     flyingUntil: Number(b.flyingUntil) > 0 ? Number(b.flyingUntil) : undefined,
     // raised among Hypacrosaurus: a share more of every stat (NURSE)

@@ -1,5 +1,5 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS } from './config.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND } from './gear-art.js';
 
 // ---------- eggs ----------
@@ -305,7 +305,28 @@ const babyLabel = (type, sex) => SEX[sex].word + ' ' + SPECIES[type].species + '
 // (the juvenile or adult one, when it exists), drawn larger as it grows, with its small accessories
 // (DRAWN_SLOTS) on top. Returns the plain sprite when nothing is drawn over it, otherwise a box holding
 // the sprite and one layer per accessory.
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby') {
+// Scars, drawn over the sprite where the part is (as equipment is placed: the head, neck and body
+// where those pieces go; the legs below the body, the tail behind the back): healed slashes, paler
+// than the skin, and for a deep one more of them and the pits of teeth
+const SCAR_MARK = {
+  1: '<path d="M20 30 L70 18 M28 50 L82 36"/>',
+  2: '<path d="M14 26 L74 10 M20 46 L88 28 M30 66 L84 52"/><g class="pits"><circle cx="40" cy="80" r="3.5"/><circle cx="54" cy="76" r="3.5"/><circle cx="68" cy="72" r="3.5"/></g>',
+};
+const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_MARK[level]}</svg>`;
+function scarAnchor(type, sex, part) {
+  const at = slot => anchorFor(type, sex, slot);
+  const body = at('body'), back = at('back') || body;
+  const head = at('head');
+  // (the head's piece sits on top of it: a scar goes on the face, below)
+  if (part === 'head') return head && { ...head, x: head.x - 0.02, y: Math.min(0.9, head.y + 0.1), r: 0 };
+  if (part === 'neck' || part === 'body') return at(part);
+  if (!body) return null;
+  if (part === 'legs') return { x: body.x - 0.04, y: Math.min(0.85, body.y + 0.3), w: body.w * 0.7, r: 0 };
+  return { x: Math.max(0.08, back.x - 0.32), y: Math.min(0.8, back.y + 0.12), w: back.w * 0.7, r: 0 };
+}
+const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
+
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
@@ -314,11 +335,22 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
-  if (!worn.length) return base;
+  const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([, l]) => l);
+  if (!worn.length && !scarred.length) return base;
   const box = document.createElement('span');
   box.className = 'dino-art';
   base.classList.add('dino-base');
   box.appendChild(base);
+  // (scars on the skin, under whatever it wears)
+  for (const [part, level] of scarred) {
+    const a = scarAnchor(type, sex, part);
+    if (!a) continue;
+    const layer = document.createElement('span');
+    layer.className = `scar-layer scar-${level}`;
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (part === 'head' ? 0.55 : 0.6) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
+    layer.innerHTML = scarSVG(level);
+    box.appendChild(layer);
+  }
   for (const [slot, id] of worn) {
     const layer = document.createElement('span');
     layer.className = 'gear-layer' + (BEHIND.has(slot) ? ' behind' : '');

@@ -9,6 +9,17 @@ import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
 import { worldTime } from '../sun.js';
+import { scarLevels } from '../journey.js';
+import { CREATURES } from '../config.js';
+
+// its scars, and who gave them (only seen: they change nothing)
+const PART = { head: 'Head', neck: 'Neck', body: 'Flank', legs: 'Legs', tail: 'Tail' };
+function scarsHTML(b) {
+  const lv = scarLevels(b), list = Object.entries(lv).filter(([, l]) => l);
+  if (!list.length) return '';
+  const by = id => (SPECIES[id] ? SPECIES[id].species : CREATURES[id] ? CREATURES[id].name : null);
+  return `<div><dt>Scars</dt><dd>${list.map(([pt, l]) => `${PART[pt]}${l === 2 ? ', deep' : ''}${b.scarBy && by(b.scarBy[pt]) ? ` (a ${esc(by(b.scarBy[pt]))})` : ''}`).join('; ')}</dd></div>`;
+}
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
 
@@ -123,10 +134,11 @@ function render() {
       <div><dt>Parents</dt><dd>${esc(parentsText(b))}</dd></div>
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(worldTime(b.at)))}</dd></div>
       <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
+      ${scarsHTML(b)}
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;

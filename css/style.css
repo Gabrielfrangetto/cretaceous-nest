@@ -920,3 +920,10 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .care-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .care-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .care-list .row { gap: 6px; }
+
+/* scars: healed slashes a little paler than the skin, each with a dark edge; the pits of teeth for a deep one */
+.scar-layer { position: absolute; z-index: 1; pointer-events: none; line-height: 0; }
+.scar-layer svg { display: block; width: 100%; height: auto; overflow: visible; }
+.scar-layer path { fill: none; stroke: rgb(236 214 198 / .78); stroke-width: 3.6; stroke-linecap: round; filter: drop-shadow(0 1.2px 0 rgb(55 25 20 / .6)); }
+.scar-layer .pits circle { fill: rgb(60 30 25 / .55); }
+.scar-2 path { stroke-width: 4.4; }

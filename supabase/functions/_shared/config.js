@@ -1125,6 +1125,19 @@ export const FOOD_PACKS = [
 // to twice as long); the player's own care costs RESCUE.coins. Everything billed (Debt) is paid when
 // the player chooses; until then, every coin that comes in goes to the bill.
 export const RESCUE = { coins: 50 };
+// Scars (only seen, never felt): the health a dinosaur of the player's loses in fights is counted on
+// the part of the body the blows fell on, as the foe fights (tyrannosaurs bit at faces, as healed bites
+// on their skulls show; a Velociraptor slashed flanks with its claw; a horned one gored the body and
+// legs; a club or a tail swung low at the legs...). So much lost on one part, over however many fights,
+// leaves a scar there (marked), and far more a deep one (deep). Lamed legs count on the legs.
+export const SCARS = {
+  parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
+  style: {
+    bigBite: { head: 3, neck: 2, body: 1 }, bite: { neck: 2, body: 2, head: 1, legs: 1 }, claw: { body: 3, legs: 2, neck: 1 },
+    horns: { body: 2, legs: 2, head: 1 }, club: { legs: 3, body: 1, tail: 1 }, stomp: { body: 2, legs: 2, tail: 1 },
+    butt: { body: 2, head: 1, legs: 1 }, croc: { legs: 3, neck: 1, head: 1, tail: 1 }, any: { body: 2, legs: 1, head: 1 },
+  },
+};
 // Tending to the team at a stop on a journey (journey.js tripCare): a Healing Herb gives back herb of
 // one's health; a Blood Transfusion puts one down back on its feet at revive of its health.
 export const TRIP_CARE = { herb: 0.25, revive: 0.25 };

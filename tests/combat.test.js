@@ -1318,3 +1318,21 @@ test("a colony's nest: its two parents fight to the end, the neighbors give up o
   }
   assert.ok(seen > 0, 'a colony found');
 });
+
+test('scars: what a dinosaur loses in fights is counted where the foe struck, and repeated, leaves a scar there', async () => {
+  const { scarStyle, scarLevels } = await import('../js/journey.js');
+  const { SCARS } = await import('../js/config.js');
+  // a tyrannosaur bites at the face; a Velociraptor slashes flanks; a club swings at the legs
+  assert.equal(scarStyle({ species: 'rex' }), 'bigBite');
+  assert.equal(scarStyle({ species: 'raptor' }), 'claw');
+  assert.equal(scarStyle({ species: 'ankylo' }), 'club');
+  assert.equal(scarStyle({ creature: 'deinosuchus' }), 'croc');
+  const { s } = lostAtLair();
+  const b = s.hatched[0];
+  const parts = Object.keys(b.scars || {});
+  assert.ok(parts.length && parts.every(pt => ['head', 'neck', 'body', 'legs'].includes(pt)), JSON.stringify(b.scars));
+  assert.ok(Object.values(b.scarBy).includes('rex'));
+  // over many fights a part scars, deeply at last
+  assert.deepEqual(scarLevels({ scars: { head: SCARS.marked } }).head, 1);
+  assert.deepEqual(scarLevels({ scars: { head: SCARS.deep, legs: 0.2 } }), { head: 2, neck: 0, body: 0, legs: 0, tail: 0 });
+});

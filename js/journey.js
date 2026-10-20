@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -1241,6 +1241,45 @@ function die(ctx, id) {
 // how.defend: the team went for it, so it defends itself whatever it would hunt; how.thrown: the player
 // came off its mount; how.forced: the one caught running turned to fight. A win carries home the
 // carcass (unless it got away badly hurt) and coins. Returns the battle, for the replay.
+// The health one of the player's dinosaurs lost in a fight, counted on the parts of its body the foe's
+// blows fell on (SCARS: as the foe fights), and on its legs if it was lamed; the part that got the
+// most this time remembers who gave it
+export function scarStyle(entry) {
+  if (!entry) return 'any';
+  if (entry.creature) return entry.creature === 'deinosuchus' ? 'croc' : 'any';
+  const sp = SPECIES[entry.species] || {};
+  if (sp.claw) return 'claw';
+  if (sp.build === 'theropod') return ['large', 'huge', 'colossal'].includes(sp.size) ? 'bigBite' : 'bite';
+  if (sp.build === 'ceratopsian') return 'horns';
+  if (sp.build === 'armored') return 'club';
+  if (sp.build === 'sauropod') return 'stomp';
+  return 'butt';
+}
+function scar(ctx, ev, id, lost, lame, entry) {
+  const b = explorerOf(ctx.s, id);
+  if (!b || (lost <= 0 && !lame)) return;
+  const rand = seededRand(`scar:${W(ctx.s).seed}:${ctx.p.leg ? ctx.p.leg.n : 0}:${ev.idx}:${id}`);
+  const weights = Object.entries(SCARS.style[scarStyle(entry)]), total = weights.reduce((t, [, w]) => t + w, 0);
+  const got = {};
+  // (its loss in three parts, each falling where the foe struck)
+  for (let k = 0; k < 3 && lost > 0; k++) {
+    let r = rand() * total, part = weights[0][0];
+    for (const [pt, w] of weights) { if ((r -= w) < 0) { part = pt; break; } }
+    got[part] = (got[part] || 0) + lost / 3;
+  }
+  if (lame) got.legs = (got.legs || 0) + SCARS.lame;
+  b.scars = b.scars || {};
+  for (const [part, n] of Object.entries(got)) b.scars[part] = Math.round(((b.scars[part] || 0) + n) * 1000) / 1000;
+  const most = Object.entries(got).sort((x, y) => y[1] - x[1])[0][0];
+  const who = entry && (entry.species || entry.creature);
+  if (who) b.scarBy = { ...(b.scarBy || {}), [most]: who };
+}
+// how scarred each part is: 0 none, 1 marked, 2 deep
+export const scarLevels = b => Object.fromEntries(SCARS.parts.map(pt => {
+  const n = (b && b.scars && b.scars[pt]) || 0;
+  return [pt, n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0];
+}));
+
 function fight(ctx, ev, rand, how = {}) {
   const { s, p, story } = ctx, w = W(s), h = parseKey(ev.hex);
   const threat = metAt(s, p, ev.idx);
@@ -1261,6 +1300,9 @@ function fight(ctx, ev, rand, how = {}) {
   // down; a lamed leg or a lost fight means coming home injured whatever its health
   fought.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
     const left = Math.max(0, result.hp[i][j] / result.teamHps[i][j]);
+    const lame = result.lamed.some(([a, b]) => a === i && b === j);
+    // (the scars it will carry, if it lives)
+    if (id !== PLAYER_ID) scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry);
     if (left <= 0) {
       if (id !== PLAYER_ID) {
         const slain = result.slain.some(([a, b]) => a === i && b === j);
@@ -1273,7 +1315,6 @@ function fight(ctx, ev, rand, how = {}) {
       return;
     }
     p.health[id] = Math.round(left * 1000) / 1000;
-    const lame = result.lamed.some(([a, b]) => a === i && b === j);
     if ((lame || (!result.win && !result.foeWent)) && !p.hurt.includes(id)) p.hurt.push(id);
     // a frill keeps the damage it took until it is mended
     const f = result.frill[i] && result.frill[i][j];
