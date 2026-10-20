@@ -211,7 +211,7 @@ const BABY_SCALE = { dilo: 0.8, rex: 0.8 };
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // Adults without one are drawn with their baby sprite, scaled up.
-export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.png') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') } };
+export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') } };
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
 // step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
 // frames and their time, so the walker moves exactly as fast as its feet carry it
@@ -220,7 +220,7 @@ export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][
 // how tall an adult sprite is drawn, against the others (a long-tailed one in profile is drawn smaller,
 // so it isn't twice as wide as the rest); animated sprites (.webp) play their idle on their own
 // (a Velociraptor male a little smaller than the female, as in hawks)
-const ADULT_SCALE = { raptor: { m: 0.7, f: 0.75 }, dilo: { m: 0.8 } };
+const ADULT_SCALE = { raptor: { m: 0.7, f: 0.75 }, dilo: { m: 0.8 }, rex: { m: 0.9 } };
 export const adultScale = (type, sex) => (ADULT_SCALE[type] || {})[sex] || 1;
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 

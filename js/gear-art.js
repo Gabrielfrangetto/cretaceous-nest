@@ -22,7 +22,8 @@ export const ANCHORS = {
     f: { head: { x: 0.918, y: 0.164, w: 0.16, r: 0 }, neck: { x: 0.848, y: 0.349, w: 0.12, r: 0 }, body: { x: 0.709, y: 0.506, w: 0.22, r: 0 }, back: { x: 0.639, y: 0.386, w: 0.22, r: 0 } },
   },
   rex: {
-    m: { head: { x: 0.62, y: 0.1, w: 0.32, r: 0 }, neck: { x: 0.56, y: 0.42, w: 0.3, r: 0 }, body: { x: 0.5, y: 0.63, w: 0.44, r: 0 }, back: { x: 0.36, y: 0.5, w: 0.42, r: -10 }, bone_helmet: { x: 0.452, y: 0.157, w: 0.78, r: 9 } },
+    // (the male: an adult in profile, facing right)
+    m: { head: { x: 0.875, y: 0.03, w: 0.15, r: 8 }, neck: { x: 0.775, y: 0.34, w: 0.12, r: 0 }, body: { x: 0.63, y: 0.36, w: 0.3, r: 0 }, back: { x: 0.55, y: 0.2, w: 0.28, r: 0 } },
     f: { head: { x: 0.62, y: 0.1, w: 0.3, r: 0 }, neck: { x: 0.52, y: 0.43, w: 0.28, r: 0 }, body: { x: 0.48, y: 0.63, w: 0.42, r: 0 }, back: { x: 0.35, y: 0.5, w: 0.42, r: -10 } },
   },
 };
