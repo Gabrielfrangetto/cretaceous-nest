@@ -20,7 +20,9 @@
   /* the piece being edited is always on top, even ones normally worn behind the body */
   .canvas .dino-art .gear-layer.active, .canvas .dino-art .scar-layer.active { z-index: 3; outline: 2px dashed var(--accent); }
   .scar-mark { position: absolute; z-index: 3; pointer-events: none; outline: 2px dashed var(--accent); translate: -50% -50%; }
-  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); vertical-align: middle; }
+  .swatch { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); }
+  .skin-row { display: flex; gap: 10px; align-items: center; }
+  .skin-row .hint { margin: 2px 0 0; }
   .canvas.picking .dino-art { cursor: copy; }
   .frames { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
   .controls { display: grid; gap: 12px; padding: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
@@ -46,8 +48,6 @@
         <div class="field"><label for="mode">Placing</label><select id="mode"><option value="gear">Equipment</option><option value="scars">Scars</option></select></div>
         <div class="field" id="lookField" hidden><label for="look">Scar look</label><select id="look"></select></div>
         <div class="field" id="woundField" hidden><label for="wound">Shown as</label><select id="wound"><option value="2">Scar, deep</option><option value="1">Scar, marked</option><option value="1.0">Wound, just given</option><option value="0.66">Wound, healing</option><option value="0.33">Wound, almost healed</option><option value="s1">Sewn up in the hospital</option><option value="s0.4">Sewn up, healing</option></select></div>
-        <div class="field" id="skinField" hidden><label>Skin colour here <span class="swatch" id="swatch"></span></label>
-          <div class="row"><button class="ghost" type="button" id="pick">Pick from the dinosaur</button><button class="ghost" type="button" id="unpick">Clear</button></div></div>
         <div class="field" id="stageField" hidden><label for="stage">Stage</label><select id="stage"><option value="baby">Baby</option><option value="juvenile">Juvenile</option><option value="adult" selected>Adult</option></select></div>
       </div>
       <div class="pair">
@@ -57,6 +57,10 @@
       <div class="pair">
         <div class="field"><label for="slot" id="slotLabel">Slot</label><select id="slot"></select></div>
         <div class="field" id="itemField"><label for="item">Item shown</label><select id="item"></select></div>
+      </div>
+      <div class="frames" id="skinField" hidden>
+        <div class="skin-row"><span class="swatch" id="swatch"></span><div><strong>Skin colour of this part</strong><p class="hint">What a wound sewn up in the hospital heals into. Pick it off the skin where this scar goes.</p></div></div>
+        <div class="row"><button class="btn small" type="button" id="pick">Pick from the dinosaur</button><button class="ghost" type="button" id="unpick">Clear</button></div>
       </div>
       <div class="frames" id="framesField" hidden>
         <div class="field"><label for="frame">Frame <span id="frameNo"></span></label><input type="range" id="frame" min="0" max="23" step="1" value="0"></div>
