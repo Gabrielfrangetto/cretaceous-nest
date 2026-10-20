@@ -124,7 +124,7 @@ function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
     <p class="sr-only" id="mapFocus" aria-live="polite"></p>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
-    <p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p>`;
+    <details class="legend-fold"><summary>Map legend</summary><p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p></details>`;
 }
 const homeView = () => ({ x: -VIEW_W / 2, y: -VIEW_W * 0.35, w: VIEW_W, h: VIEW_W * 0.7 });
 // a hex the player can pick: the nest, or land a team can reach
@@ -625,8 +625,8 @@ function landHTML(cell) {
 
 function sideHTML(t) {
   if (tracing) return traceHTML(t);
-  if (!selected) return `<h3>Pick a hex</h3>
-    <p class="hint">Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. You always go, with one of the teams you set up in the Team tab: up to ${TEAM_SLOTS - 1} juvenile or adult dinosaurs, or packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p>`;
+  if (!selected) return `<div class="sec-head"><h3>Pick a hex</h3><details class="info"><summary aria-label="How exploring works">?</summary><p>Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. You always go, with one of the teams you set up in the Team tab: up to ${TEAM_SLOTS - 1} juvenile or adult dinosaurs, or packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p></details></div>
+    <p class="hint">Tap a hex on the map to see what is there and set out.</p>`;
   const h = parseKey(selected), d = hexDist(h);
   const city = cityAt(S.world.seed, h);
   // you are out with a team: it goes on from where it is, no need to come home first
@@ -804,6 +804,7 @@ function eatHTML(p, t) {
 }
 
 // the player's own explorer: stats and the weapons and armor it wears
+let gearOpen = false;   // (the gear list kept open or shut across redraws)
 function youHTML(t) {
   const p = S.player, sheet = statSheet(p), d = sheet.derived;
   const away = expeditionOf(S, PLAYER_ID), hurt = injuredLeft(p, t);
@@ -828,9 +829,11 @@ function youHTML(t) {
       <p class="hint">Power ${sheet.power} · Health ${d.hp} · Damage ${d.damage} · Dodge ${Math.round(d.dodge * 100)}% · Armor ${Math.round(d.reduction * 100)}%</p>
       <p class="hint">${away ? 'Out exploring.' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'You can explore on foot, anywhere.'}</p>
       ${away ? '' : eatHTML(p, t)}</div></div>
-    ${loadHTML(p)}
-    <ul class="gear-slots">${rows}</ul>
-    <p class="hint">Weapons and armor are sold in the Shop and made in the Forge. They can't be changed while you're away.</p>`;
+    <details class="fold" id="gearFold" ${gearOpen ? 'open' : ''}><summary>Your weapons and armor</summary>
+      ${loadHTML(p)}
+      <ul class="gear-slots">${rows}</ul>
+      <p class="hint">Sold in the Shop and made in the Forge. They can't be changed while you're away.</p>
+    </details>`;
 }
 
 function render() {
@@ -843,14 +846,15 @@ function render() {
     bindMap(box);
   }
   box.querySelector('.world-side').innerHTML = `
-        <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>
-        <section class="panel-box you" id="youBox">${youHTML(t)}</section>
-        <section class="panel-box"><h3>Expeditions <span class="hint">${S.world.expeditions.length} / ${EXPEDITION_SLOTS}</span></h3>
+        ${S.world.expeditions.length || message ? `<section class="panel-box"><div class="sec-head"><h3>Expeditions</h3><span class="count">${S.world.expeditions.filter(e => !e.air).length} / ${EXPEDITION_SLOTS}</span></div>
           <div id="tripsBox">${tripsHTML(t)}</div>
           ${message ? `<p class="hint" role="status">${message}</p>` : ''}
-        </section>`;
+        </section>` : '<div id="tripsBox" hidden></div>'}
+        <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>
+        <section class="panel-box you" id="youBox">${youHTML(t)}</section>`;
   drawMap();
-  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 110));
+  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 72));
+  box.querySelector('#gearFold').addEventListener('toggle', e => { gearOpen = e.target.open; });
   const eat = box.querySelector('[data-eat]');
   if (eat) eat.addEventListener('click', () => { act('feed', { id: PLAYER_ID }); render(); });
   box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {
@@ -986,7 +990,8 @@ function updateBadge() {
   const back = S.world.expeditions.filter(e => e.leg && t >= e.leg.arriveAt).length;
   const pill = document.getElementById('worldPill');
   pill.hidden = back === 0;
-  pill.textContent = back + ' to tell';
+  pill.textContent = back;
+  pill.title = back + (back === 1 ? ' journey' : ' journeys') + ' to tell';
 }
 
 export function initWorld() {

@@ -61,8 +61,8 @@ function render() {
       <div class="row"><input type="text" maxlength="24" placeholder="${esc(SPECIES[t].species)} pack" data-new-name="${t}" aria-label="Name of the new pack">
         <button class="btn small" type="button" data-pack-form="${t}">Form pack</button></div>
     </div>`).join('');
-  box.innerHTML = `<div class="collection-head"><h2>Packs</h2><span class="count">${packs.length ? packs.length + (packs.length === 1 ? ' pack' : ' packs') : ''}</span></div>
-    <p class="hint">Some species hunted together. Group them into a pack and it takes a single place in an expedition team, however many run in it. Each one still fights as itself: on the pack's turn they all strike at once (as many as fit around the foe), each ${Math.round(PACK_BONUS * 100)}% harder for every other one striking with it. Packs: ${Object.entries(PACK_LIMITS).map(([t, n]) => `${esc(SPECIES[t].species)} up to ${n}`).join(', ')}.</p>
+  box.innerHTML = `<div class="sec-head"><h2>Packs</h2><span class="count">${packs.length || ''}</span>
+      <details class="info"><summary aria-label="How packs work">?</summary><p>Some species hunted together. Group them into a pack and it takes a single place in an expedition team, however many run in it. Each one still fights as itself: on the pack's turn they all strike at once (as many as fit around the foe), each ${Math.round(PACK_BONUS * 100)}% harder for every other one striking with it. Packs: ${Object.entries(PACK_LIMITS).map(([t, n]) => `${esc(SPECIES[t].species)} up to ${n}`).join(', ')}.</p></details></div>
     ${packCards}${forms || (packs.length ? '' : `<p class="hint">Raise at least ${PACK_MIN} juveniles or adults of one of these species to form a pack.</p>`)}
     ${message ? `<p class="hint" role="status">${esc(message)}</p>` : ''}`;
   const chosen = group => [...box.querySelectorAll(`input[data-group="${CSS.escape(group)}"]:checked`)].map(x => x.value);

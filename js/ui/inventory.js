@@ -45,7 +45,7 @@ function render() {
     b.classList.toggle('sel', i === sel);
     if (s) used++;
   }
-  document.getElementById('invCount').textContent = `${used} of ${S.invSize} slots used`;
+  document.getElementById('invCount').textContent = `${used} / ${S.invSize}`;
   grid.setAttribute('aria-label', `Inventory, ${plural(S.invSize / ROW, 'row', 'rows')} of ${ROW}`);
   const more = document.getElementById('moreRoom');
   if (S.invSize < SLOTS) {
@@ -60,9 +60,7 @@ function renderSide() {
   const side = document.getElementById('invSide');
   const s = sel >= 0 ? S.inv[sel] : null;
   if (!s) {
-    side.innerHTML = `${sold ? `<p class="hint" role="status">${esc(sold)}</p>` : ''}<h2>No item selected</h2>
-      <p class="hint">Tap an item to see its details. Drag it to another slot to move it, stack it or swap places. On a touch screen, press and hold the item, then drag.</p>
-      <p class="hint">Each slot holds one kind of item, up to ${MAX_STACK}. You start with one row of ${ROW} slots.</p>`;
+    side.innerHTML = `${sold ? `<p class="hint" role="status">${esc(sold)}</p>` : ''}<p class="hint">Tap an item to see it, sell it or split it. Drag it to move or stack it (on a touch screen, press and hold first). A slot holds up to ${MAX_STACK} of one kind.</p>`;
     return;
   }
   const it = ITEMS[s.id];

@@ -1,7 +1,7 @@
 // Nest tab: the walking babies, their growth capsules, and the collection of hatched babies.
 import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage } from '../economy.js';
+import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage, mealsFor } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
@@ -26,10 +26,12 @@ function gaitOf(b, art) {
 const sceneW = () => scene.clientWidth || 600;
 const findBaby = id => S.hatched.find(b => b.id === id);
 const nameTag = b => b.name + ' ' + SEX[sexOf(b)].sym;
-// "Juvenile · 4 capsules to Adult"
-export function growthText(b) {
+// how far through its stage it is, from 0 to 1
+function growthShare(b) {
   const next = nextStage(b);
-  return stageOf(b).name + (next ? ` · ${plural(next.mealsLeft, 'capsule', 'capsules')} to ${next.stage.name}` : '');
+  if (!next) return 1;
+  const from = mealsFor(b, stageOf(b)), to = mealsFor(b, next.stage);
+  return Math.min(1, Math.max(0, ((b.fed || 0) - from) / Math.max(1, to - from)));
 }
 // what a baby looks like right now, for redrawing when it changes
 const lookKey = b => JSON.stringify([wornGear(b), b.outfit || null, stageOf(b).id]);
@@ -37,14 +39,13 @@ const lookKey = b => JSON.stringify([wornGear(b), b.outfit || null, stageOf(b).i
 function renderBabies() {
   const box = document.getElementById('babies');
   const n = S.hatched.length;
-  document.getElementById('count').textContent = plural(n, 'baby', 'babies');
+  document.getElementById('count').textContent = n ? String(n) : '';
   box.innerHTML = '';
   if (!n) {
     box.className = '';
-    box.innerHTML = '<p class="empty">The nest is still empty. Babies show up here once they hatch.</p>';
+    box.innerHTML = '<p class="empty">The nest is still empty. Dinosaurs show up here once they hatch.</p>';
   } else {
     box.className = 'babies';
-    const df = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
     for (const b of S.hatched) {
       const sp = SPECIES[b.type], sex = sexOf(b);
       // the whole card opens the baby's details
@@ -53,17 +54,21 @@ function renderBabies() {
       card.className = 'baby';
       card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
       card.addEventListener('click', () => openBabyInfo(b.id));
-      card.appendChild(dressedArt(b.type, 5, sex, wornGear(b), b.outfit, stageOf(b).id));
+      const art = document.createElement('span'); art.className = 'baby-art';
+      art.appendChild(dressedArt(b.type, 3, sex, wornGear(b), b.outfit, stageOf(b).id));
+      const info = document.createElement('span'); info.className = 'baby-info-col';
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
-      const sps = document.createElement('span'); sps.textContent = sp.species + ' · ' + SEX[sex].word;
-      const dt = document.createElement('span'); dt.textContent = `Hatched ${df.format(new Date(worldTime(b.at)))} · ${ageLabel(ageOf(b, gameNow()))}`;
-      const grow = document.createElement('span'); grow.className = 'growth'; grow.textContent = growthText(b);
+      const sps = document.createElement('span'); sps.className = 'meta'; sps.textContent = `${sp.species} · ${ageLabel(ageOf(b, gameNow()))}`;
+      // the stage, and how far it is to the next
+      const next = nextStage(b), st = stageOf(b);
+      const grow = document.createElement('span'); grow.className = 'growth';
+      grow.innerHTML = `<span>${st.name}${next ? ` <span class="meta">· ${plural(next.mealsLeft, 'capsule', 'capsules')} to ${next.stage.name}</span>` : ''}</span>${next ? `<i class="bar"><b style="width:${Math.round(growthShare(b) * 100)}%"></b></i>` : ''}`;
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
-      const gen = document.createElement('span'); gen.className = 'gen'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
+      const gen = document.createElement('span'); gen.className = 'meta'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
       const gear = document.createElement('span'); gear.className = 'gear-icons';
       gear.innerHTML = Object.values(wornGear(b)).map(id => `<span class="gear-icon" title="${ITEMS[id].name}">${ITEM_ICONS[id]}</span>`).join('');
-      const more = document.createElement('span'); more.className = 'more'; more.textContent = 'See stats';
-      card.append(nm, sps, grow, dt, fed, gen, gear, more);
+      info.append(nm, sps, grow, fed, gen, gear);
+      card.append(art, info);
       box.appendChild(card);
     }
   }
@@ -95,7 +100,7 @@ function checkHunger() {
         : flyingLeft(b, now) ? 'Flown home by air · lands in ' + fmt(flyingLeft(b, now))
         : inHospital(b, now) ? 'In the hospital · out in ' + fmt(hurt)
         : hungry ? 'Needs a growth capsule!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt)
-        : isAdult(b) ? 'Fully grown' : 'Growing · next capsule in ' + fmt(b.lastFed + hungerEvery(b) - now);
+        : isAdult(b) ? '' : 'Growing · next capsule in ' + fmt(b.lastFed + hungerEvery(b) - now);
       fed.classList.toggle('hungry', hungry);
     }
   }
@@ -109,13 +114,13 @@ function checkHunger() {
     w.bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + `<span>${caps ? 'Needs a capsule' : 'Out of capsules!'}</span>`;
   }
   const fs = document.getElementById('foodStock');
-  const fsText = `The keepers feed everyone. A young dinosaur grows only while a growth capsule works: one every ${CAPSULE.every.baby} h for a baby, every ${CAPSULE.every.juvenile} h for a juvenile. `
-    + (caps ? `You have ${plural(caps, 'growth capsule', 'growth capsules')}.` : 'You have no growth capsules: buy some in the Shop.');
-  if (fs.textContent !== fsText) fs.textContent = fsText;
+  const fsText = `${ITEM_ICONS[CAPSULE.item]}<span><b>${caps}</b> growth ${caps === 1 ? 'capsule' : 'capsules'}${caps ? '' : ' · buy some in the Shop'}</span><span class="meta">One every ${CAPSULE.every.baby} h for a baby, ${CAPSULE.every.juvenile} h for a juvenile. The keepers feed everyone.</span>`;
+  if (fs.dataset.html !== fsText) { fs.dataset.html = fsText; fs.innerHTML = fsText; }
   bills();
   const pill = document.getElementById('hungryPill');
   pill.hidden = hungryCount === 0;
-  pill.textContent = plural(hungryCount, 'capsule', 'capsules') + ' due';
+  pill.textContent = hungryCount;
+  pill.title = plural(hungryCount, 'growth capsule', 'growth capsules') + ' due';
 }
 
 function syncWalkers() {
@@ -175,7 +180,7 @@ function bills() {
   box.hidden = !S.debt;
   if (!S.debt) { box.innerHTML = ''; return; }
   const can = Math.min(S.coins, S.debt);
-  const html = `<p>You owe the sanctuary <strong>${S.debt} coins</strong> for air rescues and the hospital. Until it is paid, every coin you earn goes to the bill.</p>
+  const html = `<p><strong>${S.debt} coins owed</strong> <span class="meta">for air rescues and the hospital. Every coin you earn goes to it until it is paid.</span></p>
     <button class="btn small" type="button" id="payDebt" ${can ? '' : 'disabled'}>${can ? `Pay ${can} coins${can < S.debt ? ' of it' : ''}` : 'No coins to pay with'}</button>`;
   if (box.dataset.html === html) return;
   box.dataset.html = html;

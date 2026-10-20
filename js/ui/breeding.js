@@ -69,7 +69,7 @@ function render() {
   const males = adults.filter(b => sexOf(b) === 'm');
   const pairable = males.filter(m => adults.some(f => f.type === m.type && sexOf(f) === 'f'));
   if (!pairable.length) {
-    body.innerHTML = `<p class="hint">To breed you need an adult male and an adult female of the same species. Young ones grow up on growth capsules (see each one's window). Their babies inherit their genes, so pick your best pair.</p>${trayLine}${note}`;
+    body.innerHTML = `<p class="hint">No adult pair yet: you need an adult male and an adult female of the same species.</p>${trayLine}${note}`;
     return;
   }
   if (!pairable.some(m => m.id === maleId)) maleId = pairable[0].id;

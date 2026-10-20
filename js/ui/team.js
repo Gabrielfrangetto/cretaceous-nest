@@ -73,8 +73,8 @@ function render() {
 }
 function draw(box) {
   const all = presets(), t = all[picked];
-  box.innerHTML = `<div><h2>Teams</h2>
-      <p class="sub">Set up the teams that go with you. On the World map, pick one to take along: your dinosaurs never set out without you.</p></div>
+  box.innerHTML = `<div class="sec-head"><h2>Teams</h2>
+      <details class="info"><summary aria-label="How teams work">?</summary><p>Set up the teams that go with you. On the World map, pick one to take along: your dinosaurs never set out without you.</p></details></div>
     <div class="team-presets" role="tablist" aria-label="Teams">${all.map((x, i) => `<button class="tab ${i === picked ? 'on' : ''}" type="button" role="tab" aria-selected="${i === picked}" data-preset="${i}">${esc(x.name)} <span class="hint">${x.slots.filter(Boolean).length}</span></button>`).join('')}</div>
     <div class="row team-name"><input type="text" maxlength="24" id="teamName" value="${esc(t.name)}" aria-label="Team name"><button class="ghost" type="button" id="teamRename">Rename</button></div>
     <div class="team-slots">

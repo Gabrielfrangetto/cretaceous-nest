@@ -102,8 +102,6 @@ input[type="text"] { width: 100%; max-width: 320px; font: inherit; font-size: 18
 #panelNest { display: grid; gap: 22px; }
 
 /* coins + shop */
-.head-side { display: grid; justify-items: end; gap: 6px; }
-@media (max-width: 640px) { .head-side { justify-items: start; } }
 .coins { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 3px 14px 3px 5px; font-family: var(--display); font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
 .coins svg { width: 26px; height: 26px; display: block; }
 .coins.bump { animation: squish .3s ease-out; }
@@ -150,7 +148,6 @@ h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 19px; 
 .scene { position: relative; height: 300px; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: var(--sky); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .scene .decor { position: absolute; inset: 0; width: 100%; height: 100%; }
 .scene-empty { position: absolute; inset: auto 16px 40%; margin: 0; text-align: center; color: var(--muted); font-size: 15px; z-index: 1; }
-.food-stock { margin-top: -10px; }
 .walker { position: absolute; left: 0; display: grid; justify-items: center; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; will-change: transform; }
 .walker canvas { display: block; image-rendering: pixelated; }
 .walker img { display: block; pointer-events: none; }
@@ -195,9 +192,6 @@ img.baby-pop { image-rendering: auto; }
 }
 
 /* account */
-.account-row { justify-content: flex-end; gap: 8px 12px; }
-@media (max-width: 640px) { .account-row { justify-content: flex-start; } }
-.account-btn { font-weight: 700; color: var(--ink); border-color: var(--accent); }
 .account-dialog { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--ink); box-shadow: 0 18px 50px rgba(0, 0, 0, .25); }
 .account-dialog::backdrop { background: rgba(10, 14, 10, .45); }
 .account-dialog #accountBody { display: grid; gap: 14px; }
@@ -735,3 +729,124 @@ body.guide-room { padding-bottom: 70vh; }
 .bills p { margin: 0; flex: 1 1 240px; }
 .air-pick { display: grid; gap: 6px; margin: 8px 0; }
 .air-pick .check { display: flex; align-items: center; gap: 8px; }
+
+/* ================= Minimal layout: one calm surface, a clear type scale, fewer boxes ================= */
+body { font-size: 15px; }
+h2 { font-size: 19px; }
+.wrap { max-width: 1040px; gap: 20px; padding-block: 0 48px; }
+.meta { color: var(--muted); font-size: 13px; font-weight: 400; }
+
+/* the top bar: the game's name, the coins, a menu for everything else */
+.topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-inline: -16px; padding: 10px 16px; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.brand { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+.top-side { display: flex; align-items: center; gap: 8px; }
+.coins { font-size: 16px; padding: 2px 12px 2px 4px; }
+.coins svg { width: 22px; height: 22px; }
+.icon-btn { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.icon-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.menu-wrap { position: relative; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 220px; display: grid; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .14); }
+.menu button { text-align: left; font: inherit; padding: 9px 12px; border: 0; border-radius: 8px; background: none; color: var(--ink); cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--bg); outline: none; }
+.menu .sync { padding: 6px 12px 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.menu .sync:empty { display: none; }
+
+/* the sections: an icon and a word each; at the bottom of the screen on a phone */
+.tabs { margin: 0; gap: 2px; }
+nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap: 6px; padding: 10px 12px; }
+.tab-ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.pill { font-size: 11px; line-height: 16px; min-width: 16px; padding: 0 5px; text-align: center; }
+@media (max-width: 720px) {
+  body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .tabs { position: fixed; inset: auto 0 0 0; z-index: 50; justify-content: space-around; gap: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); overflow: visible; background: var(--panel); border-top: 1px solid var(--line); border-bottom: 0; }
+  nav.tabs .tab { position: relative; flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; padding: 6px 0 5px; font-size: 10.5px; border: 0; border-radius: 10px; margin: 0; }
+  nav.tabs .tab[aria-selected="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .tab-ico { width: 22px; height: 22px; }
+  nav.tabs .tab .pill { position: absolute; top: 2px; left: calc(50% + 6px); font-size: 9.5px; line-height: 14px; min-width: 14px; padding: 0 4px; }
+  .brand { font-size: 18px; }
+}
+
+/* a section: its title, a count, and a "?" that opens how it works */
+.sec { display: grid; gap: 12px; }
+.sec-head { display: flex; align-items: center; gap: 8px; }
+.sec-head h2 { font-size: 19px; }
+.sec-head .count { font-size: 13px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.sec-head .count:empty { display: none; }
+.info { position: relative; margin-left: auto; }
+.info summary { list-style: none; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.info summary::-webkit-details-marker { display: none; }
+.info[open] summary { color: var(--ink); border-color: var(--ink); }
+.info p { position: absolute; right: 0; top: 30px; z-index: 20; width: min(360px, 84vw); margin: 0; padding: 12px 14px; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .12); }
+
+/* the nest: the scene, a line on the capsules, the bills, then the dinosaurs */
+.status-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-top: -8px; font-size: 14px; }
+.status-line svg { width: 20px; height: 20px; flex: none; }
+.bills { padding: 8px 8px 8px 14px; font-size: 14px; margin: 0; }
+.babies { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.baby { grid-template-columns: 72px minmax(0, 1fr); justify-items: stretch; align-items: center; gap: 12px; padding: 10px 12px 10px 10px; text-align: left; border-radius: 12px; }
+.baby:hover { border-color: var(--accent); transform: none; }
+.baby-art { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 10px; background: var(--bg); overflow: hidden; }
+.baby-art > *, .baby-art img, .baby-art canvas { margin: 0 !important; max-width: 68px; max-height: 68px; object-fit: contain; }
+.baby-info-col { display: grid; gap: 3px; min-width: 0; }
+.baby .baby-info-col > span { font-size: 13px; color: var(--muted); }
+.baby strong { font-size: 16px; }
+.baby .growth { display: grid; gap: 4px; color: var(--ink) !important; font-weight: 700; }
+.baby .growth .meta { font-weight: 400; }
+.bar { display: block; height: 5px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar b { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.baby .fed { font-size: 12.5px !important; }
+.baby .gear-icons:empty { display: none; }
+.breed { padding: 0; gap: 12px; background: none; border: 0; border-radius: 0; }
+.site-footer { max-width: 1040px; }
+.baby .fed:empty { display: none; }
+.breed-body, .packs { gap: 10px; }
+/* on a phone the bubbles over the scene are just the capsule */
+@media (max-width: 720px) { .bubble span { display: none; } .bubble { padding: 4px; } }
+
+/* the world: the map and, beside it (under it on a phone), the expeditions, the hex picked, you */
+.world-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 16px; }
+.world-map-wrap { padding: 0; border: 0; background: none; }
+.world-map { border-radius: 12px; }
+.panel-box { gap: 10px; padding: 14px 16px; border-radius: 12px; }
+.panel-box h3, .sec-head h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 17px; }
+.legend-fold, .fold { margin-top: 6px; }
+.legend-fold summary, .fold summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--muted); list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.legend-fold summary::-webkit-details-marker, .fold summary::-webkit-details-marker { display: none; }
+.legend-fold summary::before, .fold summary::before { content: "›"; display: inline-block; transition: transform .15s; font-size: 16px; line-height: 1; }
+.legend-fold[open] summary::before, .fold[open] summary::before { transform: rotate(90deg); }
+.legend-fold .map-legend { margin-top: 8px; }
+.fold[open] { display: grid; gap: 10px; }
+.you-head .you-art { width: 72px; display: grid; place-items: center; }
+.you-head h3 { font-size: 17px; }
+
+/* lists of things: an icon, a name and a line on it, an action at the end */
+.sub-head { margin: 4px 0 0; font-family: var(--body); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.sub-head .meta { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
+.row-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.row-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.ri-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--bg); }
+.ri-icon svg { width: 26px; height: 26px; }
+.ri-body { display: grid; gap: 2px; min-width: 0; font-size: 14px; }
+.ri-body strong { font-size: 15px; }
+.ri-desc { color: var(--muted); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ri-body .mods { margin-top: 2px; }
+.ri-buy { display: grid; justify-items: end; gap: 2px; }
+.ri-buy .btn { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; min-width: 64px; justify-content: center; }
+.coin { width: 14px; height: 14px; }
+.notice { margin: 0; padding: 8px 12px; font-size: 14px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+@media (max-width: 480px) { .row-list { grid-template-columns: minmax(0, 1fr); } }
+.push { margin-left: auto; }
+.row-item.dim .ri-icon, .row-item.dim strong { opacity: .6; }
+.needs { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.need { display: inline-flex; align-items: center; gap: 3px; }
+.need svg { width: 16px; height: 16px; }
+.need.short { color: var(--muted); }
+.need.got { color: #3f7a2c; font-weight: 700; }
+#panelInv { display: grid; gap: 16px; }
+#panelInv[hidden] { display: none; }
+.inv-side { padding: 14px 16px; border-radius: 12px; }
+.team-box, .rewards { display: grid; gap: 16px; }
+.stage { border-radius: 14px; }
+@media (max-width: 760px) { .world-layout { grid-template-columns: minmax(0, 1fr); } }
