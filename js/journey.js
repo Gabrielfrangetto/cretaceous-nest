@@ -379,22 +379,63 @@ function leave(ctx, id) {
   delete p.health[id];
 }
 
-// The player down (RESCUE): the whole team flown home from the hex at idx, with all it carries; the
-// journey is over. The flight, the player's care and every dinosaur's are billed.
-function rescue(ctx, idx) {
+// gravely injured (down) or badly hurt: flown and cared for on credit (AIRLIFT.bad)
+const hurtBadly = (p, id) => isDown(p, id) || healthOf(p, id) <= AIRLIFT.bad;
+// What flying the whole team home from a hex costs: { now: paid then and there, later: billed (the share
+// of the flight for the badly hurt, and their care) }. The player down is RESCUE's care.
+export function flightBill(s, p, hex) {
+  const all = airliftFare(s, p.members, hex), fit = airliftFare(s, p.members.filter(id => !hurtBadly(p, id)), hex);
+  const care = p.members.filter(id => hurtBadly(p, id)).reduce((t, id) => t + (id === PLAYER_ID && isDown(p, id) ? RESCUE.coins : careOf(healthOf(p, id), isDown(p, id))), 0);
+  return { now: fit, later: all - fit + care, fare: all, care };
+}
+// The whole team flown home from the hex at idx (or where it waits) with all it carries, the journey
+// over: rescued (the player down: all of it billed) or called (the fit's share of the flight paid
+// already: paid)
+function flyParty(ctx, idx, kind, paid = 0, when = null) {
   const { s, p, story } = ctx;
-  const { hex, at } = whereWhen(ctx, idx), lands = at + flightMins(hex) * 60000;
-  const members = [...p.members], down = [...p.down], health = Object.fromEntries(members.map(id => [id, healthOf(p, id)]));
-  const fare = airliftFare(s, members, hex);
-  const care = RESCUE.coins + members.filter(id => id !== PLAYER_ID).reduce((t, id) => t + careOf(health[id], down.includes(id)), 0);
-  p.at = hex; p.leg = null; p.pending = null;
-  story.push({ kind: 'rescued', hex, idx, fare, care, lands });
+  const { hex, at } = kind === 'rescued' ? whereWhen(ctx, idx) : { hex: p.leg ? p.leg.path[Math.max(0, idx)] : p.at, at: when == null ? ctx.now : when };
+  const lands = at + flightMins(hex) * 60000, members = [...p.members], down = [...p.down];
+  const cost = flightBill(s, p, hex), later = Math.max(0, cost.fare - paid) + cost.care;
+  p.at = hex; p.leg = null; p.pending = null; p.camp = null;
+  story.push({ kind, hex, idx, fare: cost.fare, paid, later, care: cost.care, lands });
   comeHome(ctx);
   s.player.flyingUntil = lands;
   const hospital = members.filter(id => id !== PLAYER_ID).map(id => land(s, explorerOf(s, id), lands, down.includes(id))).filter(Boolean);
   for (const b of members.filter(id => id !== PLAYER_ID).map(id => explorerOf(s, id))) if (b) b.flyingUntil = lands;
-  bill(s, fare + care);
+  bill(s, later);
   if (hospital.length) story.push({ kind: 'hospital', hex: HOME, idx: -1, hospital });
+}
+// The player down (RESCUE): the whole team flown home, all of it billed (less what a flight called for
+// already paid)
+const rescue = (ctx, idx) => flyParty(ctx, idx, 'rescued', (ctx.p.leg && ctx.p.leg.fly) || 0);
+
+// The player calls an aircraft for the whole team, wherever it is: waiting, at a decision, or on its way
+// (it stops where it is by now: what happened until then is told first, then it flies). The fit's share
+// of the flight is paid now, or there is none; the badly hurt's, and their care, billed.
+export function flyHome(s, id, now) {
+  const p = partyOf(s, id);
+  if (!p) return { ok: false, reason: 'no-expedition' };
+  const leg = p.leg;
+  if (leg && leg.train) return { ok: false, reason: 'on-the-train' };
+  if (leg && leg.fly != null) return { ok: false, reason: 'called' };
+  if (leg && !p.pending && now >= leg.arriveAt) return { ok: false, reason: 'untold' };
+  const walking = leg && !p.pending;
+  const i = walking ? Math.max(leg.step - 1, positionOf(s, p, now)) : -1;
+  const hex = p.pending ? p.pending.hex : !leg ? p.at : i >= 0 ? leg.path[i] : leg.from;
+  if (hex === HOME) return { ok: false, reason: 'home' };
+  const cost = flightBill(s, p, hex);
+  if (s.coins < cost.now) return { ok: false, reason: 'coins', cost };
+  s.coins -= cost.now;
+  if (walking && i >= 0) {
+    // it stops where it is: the way so far is told, then the aircraft comes
+    Object.assign(leg, { path: leg.path.slice(0, i + 1), to: leg.path[i], arriveAt: now, recalled: true, fly: cost.now });
+    Object.assign(p, { hex: leg.to, returnAt: now });
+    return { ok: true, expedition: p, cost };
+  }
+  if (walking) { p.at = leg.from; p.leg = null; }
+  const ctx = { s, p, now, story: [], legs: [], n: leg ? leg.n : 0 };
+  flyParty(ctx, p.pending ? p.pending.idx : leg ? leg.path.length - 1 : -1, 'flown', cost.now);
+  return { ok: true, story: ctx.story, cost };
 }
 
 // After an event on the way out: go on, or turn back (nobody on their feet: they turn back)
@@ -419,6 +460,8 @@ function turnBack(ctx, i) {
 // (having looked around: gather); a leg called back turns for home where it stopped
 function arrive(ctx) {
   const { s, p, story } = ctx, leg = p.leg, w = W(s);
+  // an aircraft called for: it flies home from where it stopped
+  if (leg.fly != null) { flyParty(ctx, leg.path.length - 1, 'flown', leg.fly, leg.arriveAt); return; }
   p.at = leg.to;
   // what the team gathered of the common kinds as it walked, told at once
   if (p.gathered && Object.keys(p.gathered).length) {
@@ -1326,7 +1369,7 @@ export function cleanParties(s, w) {
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
         arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (train ? trainMins(train.hexes) : legMins(s, members, from, to, via)) * 60000),
-        ...(recalled ? { recalled } : {}), ...(train ? { train: true } : {}), ...(via.length && !recalled ? { via } : {}),
+        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(via.length && !recalled ? { via } : {}),
       };
     }
     // a party with nowhere to go is one at home: it broke up

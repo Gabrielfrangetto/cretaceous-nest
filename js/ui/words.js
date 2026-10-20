@@ -1,5 +1,6 @@
 // Odds and amounts told in words, never in numbers, and a few ways of naming things in a sentence.
 import { esc } from '../util.js';
+import { AIRLIFT } from '../config.js';
 
 // Odds are told in words, never in numbers: how often, how good a chance, how grave a risk, how a fight
 // would go.
@@ -12,5 +13,5 @@ export const article = name => (/^[AEIOU]/.test(name) ? 'an' : 'a');
 // "A", "A and B", "A, B and C"
 export const listNames = list => list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
 // how hurt one on a journey is, by the share of its health left
-export const healthWord = left => (left <= 0 ? 'down' : left >= 0.95 ? 'unhurt' : left >= 0.7 ? 'scratched' : left >= 0.4 ? 'wounded' : 'badly hurt');
+export const healthWord = left => (left <= 0 ? 'down' : left >= 0.95 ? 'unhurt' : left >= 0.7 ? 'scratched' : left > AIRLIFT.bad ? 'wounded' : 'badly hurt');
 export const wildName = x => `${article(x.name)} ${esc(x.name)}`;

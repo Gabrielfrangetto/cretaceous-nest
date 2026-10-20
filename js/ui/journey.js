@@ -6,7 +6,7 @@ import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare } from '../journey.js';
+import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare, flightBill, flightMins } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
@@ -292,6 +292,11 @@ function decide(v) {
   const actBox = document.querySelector('#journeyBody .journey-act');
   const p = partyOf(S, fb.id);
   const opts = { swamp: v.swamp, biome: v.biome, hp: v.hp };
+  // an aircraft home for everyone, from here (the fit's share paid now)
+  const flyBtn = () => {
+    const c = flightBill(S, p, v.hex);
+    return `<button class="ghost" type="button" data-fly ${S.coins < c.now ? 'disabled' : ''}>Called an aircraft home <span class="hint">(${plural(c.now, 'coin', 'coins')}${c.later ? `, ${c.later} billed` : ''}; ${minsLabel(flightMins(v.hex))})</span></button>`;
+  };
   const btn = (choice, label, ghost = false) => `<button class="${ghost ? 'ghost' : 'btn small'}" type="button" data-choice='${esc(JSON.stringify(choice))}'>${label}</button>`;
   let html = '';
   if (v.kind === 'scatter') {
@@ -380,9 +385,16 @@ function decide(v) {
   } else if (v.kind === 'go-on') {
     html = `<p>What then? Did you go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
-      <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}</div>`;
+      <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}${flyBtn()}</div>`;
   }
   actBox.innerHTML = html;
+  const fly = actBox.querySelector('[data-fly]');
+  if (fly) fly.addEventListener('click', () => {
+    actBox.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const r = act('flyHome', { id: fb.id });
+    if (!r.ok) { actBox.insertAdjacentHTML('beforeend', '<p class="hint warn-text">No aircraft could come.</p>'); return; }
+    ingest({ legs: [], story: r.story, pending: null, expedition: null });
+  });
   if (v.kind === 'airlift') {
     // the bill as the boxes are ticked, and the button calls for the ones ticked
     const call = actBox.querySelector('button:not(.ghost)'), boxes = [...actBox.querySelectorAll('[data-air]')];
@@ -529,6 +541,7 @@ function entryHTML(e) {
     case 'rescued': return `You went down, and the sanctuary's rescue team flew you home, with your team and all it carried. The journey was over. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
     case 'care': return e.coins ? `Your medical care cost ${e.coins} coins.` : 'Your medical care was on the house: you had no coins to pay for it.';
     case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, straight to the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
+    case 'flown': return `You called an aircraft, and it flew you all home with all you carried. The journey was over. ${plural(e.paid, 'coin', 'coins')} paid${e.later ? `; ${e.later} billed for the badly hurt, to pay at the nest` : ''}.`;
     case 'carried': return `You carried ${listNames(e.who.map(nm))} on.`;
     case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { collect } from './journey-helper.js';
-import { legMins, partyOf, airliftFare, careOf, hospitalHours } from '../js/journey.js';
+import { legMins, partyOf, airliftFare, careOf, hospitalHours, flightMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, feedBaby, breedProblem, bill, earn } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
@@ -993,4 +993,68 @@ test("the sanctuary's bills: paid when the player chooses, and every coin that c
   assert.equal(s.debt, 0);
   assert.equal(s.coins, 15);
   assert.equal(applyAction(s, 'payDebt', {}, T0).reason, 'no-debt');
+});
+
+test('an aircraft home, called at any time: the fit paid for then and there, the badly hurt billed', () => {
+  const out = () => {
+    const s = game(dino('ad', 30), dino('c', 30, 'f', 'compy'));
+    const far = hexKey(...landHexes(42).filter(h => hexDist(h) >= 8)[0]);
+    const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'dino', id: 'c' }, { kind: 'player', id: 'player' }], hex: far }, T0);
+    return { s, p: partyOf(s, r.expedition.id), far };
+  };
+  // waiting out there: no coins, no flight
+  let { s, p, far } = out();
+  applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  for (let i = 0; i < 20 && p.pending; i++) applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  if (p.leg) return;   // (the team turned back: nothing to test here)
+  s.coins = 0;
+  const t = T0 + 9e7;
+  let r = applyAction(s, 'flyHome', { id: p.id }, t);
+  assert.equal(r.reason, 'coins');
+  const fare = airliftFare(s, p.members, p.at);
+  assert.equal(r.cost.now, fare);
+  s.coins = fare + 5;
+  p.carry.items.bone = 2;
+  r = applyAction(s, 'flyHome', { id: p.id }, t);
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(s.coins, 5);
+  assert.equal(s.debt || 0, 0);
+  assert.equal(s.world.expeditions.length, 0);
+  const flown = r.story.find(e => e.kind === 'flown');
+  assert.equal(flown.lands, t + flightMins(far) * 60000);
+  assert.equal(s.player.flyingUntil, flown.lands);
+  // the badly hurt (a quarter of their health or less) fly on credit, their care billed too
+  ({ s, p, far } = out());
+  p.health = { ad: 0.2 };
+  const mid = T0 + (p.leg.arriveAt - T0) / 2;
+  s.coins = 0;
+  r = applyAction(s, 'flyHome', { id: p.id }, mid);
+  const bill = r.cost;
+  // (only the fit's share is paid now: a Compsognathus and the player)
+  assert.ok(bill.later > 0 && bill.now < bill.fare);
+  assert.equal(bill.later, bill.fare - bill.now + careOf(0.2, false));
+  if (bill.now) { assert.equal(r.reason, 'coins'); s.coins = bill.now; r = applyAction(s, 'flyHome', { id: p.id }, mid); }
+  assert.equal(r.ok, true, r.reason);
+  collect(s, { id: p.id }, mid);
+  assert.equal(s.coins, 0);
+  assert.equal(s.world.expeditions.length, 0);
+  assert.ok(s.debt >= bill.later);
+});
+
+test('called on its way, a team stops where it is: the way so far is told, then it flies', () => {
+  const s = game(dino('ad', 30));
+  const far = hexKey(...landHexes(42).filter(h => hexDist(h) >= 8)[0]);
+  const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: 'player' }], hex: far }, T0);
+  const p = partyOf(s, r.expedition.id);
+  s.coins = 10000;
+  const mid = T0 + (p.leg.arriveAt - T0) / 2;
+  const call = applyAction(s, 'flyHome', { id: p.id }, mid);
+  assert.equal(call.ok, true, call.reason);
+  assert.equal(p.leg.arriveAt, mid);
+  assert.equal(applyAction(s, 'flyHome', { id: p.id }, mid).reason, 'called');
+  const told = collect(s, { id: p.id }, mid);
+  assert.equal(s.world.expeditions.length, 0);
+  assert.equal(s.coins, 10000 - call.cost.now);
+  assert.equal(s.debt || 0, 0);
+  assert.ok(told);
 });
