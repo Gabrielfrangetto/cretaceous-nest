@@ -339,21 +339,28 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null) 
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
 // the same drawing, or the species' own
 const skinAt = (type, sex, part, stage) => {
-  const a = scarAnchor(type, sex, part, stage), mine = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex]) || {};
-  const other = SCARS.parts.map(pt => mine[pt] && mine[pt].c).find(Boolean);
+  const a = scarAnchor(type, sex, part, stage), other = Object.values(ownScars(type, sex, stage)).map(o => o && o.c).find(Boolean);
   return (a && a.c) || other || (SPECIES[type] && SPECIES[type].body) || null;
 };
 // the giver of the worst a part got (a species or a creature), as the kind of blow it gave
 // (or the kind itself, as the anchors tool shows it)
 const styleBy = who => (!who ? 'any' : SCARS.style[who] ? who : scarStyle(SPECIES[who] ? { species: who } : { creature: who }));
 // (a baby looks the same whatever its sex, so a place set on either serves both)
-const ownScar = (type, sex, part, stage) => {
+const ownScars = (type, sex, stage) => {
   const at = ((SCAR_ANCHORS[type] || {})[stage] || {});
-  return (at[sex] || {})[part] || (stage === 'baby' ? (at[sex === 'm' ? 'f' : 'm'] || {})[part] : null) || null;
+  return at[sex] || (stage === 'baby' && at[sex === 'm' ? 'f' : 'm']) || {};
 };
+const ownScar = (type, sex, part, stage) => ownScars(type, sex, stage)[part] || null;
+// A part may have more scars than one, all drawn together: part, part~2, part~3... (the part itself
+// when none is placed, where the equipment's places put it)
+export function scarPlaces(type, sex, part, stage = 'adult') {
+  const keys = Object.keys(ownScars(type, sex, stage)).filter(k => k === part || k.startsWith(part + '~'));
+  return keys.length ? keys.sort((a, b) => (+a.split('~')[1] || 1) - (+b.split('~')[1] || 1)) : [part];
+}
 export function scarAnchor(type, sex, part, stage = 'adult') {
   const own = ownScar(type, sex, part, stage);
   if (own) return own;
+  part = part.split('~')[0];
   const at = slot => anchorFor(type, sex, slot);
   const body = at('body'), back = at('back') || body;
   const head = at('head');
@@ -389,9 +396,10 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
   const sheet = src && SHEETS[src.slice(ROOT.length)];
   const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
+  // (each scar placed on the part: [its place's key, how it looks])
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
-    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, pt, stage))
-      : scarMark(styleBy(scarBy && scarBy[pt]), l)]);
+    .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage))
+      : scarMark(styleBy(scarBy && scarBy[pt]), l)]));
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const base = sheet && scarred.length
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarAnchor(type, sex, part, stage), mark, part]).filter(([a]) => a), src)

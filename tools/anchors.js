@@ -17,6 +17,10 @@ try { const saved = JSON.parse(localStorage.getItem(SCAR_KEY)); if (saved) scarS
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(anchors)); localStorage.setItem(SCAR_KEY, JSON.stringify(scarSet)); } catch (e) {} };
 const scarring = () => $('mode').value === 'scars';
 const PARTS = { head: 'Head (face)', neck: 'Neck', body: 'Flank', legs: 'Legs', tail: 'Tail' };
+// a part may have several scars: part, part~2, part~3...
+const baseOf = key => key.split('~')[0];
+const label = key => PARTS[baseOf(key)] + (key.includes('~') ? ' ' + key.split('~')[1] : '');
+const keysOn = pt => Object.keys(scarsOf()).filter(k => baseOf(k) === pt).sort((a, b) => (+a.split('~')[1] || 1) - (+b.split('~')[1] || 1));
 
 const gearFor = slot => Object.entries(ITEMS).filter(([, it]) => it.kind === 'gear' && it.slot === slot);
 const fill = (sel, pairs) => { sel.innerHTML = pairs.map(([v, t]) => `<option value="${v}">${t}</option>`).join(''); };
@@ -83,7 +87,7 @@ function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
   const shown = $('wound').value, scar = shown === '2' || shown === '1';
   // (only the scars added to this drawing are drawn)
-  const placed = SCARS.parts.filter(pt => scarsOf()[pt]);
+  const placed = SCARS.parts.filter(pt => keysOn(pt).length);
   const all = Object.fromEntries(placed.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
   const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.replace('s', '');
@@ -92,9 +96,11 @@ function renderScars() {
   // (with none, the plain drawing: boxed the same, to be clicked the same)
   if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');
-  fill($('slot'), SCARS.parts.map(pt => [pt, (scarsOf()[pt] ? '✓ ' : '') + PARTS[pt]]));
+  fill($('slot'), SCARS.parts.flatMap(pt => keysOn(pt).length ? keysOn(pt).map(k => [k, '✓ ' + label(k)]) : [[pt, PARTS[pt]]]));
   $('slot').value = part;
-  $('addScar').hidden = !!scarsOf()[part]; $('removeScar').hidden = !scarsOf()[part];
+  if ($('slot').value !== part) $('slot').value = keysOn(baseOf(part))[0] || baseOf(part);
+  const on = !!scarsOf()[$('slot').value];
+  $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
   if (base) base.style.height = TALL + 'px';
   sheetCv = base && base.sheet ? base : null;
   $('canvas').innerHTML = '';
@@ -116,7 +122,7 @@ function renderScars() {
   const a = current();
   if (a) { $('w').value = a.w; $('r').value = Math.round(here(a).r || 0); showReadout(a); }
   showFrame();
-  const own = scarsOf()[part] && scarsOf()[part].c, other = SCARS.parts.map(pt => scarsOf()[pt] && scarsOf()[pt].c).find(Boolean);
+  const own = scarsOf()[part] && scarsOf()[part].c, other = Object.values(scarsOf()).map(o => o && o.c).find(Boolean);
   $('swatch').style.background = own || other || SPECIES[type].body;
   $('swatch').title = own ? 'Picked for this part' : other ? 'Picked on another part of this drawing' : 'The species colour, not picked yet';
   $('out').value = output();
@@ -290,11 +296,13 @@ $('canvas').addEventListener('pointerdown', e => {
   if (scarring()) {
     // (a click on another added scar picks it; on bare skin, the chosen one goes there, if added)
     const rect = art.getBoundingClientRect(), fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
-    const hit = SCARS.parts.filter(pt => scarsOf()[pt]).find(pt => {
-      const a = scarsOf()[pt], b = here(a), hw = a.w / 2 * 1.2, hh = a.w * rect.width / rect.height / 2 * 1.2;
+    const under = pt => {
+      const a = scarsOf()[pt], b = here(a), hw = a.w / 2 * 0.85, hh = a.w * rect.width / rect.height / 2 * 0.85;
       return Math.abs(fx - b.x) <= hw && Math.abs(fy - b.y) <= hh;
-    });
-    if (hit && hit !== $('slot').value) { $('slot').value = hit; render(); $('msg').textContent = `${PARTS[hit]} chosen.`; return; }
+    };
+    // (the chosen one first, where they overlap)
+    const hit = scarsOf()[$('slot').value] && under($('slot').value) ? $('slot').value : Object.keys(scarsOf()).find(under);
+    if (hit && hit !== $('slot').value) { $('slot').value = hit; render(); $('msg').textContent = `${label(hit)} chosen.`; return; }
     if (!scarsOf()[$('slot').value]) { $('msg').textContent = 'This scar is not on the drawing: press “Add this scar”, or click one already added.'; return; }
   }
   // (a scar is placed on a still frame)
@@ -340,12 +348,24 @@ $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };
   save(); render();
-  $('msg').textContent = `${PARTS[$('slot').value]} added: drag it where it goes.`;
+  $('msg').textContent = `${label($('slot').value)} added: drag it where it goes.`;
+});
+// one more on the same part, a little off the one chosen (they are all drawn together)
+$('anotherScar').addEventListener('click', () => {
+  const key = $('slot').value, pt = baseOf(key), a = scarsOf()[key];
+  let n = 2;
+  while (scarsOf()[pt + '~' + n]) n++;
+  const next = pt + '~' + n;
+  scarsOf()[next] = { x: Math.round((a.x + 0.04) * 1000) / 1000, y: Math.round((a.y + 0.04) * 1000) / 1000, w: a.w, r: a.r || 0, ...(a.c ? { c: a.c } : {}) };
+  save(); render();
+  $('slot').value = next; render();
+  $('msg').textContent = `${label(next)} added: drag it where it goes.`;
 });
 $('removeScar').addEventListener('click', () => {
-  delete scarsOf()[$('slot').value];
+  const key = $('slot').value;
+  delete scarsOf()[key];
   save(); render();
-  $('msg').textContent = `${PARTS[$('slot').value]} removed from this drawing.`;
+  $('msg').textContent = `${label(key)} removed from this drawing.`;
 });
 $('look').addEventListener('change', render);
 $('wound').addEventListener('change', render);
