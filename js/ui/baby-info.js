@@ -9,7 +9,7 @@ import { dressedArt, ITEM_ICONS } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
 import { worldTime } from '../sun.js';
-import { scarLevels } from '../journey.js';
+import { scarLevels, woundsOf } from '../journey.js';
 import { CREATURES } from '../config.js';
 
 // its scars, and who gave them (only seen: they change nothing)
@@ -138,7 +138,7 @@ function render() {
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now())));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;

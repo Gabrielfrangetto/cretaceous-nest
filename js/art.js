@@ -322,10 +322,11 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 const SCAR_ART = { claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp' } };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
-export function scarMark(style, level) {
+export function scarMark(style, level, tint = 0) {
+  const t = Math.round(tint * 20) / 20;
   const art = SCAR_ART[style] || {}, src = art[level] || art[1] || art[2];
-  return src ? { key: src, src: asset(src), scale: 1 }
-    : { key: 'line' + level, src: lineScar(level), scale: 1.2, level };
+  return src ? { key: src, src: asset(src), scale: 1, tint: t }
+    : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
 // the giver of the worst a part got (a species or a creature), as the kind of blow it gave
 // (or the kind itself, as the anchors tool shows it)
@@ -362,7 +363,9 @@ export function scarAt(a, frame, frames) {
 const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 
 // scarBy: who gave each part its worst (a dinosaur's own), so its scar looks like that blow
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null) {
+// wounds: its open wounds (journey.js woundsOf): red, the deep scar while they gape, the marked one as
+// they close, as the scar it leaves once closed
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
@@ -370,8 +373,10 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
   const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
   const sheet = src && SHEETS[src.slice(ROOT.length)];
-  const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([, l]) => l)
-    .map(([pt, l]) => [pt, scarMark(styleBy(scarBy && scarBy[pt]), l)]);
+  const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
+  const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
+    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : Math.max(1, l), open(pt))
+      : scarMark(styleBy(scarBy && scarBy[pt]), l)]);
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const base = sheet && scarred.length
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarAnchor(type, sex, part, stage), mark, part]).filter(([a]) => a), src)
@@ -390,8 +395,10 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
     layer.dataset.part = part;
-    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
-    if (mark.level) layer.innerHTML = scarSVG(mark.level); else layer.appendChild(pictureOf(mark.src));
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
+    if (mark.level) layer.innerHTML = scarSVG(mark.level);
+    else if (mark.tint) layer.appendChild(tintedCanvas(mark));
+    else layer.appendChild(pictureOf(mark.src));
     box.appendChild(layer);
   }
   for (const [slot, id] of worn) {
@@ -433,8 +440,48 @@ const sheetImages = {}, scarImages = {};
 const imageOf = (cache, key, src) => cache[key] || (cache[key] = Object.assign(new Image(), { src }));
 // (as .scar-layer draws them, but inside one picture)
 const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
+// An open wound: the scar's flesh dark crimson (its pale ridges a little lighter, its ink kept), as much
+// as the wound is open; made once per scar and shade
+const tinted = {};
+function tintOf(mark) {
+  const key = mark.key + '|' + mark.tint;
+  if (tinted[key]) return tinted[key];
+  const img = scarImage(mark);
+  if (!img.complete || !img.naturalWidth) return null;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  try {
+    const d = g.getImageData(0, 0, c.width, c.height), px = d.data, t = mark.tint;
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3]) continue;
+      const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255, lum = 0.3 * r + 0.59 * gr + 0.11 * b;
+      if (lum < 0.25) continue;
+      const k = 0.55 + lum * 0.75, ridge = lum > 0.8;
+      const red = [Math.min(1, 0.62 * k + (ridge ? 0.25 : 0)), Math.min(1, 0.07 * k + (ridge ? 0.12 : 0)), Math.min(1, 0.08 * k + (ridge ? 0.1 : 0))];
+      px[i] = (r * (1 - t) + red[0] * t) * 255; px[i + 1] = (gr * (1 - t) + red[1] * t) * 255; px[i + 2] = (b * (1 - t) + red[2] * t) * 255;
+    }
+    g.putImageData(d, 0, 0);
+  } catch (e) { /* a picture that can't be read stays as it is */ }
+  return (tinted[key] = c);
+}
+const markImage = mark => (mark.tint ? tintOf(mark) : scarImage(mark));
+const markReady = mark => { const m = markImage(mark); return !!m && (m.tagName === 'CANVAS' || (m.complete && m.naturalWidth > 0)); };
+// (on a sprite drawn as it is, the wound is a canvas of its own, filled once its scar has loaded)
+function tintedCanvas(mark) {
+  const cv = document.createElement('canvas');
+  const fill = () => {
+    const t = tintOf(mark);
+    if (!t) { scarImage(mark).addEventListener('load', fill, { once: true }); return; }
+    cv.width = t.width; cv.height = t.height;
+    cv.getContext('2d').drawImage(t, 0, 0);
+  };
+  fill();
+  return cv;
+}
 const lineScar = level => ('data:image/svg+xml,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 120 120"><filter id="s"><feDropShadow dx="0" dy="2.4" stdDeviation="0" flood-color="rgb(55,25,20)" flood-opacity=".6"/></filter><g fill="none" stroke="rgba(236,214,198,.78)" stroke-width="${level === 2 ? 4.4 : 3.6}" stroke-linecap="round" filter="url(#s)">${SCAR_MARK[level].replace('class="pits"', 'fill="rgba(60,30,25,.55)" stroke="none"')}</g></svg>`));
+  `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="-10 -10 120 120"><filter id="s"><feDropShadow dx="0" dy="2.4" stdDeviation="0" flood-color="rgb(55,25,20)" flood-opacity=".6"/></filter><g fill="none" stroke="rgba(236,214,198,.78)" stroke-width="${level === 2 ? 4.4 : 3.6}" stroke-linecap="round" filter="url(#s)">${SCAR_MARK[level].replace('class="pits"', 'fill="rgba(60,30,25,.55)" stroke="none"')}</g></svg>`));
 const drawing = new Set();
 let ticking = false;
 function tick(now) {
@@ -454,8 +501,8 @@ export function drawFrame(cv, frame) {
   ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
   ctx.globalCompositeOperation = 'source-atop';
   for (const [place, mark] of cv.scars) {
-    const a = scarAt(place, frame, s.frames), img = scarImage(mark);
-    if (!img.complete || !img.naturalWidth) { cv.dirty = true; continue; }
+    const a = scarAt(place, frame, s.frames), img = markImage(mark);
+    if (!markReady(mark)) { cv.dirty = true; continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
@@ -465,7 +512,7 @@ export function drawFrame(cv, frame) {
   }
   ctx.globalCompositeOperation = 'source-over';
   cv.drawn = frame;
-  cv.dirty = cv.scars.some(([, mark]) => !scarImage(mark).complete);
+  cv.dirty = cv.scars.some(([, mark]) => !markReady(mark));
 }
 // scars: [place, mark (scarMark), part]; hold a frame by setting the canvas's hold (null plays it); fallback, the
 // animated sprite itself, should the sheet not load

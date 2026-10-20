@@ -1130,6 +1130,10 @@ export const RESCUE = { coins: 50 };
 // on their skulls show; a Velociraptor slashed flanks with its claw; a horned one gored the body and
 // legs; a club or a tail swung low at the legs...). So much lost on one part, over however many fights,
 // leaves a scar there (marked), and far more a deep one (deep). Lamed legs count on the legs.
+// A fresh wound, only seen: the parts struck in a journey's fights show it, red, while the dinosaur is
+// hurt, and it closes as it heals (at home, as long as its injury lasts, and at least mins for the
+// worst of wounds, less for a lighter one); then only its scar is left, if it left one
+export const WOUNDS = { mins: 360 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {

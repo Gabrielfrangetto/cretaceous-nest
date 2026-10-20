@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -25,7 +25,7 @@ import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
   runnersSpot, eyesChance, standsGround, standoffOf, chaseOf, witnessAt, interveneOptions, lootTable, eggKinds, pickWeighted, bury,
-  teamVisibility, catchChance, caughtDeath,
+  teamVisibility, catchChance, caughtDeath, landed as hasLanded, injuredLeft,
 } from './world.js';
 
 export const HOME = '0,0';
@@ -1273,6 +1273,21 @@ function scar(ctx, ev, id, lost, lame, entry) {
   const most = Object.entries(got).sort((x, y) => y[1] - x[1])[0][0];
   const who = entry && (entry.species || entry.creature);
   if (who) b.scarBy = { ...(b.scarBy || {}), [most]: who };
+  // (and its wounds, open while it is hurt: WOUNDS)
+  const open = b.wound && !b.wound.until ? b.wound.parts : [];
+  b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
+}
+// How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur
+// is; at home, closing as it heals. Returns { parts: { part: how open }, by }, or null once all closed.
+export function woundsOf(s, b, now) {
+  const w = b && b.wound;
+  if (!w || !w.parts || !w.parts.length) return null;
+  const id = b === s.player ? PLAYER_ID : b.id, p = W(s).expeditions.find(e => e.members.includes(id));
+  let open;
+  if (!w.until) open = p && !hasLanded(p, now) ? (isDown(p, id) ? 1 : 1 - healthOf(p, id)) : injuredLeft(b, now) > 0 ? 1 : 0;
+  else open = w.until > w.at ? w.open * Math.max(0, Math.min(1, (w.until - now) / (w.until - w.at))) : 0;
+  open = Math.round(open * 100) / 100;
+  return open > 0 ? { parts: Object.fromEntries(w.parts.map(pt => [pt, open])), by: w.by || null } : null;
 }
 // how scarred each part is: 0 none, 1 marked, 2 deep
 export const scarLevels = b => Object.fromEntries(SCARS.parts.map(pt => {
@@ -1417,6 +1432,12 @@ function comeHome(ctx) {
       b.injuredUntil = now + mins * 60000;
       if (critical) b.critical = true; else delete b.critical;
       injured.push({ id, mins, ...(critical ? { critical } : {}) });
+    }
+    // its wounds close from here: as long as its injury, or as bad as they are of WOUNDS.mins
+    if (b.wound && !b.wound.until) {
+      const open = down ? 1 : Math.max(0, 1 - left);
+      if (open > 0) b.wound = { ...b.wound, open, at: now, until: now + Math.max(mins, open * WOUNDS.mins) * 60000 };
+      else delete b.wound;
     }
     // (at home the keepers feed the dinosaurs; the player comes home as hungry as the journey left
     // them: past SURVIVAL.at they need a meal at once)

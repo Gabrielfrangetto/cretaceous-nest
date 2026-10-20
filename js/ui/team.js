@@ -8,6 +8,7 @@ import { isAway, injuredLeft } from '../world.js';
 import { packOf, alphaOf } from '../packs.js';
 import { cleanTeams, PRESET_SLOTS } from '../teams.js';
 import { dressedArt } from '../art.js';
+import { woundsOf } from '../journey.js';
 import { esc } from '../util.js';
 import { now } from '../clock.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -54,7 +55,7 @@ function cardHTML(u, extra = '') {
 function drawArt(root) {
   root.querySelectorAll('[data-dino]').forEach(el => {
     const b = dinoOf(el.dataset.dino);
-    if (b) el.appendChild(dressedArt(b.type, 3.2, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy));
+    if (b) el.appendChild(dressedArt(b.type, 3.2, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now())));
   });
   root.querySelectorAll('[data-pack]').forEach(el => {
     const p = packById(el.dataset.pack);

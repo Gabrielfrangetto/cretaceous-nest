@@ -5,6 +5,8 @@ import { SPECIES, SEX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, wornGear, stageOf } from '../economy.js';
 import { dressedArt, spriteUrl } from '../art.js';
+import { woundsOf } from '../journey.js';
+import { now as gameNow } from '../clock.js';
 import { esc } from '../util.js';
 import { unlockAudio, startAlarm, stopAlarm } from '../alarm.js';
 import {
@@ -120,7 +122,7 @@ function alertNow(test = false) {
   const dino = document.getElementById('waterDino');
   dino.innerHTML = '';
   // the water scene has a fixed size, so every stage is drawn as big as a baby there
-  dino.appendChild(dressedArt(baby.type, DINO_PX / stageOf(baby).scale, sex, wornGear(baby), baby.outfit, stageOf(baby).id, baby.scars, baby.scarBy));
+  dino.appendChild(dressedArt(baby.type, DINO_PX / stageOf(baby).scale, sex, wornGear(baby), baby.outfit, stageOf(baby).id, baby.scars, baby.scarBy, woundsOf(S, baby, gameNow())));
   pop.hidden = false;
   pop.classList.remove('in'); void pop.offsetWidth; pop.classList.add('in');
 

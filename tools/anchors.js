@@ -84,7 +84,10 @@ function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
   const all = Object.fromEntries(SCARS.parts.map(pt => [pt, SCARS.deep]));
   const look = Object.fromEntries(SCARS.parts.map(pt => [pt, $('look').value]));
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look));
+  const open = +$('wound').value;
+  $('woundNo').textContent = open ? (open > 0.5 ? '· just given' : '· closing') : '· healed: the scar';
+  const wounds = open ? { parts: Object.fromEntries(SCARS.parts.map(pt => [pt, open])), by: $('look').value } : null;
+  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds));
   const base = art.querySelector('.dino-base');
   if (base) base.style.height = TALL + 'px';
   sheetCv = base && base.sheet ? base : null;
@@ -200,7 +203,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -273,6 +276,7 @@ $('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { if (!scarring()) fillItems(); render(); });
 $('stage').addEventListener('change', render);
 $('look').addEventListener('change', render);
+$('wound').addEventListener('input', render);
 $('mode').addEventListener('change', () => {
   if (scarring()) fill($('slot'), SCARS.parts.map(pt => [pt, PARTS[pt]]));
   else { fill($('slot'), GEAR_SLOTS.filter(g => DRAWN_SLOTS.includes(g.id)).map(g => [g.id, g.name])); fillItems(); }

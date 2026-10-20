@@ -134,6 +134,16 @@ const MIGRATIONS = {
   },
 };
 
+// a dinosaur's open wounds, as journey.js scar() and comeHome() leave them
+function cleanWound(w) {
+  if (!w || typeof w !== 'object' || !Array.isArray(w.parts)) return undefined;
+  const parts = SCARS.parts.filter(pt => w.parts.includes(pt));
+  if (!parts.length) return undefined;
+  const out = { parts, ...(typeof w.by === 'string' ? { by: w.by.slice(0, 24) } : {}) };
+  if (Number(w.until) > 0) Object.assign(out, { open: Math.max(0, Math.min(1, Number(w.open) || 0)), at: Number(w.at) || 0, until: Number(w.until) });
+  return out;
+}
+
 // keeps a loaded save inside the rules whatever produced it
 function sanitize(s) {
   s.coins = Math.max(0, Math.floor(Number(s.coins) || 0));
@@ -158,6 +168,8 @@ function sanitize(s) {
     // the health lost in fights on each part of its body (SCARS), and who gave the worst of it
     scars: b.scars && typeof b.scars === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => Number(b.scars[pt]) > 0).map(pt => [pt, Math.min(99, Number(b.scars[pt]))])) : undefined,
     scarBy: b.scarBy && typeof b.scarBy === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => typeof b.scarBy[pt] === 'string').map(pt => [pt, b.scarBy[pt].slice(0, 24)])) : undefined,
+    // its open wounds (WOUNDS): the parts, who gave them, and once home how open, from when, until when
+    wound: cleanWound(b.wound),
     // flown home by air, landing then
     flyingUntil: Number(b.flyingUntil) > 0 ? Number(b.flyingUntil) : undefined,
     // raised among Hypacrosaurus: a share more of every stat (NURSE)
