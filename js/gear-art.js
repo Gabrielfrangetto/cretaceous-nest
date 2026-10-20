@@ -80,3 +80,7 @@ export const FITTED = {
 
 // pieces worn on the back are drawn behind the body; the rest in front of it
 export const BEHIND = new Set(['back']);
+
+// Where scars go on each sprite, set in tools/anchors.html: SCAR_ANCHORS[type][stage][sex][part] =
+// { x, y, w, r } (as ANCHORS). A part not set here goes where the equipment's anchors put it.
+export const SCAR_ANCHORS = {};

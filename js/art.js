@@ -1,6 +1,6 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
 import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS } from './config.js';
-import { anchorFor, gearArtFor, FITTED, BEHIND } from './gear-art.js';
+import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -313,7 +313,9 @@ const SCAR_MARK = {
   2: '<path d="M14 26 L74 10 M20 46 L88 28 M30 66 L84 52"/><g class="pits"><circle cx="40" cy="80" r="3.5"/><circle cx="54" cy="76" r="3.5"/><circle cx="68" cy="72" r="3.5"/></g>',
 };
 const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_MARK[level]}</svg>`;
-function scarAnchor(type, sex, part) {
+export function scarAnchor(type, sex, part, stage = 'adult') {
+  const own = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex] || {})[part];
+  if (own) return own;
   const at = slot => anchorFor(type, sex, slot);
   const body = at('body'), back = at('back') || body;
   const head = at('head');
@@ -343,11 +345,14 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   box.appendChild(base);
   // (scars on the skin, under whatever it wears)
   for (const [part, level] of scarred) {
-    const a = scarAnchor(type, sex, part);
+    const own = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex] || {})[part];
+    const a = scarAnchor(type, sex, part, stage);
     if (!a) continue;
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${level}`;
-    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (part === 'head' ? 0.55 : 0.6) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
+    layer.dataset.part = part;
+    // (a scar's own place gives its size; one taken from the equipment's is a little smaller)
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (own ? 1 : part === 'head' ? 0.55 : 0.6) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     layer.innerHTML = scarSVG(level);
     box.appendChild(layer);
   }
