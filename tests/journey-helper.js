@@ -24,6 +24,9 @@ export function collect(s, { id, ...choice }, now) {
     r = applyAction(s, 'journey', { id, ...choice }, now);
     if (!r.ok) return r;
     story.push(...r.story);
+    // (a decision made, the rest of the way comes later: on to when the leg is over)
+    const q = partyOf(s, id);
+    if (!r.pending && q && q.leg === p.leg && q.leg && now < q.leg.arriveAt && !q.leg.air) { now = q.leg.arriveAt; continue; }
     if (!r.pending) break;
   }
   const arrived = story.find(e => e.kind === 'arrived');
@@ -35,7 +38,8 @@ export function collect(s, { id, ...choice }, now) {
       story.push(...applyAction(s, 'journey', { id }, now).story);
     }
   }
-  return summary(story, arrived, p);
+  // (at: when it was all told, the decisions having pushed the way on)
+  return { ...summary(story, arrived, p), at: now };
 }
 
 export function summary(story, arrived, p) {
@@ -70,6 +74,8 @@ export function summary(story, arrived, p) {
 export function reach(s, id, now, wants) {
   for (let i = 0; i < 100; i++) {
     const r = applyAction(s, 'journey', { id }, now);
+    const q = partyOf(s, id);
+    if (r.ok && !r.pending && q && q.leg && now < q.leg.arriveAt && !q.leg.air) { now = q.leg.arriveAt; continue; }
     if (!r.ok || !r.pending) return null;
     // (left waiting: the next call, collect, answers it)
     if (wants(r.pending)) return r.pending;

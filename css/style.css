@@ -909,3 +909,10 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
   .topbar { min-height: 52px; }
   .topbar nav.tabs .tab { align-self: auto; padding: 6px 0 5px; margin: 0; }
 }
+/* a journey stopped for the player: its bar pulses red, slowly */
+.bar.alert i { background: var(--heart); }
+.bar.alert { animation: halt 1.8s ease-in-out infinite; }
+@keyframes halt { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .bar.alert { animation: none; } }
+.alert-text { color: var(--heart); font-weight: 700; font-size: 13px; }
+.trip-row.halted .row { justify-content: space-between; align-items: center; }

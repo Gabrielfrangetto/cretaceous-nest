@@ -82,7 +82,7 @@ function lostAtLair() {
   for (const key of lairs(42).filter(k => threatAt(42, k.split(',').map(Number)).id === 'rex').reverse()) {
     const s = game(dino('runt', 1, 'trike'));
     const r = trip(s, 'runt', key);
-    if (s.hatched.length && r.battle && !r.intercepted) return { s, key, r, back: T0 + tripMins(key, 42) * 60000 };
+    if (s.hatched.length && r.battle && !r.intercepted) return { s, key, r, back: r.at };
   }
   assert.fail('every runt died');
 }

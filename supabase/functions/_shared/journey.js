@@ -155,6 +155,9 @@ export function positionOf(s, p, now) {
 export function progressOf(s, p, now) {
   const leg = p.leg;
   if (!leg) return null;
+  // (stopped for the player: where it stopped)
+  const stop = leg.pausedAt != null ? { at: leg.pausedAt } : stopOf(s, p);
+  if (stop && now > stop.at) now = stop.at;
   const seed = W(s).seed, costs = pathCosts(seed, leg.from, leg.path);
   const total = costs.reduce((t, c) => t + c, 0) || 1;
   const done = Math.min(1, Math.max(0, (now - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt))) * total;
@@ -248,6 +251,9 @@ export function recallParty(s, id, now) {
   if (leg.train) return { ok: false, reason: 'on-the-train' };
   if (leg.to === HOME || leg.recalled) return { ok: false, reason: 'homeward' };
   if (now >= leg.arriveAt) return { ok: false, reason: 'arrived' };
+  // stopped for the player: that is to be seen first
+  const stop = stopOf(s, p);
+  if (p.pending || (stop && now >= stop.at)) return { ok: false, reason: 'untold' };
   const i = Math.max(leg.step - 1, positionOf(s, p, now));
   if (i < 0) {
     // it hadn't left yet: straight back, nothing happened
@@ -267,12 +273,16 @@ export function recallParty(s, id, now) {
 // told ({ n, from, to, path, step: where the telling began }), leg: the last of them, pending: the decision waiting (pendingView), expedition: the party (null once home or
 // lost) }. choice answers the decision waiting: { fight }, { flee }, { hunt }, { back }, or
 // { witness: { act: 'prey' | 'predator', hunter } }.
-export function journeyStep(s, id, choice = {}, now) {
+export function journeyStep(s, id, choice = {}, now, dry = false) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
   if (!p.leg) return { ok: false, reason: 'waiting' };
-  if (now < p.leg.arriveAt) return { ok: false, reason: 'not-back' };
-  const ctx = { s, p, now, story: [], legs: [], n: p.leg.n };
+  // on its way it is told only once it has stopped for something (stopOf), or arrived
+  if (!dry && !p.pending && now < p.leg.arriveAt) {
+    const stop = stopOf(s, p);
+    if (!stop || now < stop.at) return { ok: false, reason: 'not-back' };
+  }
+  const ctx = { s, p, now, story: [], legs: [], n: p.leg.n, dry };
   // (every event is told with the leg it happened on, n)
   ctx.story.push = (...xs) => Array.prototype.push.apply(ctx.story, xs.map(x => ({ n: ctx.n, ...x })));
   // (step: the next hex to tell when the telling began)
@@ -285,11 +295,21 @@ export function journeyStep(s, id, choice = {}, now) {
     else if (ev.kind === 'airlift') { airlift(ctx, ev, choice || {}); if (!ctx.gone && !p.pending) afterEvent(ctx, ev); }
     else if (run(ctx, ev, choice || {}) && !ctx.gone && !p.pending && !offerAirlift(ctx, ev.idx)) afterEvent(ctx, ev);
     if (!ctx.gone && playerDown(p)) rescue(ctx, ev.idx);
+    // it stood there while the player decided: the rest of the way comes that much later
+    const leg = p.leg;
+    if (!ctx.gone && leg && !p.pending && leg.pausedAt != null) {
+      const late = Math.max(0, now - leg.pausedAt);
+      leg.startedAt += late; leg.arriveAt += late;
+      delete leg.pausedAt;
+      Object.assign(p, { startedAt: leg.startedAt, returnAt: leg.arriveAt });
+    }
   }
   walk(ctx);
+  // a decision waiting: the party stands where it came to it until the player answers
+  if (!ctx.gone && p.pending && p.leg && p.leg.pausedAt == null && !dry) p.leg.pausedAt = timeAt(s, p.leg, p.pending.idx);
   return {
     ok: true, story: ctx.story, legs: ctx.legs, leg: ctx.legs[ctx.legs.length - 1],
-    pending: !ctx.gone && p.pending ? pendingView(s, p) : null, expedition: ctx.gone ? null : p,
+    pending: !ctx.gone && p.pending ? pendingView(s, p) : null, expedition: ctx.gone ? null : p, stop: ctx.stop || null,
   };
 
   function walk(c) {
@@ -297,27 +317,48 @@ export function journeyStep(s, id, choice = {}, now) {
       const leg = p.leg;
       c.n = leg.n;
       if (c.legs[c.legs.length - 1].n !== leg.n) c.legs.push(snap());
-      if (now < leg.arriveAt) break;
+      // on its way: as far as it has got by now
+      if (now < leg.arriveAt && (leg.train || leg.air || leg.step >= leg.path.length || timeAt(s, leg, leg.step) > now)) break;
       // (on the train nothing happens on the way)
       if (leg.train || leg.air) leg.step = leg.path.length;
-      if (leg.step >= leg.path.length) { arrive(c); continue; }
+      if (leg.step >= leg.path.length) { if (c.dry) break; arrive(c); continue; }
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
       reveal(s, [key]);
       const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
       if (z) suffer(c, z);
       if (!c.gone) survive(c, idx);
-      if (c.gone) break;
+      if (c.gone) { if (c.dry) c.stop = { idx, at: timeAt(s, leg, idx) }; break; }
       // (the player down: flown home from here, and nothing more happens on the way)
-      if (playerDown(p)) { rescue(c, idx); continue; }
+      if (playerDown(p)) { rescue(c, idx); if (c.dry) { c.stop = { idx, at: timeAt(s, leg, idx) }; break; } continue; }
       // a nest noticed there comes first (and is all that happens at that hex)
       const nest = nestAt(s, p, idx) ? { kind: 'nest', idx, hex: key } : null;
       const ev = nest || (idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx));
       if (ev && run(c, ev, null) && !c.gone && !p.pending && !offerAirlift(c, idx)) afterEvent(c, ev);
-      if (!c.gone && playerDown(p)) { rescue(c, idx); continue; }
+      if (!c.gone && playerDown(p)) { rescue(c, idx); if (c.dry) { c.stop = { idx, at: timeAt(s, leg, idx) }; break; } continue; }
       if (!c.gone && !p.pending) offerAirlift(c, idx);
+      // (looking ahead: the first hex where the journey stops for the player)
+      if (c.dry && (c.gone || p.pending || p.leg !== leg)) { c.stop = { idx, at: timeAt(s, leg, idx) }; break; }
     }
   }
+}
+
+// Where a party on its way will stop for the player, as things stand: the first hex of its leg where a
+// decision waits, a fight or a fall ends the walk, or the team is lost ({ idx, at: when it gets
+// there }), or null (it walks on to the end). Found by telling the leg ahead on a copy; the same every
+// time, since a journey is told from its seeds.
+const stops = new Map();
+export function stopOf(s, p) {
+  const leg = p.leg;
+  if (!leg || leg.train || leg.air || p.pending || leg.step >= leg.path.length) return null;
+  const key = [W(s).seed, p.id, leg.n, leg.step, leg.path.length, leg.startedAt, leg.arriveAt, p.members.join()].join('|');
+  if (stops.has(key)) return stops.get(key);
+  const copy = JSON.parse(JSON.stringify(s));
+  const r = journeyStep(copy, p.id, {}, leg.arriveAt, true);
+  const stop = r.ok ? r.stop : null;
+  if (stops.size > 200) stops.clear();
+  stops.set(key, stop);
+  return stop;
 }
 
 // ---------- air rescue (AIRLIFT) ----------
@@ -354,7 +395,7 @@ function startFlight(s, p, at) {
   Object.assign(p, { hex: HOME, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
 }
 // the hex at idx of the leg, and when the team was there
-const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, idx)], at: timeAt(ctx.s, ctx.p.leg, Math.max(0, idx)) } : { hex: ctx.p.at, at: ctx.now });
+const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, idx)], at: ctx.p.leg.pausedAt != null ? ctx.now : timeAt(ctx.s, ctx.p.leg, Math.max(0, idx)) } : { hex: ctx.p.at, at: ctx.now });
 // dinosaurs flown home land when the flight is over; one down goes on to the hospital
 function land(s, b, lands, grave) {
   if (!b || !grave) return null;
@@ -457,7 +498,7 @@ export function flyHome(s, id, now) {
   const leg = p.leg;
   if (leg && leg.train) return { ok: false, reason: 'on-the-train' };
   if (leg && (leg.fly != null || leg.air)) return { ok: false, reason: 'called' };
-  if (leg && !p.pending && now >= leg.arriveAt) return { ok: false, reason: 'untold' };
+  if (leg && !p.pending && (now >= leg.arriveAt || (stopOf(s, p) && now >= stopOf(s, p).at))) return { ok: false, reason: 'untold' };
   const walking = leg && !p.pending;
   const i = walking ? Math.max(leg.step - 1, positionOf(s, p, now)) : -1;
   const hex = p.pending ? p.pending.hex : !leg ? p.at : i >= 0 ? leg.path[i] : leg.from;
@@ -487,7 +528,8 @@ function afterEvent(ctx, ev) {
 // the leg ends at the hex at index i, and the party heads home from there, from when it was there
 function turnBack(ctx, i) {
   const { s, p, story } = ctx, leg = p.leg;
-  const at = timeAt(s, leg, i);
+  // (from where it stood: after a wait for the player, from now)
+  const at = leg.pausedAt != null ? ctx.now : timeAt(s, leg, i);
   p.at = leg.path[i];
   p.leg = null;
   story.push({ kind: 'turned', hex: p.at, idx: i });
@@ -1413,6 +1455,8 @@ export function cleanParties(s, w) {
         arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : legMins(s, members, from, to, via)) * 60000),
         ...(air ? { air: true } : {}),
         ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(via.length && !recalled ? { via } : {}),
+        // (standing where a decision waits for the player, since then)
+        ...(e.pending && Number.isFinite(L.pausedAt) ? { pausedAt: num(L.pausedAt) } : {}),
       };
     }
     // a party with nowhere to go is one at home: it broke up

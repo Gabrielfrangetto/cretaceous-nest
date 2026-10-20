@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { collect } from './journey-helper.js';
-import { legMins, HOME, partyOf, airliftFare, careOf, hospitalHours, flightMins, trainMins } from '../js/journey.js';
+import { legMins, HOME, partyOf, stopOf, progressOf, airliftFare, careOf, hospitalHours, flightMins, trainMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, feedBaby, breedProblem, bill, earn } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
@@ -242,10 +242,10 @@ test('after something on the way out the player may go on or turn back; the way 
     assert.ok(back.story.some(e => e.kind === 'turned' && e.hex === at));
     const p = s.world.expeditions[0];
     if (p) {
-      // heading home from where it turned, from when it was there: sooner than the whole way
+      // heading home from where it turned, once the player chose to (it stood there until then)
       assert.equal(p.leg.from, at);
       assert.equal(p.leg.to, '0,0');
-      assert.ok(p.leg.startedAt < leg.arriveAt && p.leg.startedAt > leg.startedAt);
+      assert.equal(p.leg.startedAt, leg.arriveAt);
     }
     turned++;
   }
@@ -257,7 +257,9 @@ test('calling a party back: from its way out it turns home from where it is by n
   const s = game(dino('ad', 30));
   const r = applyAction(s, 'explore', { babyId: 'ad', hex: far }, T0);
   const leg = { ...r.expedition.leg, path: [...r.expedition.leg.path] };
-  const half = Math.round((leg.startedAt + leg.arriveAt) / 2);
+  // (before anything on the way stops it for the player)
+  const stop = stopOf(s, s.world.expeditions[0]);
+  const half = Math.min(Math.round((leg.startedAt + leg.arriveAt) / 2), stop ? stop.at - 1 : Infinity);
   assert.equal(applyAction(s, 'recall', { id: r.expedition.id }, half).ok, true);
   const p = s.world.expeditions[0];
   assert.ok(p.leg.recalled && p.leg.path.length < leg.path.length && p.leg.arriveAt === half);
@@ -1075,4 +1077,36 @@ test('called on its way, a team stops where it is: the way so far is told, then 
   assert.equal(s.coins, 10000 - call.cost.now);
   assert.equal(s.debt || 0, 0);
   assert.ok(told);
+});
+
+test('what stops a journey happens as the team gets there: it stands there until the player sees to it, and the rest of the way comes that much later', () => {
+  const far = hexKey(...landHexes(42).filter(h => threatAt(42, h).id === 'rex').at(-1));
+  let seen = 0;
+  for (let trip = 0; trip < 40 && !seen; trip++) {
+    const s = game(dino('p', 60, 'proto'));
+    s.world.trips = trip;
+    const r = applyAction(s, 'explore', { babyId: 'p', hex: far }, T0);
+    const p = partyOf(s, r.expedition.id), leg = { ...p.leg };
+    const stop = stopOf(s, p);
+    if (!stop || stop.idx >= leg.path.length - 1) continue;
+    // not before it gets there; then the way up to it is told, and it stands there
+    assert.equal(applyAction(s, 'journey', { id: p.id }, stop.at - 1).reason, 'not-back');
+    const step = applyAction(s, 'journey', { id: p.id }, stop.at);
+    if (!step.pending) continue;   // (a fall: flown home)
+    assert.equal(step.pending.idx, stop.idx);
+    assert.equal(p.leg.pausedAt, stop.at);
+    // on the map, it stays there however long the player takes
+    assert.deepEqual(progressOf(s, p, stop.at + 9e6), progressOf(s, p, stop.at));
+    // the player answers an hour later: the rest of the way an hour later too
+    const late = 3600000;
+    let t = stop.at + late, next = applyAction(s, 'journey', { id: p.id, fight: true }, t);
+    while (next.pending && next.pending.kind !== 'go-on') next = applyAction(s, 'journey', { id: p.id, fight: true }, t);
+    if (!next.pending || !p.leg) continue;
+    next = applyAction(s, 'journey', { id: p.id }, t);
+    if (!p.leg || p.leg.n !== leg.n || p.pending) continue;
+    assert.equal(p.leg.arriveAt, leg.arriveAt + late);
+    assert.equal(p.leg.pausedAt, undefined);
+    seen++;
+  }
+  assert.ok(seen);
 });

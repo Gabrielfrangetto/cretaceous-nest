@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits, flightBill, flightMins } from '../journey.js';
+import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits, flightBill, flightMins, stopOf } from '../journey.js';
 import { isStation } from '../map.js';
 import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
@@ -783,6 +783,16 @@ function tripsHTML(t) {
       </li>`;
     }
     const leg = p.leg, done = t >= leg.arriveAt;
+    // stopped on the way for the player: it stands there, its bar pulsing, until it is seen to
+    const halt = haltOf(p, t);
+    if (halt && !done) {
+      const at = leg.pausedAt != null ? leg.pausedAt : halt.at, frac = Math.min(1, (at - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
+      return `<li class="trip-row halted">
+      <div>${names} <span class="hint">stopped in the ${esc(placeName(cellAt(S.world.seed, parseKey(leg.path[halt.idx]))))}</span></div>
+      <div class="bar alert"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
+      <div class="row"><span class="alert-text">An action needs your attention</span><button class="btn small" type="button" data-journey="${esc(p.id)}">See what happened</button></div>
+    </li>`;
+    }
     const where = leg.air ? 'flying home by air' : (leg.train ? 'on the maglev ' : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
     const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
     return `<li class="trip-row">
@@ -914,7 +924,14 @@ function bindTrips(box) {
   }));
 }
 // parties with a journey to tell
-const backKey = t => S.world.expeditions.filter(e => e.leg && t >= e.leg.arriveAt).map(e => e.id).join();
+const backKey = t => S.world.expeditions.filter(e => e.leg && (t >= e.leg.arriveAt || haltOf(e, t))).map(e => e.id).join();
+// where a party on its way has stopped for the player by now: { idx, at }, or null
+function haltOf(p, t) {
+  if (!p.leg) return null;
+  if (p.pending) return { idx: p.pending.idx, at: p.leg.pausedAt != null ? p.leg.pausedAt : t };
+  const stop = t < p.leg.arriveAt && stopOf(S, p);
+  return stop && t >= stop.at ? stop : null;
+}
 function tickTrips() {
   const box = document.getElementById('tripsBox');
   if (!box || !S.world.expeditions.length || document.hidden) return;
@@ -930,7 +947,7 @@ function tickTrips() {
 // the timers and the "back!" badge on the tab keep moving while the page is open
 function updateBadge() {
   const t = now();
-  const back = S.world.expeditions.filter(e => e.leg && t >= e.leg.arriveAt).length;
+  const back = S.world.expeditions.filter(e => e.leg && (t >= e.leg.arriveAt || haltOf(e, t))).length;
   const pill = document.getElementById('worldPill');
   pill.hidden = back === 0;
   pill.textContent = back;
