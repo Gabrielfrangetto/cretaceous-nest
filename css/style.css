@@ -879,3 +879,17 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .brand { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top-side { flex: none; gap: 6px; }
 @media (max-width: 420px) { .brand { font-size: 16px; } .coins .debt { margin-left: 4px; } }
+
+/* narrower margins; You as a slim column: the picture on top, the numbers one under another */
+.wrap { max-width: 1600px; }
+.you-top { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: 6px; }
+.you-top .you-art { width: auto; }
+.you-stats { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.you-stats div { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 2px; border-radius: 0; background: none; border-bottom: 1px solid var(--line); }
+.you-stats div:last-child { border-bottom: 0; }
+.you-stats dd { font-size: 14px; }
+@media (min-width: 1200px) {
+  .wrap { max-width: 1600px; grid-template-columns: 200px minmax(0, 1fr); column-gap: 20px; }
+  .wrap > .you-panel { padding: 14px 12px; }
+  .site-footer { max-width: 1600px; padding-left: calc(16px + 200px + 20px); }
+}
