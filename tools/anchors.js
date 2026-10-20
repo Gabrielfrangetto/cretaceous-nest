@@ -57,15 +57,14 @@ const current = () => scarring() ? (scarsOf()[$('slot').value] || withScars(() =
 // the first change to an item copies its slot's fit into an entry of its own, so other items stay put
 function editable() {
   if (scarring()) {
-    const s = scarsOf(), part = $('slot').value;
-    if (!s[part]) { const a = current(); s[part] = { x: a.x, y: a.y, w: Math.round(a.w * 100) / 100, r: a.r || 0 }; }
-    return s[part];
+    return scarsOf()[$('slot').value] || null;
   }
   const s = set(), id = $('item').value;
   if (!s[id]) s[id] = { ...s[$('slot').value] };
   return s[id];
 }
 const showReadout = a => {
+  if (scarring() && !scarsOf()[$('slot').value]) { $('readout').textContent = 'Not on this drawing: add it to place it.'; return; }
   if (scarring()) { const b = here(a); $('readout').textContent = `x ${b.x.toFixed(3)} · y ${b.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${Math.round(b.r || 0)}° · ${scarsOf()[$('slot').value] ? 'its own place' : 'guessed from the equipment places, not set yet'}`; return; }
   const own = !!set()[$('item').value];
   $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}°${a.m ? ' · mirrored' : ''} · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
@@ -83,12 +82,19 @@ const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - 
 function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
   const shown = $('wound').value, scar = shown === '2' || shown === '1';
-  const all = Object.fromEntries(SCARS.parts.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
-  const look = Object.fromEntries(SCARS.parts.map(pt => [pt, $('look').value]));
+  // (only the scars added to this drawing are drawn)
+  const placed = SCARS.parts.filter(pt => scarsOf()[pt]);
+  const all = Object.fromEntries(placed.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
+  const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.replace('s', '');
-  const wounds = open ? { parts: Object.fromEntries(SCARS.parts.map(pt => [pt, open])), by: $('look').value, ...(sewn ? { stitched: true } : {}) } : null;
+  const wounds = open && placed.length ? { parts: Object.fromEntries(placed.map(pt => [pt, open])), by: $('look').value, ...(sewn ? { stitched: true } : {}) } : null;
   art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds));
+  // (with none, the plain drawing: boxed the same, to be clicked the same)
+  if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');
+  fill($('slot'), SCARS.parts.map(pt => [pt, (scarsOf()[pt] ? '✓ ' : '') + PARTS[pt]]));
+  $('slot').value = part;
+  $('addScar').hidden = !!scarsOf()[part]; $('removeScar').hidden = !scarsOf()[part];
   if (base) base.style.height = TALL + 'px';
   sheetCv = base && base.sheet ? base : null;
   $('canvas').innerHTML = '';
@@ -122,6 +128,7 @@ function showFrame() {
   $('frameNo').textContent = `${k + 1} of ${frames()}` + (k === 0 || keys.includes(k) ? ' · a key' : '');
   $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'Only frame 1 is set: the scar stays still. Move it on another frame, or let it follow the body.';
   $('play').textContent = held == null ? 'Stop' : 'Play';
+  if (mark) mark.hidden = !scarsOf()[$('slot').value];
   if (mark && a) {
     const b = here(a);
     Object.assign(mark.style, { left: (b.x * 100) + '%', top: (b.y * 100) + '%', width: (a.w * 100) + '%', height: (a.w * sheetCv.sheet.w / sheetCv.sheet.h * 100) + '%', rotate: (b.r || 0) + 'deg' });
@@ -206,7 +213,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -271,7 +278,8 @@ async function pickAt(e) {
   save(); render();
   $('msg').textContent = `The skin here is ${editable().c}: a wound sewn up on this part heals into it (shown nearly healed).`;
 }
-$('pick').addEventListener('click', () => { picking = true; $('canvas').classList.add('picking'); $('msg').textContent = 'Click the skin where this scar goes.'; });
+$('pick').addEventListener('click', () => {
+  if (needScar()) return; picking = true; $('canvas').classList.add('picking'); $('msg').textContent = 'Click the skin where this scar goes.'; });
 $('unpick').addEventListener('click', () => { const a = scarsOf()[$('slot').value]; if (a) delete a.c; save(); render(); $('msg').textContent = 'Back to the species colour.'; });
 
 // pointer anywhere on the dinosaur: the chosen piece jumps there and follows until released
@@ -279,6 +287,16 @@ $('canvas').addEventListener('pointerdown', e => {
   if (!art || !art.contains(e.target)) return;
   e.preventDefault();
   if (picking) { pickAt(e); return; }
+  if (scarring()) {
+    // (a click on another added scar picks it; on bare skin, the chosen one goes there, if added)
+    const rect = art.getBoundingClientRect(), fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
+    const hit = SCARS.parts.filter(pt => scarsOf()[pt]).find(pt => {
+      const a = scarsOf()[pt], b = here(a), hw = a.w / 2 * 1.2, hh = a.w * rect.width / rect.height / 2 * 1.2;
+      return Math.abs(fx - b.x) <= hw && Math.abs(fy - b.y) <= hh;
+    });
+    if (hit && hit !== $('slot').value) { $('slot').value = hit; render(); $('msg').textContent = `${PARTS[hit]} chosen.`; return; }
+    if (!scarsOf()[$('slot').value]) { $('msg').textContent = 'This scar is not on the drawing: press “Add this scar”, or click one already added.'; return; }
+  }
   // (a scar is placed on a still frame)
   if (scarring() && sheetCv && held == null) hold(frameNow());
   const place = ev => {
@@ -317,6 +335,18 @@ for (const id of ['sex', 'item', 'all']) $(id).addEventListener('change', render
 $('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { if (!scarring()) fillItems(); render(); });
 $('stage').addEventListener('change', render);
+// a scar added where it would go by the equipment's places, to be moved from there
+$('addScar').addEventListener('click', () => {
+  const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
+  scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };
+  save(); render();
+  $('msg').textContent = `${PARTS[$('slot').value]} added: drag it where it goes.`;
+});
+$('removeScar').addEventListener('click', () => {
+  delete scarsOf()[$('slot').value];
+  save(); render();
+  $('msg').textContent = `${PARTS[$('slot').value]} removed from this drawing.`;
+});
 $('look').addEventListener('change', render);
 $('wound').addEventListener('change', render);
 $('mode').addEventListener('change', () => {
@@ -324,8 +354,9 @@ $('mode').addEventListener('change', () => {
   else { fill($('slot'), GEAR_SLOTS.filter(g => DRAWN_SLOTS.includes(g.id)).map(g => [g.id, g.name])); fillItems(); }
   render();
 });
-$('w').addEventListener('input', e => { editable().w = +e.target.value; save(); render(); });
-$('r').addEventListener('input', e => { if (scarring()) placeAt(editable(), null, null, +e.target.value); else editable().r = +e.target.value; save(); render(); });
+const needScar = () => { if (editable()) return false; $('msg').textContent = 'Add this scar first.'; return true; };
+$('w').addEventListener('input', e => { if (needScar()) return; editable().w = +e.target.value; save(); render(); });
+$('r').addEventListener('input', e => { if (needScar()) return; if (scarring()) placeAt(editable(), null, null, +e.target.value); else editable().r = +e.target.value; save(); render(); });
 $('frame').addEventListener('input', e => { hold(+e.target.value); const a = current(); if (a) { $('r').value = Math.round(here(a).r || 0); showReadout(a); } showFrame(); });
 $('play').addEventListener('click', () => { if (held == null) hold(frameNow()); else { held = null; if (sheetCv) sheetCv.hold = null; } showFrame(); });
 $('unkey').addEventListener('click', () => {
@@ -337,7 +368,7 @@ $('unkey').addEventListener('click', () => {
   $('msg').textContent = `The key on frame ${k + 1} is gone.`;
 });
 $('follow').addEventListener('click', async () => {
-  if (!sheetCv) return;
+  if (!sheetCv || needScar()) return;
   $('msg').textContent = 'Following the body…';
   const done = await followBody();
   save(); render();
