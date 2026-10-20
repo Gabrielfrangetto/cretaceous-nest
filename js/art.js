@@ -322,9 +322,6 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 // width), by how it was given (journey.js scarStyle) and how deep; a deep one not drawn yet shows the
 // marked one, and a kind with none drawn the slashes above. healed: a deep one's scar, when the deep one
 // is drawn as the open wound; stitched: the wound sewn up in the hospital (cuts, not bites)
-// TURN: how far a picture is turned to lie as its kind's deep one does (degrees, as a place's r), so a
-// scar placed once lines up whichever of them shows
-const SCAR_TURN = { 'sprites/scars/claw-1.webp': -26 };
 const SCAR_ART = {
   claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp', stitched: 'sprites/scars/claw-stitched.webp' },
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
@@ -338,7 +335,9 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null) 
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   const art = SCAR_ART[style] || {}, src = (stitched && tint && art.stitched) || (level === 2 && !tint && art.healed) || art[level] || art[1] || art[2];
   const sewn = stitched && tint && art.stitched && src === art.stitched;
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, turn: SCAR_TURN[src] || 0, ...(sewn && skin ? { skin } : {}) }
+  // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
+  const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched);
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(sewn && skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -398,6 +397,12 @@ export function placeOn(sheet, a, frame) {
   const [dx, dy] = motionAt(sheet, a.x, a.y, frame);
   return dx || dy ? { ...a, x: a.x + dx, y: a.y + dy } : a;
 }
+// A scar's place as it looks: the deep look (open wound, deep scar, sewn up) may have a place of its own,
+// deep: { x, y, w, r, f }, set apart from the superficial one in tools/anchors.html
+export function scarPlace(type, sex, part, stage, mark) {
+  const a = scarAnchor(type, sex, part, stage);
+  return a && mark && mark.deep && a.deep ? a.deep : a;
+}
 // Where a scar is at one frame of an animated sprite: its place may carry keys, f: { frame: [x, y, r] },
 // and between two keys it moves in a straight line (the place itself is frame 0's key)
 export function scarAt(a, frame, frames) {
@@ -432,7 +437,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
-    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarAnchor(type, sex, part, stage), mark, part]).filter(([a]) => a), src)
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part]).filter(([a]) => a), src)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
@@ -443,12 +448,12 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   box.appendChild(base);
   // (scars on the skin, under whatever it wears; on a sheet they are drawn in it)
   if (base.tagName !== 'CANVAS' || !base.sheet) for (const [part, mark] of scarred) {
-    const a = scarAnchor(type, sex, part, stage);
+    const a = scarPlace(type, sex, part, stage, mark);
     if (!a) continue;
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
     layer.dataset.part = part;
-    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${(a.r || 0) + (mark.turn || 0)}deg)` });
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     if (mark.level) layer.innerHTML = scarSVG(mark.level);
     else if (mark.tint) layer.appendChild(tintedCanvas(mark));
     else layer.appendChild(pictureOf(mark.src));
@@ -580,7 +585,7 @@ export function drawFrame(cv, frame) {
     const size = a.w * s.w * mark.scale;
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
-    ctx.rotate(((a.r || 0) + (mark.turn || 0)) * Math.PI / 180);
+    ctx.rotate((a.r || 0) * Math.PI / 180);
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
     ctx.restore();
   }

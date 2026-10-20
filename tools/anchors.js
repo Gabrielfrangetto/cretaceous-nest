@@ -57,12 +57,17 @@ function withScars(fn) {
   try { return fn(); } finally { if (real) SCAR_ANCHORS[t] = real; else delete SCAR_ANCHORS[t]; }
 }
 // the item's own fit, or its slot's as a starting point; a scar's own place, or where it goes now
-const current = () => scarring() ? (scarsOf()[$('slot').value] || withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)))
+// The look being placed: the deep one (open wound, deep scar, sewn up) or the superficial one (marked,
+// a wound closing), each with its place; the deep one starts where the superficial one is
+const DEEP_VIEWS = ['2', '1.0', '0.66', 's1', 's0.6', 's0.25'];
+const deepView = () => DEEP_VIEWS.includes($('wound').value);
+const lookOf = (a, make) => (!a || !deepView() ? a : a.deep || (make ? (a.deep = { x: a.x, y: a.y, w: a.w, r: a.r || 0 }) : a));
+const current = () => scarring() ? (lookOf(scarsOf()[$('slot').value]) || withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)))
   : set()[$('item').value] || set()[$('slot').value];
 // the first change to an item copies its slot's fit into an entry of its own, so other items stay put
 function editable() {
   if (scarring()) {
-    return scarsOf()[$('slot').value] || null;
+    return lookOf(scarsOf()[$('slot').value], true) || null;
   }
   const s = set(), id = $('item').value;
   if (!s[id]) s[id] = { ...s[$('slot').value] };
@@ -70,7 +75,7 @@ function editable() {
 }
 const showReadout = a => {
   if (scarring() && !scarsOf()[$('slot').value]) { $('readout').textContent = 'Not on this drawing: add it to place it.'; return; }
-  if (scarring()) { const b = here(a); $('readout').textContent = `x ${b.x.toFixed(3)} · y ${b.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${Math.round(b.r || 0)}° · ${scarsOf()[$('slot').value] ? 'its own place' : 'guessed from the equipment places, not set yet'}`; return; }
+  if (scarring()) { const b = here(a); $('readout').textContent = `x ${b.x.toFixed(3)} · y ${b.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${Math.round(b.r || 0)}° · ${deepView() ? 'the deep look' + ((scarsOf()[$('slot').value] || {}).deep ? '' : ', where the superficial one is until moved') : 'the superficial look'}`; return; }
   const own = !!set()[$('item').value];
   $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}°${a.m ? ' · mirrored' : ''} · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
 };
@@ -112,7 +117,7 @@ function renderScars() {
   mark = null;
   if (sheetCv) {
     // the editor's own places, so a drag shows at once
-    sheetCv.scars = sheetCv.scars.map(([a, level, pt]) => [scarsOf()[pt] || a, level, pt]);
+    sheetCv.scars = sheetCv.scars.map(([a, mark, pt]) => { const own = scarsOf()[pt]; return [own ? (mark.deep && own.deep ? own.deep : own) : a, mark, pt]; });
     sheetCv.hold = held;
     $('frame').max = frames() - 1;
     if (held != null) $('frame').value = held;
@@ -133,7 +138,7 @@ function renderScars() {
 // the frame, its keys, and the dashed box round the scar being placed, where it is now
 function showFrame() {
   if (!scarring() || !sheetCv) return;
-  const a = current(), k = frameNow(), keys = keysOf(scarsOf()[$('slot').value]);
+  const a = current(), k = frameNow(), keys = keysOf(lookOf(scarsOf()[$('slot').value]));
   $('frameNo').textContent = `${k + 1} of ${frames()}` + (k === 0 || keys.includes(k) ? ' · a key' : '');
   $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'It moves with the skin under it by itself. To steer it yourself, move it on a frame: that frame becomes a key.';
   $('play').textContent = held == null ? 'Stop' : 'Play';
@@ -229,27 +234,7 @@ async function pickAt(e) {
   // (shown at once: only a sewn-up wound, past its first crimson, takes it, and only the kinds sewn up)
   if (!['s0.6', 's0.25'].includes($('wound').value)) $('wound').value = 's0.25';
   if (!SEWN.includes($('look').value)) $('look').value = SEWN[0];
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = `The skin here is ${editable().c}: a wound sewn up on this part heals into it (shown nearly healed).`;
 }
 $('pick').addEventListener('click', () => {
@@ -265,7 +250,7 @@ $('canvas').addEventListener('pointerdown', e => {
     // (a click on another added scar picks it; on bare skin, the chosen one goes there, if added)
     const rect = art.getBoundingClientRect(), fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
     const under = pt => {
-      const a = scarsOf()[pt], b = here(a), hw = a.w / 2 * 0.85, hh = a.w * rect.width / rect.height / 2 * 0.85;
+      const a = lookOf(scarsOf()[pt]), b = here(a), hw = a.w / 2 * 0.85, hh = a.w * rect.width / rect.height / 2 * 0.85;
       return Math.abs(fx - b.x) <= hw && Math.abs(fy - b.y) <= hh;
     };
     // (the chosen one first, where they overlap)
@@ -291,27 +276,7 @@ $('canvas').addEventListener('pointerdown', e => {
     if (ev.pointerId !== e.pointerId) return;
     removeEventListener('pointermove', move);
     removeEventListener('pointerup', up);
-    save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+    save(); render();
   };
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
@@ -335,27 +300,7 @@ $('stage').addEventListener('change', render);
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = `${label($('slot').value)} added: drag it where it goes.`;
 });
 // one more on the same part, a little off the one chosen (they are all drawn together)
@@ -364,75 +309,16 @@ $('anotherScar').addEventListener('click', () => {
   let n = 2;
   while (scarsOf()[pt + '~' + n]) n++;
   const next = pt + '~' + n;
-  scarsOf()[next] = { x: Math.round((a.x + 0.04) * 1000) / 1000, y: Math.round((a.y + 0.04) * 1000) / 1000, w: a.w, r: a.r || 0, ...(a.c ? { c: a.c } : {}) };
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
-  $('slot').value = next; // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  const off = p => ({ x: Math.round((p.x + 0.04) * 1000) / 1000, y: Math.round((p.y + 0.04) * 1000) / 1000, w: p.w, r: p.r || 0 });
+  scarsOf()[next] = { ...off(a), ...(a.c ? { c: a.c } : {}), ...(a.deep ? { deep: off(a.deep) } : {}) };
+  save(); render();
+  $('slot').value = next; render();
   $('msg').textContent = `${label(next)} added: drag it where it goes.`;
 });
 $('removeScar').addEventListener('click', () => {
   const key = $('slot').value;
   delete scarsOf()[key];
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = `${label(key)} removed from this drawing.`;
 });
 $('look').addEventListener('change', render);
@@ -440,27 +326,7 @@ $('wound').addEventListener('change', render);
 $('mode').addEventListener('change', () => {
   if (scarring()) fill($('slot'), SCARS.parts.map(pt => [pt, PARTS[pt]]));
   else { fill($('slot'), GEAR_SLOTS.filter(g => DRAWN_SLOTS.includes(g.id)).map(g => [g.id, g.name])); fillItems(); }
-  // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
   render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
 });
 const needScar = () => { if (editable()) return false; $('msg').textContent = 'Add this scar first.'; return true; };
 $('w').addEventListener('input', e => { if (needScar()) return; editable().w = +e.target.value; save(); render(); });
@@ -468,85 +334,25 @@ $('r').addEventListener('input', e => { if (needScar()) return; if (scarring()) 
 $('frame').addEventListener('input', e => { hold(+e.target.value); const a = current(); if (a) { $('r').value = Math.round(here(a).r || 0); showReadout(a); } showFrame(); });
 $('play').addEventListener('click', () => { if (held == null) hold(frameNow()); else { held = null; if (sheetCv) sheetCv.hold = null; } showFrame(); });
 $('unkey').addEventListener('click', () => {
-  const a = scarsOf()[$('slot').value], k = frameNow();
+  const a = lookOf(scarsOf()[$('slot').value]), k = frameNow();
   if (!a || !a.f || !a.f[k]) { $('msg').textContent = k === 0 ? 'Frame 1 is the scar’s own place: move it instead.' : 'This frame has no key.'; return; }
   delete a.f[k];
   if (!Object.keys(a.f).length) delete a.f;
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = `The key on frame ${k + 1} is gone.`;
 });
 $('m').addEventListener('change', e => { const a = editable(); if (e.target.checked) a.m = true; else delete a.m; save(); render(); });
 $('resetItem').addEventListener('click', () => {
   if (scarring()) { delete scarsOf()[$('slot').value]; save(); render(); $('msg').textContent = 'This scar is back to its guessed place.'; return; }
   delete set()[$('item').value];
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = `${ITEMS[$('item').value].name} is back to its slot's default fit on this sprite.`;
 });
 $('reset').addEventListener('click', () => {
   const type = $('type').value, sex = $('sex').value;
   if (scarring()) { const st = $('stage').value; if (scarSet[type] && scarSet[type][st]) scarSet[type][st][sex] = structuredClone(((SCAR_ANCHORS[type] || {})[st] || {})[sex] || {}); save(); render(); $('msg').textContent = 'These scars are back to js/gear-art.js.'; return; }
   anchors[type][sex] = structuredClone(ANCHORS[type][sex]);
-  save(); // Zoom, to place small scars: the drawing drawn bigger in a box that scrolls; with Ctrl and the wheel,
-// about the pointer
-function setZoom(z, at) {
-  const box = $('canvas'), old = zoom;
-  zoom = Math.max(1, Math.min(6, Math.round(z * 4) / 4));
-  if (zoom === old || !art) return;
-  // (the point of the drawing under the pointer, or in the middle, stays where it is)
-  const r = box.getBoundingClientRect(), a = art.getBoundingClientRect();
-  const sx = at ? at.clientX : r.left + r.width / 2, sy = at ? at.clientY : r.top + r.height / 2;
-  const fx = (sx - a.left) / a.width, fy = (sy - a.top) / a.height;
-  box.classList.toggle('zoomed', zoom > 1);
-  $('zoomNo').textContent = Math.round(zoom * 100) + '%';
-  render();
-  const b = art.getBoundingClientRect();
-  box.scrollLeft += b.left + fx * b.width - sx;
-  box.scrollTop += b.top + fy * b.height - sy;
-}
-$('zoomIn').addEventListener('click', () => setZoom(zoom * 1.5));
-$('zoomOut').addEventListener('click', () => setZoom(zoom / 1.5));
-$('canvas').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8), e); }, { passive: false });
-render();
+  save(); render();
   $('msg').textContent = 'This sprite is back to the anchors in js/gear-art.js.';
 });
 $('copy').addEventListener('click', async () => {
