@@ -28,9 +28,12 @@ export function collect(s, { id, ...choice }, now) {
   }
   const arrived = story.find(e => e.kind === 'arrived');
   if (partyOf(s, id)) {
-    // straight home, nothing on the way
-    p.leg = { n: 0, from: p.at, to: HOME, path: [HOME], step: 0, startedAt: now, arriveAt: now, recalled: true };
-    story.push(...applyAction(s, 'journey', { id }, now).story);
+    // straight home, nothing on the way (or landing, flown home)
+    if (p.leg && p.leg.air) story.push(...applyAction(s, 'journey', { id }, p.leg.arriveAt).story);
+    else {
+      p.leg = { n: 0, from: p.at, to: HOME, path: [HOME], step: 0, startedAt: now, arriveAt: now, recalled: true };
+      story.push(...applyAction(s, 'journey', { id }, now).story);
+    }
   }
   return summary(story, arrived, p);
 }

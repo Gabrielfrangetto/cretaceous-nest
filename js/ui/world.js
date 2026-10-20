@@ -760,7 +760,7 @@ function trainButtons(p) {
 // billed; none on the maglev, once called, or with a journey still to tell
 function flyButton(p, t) {
   const leg = p.leg;
-  if (leg && (leg.train || leg.fly != null || t >= leg.arriveAt)) return '';
+  if (leg && (leg.train || leg.air || leg.fly != null || t >= leg.arriveAt)) return '';
   const at = !leg ? p.at : (pr => (pr && pr.i >= 0 ? leg.path[pr.i] : leg.from))(progressOf(S, p, t));
   if (at === '0,0') return '';
   const c = flightBill(S, p, at);
@@ -783,13 +783,13 @@ function tripsHTML(t) {
       </li>`;
     }
     const leg = p.leg, done = t >= leg.arriveAt;
-    const where = (leg.train ? 'on the maglev ' : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
+    const where = leg.air ? 'flying home by air' : (leg.train ? 'on the maglev ' : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
     const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
     return `<li class="trip-row">
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
-        : `<span class="hint">${leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled || leg.train ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
+        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled || leg.train ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -952,10 +952,11 @@ function bindTrips(box) {
   }));
   box.querySelectorAll('[data-fly]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('flyHome', { id: btn.dataset.fly });
-    if (r.ok && r.expedition) { openJourney(btn.dataset.fly, render); return; }
+    // on its way: the way so far is told first, then it takes off
+    if (r.ok && !r.story) { openJourney(btn.dataset.fly, render); return; }
     const f = r.ok && r.story.find(e => e.kind === 'flown');
     message = !r.ok ? (r.reason === 'coins' ? 'Not enough coins for the aircraft.' : 'No aircraft could come.')
-      : `An aircraft flew you all home: ${plural(f.paid, 'coin', 'coins')} paid${f.later ? `, ${f.later} billed` : ''}. You land in ${fmt(f.lands - now())}.`;
+      : `An aircraft is flying you all home: ${plural(f.paid, 'coin', 'coins')} paid${f.later ? `, ${f.later} billed` : ''}. You land in ${fmt(f.lands - now())}.`;
     render();
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {

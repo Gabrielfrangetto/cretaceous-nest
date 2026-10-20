@@ -242,7 +242,7 @@ export function exploreProblem(s, team, key, now) {
     const problem = memberProblem(s, id, key, now);
     if (problem) return problem;
   }
-  if (W(s).expeditions.length >= EXPEDITION_SLOTS) return 'no-slot';
+  if (W(s).expeditions.filter(e => !e.air).length >= EXPEDITION_SLOTS) return 'no-slot';
   return null;
 }
 

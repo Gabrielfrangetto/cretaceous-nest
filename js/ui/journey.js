@@ -538,10 +538,10 @@ function entryHTML(e) {
     case 'faint': return e.need === 'thirst'
       ? `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} weak with thirst, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`
       : `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} starving, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`;
-    case 'rescued': return `You went down, and the sanctuary's rescue team flew you home, with your team and all it carried. The journey was over. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
+    case 'rescued': return `You went down, and the sanctuary's rescue team flew you home by air, with your team and all it carried. The journey was over. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
     case 'care': return e.coins ? `Your medical care cost ${e.coins} coins.` : 'Your medical care was on the house: you had no coins to pay for it.';
-    case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, straight to the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
-    case 'flown': return `You called an aircraft, and it flew you all home with all you carried. The journey was over. ${plural(e.paid, 'coin', 'coins')} paid${e.later ? `; ${e.later} billed for the badly hurt, to pay at the nest` : ''}.`;
+    case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, to land at the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
+    case 'flown': return `You called an aircraft, and it flew you all home with all you carried, straight over the land. The journey was over. ${plural(e.paid, 'coin', 'coins')} paid${e.later ? `; ${e.later} billed for the badly hurt, to pay at the nest` : ''}.`;
     case 'carried': return `You carried ${listNames(e.who.map(nm))} on.`;
     case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;

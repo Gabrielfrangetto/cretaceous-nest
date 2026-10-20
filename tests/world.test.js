@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { collect } from './journey-helper.js';
-import { legMins, partyOf, airliftFare, careOf, hospitalHours, flightMins } from '../js/journey.js';
+import { legMins, HOME, partyOf, airliftFare, careOf, hospitalHours, flightMins, trainMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, feedBaby, breedProblem, bill, earn } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
@@ -489,9 +489,8 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   assert.equal(s.world.expeditions.length, 0);
   assert.equal(countItem(s, 'bone'), bones + 3);
   assert.ok(!isAway(s, 'ad') && !isAway(s, ME));
-  // in the air until it lands, as fast as the maglev
-  assert.equal(s.player.flyingUntil, rescued.lands);
-  assert.equal(exploreProblem(s, 'ad', '1,0', rescued.lands - 1), 'away');
+  // (it had landed by now: a quarter faster than the maglev, straight to the nest)
+  assert.equal(flightMins(rescued.hex), Math.max(1, Math.round(trainMins(hexDist(parseKey(rescued.hex))) * AIRLIFT.pace)));
   // fresh water waters everyone and fills the flasks
   const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 8 && travelPath(42, parseKey(k)).length && freshWater(42, travelPath(42, parseKey(k))[0]));
   if (wet) {
@@ -963,10 +962,19 @@ test('a dinosaur of the team down: the player may call in an aircraft for it, bi
   assert.equal(told.fare, airliftFare(s, ['c'], hex));
   assert.equal(told.care, 2 * careOf(0, true));
   assert.equal(s.debt, told.fare + told.care);
-  // they leave the team, land when the flight is over and go to the hospital
+  // they leave the team and fly home in a party of their own, taking no team's place; landed, they go to
+  // the hospital
   assert.ok(!p.members.includes('c') && p.members.includes('ad'));
+  const air = s.world.expeditions.find(x => x.air);
+  assert.deepEqual(air.members, ['c', 'c2']);
+  assert.equal(air.leg.arriveAt, told.lands);
+  assert.equal(air.leg.to, HOME);
+  assert.ok(isAway(s, 'c'));
   const c = s.hatched.find(b => b.id === 'c');
-  assert.equal(c.flyingUntil, told.lands);
+  assert.ok(!c.hospital);
+  const landing = applyAction(s, 'journey', { id: air.id }, told.lands);
+  assert.ok(landing.story.some(e => e.kind === 'home'));
+  assert.ok(!isAway(s, 'c'));
   assert.equal(c.hospital, true);
   assert.equal(c.injuredUntil, told.lands + hospitalHours(c) * 3600000);
   // the tougher, the sooner out: a Tyrannosaurus is big, but hard to keep down
@@ -1019,10 +1027,15 @@ test('an aircraft home, called at any time: the fit paid for then and there, the
   assert.equal(r.ok, true, r.reason);
   assert.equal(s.coins, 5);
   assert.equal(s.debt || 0, 0);
-  assert.equal(s.world.expeditions.length, 0);
+  // it flies home, nothing happening on the way, and is home once it lands with what it carried
   const flown = r.story.find(e => e.kind === 'flown');
   assert.equal(flown.lands, t + flightMins(far) * 60000);
-  assert.equal(s.player.flyingUntil, flown.lands);
+  assert.ok(p.leg.air && p.leg.arriveAt === flown.lands);
+  assert.equal(applyAction(s, 'journey', { id: p.id }, flown.lands - 1).reason, 'not-back');
+  const bones = countItem(s, 'bone');
+  assert.ok(applyAction(s, 'journey', { id: p.id }, flown.lands).story.some(e => e.kind === 'home'));
+  assert.equal(s.world.expeditions.length, 0);
+  assert.equal(countItem(s, 'bone'), bones + 2);
   // the badly hurt (a quarter of their health or less) fly on credit, their care billed too
   ({ s, p, far } = out());
   p.health = { ad: 0.2 };

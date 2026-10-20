@@ -284,7 +284,7 @@ export function journeyStep(s, id, choice = {}, now) {
     if (ev.kind === 'go-on') { if (choice && choice.back) turnBack(ctx, ev.idx); }
     else if (ev.kind === 'airlift') { airlift(ctx, ev, choice || {}); if (!ctx.gone && !p.pending) afterEvent(ctx, ev); }
     else if (run(ctx, ev, choice || {}) && !ctx.gone && !p.pending && !offerAirlift(ctx, ev.idx)) afterEvent(ctx, ev);
-    if (!ctx.gone && p.down.includes(PLAYER_ID)) rescue(ctx, ev.idx);
+    if (!ctx.gone && playerDown(p)) rescue(ctx, ev.idx);
   }
   walk(ctx);
   return {
@@ -299,7 +299,7 @@ export function journeyStep(s, id, choice = {}, now) {
       if (c.legs[c.legs.length - 1].n !== leg.n) c.legs.push(snap());
       if (now < leg.arriveAt) break;
       // (on the train nothing happens on the way)
-      if (leg.train) leg.step = leg.path.length;
+      if (leg.train || leg.air) leg.step = leg.path.length;
       if (leg.step >= leg.path.length) { arrive(c); continue; }
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
@@ -307,13 +307,14 @@ export function journeyStep(s, id, choice = {}, now) {
       const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
       if (z) suffer(c, z);
       if (!c.gone) survive(c, idx);
-      if (!c.gone && p.down.includes(PLAYER_ID)) rescue(c, idx);
       if (c.gone) break;
+      // (the player down: flown home from here, and nothing more happens on the way)
+      if (playerDown(p)) { rescue(c, idx); continue; }
       // a nest noticed there comes first (and is all that happens at that hex)
       const nest = nestAt(s, p, idx) ? { kind: 'nest', idx, hex: key } : null;
       const ev = nest || (idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx));
       if (ev && run(c, ev, null) && !c.gone && !p.pending && !offerAirlift(c, idx)) afterEvent(c, ev);
-      if (!c.gone && p.down.includes(PLAYER_ID)) rescue(c, idx);
+      if (!c.gone && playerDown(p)) { rescue(c, idx); continue; }
       if (!c.gone && !p.pending) offerAirlift(c, idx);
     }
   }
@@ -332,13 +333,31 @@ export function hospitalHours(b) {
   return Math.round(AIRLIFT.hospital[b.size || SPECIES[b.type].size] * Math.min(2, Math.max(0.5, AIRLIFT.ref / ((st.vit + st.res) || 1))) * 10) / 10;
 }
 // the flight home from a hex, as fast as the maglev
-export const flightMins = hex => trainMins(hexDist(parseKey(hex)));
+export const flightMins = hex => Math.max(1, Math.round(trainMins(hexDist(parseKey(hex))) * AIRLIFT.pace));
+// the hexes flown over from a hex to the nest, in a straight line
+export function airPath(from) {
+  const [q, r] = parseKey(from), n = hexDist([q, r]), out = [];
+  for (let i = 1; i <= n; i++) {
+    const t = i / n, x = q * (1 - t), z = r * (1 - t), y = -x - z;
+    let rx = Math.round(x), rz = Math.round(z);
+    const ry = Math.round(y), dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+    if (dx > dy && dx > dz) rx = -ry - rz; else if (dz >= dy) rz = -rx - ry;
+    out.push(hexKey(rx, rz));
+  }
+  return out.length ? out : [HOME];
+}
+// a party takes off from where it is for the nest (an aircraft), from the moment at
+function startFlight(s, p, at) {
+  const w = W(s);
+  w.trips += 1;
+  p.leg = { n: w.trips, from: p.at, to: HOME, path: airPath(p.at), step: 0, startedAt: at, arriveAt: at + flightMins(p.at) * 60000, air: true };
+  Object.assign(p, { hex: HOME, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
+}
 // the hex at idx of the leg, and when the team was there
 const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, idx)], at: timeAt(ctx.s, ctx.p.leg, Math.max(0, idx)) } : { hex: ctx.p.at, at: ctx.now });
 // dinosaurs flown home land when the flight is over; one down goes on to the hospital
 function land(s, b, lands, grave) {
-  b.flyingUntil = lands;
-  if (!grave) return null;
+  if (!b || !grave) return null;
   const hours = hospitalHours(b);
   b.injuredUntil = Math.max(b.injuredUntil || 0, lands + hours * 3600000);
   b.hospital = true;
@@ -350,7 +369,7 @@ function land(s, b, lands, grave) {
 // for any of them (a pending 'airlift'). Returns whether it was offered.
 function offerAirlift(ctx, idx) {
   const { p } = ctx;
-  if (ctx.gone || p.pending || !p.leg || p.down.includes(PLAYER_ID)) return false;
+  if (ctx.gone || p.pending || !p.leg || p.leg.air || p.down.includes(PLAYER_ID)) return false;
   const ids = p.down.filter(id => id !== PLAYER_ID && !(p.offered || []).includes(id));
   if (!ids.length) return false;
   p.offered = [...(p.offered || []), ...ids];
@@ -364,10 +383,17 @@ function airlift(ctx, ev, choice) {
   if (!ids.length) { story.push({ kind: 'carried', hex: ev.hex, idx: ev.idx, who: (ev.ids || []).filter(id => p.members.includes(id)) }); return; }
   const { hex, at } = whereWhen(ctx, ev.idx), lands = at + flightMins(hex) * 60000;
   const fare = airliftFare(s, ids, hex), care = ids.reduce((t, id) => t + careOf(healthOf(p, id), isDown(p, id)), 0);
-  const hospital = ids.map(id => land(s, explorerOf(s, id), lands, isDown(p, id))).filter(Boolean);
+  // they fly home in a party of their own, as they were
+  const q = {
+    id: `a${W(s).trips + 1}`, air: true, team: ids.map(id => ({ kind: 'dino', id, members: [id] })), members: ids, at: hex, leg: null,
+    health: Object.fromEntries(ids.map(id => [id, healthOf(p, id)])), hunger: {}, thirst: {}, down: ids.filter(id => isDown(p, id)), hurt: ids.filter(id => p.hurt.includes(id)),
+    dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: { water_skin: 0, ration: 0, water: 0 }, pending: null,
+  };
   for (const id of ids) leave(ctx, id);
+  startFlight(s, q, at);
+  W(s).expeditions.push(q);
   bill(s, fare + care);
-  story.push({ kind: 'airlift', hex, idx: ev.idx, who: ids, fare, care, lands, hospital });
+  story.push({ kind: 'airlift', hex, idx: ev.idx, who: ids, fare, care, lands });
 }
 // one leaves the team (flown home)
 function leave(ctx, id) {
@@ -379,6 +405,8 @@ function leave(ctx, id) {
   delete p.health[id];
 }
 
+// the player down and not yet in the air: to be rescued
+const playerDown = p => p.down.includes(PLAYER_ID) && !(p.leg && p.leg.air);
 // gravely injured (down) or badly hurt: flown and cared for on credit (AIRLIFT.bad)
 const hurtBadly = (p, id) => isDown(p, id) || healthOf(p, id) <= AIRLIFT.bad;
 // What flying the whole team home from a hex costs: { now: paid then and there, later: billed (the share
@@ -394,15 +422,21 @@ export function flightBill(s, p, hex) {
 function flyParty(ctx, idx, kind, paid = 0, when = null) {
   const { s, p, story } = ctx;
   const { hex, at } = kind === 'rescued' ? whereWhen(ctx, idx) : { hex: p.leg ? p.leg.path[Math.max(0, idx)] : p.at, at: when == null ? ctx.now : when };
-  const lands = at + flightMins(hex) * 60000, members = [...p.members], down = [...p.down];
+  // (down at the nest's door: home already)
+  if (hex === HOME) { p.at = HOME; p.leg = null; p.pending = null; comeHome(ctx); return; }
+  const lands = at + flightMins(hex) * 60000;
   const cost = flightBill(s, p, hex), later = Math.max(0, cost.fare - paid) + cost.care;
   p.at = hex; p.leg = null; p.pending = null; p.camp = null;
   story.push({ kind, hex, idx, fare: cost.fare, paid, later, care: cost.care, lands });
-  comeHome(ctx);
-  s.player.flyingUntil = lands;
-  const hospital = members.filter(id => id !== PLAYER_ID).map(id => land(s, explorerOf(s, id), lands, down.includes(id))).filter(Boolean);
-  for (const b of members.filter(id => id !== PLAYER_ID).map(id => explorerOf(s, id))) if (b) b.flyingUntil = lands;
   bill(s, later);
+  startFlight(s, p, at);
+}
+// landed at the nest: home, and the gravely injured to the hospital
+function landed(ctx) {
+  const { s, p, story } = ctx, leg = p.leg, down = p.down.filter(id => id !== PLAYER_ID);
+  p.at = HOME;
+  comeHome(ctx);
+  const hospital = down.map(id => land(s, explorerOf(s, id), leg.arriveAt, true)).filter(Boolean);
   if (hospital.length) story.push({ kind: 'hospital', hex: HOME, idx: -1, hospital });
 }
 // The player down (RESCUE): the whole team flown home, all of it billed (less what a flight called for
@@ -417,7 +451,7 @@ export function flyHome(s, id, now) {
   if (!p) return { ok: false, reason: 'no-expedition' };
   const leg = p.leg;
   if (leg && leg.train) return { ok: false, reason: 'on-the-train' };
-  if (leg && leg.fly != null) return { ok: false, reason: 'called' };
+  if (leg && (leg.fly != null || leg.air)) return { ok: false, reason: 'called' };
   if (leg && !p.pending && now >= leg.arriveAt) return { ok: false, reason: 'untold' };
   const walking = leg && !p.pending;
   const i = walking ? Math.max(leg.step - 1, positionOf(s, p, now)) : -1;
@@ -435,7 +469,7 @@ export function flyHome(s, id, now) {
   if (walking) { p.at = leg.from; p.leg = null; }
   const ctx = { s, p, now, story: [], legs: [], n: leg ? leg.n : 0 };
   flyParty(ctx, p.pending ? p.pending.idx : leg ? leg.path.length - 1 : -1, 'flown', cost.now);
-  return { ok: true, story: ctx.story, cost };
+  return { ok: true, story: ctx.story, cost, expedition: p };
 }
 
 // After an event on the way out: go on, or turn back (nobody on their feet: they turn back)
@@ -460,8 +494,9 @@ function turnBack(ctx, i) {
 // (having looked around: gather); a leg called back turns for home where it stopped
 function arrive(ctx) {
   const { s, p, story } = ctx, leg = p.leg, w = W(s);
-  // an aircraft called for: it flies home from where it stopped
+  // an aircraft called for: it flies home from where it stopped; one landing at the nest
   if (leg.fly != null) { flyParty(ctx, leg.path.length - 1, 'flown', leg.fly, leg.arriveAt); return; }
+  if (leg.air) { landed(ctx); return; }
   p.at = leg.to;
   // what the team gathered of the common kinds as it walked, told at once
   if (p.gathered && Object.keys(p.gathered).length) {
@@ -1346,7 +1381,8 @@ export function cleanParties(s, w) {
   const [, geneMax] = EGG_GENES(EGG_STEP, true);
   const out = [];
   for (const e of Array.isArray(w.expeditions) ? w.expeditions : []) {
-    if (!e || typeof e !== 'object' || out.length >= EXPEDITION_SLOTS) continue;
+    // (one flown home by air takes no team's place)
+    if (!e || typeof e !== 'object' || (e.air !== true && out.filter(x => !x.air).length >= EXPEDITION_SLOTS)) continue;
     const team = (Array.isArray(e.team) ? e.team : e.babyId ? [{ kind: e.babyId === PLAYER_ID ? 'player' : 'dino', id: e.babyId, members: [e.babyId] }] : [])
       .filter(u => u && UNITS.includes(u.kind))
       .map(u => ({ kind: u.kind, id: String(u.id), members: (Array.isArray(u.members) ? u.members : [u.id]).filter(id => ids.has(id) && !seen.has(id) && seen.add(id)) }))
@@ -1361,14 +1397,16 @@ export function cleanParties(s, w) {
     if (L && typeof L === 'object') {
       const from = String(L.from), to = String(L.to);
       if (!land(from) || !land(to) || from === to || from !== at) continue;
-      const train = L.train === true && trainRoute(w.seed, from, to);
-      const via = train ? [] : cleanVia(s, L.via);
-      const path = train ? train.path : routePath(w.seed, from, to, via);
+      const air = L.air === true && to === HOME;
+      const train = !air && L.train === true && trainRoute(w.seed, from, to);
+      const via = train || air ? [] : cleanVia(s, L.via);
+      const path = air ? airPath(from) : train ? train.path : routePath(w.seed, from, to, via);
       if (!path.length) continue;
       const startedAt = num(L.startedAt), recalled = !train && L.recalled === true;
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
-        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (train ? trainMins(train.hexes) : legMins(s, members, from, to, via)) * 60000),
+        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : legMins(s, members, from, to, via)) * 60000),
+        ...(air ? { air: true } : {}),
         ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(via.length && !recalled ? { via } : {}),
       };
     }
@@ -1397,7 +1435,7 @@ export function cleanParties(s, w) {
     const skins = Math.min(SURVIVAL.pack.water_skin, int(sp.water_skin));
     const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)) };
     out.push({
-      id: String(e.id), team, members, at, leg, health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
+      id: String(e.id), team, members, at, leg, ...(e.air === true && leg && leg.air ? { air: true } : {}), health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
       gathered: Object.fromEntries(Object.entries(e.gathered && typeof e.gathered === 'object' ? e.gathered : {}).filter(([id, n]) => ITEMS[id] && int(n) > 0).map(([id, n]) => [id, int(n)])),
       camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt), offered: inParty(e.offered),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
