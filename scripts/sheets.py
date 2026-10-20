@@ -15,6 +15,13 @@ STEP, R, S = 16, 8, 10   # grid spacing, patch radius, how far a point is looked
 
 # (start: the frame the points are taken on, when not the first of these: a walk is followed from its
 # idle's first frame, which scars and equipment are placed on, its feet looked for farther)
+def exactly(m):
+    d = np.array(m['d'])
+    unit = max(0.25, float(np.ceil(np.abs(d).max() / 127 * 4) / 4))
+    raw = np.clip(np.round(d / unit), -127, 127).astype(np.int8).tobytes()
+    return {'step': m['step'], 'gw': m['gw'], 'gh': m['gh'], 'unit': unit, 'moves': base64.b64encode(raw).decode()}
+
+
 def motion(frames, start=None, S=S):
     if start is not None:
         frames = [start] + frames
@@ -124,7 +131,11 @@ for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
     # (its first frame at the drawing's full size, sprites/hires/, if made: for the anchors tool's zoom)
     hires = 'sprites/hires/' + path[len('sprites/'):]
     extra = {'hires': hires, 'hiresW': Image.open(hires).size[0]} if os.path.exists(hires) else {}
-    sheets[path] = {**extra, 'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **motion(frames, idle, 28 if walk else S)}
+    # (an idle made by warping one drawing comes with its exact motion, scripts/motion/, worked out from
+    # that warp; a walk, drawn frame by frame, is followed by eye)
+    exact = 'scripts/motion/' + path[len('sprites/'):-len('.webp')] + '.json'
+    moved = exactly(json.load(open(exact))) if os.path.exists(exact) else motion(frames, idle, 28 if walk else S)
+    sheets[path] = {**extra, 'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **moved}
     print(f'{out}: {n} frames, {os.path.getsize(out) // 1024} KB')
 
 with open('js/sheets.js', 'w') as f:
