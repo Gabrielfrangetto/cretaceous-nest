@@ -8,7 +8,8 @@ function render() {
   // the sanctuary's bills not yet paid
   const debt = document.getElementById('debtVal');
   debt.hidden = !S.debt;
-  debt.textContent = S.debt ? `−${S.debt} owed` : '';
+  debt.textContent = S.debt ? `−${S.debt}` : '';
+  debt.title = S.debt ? `${S.debt} coins owed to the sanctuary` : '';
   if (shown !== null && coins !== shown) {
     const c = document.querySelector('.coins');
     c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');

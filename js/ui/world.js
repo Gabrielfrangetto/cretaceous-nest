@@ -1,8 +1,8 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, HEAL_MINS, PLAYER_ID, PLAYER_SLOTS, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, stageOf, isHungry, countItem, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, mealFor } from '../economy.js';
+import { sexOf, stageOf, countItem } from '../economy.js';
 import {
   ALL_HEXES, hexKey, parseKey, hexDist, inWorld, biomeAt, cellAt, neighbors, isRevealed, canReach, teamSlow, teamHaul, allRunners, hasScout, lootTable, exploreProblem, expeditionOf,
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
@@ -17,8 +17,7 @@ import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { ITEM_ICONS, playerArt } from '../art.js';
-import { modsHTML, loadHTML } from './stats.js';
+import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
@@ -796,46 +795,6 @@ function tripsHTML(t) {
 }
 
 // the player's own hunger, and a meal from the inventory
-function eatHTML(p, t) {
-  if (!isHungry(p, t)) return '<p class="hint">Fed for now.</p>';
-  const food = mealFor(S, null);
-  return `<div class="row"><button class="btn small" type="button" data-eat ${food ? '' : 'disabled'}>Eat${food ? ` (${esc(ITEMS[food].name)})` : ''}</button>
-    <span class="hint warn-text">${food ? 'You are hungry: eat before you set out.' : 'You are hungry, and have nothing to eat: buy Trail Rations in the Shop, or bring home meat or fish.'}</span></div>`;
-}
-
-// the player's own explorer: stats and the weapons and armor it wears
-let gearOpen = false;   // (the gear list kept open or shut across redraws)
-function youHTML(t) {
-  const p = S.player, sheet = statSheet(p), d = sheet.derived;
-  const away = expeditionOf(S, PLAYER_ID), hurt = injuredLeft(p, t);
-  const rows = PLAYER_SLOTS.map(({ id: slot, name: slotName }) => {
-    const worn = p.equip[slot];
-    const options = S.inv.map((x, i) => ({ x, i })).filter(({ x, i }) => x && i < S.invSize && isArms(x.id) && ITEMS[x.id].slot === slot);
-    return `<li class="gear-row">
-      <span class="gear-slot-name">${slotName}</span>
-      <div class="gear-worn">${worn ? `<span class="gear-icon">${ITEM_ICONS[worn]}</span><span><strong>${esc(ITEMS[worn].name)}</strong>${modsHTML(ITEMS[worn].mods)}</span>` : '<span class="hint">Empty</span>'}</div>
-      <div class="gear-actions">
-        ${!away && options.length ? `<select data-arms-slot="${slot}" aria-label="Choose ${slotName.toLowerCase()}">${options.map(({ x, i }) => {
-          const over = carriedWeight(p) - itemWeight(worn) + itemWeight(x.id) > carryCapacity(p);
-          return `<option value="${i}">${esc(ITEMS[x.id].name)} · weight ${itemWeight(x.id)}${over ? ' · too heavy' : ''}</option>`;
-        }).join('')}</select>
-          <button class="ghost" type="button" data-arms="${slot}">${worn ? 'Swap' : 'Wear'}</button>` : ''}
-        ${!away && worn ? `<button class="ghost" type="button" data-arms-off="${slot}">Take off</button>` : ''}
-      </div>
-    </li>`;
-  }).join('');
-  return `<div class="you-head"><span class="you-art"></span>
-      <div><h3>${esc(p.name)}</h3>
-      <p class="hint">Power ${sheet.power} · Health ${d.hp} · Damage ${d.damage} · Dodge ${Math.round(d.dodge * 100)}% · Armor ${Math.round(d.reduction * 100)}%</p>
-      <p class="hint">${away ? 'Out exploring.' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'You can explore on foot, anywhere.'}</p>
-      ${away ? '' : eatHTML(p, t)}</div></div>
-    <details class="fold" id="gearFold" ${gearOpen ? 'open' : ''}><summary>Your weapons and armor</summary>
-      ${loadHTML(p)}
-      <ul class="gear-slots">${rows}</ul>
-      <p class="hint">Sold in the Shop and made in the Forge. They can't be changed while you're away.</p>
-    </details>`;
-}
-
 function render() {
   const box = document.getElementById('worldBox');
   if (!box) return;
@@ -850,24 +809,8 @@ function render() {
           <div id="tripsBox">${tripsHTML(t)}</div>
           ${message ? `<p class="hint" role="status">${message}</p>` : ''}
         </section>` : '<div id="tripsBox" hidden></div>'}
-        <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>
-        <section class="panel-box you" id="youBox">${youHTML(t)}</section>`;
+        <section class="panel-box" aria-live="polite">${sideHTML(t)}</section>`;
   drawMap();
-  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 72));
-  box.querySelector('#gearFold').addEventListener('toggle', e => { gearOpen = e.target.open; });
-  const eat = box.querySelector('[data-eat]');
-  if (eat) eat.addEventListener('click', () => { act('feed', { id: PLAYER_ID }); render(); });
-  box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {
-    const index = +box.querySelector(`select[data-arms-slot="${btn.dataset.arms}"]`).value;
-    const r = act('equipArms', { index });
-    message = r.ok ? '' : r.reason === 'away' ? 'You are away.' : r.reason === 'too-heavy' ? 'Too heavy: that would be more than you can carry.' : 'That could not be worn.';
-    render();
-  }));
-  box.querySelectorAll('[data-arms-off]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('unequipArms', { slot: btn.dataset.armsOff });
-    message = r.ok ? '' : r.reason === 'room' ? 'Your inventory is full.' : 'That could not be taken off.';
-    render();
-  }));
   box.querySelectorAll('[data-go-with]').forEach(btn => btn.addEventListener('click', () => {
     goWith = +btn.dataset.goWith;
     message = '';

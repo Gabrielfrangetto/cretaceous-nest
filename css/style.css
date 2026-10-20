@@ -853,3 +853,29 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 /* the scene keeps its layers (walkers, the clock) to itself, under the top bar and its menu */
 .scene { isolation: isolate; }
 .topbar { z-index: 100; }
+
+/* You: at the left of the page on a wide screen; opened from the top bar on a narrower one */
+.you-panel { display: none; gap: 12px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.you-panel.open { display: grid; position: fixed; z-index: 120; top: 64px; right: 12px; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 150px); overflow: auto; box-shadow: 0 16px 40px rgb(0 0 0 / .18); }
+.you-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+.you-top .you-art { width: 72px; display: grid; place-items: center; }
+.you-top h2 { font-size: 19px; }
+.you-state { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.you-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin: 0; }
+.you-stats div { padding: 6px 8px; border-radius: 8px; background: var(--bg); }
+.you-stats dt { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.you-stats dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.you-panel .gear-row { grid-template-columns: 48px minmax(0, 1fr); }
+.you-panel select { width: 100%; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+@media (min-width: 1200px) {
+  .wrap { max-width: 1380px; grid-template-columns: 280px minmax(0, 1fr); column-gap: 28px; }
+  .wrap > * { grid-column: 2; }
+  .wrap > .topbar { grid-column: 1 / -1; }
+  .wrap > .you-panel { display: grid; grid-column: 1; grid-row: 2 / span 30; align-self: start; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow: auto; }
+  .you-btn { display: none; }
+  .site-footer { max-width: 1380px; padding-left: calc(16px + 280px + 28px); }
+}
+.topbar { flex-wrap: nowrap; }
+.brand { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-side { flex: none; gap: 6px; }
+@media (max-width: 420px) { .brand { font-size: 16px; } .coins .debt { margin-left: 4px; } }
