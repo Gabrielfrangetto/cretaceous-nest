@@ -322,13 +322,14 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 const SCAR_ART = {
   claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp' },
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
-  horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp' },
+  horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp', healed: 'sprites/scars/horns-2-healed.webp' },
 };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
 export function scarMark(style, level, tint = 0) {
   const t = Math.round(tint * 20) / 20;
-  const art = SCAR_ART[style] || {}, src = art[level] || art[1] || art[2];
+  // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
+  const art = SCAR_ART[style] || {}, src = (level === 2 && !tint && art.healed) || art[level] || art[1] || art[2];
   return src ? { key: src, src: asset(src), scale: 1, tint: t }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
