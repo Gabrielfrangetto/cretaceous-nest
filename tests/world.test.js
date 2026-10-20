@@ -8,7 +8,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 // (fed as in meals before growth capsules: 10 a juvenile, 30 an adult)
@@ -467,14 +467,33 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   let step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
   assert.ok(step.story.some(e => e.kind === 'perished' && e.need === 'thirst' && e.who.id === 'ad'));
   assert.equal(s.hatched.length, 0);
-  // the player collapses instead, and is carried
+  // the player collapses instead, and is flown home at once with the team and what it carries; the
+  // journey is over, and the care costs RESCUE coins
   s = game(dino('ad', 30));
+  s.coins = 80;
+  r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
+  p = partyOf(s, r.expedition.id);
+  p.hunger = { [ME]: 1 }; p.health = { [ME]: 0.01 }; p.leg.step = dryAt;
+  p.carry.items.bone = 3;
+  const bones = countItem(s, 'bone');
+  step = applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
+  const kinds = step.story.map(e => e.kind);
+  assert.ok(step.story.some(e => e.kind === 'collapse' && e.need === 'hunger'));
+  assert.ok(kinds.indexOf('rescued') > kinds.indexOf('collapse') && kinds.indexOf('home') > kinds.indexOf('rescued'));
+  assert.equal(step.story.find(e => e.kind === 'care').coins, RESCUE.coins);
+  assert.equal(s.coins, 80 - RESCUE.coins);
+  assert.equal(s.world.expeditions.length, 0);
+  assert.equal(countItem(s, 'bone'), bones + 3);
+  assert.ok(!isAway(s, 'ad') && !isAway(s, ME));
+  // with fewer coins than the care costs, it takes what there is
+  s = game(dino('ad', 30));
+  s.coins = 20;
   r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
   p = partyOf(s, r.expedition.id);
   p.hunger = { [ME]: 1 }; p.health = { [ME]: 0.01 }; p.leg.step = dryAt;
   step = applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
-  assert.ok(step.story.some(e => e.kind === 'collapse' && e.need === 'hunger'));
-  assert.ok(p.down.includes(ME) && p.members.includes(ME));
+  assert.equal(step.story.find(e => e.kind === 'care').coins, 20);
+  assert.equal(s.coins, 0);
   // fresh water waters everyone and fills the flasks
   const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 8 && travelPath(42, parseKey(k)).length && freshWater(42, travelPath(42, parseKey(k))[0]));
   if (wet) {

@@ -507,6 +507,8 @@ function entryHTML(e) {
     case 'faint': return e.need === 'thirst'
       ? `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} weak with thirst, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`
       : `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} starving, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`;
+    case 'rescued': return "You went down, and the sanctuary's rescue team flew you home, with your team and all it carried. The journey was over.";
+    case 'care': return e.coins ? `Your medical care cost ${e.coins} coins.` : 'Your medical care was on the house: you had no coins to pay for it.';
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;
     case 'perished': return `${esc(e.who.name)} ${e.need === 'thirst' ? 'died of thirst' : 'starved to death'} on the way.`;
     case 'turned': return e.recalled ? 'Called back, you turned for home here.' : 'You turned back for home.';

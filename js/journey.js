@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -283,6 +283,7 @@ export function journeyStep(s, id, choice = {}, now) {
     p.pending = null;
     if (ev.kind === 'go-on') { if (choice && choice.back) turnBack(ctx, ev.idx); }
     else if (run(ctx, ev, choice || {}) && !ctx.gone && !p.pending) afterEvent(ctx, ev);
+    if (!ctx.gone && p.down.includes(PLAYER_ID)) rescue(ctx, ev.idx);
   }
   walk(ctx);
   return {
@@ -305,13 +306,28 @@ export function journeyStep(s, id, choice = {}, now) {
       const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
       if (z) suffer(c, z);
       if (!c.gone) survive(c, idx);
+      if (!c.gone && p.down.includes(PLAYER_ID)) rescue(c, idx);
       if (c.gone) break;
       // a nest noticed there comes first (and is all that happens at that hex)
       const nest = nestAt(s, p, idx) ? { kind: 'nest', idx, hex: key } : null;
       const ev = nest || (idx === leg.path.length - 1 && !leg.recalled ? endEvent(c, idx) : wayEvent(c, idx));
       if (ev && run(c, ev, null) && !c.gone && !p.pending) afterEvent(c, ev);
+      if (!c.gone && p.down.includes(PLAYER_ID)) rescue(c, idx);
     }
   }
+}
+
+// The player down (RESCUE): flown home at once from the hex at idx with the whole team and what it
+// carries; the journey is over, and the care is paid for
+function rescue(ctx, idx) {
+  const { s, p, story } = ctx;
+  const hex = p.leg ? p.leg.path[Math.max(0, idx)] : p.at;
+  p.at = hex; p.leg = null; p.pending = null;
+  story.push({ kind: 'rescued', hex, idx });
+  comeHome(ctx);
+  const cost = Math.min(RESCUE.coins, s.coins);
+  s.coins -= cost;
+  story.push({ kind: 'care', hex: HOME, idx: -1, coins: cost });
 }
 
 // After an event on the way out: go on, or turn back (nobody on their feet: they turn back)

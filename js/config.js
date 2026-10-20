@@ -1110,6 +1110,9 @@ export const FOOD_PACKS = [
   { id: 'ration', qty: 3, price: 6 }, { id: 'water_skin', qty: 2, price: 40 },
   { id: 'leaf', qty: 50, price: 15 }, { id: 'meat', qty: 50, price: 30 },
 ];
+// The player down on a journey: the sanctuary's rescue team flies them home at once, the team and all
+// it carries with them; the journey is over, and the care costs coins (as many as there are).
+export const RESCUE = { coins: 50 };
 // Factions: the sanctuary's peoples, each paying for what it lacks and little for what it has plenty
 // of, and asking more than it pays. The nest belongs to the Scientists: they grow food for the dinosaurs
 // in plenty (it sells for little, and the Shop's is cheap) and are after specimens for their research
