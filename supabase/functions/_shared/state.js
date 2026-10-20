@@ -139,7 +139,7 @@ function cleanWound(w) {
   if (!w || typeof w !== 'object' || !Array.isArray(w.parts)) return undefined;
   const parts = SCARS.parts.filter(pt => w.parts.includes(pt));
   if (!parts.length) return undefined;
-  const out = { parts, ...(typeof w.by === 'string' ? { by: w.by.slice(0, 24) } : {}) };
+  const out = { parts, ...(typeof w.by === 'string' ? { by: w.by.slice(0, 24) } : {}), ...(w.stitched === true ? { stitched: true } : {}) };
   if (Number(w.until) > 0) Object.assign(out, { open: Math.max(0, Math.min(1, Number(w.open) || 0)), at: Number(w.at) || 0, until: Number(w.until) });
   return out;
 }

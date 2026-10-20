@@ -397,6 +397,9 @@ function land(s, b, lands, grave) {
   b.injuredUntil = lands + hours * 3600000;
   b.hospital = true;
   delete b.critical;
+  // (its wounds seen to there, fresh: the cuts sewn up, the bites left open to drain; they close
+  // over its stay)
+  if (b.wound) b.wound = { ...b.wound, open: 1, at: lands, until: b.injuredUntil, stitched: true };
   return { id: b.id, name: b.name, hours };
 }
 
@@ -1278,7 +1281,8 @@ function scar(ctx, ev, id, lost, lame, entry) {
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
 }
 // How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur
-// is; at home, closing as it heals. Returns { parts: { part: how open }, by }, or null once all closed.
+// is; at home, closing as it heals. Returns { parts: { part: how open }, by, stitched (seen to in the
+// hospital) }, or null once all closed.
 export function woundsOf(s, b, now) {
   const w = b && b.wound;
   if (!w || !w.parts || !w.parts.length) return null;
@@ -1287,7 +1291,7 @@ export function woundsOf(s, b, now) {
   if (!w.until) open = p && !hasLanded(p, now) ? (isDown(p, id) ? 1 : 1 - healthOf(p, id)) : injuredLeft(b, now) > 0 ? 1 : 0;
   else open = w.until > w.at ? w.open * Math.max(0, Math.min(1, (w.until - now) / (w.until - w.at))) : 0;
   open = Math.round(open * 100) / 100;
-  return open > 0 ? { parts: Object.fromEntries(w.parts.map(pt => [pt, open])), by: w.by || null } : null;
+  return open > 0 ? { parts: Object.fromEntries(w.parts.map(pt => [pt, open])), by: w.by || null, ...(w.stitched ? { stitched: true } : {}) } : null;
 }
 // how scarred each part is: 0 none, 1 marked, 2 deep
 export const scarLevels = b => Object.fromEntries(SCARS.parts.map(pt => {

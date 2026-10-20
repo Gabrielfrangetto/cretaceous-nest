@@ -21,3 +21,8 @@ test('at home a wound closes over its time, then only the scar is left', () => {
   assert.equal(woundsOf(world(), b, T + WOUNDS.mins * 60000), null);
   assert.equal(woundsOf(world(), { id: 'b' }, T), null);
 });
+
+test('in the hospital its wounds are seen to: sewn up, and closing over its stay', () => {
+  const b = { id: 'a', wound: { parts: ['body'], by: 'raptor', open: 1, at: T, until: T + 3600000, stitched: true } };
+  assert.deepEqual(woundsOf(world(), b, T + 1800000), { parts: { body: 0.5 }, by: 'raptor', stitched: true });
+});

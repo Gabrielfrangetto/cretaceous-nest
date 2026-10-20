@@ -85,8 +85,8 @@ function renderScars() {
   const shown = $('wound').value, scar = shown === '2' || shown === '1';
   const all = Object.fromEntries(SCARS.parts.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
   const look = Object.fromEntries(SCARS.parts.map(pt => [pt, $('look').value]));
-  const open = scar ? 0 : +shown;
-  const wounds = open ? { parts: Object.fromEntries(SCARS.parts.map(pt => [pt, open])), by: $('look').value } : null;
+  const sewn = shown[0] === 's', open = scar ? 0 : +shown.replace('s', '');
+  const wounds = open ? { parts: Object.fromEntries(SCARS.parts.map(pt => [pt, open])), by: $('look').value, ...(sewn ? { stitched: true } : {}) } : null;
   art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds));
   const base = art.querySelector('.dino-base');
   if (base) base.style.height = TALL + 'px';
