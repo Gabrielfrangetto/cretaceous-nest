@@ -13,11 +13,11 @@ from PIL import Image
 STEP, R, S = 16, 8, 10   # grid spacing, patch radius, how far a point is looked for between frames
 
 
-# (ref: the frame the points are taken on, when not the first of these: a walk is followed from its
+# (start: the frame the points are taken on, when not the first of these: a walk is followed from its
 # idle's first frame, which scars and equipment are placed on, its feet looked for farther)
-def motion(frames, ref=None, S=S):
-    if ref is not None:
-        frames = [ref] + frames
+def motion(frames, start=None, S=S):
+    if start is not None:
+        frames = [start] + frames
     h, w = frames[0].shape[:2]
     pad = R + S
     lum = [np.pad(np.where(f[..., 3] < 60, -200.0, f[..., :3] @ [0.3, 0.59, 0.11]), pad, constant_values=-200.0) for f in frames]
@@ -36,13 +36,18 @@ def motion(frames, ref=None, S=S):
             for k in range(1, n):
                 region = lum[k][py + pad - R - S:py + pad + R + S + 1, px + pad - R - S:px + pad + R + S + 1]
                 win = sliding_window_view(region, ref.shape)
-                cost = np.abs(win - ref).sum((2, 3)) + 0.5 * np.abs(win - prev).sum((2, 3))
-                # (ties go to standing still)
-                cost += np.hypot(*np.mgrid[-S:S + 1, -S:S + 1]) * 0.5
+                # (the skin as it was on the first frame, a little of how it looked on the last against noise)
+                cost = np.abs(win - ref).sum((2, 3)) + 0.2 * np.abs(win - prev).sum((2, 3))
                 oy, ox = np.unravel_index(np.argmin(cost), cost.shape)
+                # between pixels: the bottom of a parabola through the best and its neighbours, each way
+                def sub(c0, c1, c2):
+                    den = c0 - 2 * c1 + c2
+                    return 0.0 if den <= 0 else max(-0.5, min(0.5, (c0 - c2) / (2 * den)))
+                fx = sub(cost[oy, ox - 1], cost[oy, ox], cost[oy, ox + 1]) if 0 < ox < 2 * S else 0.0
+                fy = sub(cost[oy - 1, ox], cost[oy, ox], cost[oy + 1, ox]) if 0 < oy < 2 * S else 0.0
                 px, py = px + ox - S, py + oy - S
                 prev = patch(k, px, py)
-                d[k, j, i] = (px - x, py - y)
+                d[k, j, i] = (px + fx - x, py + fy - y)
     # (a lone point that went its own way follows its neighbours; points off the body, the nearest on it)
     for k in range(1, n):
         f = d[k].copy()
@@ -60,10 +65,12 @@ def motion(frames, ref=None, S=S):
                 if not ok[j, i]:
                     b, a = idx[np.argmin(((idx - (j, i)) ** 2).sum(1))]
                     d[:, j, i] = d[:, b, a]
-    if ref is not None:
+    if start is not None:
         d = d[1:]
-    raw = np.clip(np.round(d), -127, 127).astype(np.int8).tobytes()
-    return {'step': STEP, 'gw': len(xs), 'gh': len(ys), 'moves': base64.b64encode(raw).decode()}
+    # (in quarter pixels, or whole ones for a walk, whose feet travel far)
+    unit = 0.25 if np.abs(d).max() < 31 else 1
+    raw = np.clip(np.round(d / unit), -127, 127).astype(np.int8).tobytes()
+    return {'step': STEP, 'gw': len(xs), 'gh': len(ys), 'unit': unit, 'moves': base64.b64encode(raw).decode()}
 
 
 COLS = 6
@@ -111,6 +118,6 @@ for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
 with open('js/sheets.js', 'w') as f:
     f.write('// Made by scripts/sheets.py: each animated sprite\'s frames laid out in a sheet (cols to a row,\n')
     f.write('// each frame w × h, ms each), so a scarred dinosaur can be drawn frame by frame; and how it moves:\n')
-    f.write('// a grid of points step px apart (gw × gh), each point\'s offset from frame 0, x then y, in px, per\n')
-    f.write('// frame (int8, base64)\n')
+    f.write('// a grid of points step px apart (gw × gh), each point\'s offset from frame 0, x then y, in units of\n')
+    f.write('// unit px, per frame (int8, base64)\n')
     f.write('export const SHEETS = ' + json.dumps(sheets, indent=1).replace('\n ', '\n  ') + ';\n')

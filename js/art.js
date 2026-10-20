@@ -385,7 +385,8 @@ export function motionAt(sheet, x, y, frame) {
   const at = (a, b, c) => m[((frame * gh + b) * gw + a) * 2 + c];
   const lerp = c => (at(i, j, c) * (1 - u) + at(Math.min(gw - 1, i + 1), j, c) * u) * (1 - v)
     + (at(i, Math.min(gh - 1, j + 1), c) * (1 - u) + at(Math.min(gw - 1, i + 1), Math.min(gh - 1, j + 1), c) * u) * v;
-  return [lerp(0) / sheet.w, lerp(1) / sheet.h];
+  const unit = sheet.unit || 1;
+  return [lerp(0) * unit / sheet.w, lerp(1) * unit / sheet.h];
 }
 // where something set on the skin is at a frame: by its own keys if it has them, else as the skin moves
 export function placeOn(sheet, a, frame) {
