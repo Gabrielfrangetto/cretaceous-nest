@@ -82,10 +82,10 @@ const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - 
 
 function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
-  const all = Object.fromEntries(SCARS.parts.map(pt => [pt, SCARS.deep]));
+  const shown = $('wound').value, scar = shown === '2' || shown === '1';
+  const all = Object.fromEntries(SCARS.parts.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
   const look = Object.fromEntries(SCARS.parts.map(pt => [pt, $('look').value]));
-  const open = +$('wound').value;
-  $('woundNo').textContent = open ? (open > 0.5 ? '· just given' : '· closing') : '· healed: the scar';
+  const open = scar ? 0 : +shown;
   const wounds = open ? { parts: Object.fromEntries(SCARS.parts.map(pt => [pt, open])), by: $('look').value } : null;
   art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds));
   const base = art.querySelector('.dino-base');
@@ -276,7 +276,7 @@ $('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { if (!scarring()) fillItems(); render(); });
 $('stage').addEventListener('change', render);
 $('look').addEventListener('change', render);
-$('wound').addEventListener('input', render);
+$('wound').addEventListener('change', render);
 $('mode').addEventListener('change', () => {
   if (scarring()) fill($('slot'), SCARS.parts.map(pt => [pt, PARTS[pt]]));
   else { fill($('slot'), GEAR_SLOTS.filter(g => DRAWN_SLOTS.includes(g.id)).map(g => [g.id, g.name])); fillItems(); }

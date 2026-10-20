@@ -364,7 +364,7 @@ const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 
 // scarBy: who gave each part its worst (a dinosaur's own), so its scar looks like that blow
 // wounds: its open wounds (journey.js woundsOf): red, the deep scar while they gape, the marked one as
-// they close, as the scar it leaves once closed
+// they close; once closed, the scar it has there
 export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
@@ -375,7 +375,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const sheet = src && SHEETS[src.slice(ROOT.length)];
   const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
-    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : Math.max(1, l), open(pt))
+    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt))
       : scarMark(styleBy(scarBy && scarBy[pt]), l)]);
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const base = sheet && scarred.length
