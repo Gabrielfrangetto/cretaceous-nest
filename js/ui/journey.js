@@ -6,13 +6,13 @@ import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows } from '../journey.js';
+import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
 import { GRID, fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
-import { esc, fmt } from '../util.js';
+import { esc, fmt, plural, minsLabel } from '../util.js';
 import { eventArtUrls } from '../art.js';
 
 const STEP_MS = 160;
@@ -209,7 +209,7 @@ function hideEvent() {
   box.hidden = true;
 }
 
-const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'hazard', 'lost', 'perished', 'collapse', 'nest'];
+const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'hazard', 'lost', 'perished', 'collapse', 'nest', 'rescued', 'airlift'];
 function next() {
   hideEvent();
   const actBox = document.querySelector('#journeyBody .journey-act');
@@ -371,12 +371,31 @@ function decide(v) {
       const calmNote = v.state === 'colony' ? '<p class="hint">Even if you won, the other adults would close in: there would only be time to grab one egg.</p>' : '';
       html = `<p>${intro}</p>${calmNote}<div class="row wrap">${buttons.join('')}${btn({}, 'Left it be', true)}</div>${v.full || ['alone', 'empty', 'hatched'].includes(v.state) ? '' : riskHTML(v.units, death)}`;
     }
+  } else if (v.kind === 'airlift') {
+    // which of the fallen to fly home: each one ticked adds to the aircraft needed and to the care
+    const rows = v.who.map(x => `<label class="check"><input type="checkbox" data-air="${esc(x.id)}" checked> ${esc(x.name)} <span class="hint">(${healthWord(x.health)}; care ${plural(x.care, 'coin', 'coins')})</span></label>`).join('');
+    html = `<p>${cap(listNames(v.who.map(x => esc(x.name))))} ${v.who.length > 1 ? 'were' : 'was'} down, gravely hurt. Did you call the sanctuary's rescue for ${v.who.length > 1 ? 'them' : 'it'}? An aircraft would fly ${v.who.length > 1 ? 'them' : 'it'} home in ${minsLabel(v.mins)}, straight to the hospital; the rest of you would go on.</p>
+      <div class="air-pick">${rows}</div><p class="hint" id="airCost"></p>
+      <div class="row">${btn({ airlift: v.who.map(x => x.id) }, 'Called the rescue')}${btn({}, `Carried ${v.who.length > 1 ? 'them' : 'it'} on`, true)}</div>`;
   } else if (v.kind === 'go-on') {
     html = `<p>What then? Did you go on to the ${esc(place(v.to))}, or turn back for home?</p>${partyStatusHTML(p)}
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
       <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}</div>`;
   }
   actBox.innerHTML = html;
+  if (v.kind === 'airlift') {
+    // the bill as the boxes are ticked, and the button calls for the ones ticked
+    const call = actBox.querySelector('button:not(.ghost)'), boxes = [...actBox.querySelectorAll('[data-air]')];
+    const update = () => {
+      const ids = boxes.filter(b => b.checked).map(b => b.dataset.air);
+      const fare = airliftFare(S, ids, v.hex), care = v.who.filter(x => ids.includes(x.id)).reduce((t, x) => t + x.care, 0);
+      call.dataset.choice = JSON.stringify({ airlift: ids });
+      call.disabled = !ids.length;
+      actBox.querySelector('#airCost').textContent = ids.length ? `The flight: ${plural(fare, 'coin', 'coins')} (small ones share an aircraft, a giant needs many); their care: ${plural(care, 'coin', 'coins')}. Billed at the nest, to pay when you choose.` : 'Tick the ones to fly home.';
+    };
+    boxes.forEach(b => b.addEventListener('change', update));
+    update();
+  }
   actBox.querySelectorAll('[data-choice]').forEach(b => b.addEventListener('click', () => choose(JSON.parse(b.dataset.choice))));
   // an event waiting for a decision comes up on its card (going on or back is no event)
   if (v.kind === 'go-on') hideEvent(); else showEvent(v, '');
@@ -507,8 +526,11 @@ function entryHTML(e) {
     case 'faint': return e.need === 'thirst'
       ? `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} weak with thirst, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`
       : `${esc(e.who.name)} ${e.who.id === PLAYER_ID ? 'were' : 'was'} starving, ${e.who.id === PLAYER_ID ? 'your' : 'its'} strength draining away.`;
-    case 'rescued': return "You went down, and the sanctuary's rescue team flew you home, with your team and all it carried. The journey was over.";
+    case 'rescued': return `You went down, and the sanctuary's rescue team flew you home, with your team and all it carried. The journey was over. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
     case 'care': return e.coins ? `Your medical care cost ${e.coins} coins.` : 'Your medical care was on the house: you had no coins to pay for it.';
+    case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, straight to the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
+    case 'carried': return `You carried ${listNames(e.who.map(nm))} on.`;
+    case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;
     case 'perished': return `${esc(e.who.name)} ${e.need === 'thirst' ? 'died of thirst' : 'starved to death'} on the way.`;
     case 'turned': return e.recalled ? 'Called back, you turned for home here.' : 'You turned back for home.';

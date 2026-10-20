@@ -867,7 +867,8 @@ test('death: a deadly blow kills, one brought down may not survive (its resistan
     const c = collect(s, { id: r.expedition.id }, r.expedition.returnAt);
     if (!c.battle || c.battle.win) continue;
     if (c.died.some(x => x.id === 't')) { died++; assert.equal(s.hatched.some(b => b.id === 't'), false); }
-    else if (s.hatched.find(b => b.id === 't').critical) critical++;
+    // (critically injured; in the hospital, flown home with the player down too)
+    else if (s.hatched.find(b => b.id === 't').critical || s.hatched.find(b => b.id === 't').hospital) critical++;
     assert.ok(s.player);
   }
   assert.ok(died > 0 && critical > 0, JSON.stringify({ died, critical }));

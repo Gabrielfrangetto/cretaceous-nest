@@ -1110,9 +1110,17 @@ export const FOOD_PACKS = [
   { id: 'ration', qty: 3, price: 6 }, { id: 'water_skin', qty: 2, price: 40 },
   { id: 'leaf', qty: 50, price: 15 }, { id: 'meat', qty: 50, price: 30 },
 ];
-// The player down on a journey: the sanctuary's rescue team flies them home at once, the team and all
-// it carries with them; the journey is over, and the care costs coins (as many as there are).
+// Air rescue, by the colonists' aircraft (as fast as the maglev: TRAIN board minutes and mins a hex, as
+// the crow flies from the nest). The player can call one in for a dinosaur of theirs down on a journey;
+// the player down, the whole team is flown home with all it carries, and the journey is over. An
+// aircraft carries load kg: small ones share one, a giant takes many (a heavy-lift helicopter's
+// sorties); each costs perHex coins a hex from the nest. At the nest, care costs lost coins for all of
+// one's health lost, grave more for one down (gravely injured), who is kept in the sanctuary's hospital
+// hospital hours by its size, fewer the tougher it is (ref over its vitality and resistance, from half
+// to twice as long); the player's own care costs RESCUE.coins. Everything is billed (Debt) and paid when
+// the player chooses; until then, every coin that comes in goes to the bill.
 export const RESCUE = { coins: 50 };
+export const AIRLIFT = { load: 500, perHex: 1, lost: 30, grave: 40, hospital: { tiny: 2, small: 3, medium: 5, large: 8, huge: 12, colossal: 18 }, ref: 100 };
 // Factions: the sanctuary's peoples, each paying for what it lacks and little for what it has plenty
 // of, and asking more than it pays. The nest belongs to the Scientists: they grow food for the dinosaurs
 // in plenty (it sells for little, and the Shop's is cheap) and are after specimens for their research

@@ -15,7 +15,7 @@ const DEV_KEY = 'cretaceous-nest:dev';
 
 export function freshState() {
   const s = {
-    saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
+    saveVersion: SAVE_VERSION, owner: null, current: null, hatched: [], coins: 0, debt: 0, inv: Array(SLOTS).fill(null), invSize: BASE_SLOTS,
     daily: { last: null, streak: 0, best: 0 }, stats: { coinsEarned: 0, meals: 0, purchases: 0, eggsLaid: 0 }, achievements: {},
     eggs: [], breeding: null, wardrobe: [], updatedAt: 0,
     redeemed: [],     // the event codes already redeemed (PROMO_CODES)
@@ -137,6 +137,8 @@ const MIGRATIONS = {
 // keeps a loaded save inside the rules whatever produced it
 function sanitize(s) {
   s.coins = Math.max(0, Math.floor(Number(s.coins) || 0));
+  // the sanctuary's bills not yet paid (an air rescue, a hospital)
+  s.debt = Math.max(0, Math.floor(Number(s.debt) || 0));
   s.invSize = Math.min(SLOTS, Math.max(BASE_SLOTS, Math.floor((s.invSize || BASE_SLOTS) / ROW) * ROW));
   s.inv = Array.from({ length: SLOTS }, (_, i) => {
     const slot = s.inv[i];
@@ -152,7 +154,9 @@ function sanitize(s) {
     ...b,
     genes: cleanGenes(b.genes, 'stats:' + b.id),
     gen: Math.max(1, Math.floor(Number(b.gen) || 1)),
-    ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined } : { injuredUntil: undefined, critical: undefined }),
+    ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined, hospital: b.hospital === true || undefined } : { injuredUntil: undefined, critical: undefined, hospital: undefined }),
+    // flown home by air, landing then
+    flyingUntil: Number(b.flyingUntil) > 0 ? Number(b.flyingUntil) : undefined,
     // raised among Hypacrosaurus: a share more of every stat (NURSE)
     care: Number(b.care) > 0 ? Math.min(NURSE.max, Number(b.care)) : undefined,
     // raised in a Psittacosaurus creche: it gets hungry more slowly on a journey (CRECHE)

@@ -1,14 +1,14 @@
 import { test } from 'node:test';
 import { collect } from './journey-helper.js';
-import { legMins } from '../js/journey.js';
+import { legMins, partyOf, airliftFare, careOf, hospitalHours } from '../js/journey.js';
 import assert from 'node:assert/strict';
-import { applyAction, countItem, feedBaby, breedProblem } from '../js/economy.js';
+import { applyAction, countItem, feedBaby, breedProblem, bill, earn } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE, AIRLIFT } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 // (fed as in meals before growth capsules: 10 a juvenile, 30 an adult)
@@ -467,8 +467,8 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   let step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
   assert.ok(step.story.some(e => e.kind === 'perished' && e.need === 'thirst' && e.who.id === 'ad'));
   assert.equal(s.hatched.length, 0);
-  // the player collapses instead, and is flown home at once with the team and what it carries; the
-  // journey is over, and the care costs RESCUE coins
+  // the player collapses instead, and is flown home with the team and what it carries; the journey is
+  // over, and the flight and the care are billed
   s = game(dino('ad', 30));
   s.coins = 80;
   r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
@@ -480,20 +480,18 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   const kinds = step.story.map(e => e.kind);
   assert.ok(step.story.some(e => e.kind === 'collapse' && e.need === 'hunger'));
   assert.ok(kinds.indexOf('rescued') > kinds.indexOf('collapse') && kinds.indexOf('home') > kinds.indexOf('rescued'));
-  assert.equal(step.story.find(e => e.kind === 'care').coins, RESCUE.coins);
-  assert.equal(s.coins, 80 - RESCUE.coins);
+  const rescued = step.story.find(e => e.kind === 'rescued');
+  // (a Tyrannosaurus and the player: 16 aircraft loads, at the hex's distance)
+  assert.equal(rescued.fare, Math.ceil((8000 + 75) / AIRLIFT.load) * hexDist(parseKey(rescued.hex)) * AIRLIFT.perHex);
+  assert.equal(rescued.care, RESCUE.coins);
+  assert.equal(s.coins, 80);
+  assert.equal(s.debt, rescued.fare + rescued.care);
   assert.equal(s.world.expeditions.length, 0);
   assert.equal(countItem(s, 'bone'), bones + 3);
   assert.ok(!isAway(s, 'ad') && !isAway(s, ME));
-  // with fewer coins than the care costs, it takes what there is
-  s = game(dino('ad', 30));
-  s.coins = 20;
-  r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: ME }], hex: dryStart }, T0);
-  p = partyOf(s, r.expedition.id);
-  p.hunger = { [ME]: 1 }; p.health = { [ME]: 0.01 }; p.leg.step = dryAt;
-  step = applyAction(s, 'journey', { id: p.id, flee: true }, p.leg.arriveAt);
-  assert.equal(step.story.find(e => e.kind === 'care').coins, 20);
-  assert.equal(s.coins, 0);
+  // in the air until it lands, as fast as the maglev
+  assert.equal(s.player.flyingUntil, rescued.lands);
+  assert.equal(exploreProblem(s, 'ad', '1,0', rescued.lands - 1), 'away');
   // fresh water waters everyone and fills the flasks
   const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 8 && travelPath(42, parseKey(k)).length && freshWater(42, travelPath(42, parseKey(k))[0]));
   if (wet) {
@@ -939,4 +937,60 @@ test("the world's day is a day's march: a flat hex is about half a day, a day ab
   const hexDays = TRAVEL.terrain.flat * UNIT_HOURS / 24;
   assert.ok(hexDays > 0.4 && hexDays < 0.5);
   assert.ok(1 / hexDays > 2.2 && 1 / hexDays < 2.4);
+});
+
+test('a dinosaur of the team down: the player may call in an aircraft for it, billed by weight and distance, its care by its wounds', () => {
+  const two = () => {
+    const s = game(dino('ad', 30), dino('c', 30, 'f', 'compy'), dino('c2', 30, 'm', 'compy'));
+    const far = hexKey(...landHexes(42).filter(h => hexDist(h) >= 8)[0]);
+    const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'dino', id: 'c' }, { kind: 'dino', id: 'c2' }, { kind: 'player', id: 'player' }], hex: far }, T0);
+    assert.equal(r.ok, true, r.reason);
+    const p = partyOf(s, r.expedition.id);
+    p.down = ['ad', 'c', 'c2']; p.health = { ad: 0, c: 0, c2: 0 };
+    return { s, p };
+  };
+  let { s, p } = two();
+  let step = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
+  assert.equal(step.pending.kind, 'airlift');
+  assert.deepEqual(step.pending.who.map(x => x.id), ['ad', 'c', 'c2']);
+  // two small ones share an aircraft: as dear as one
+  const hex = step.pending.hex;
+  assert.equal(airliftFare(s, ['c', 'c2'], hex), airliftFare(s, ['c'], hex));
+  assert.ok(airliftFare(s, ['ad'], hex) > airliftFare(s, ['c'], hex) * 10);
+  step = applyAction(s, 'journey', { id: p.id, airlift: ['c', 'c2'] }, p.leg ? p.leg.arriveAt : T0);
+  const told = step.story.find(e => e.kind === 'airlift');
+  assert.deepEqual(told.who, ['c', 'c2']);
+  assert.equal(told.fare, airliftFare(s, ['c'], hex));
+  assert.equal(told.care, 2 * careOf(0, true));
+  assert.equal(s.debt, told.fare + told.care);
+  // they leave the team, land when the flight is over and go to the hospital
+  assert.ok(!p.members.includes('c') && p.members.includes('ad'));
+  const c = s.hatched.find(b => b.id === 'c');
+  assert.equal(c.flyingUntil, told.lands);
+  assert.equal(c.hospital, true);
+  assert.equal(c.injuredUntil, told.lands + hospitalHours(c) * 3600000);
+  // the tougher, the sooner out: a Tyrannosaurus is big, but hard to keep down
+  assert.ok(hospitalHours(s.hatched.find(b => b.id === 'ad')) > hospitalHours(c));
+  assert.equal(applyAction(s, 'heal', { babyId: 'c' }, told.lands + 1).reason, 'hospital');
+  // the one left is carried on, and not asked about again
+  assert.ok(!step.story.some(e => e.kind === 'airlift' && e.who.includes('ad')));
+  assert.ok(p.down.includes('ad'));
+});
+
+test("the sanctuary's bills: paid when the player chooses, and every coin that comes in goes to them meanwhile", () => {
+  const s = game();
+  s.coins = 30;
+  bill(s, 100);
+  assert.equal(s.debt, 100);
+  assert.equal(s.coins, 30);
+  earn(s, 25);
+  assert.equal(s.debt, 75);
+  assert.equal(s.coins, 30);
+  assert.deepEqual(applyAction(s, 'payDebt', {}, T0), { ok: true, paid: 30, left: 45 });
+  assert.equal(s.coins, 0);
+  assert.equal(applyAction(s, 'payDebt', {}, T0).reason, 'coins');
+  earn(s, 60);
+  assert.equal(s.debt, 0);
+  assert.equal(s.coins, 15);
+  assert.equal(applyAction(s, 'payDebt', {}, T0).reason, 'no-debt');
 });

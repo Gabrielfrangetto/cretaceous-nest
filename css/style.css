@@ -728,3 +728,10 @@ body.guide-room { padding-bottom: 70vh; }
 .walker.asleep::after { content: "z z"; position: absolute; top: -4px; right: -6px; font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #eef2ff; text-shadow: 0 1px 2px #0008; animation: dozing 2.4s ease-in-out infinite; }
 @keyframes dozing { 0%, 100% { opacity: .35; translate: 0 2px; } 50% { opacity: 1; translate: 3px -4px; } }
 @media (prefers-reduced-motion: reduce) { .walker.asleep::after { animation: none; } }
+
+/* the sanctuary's bills (an air rescue, the hospital) */
+.coins .debt { margin-left: 8px; font-size: 12px; font-weight: 800; color: var(--heart); }
+.bills { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; padding: 10px 14px; border: 1px solid var(--heart); border-radius: 12px; background: color-mix(in srgb, var(--heart) 8%, var(--panel)); }
+.bills p { margin: 0; flex: 1 1 240px; }
+.air-pick { display: grid; gap: 6px; margin: 8px 0; }
+.air-pick .check { display: flex; align-items: center; gap: 8px; }

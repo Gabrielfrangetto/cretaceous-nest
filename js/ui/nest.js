@@ -3,7 +3,7 @@ import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
-import { expeditionOf, injuredLeft, isCritical } from '../world.js';
+import { expeditionOf, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
@@ -91,6 +91,8 @@ function checkHunger() {
       fed.textContent = trip ? (!trip.leg ? 'Out in the world, waiting for orders · see the World tab'
           : now >= trip.leg.arriveAt ? 'A journey to tell! See the World tab'
           : (trip.leg.to === '0,0' ? 'On the way home · back in ' : 'Exploring · there in ') + fmt(trip.leg.arriveAt - now))
+        : flyingLeft(b, now) ? 'Flown home by air · lands in ' + fmt(flyingLeft(b, now))
+        : inHospital(b, now) ? 'In the hospital · out in ' + fmt(hurt)
         : hungry ? 'Needs a growth capsule!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt)
         : isAdult(b) ? 'Fully grown' : 'Growing · next capsule in ' + fmt(b.lastFed + hungerEvery(b) - now);
       fed.classList.toggle('hungry', hungry);
@@ -109,14 +111,16 @@ function checkHunger() {
   const fsText = `The keepers feed everyone. A young dinosaur grows only while a growth capsule works: one every ${CAPSULE.every.baby} h for a baby, every ${CAPSULE.every.juvenile} h for a juvenile. `
     + (caps ? `You have ${plural(caps, 'growth capsule', 'growth capsules')}.` : 'You have no growth capsules: buy some in the Shop.');
   if (fs.textContent !== fsText) fs.textContent = fsText;
+  bills();
   const pill = document.getElementById('hungryPill');
   pill.hidden = hungryCount === 0;
   pill.textContent = plural(hungryCount, 'capsule', 'capsules') + ' due';
 }
 
 function syncWalkers() {
-  // dinosaurs out exploring are not in the nest
-  const home = S.hatched.filter(b => !expeditionOf(S, b.id));
+  // dinosaurs out exploring, in the air or in the hospital are not in the nest
+  const t = gameNow();
+  const home = S.hatched.filter(b => !expeditionOf(S, b.id) && !flyingLeft(b, t) && !inHospital(b, t));
   const ids = new Set(home.map(b => b.id));
   for (const [id, w] of walkers) if (!ids.has(id)) { w.el.remove(); walkers.delete(id); }
   for (const b of home) {
@@ -162,6 +166,20 @@ function syncWalkers() {
   const empty = document.getElementById('sceneEmpty');
   empty.hidden = walkers.size > 0;
   empty.textContent = S.hatched.length ? 'Everyone is out exploring. Check the World tab.' : 'No babies yet. Hatch an egg in the Incubator tab.';
+}
+
+// the sanctuary's bills, paid when the player chooses (every coin that comes in goes to them meanwhile)
+function bills() {
+  const box = document.getElementById('bills');
+  box.hidden = !S.debt;
+  if (!S.debt) { box.innerHTML = ''; return; }
+  const can = Math.min(S.coins, S.debt);
+  const html = `<p>You owe the sanctuary <strong>${S.debt} coins</strong> for air rescues and the hospital. Until it is paid, every coin you earn goes to the bill.</p>
+    <button class="btn small" type="button" id="payDebt" ${can ? '' : 'disabled'}>${can ? `Pay ${can} coins${can < S.debt ? ' of it' : ''}` : 'No coins to pay with'}</button>`;
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.innerHTML = html;
+  box.querySelector('#payDebt').addEventListener('click', () => act('payDebt', {}));
 }
 
 // ---------- day and night ----------
@@ -281,6 +299,8 @@ export function initNest() {
   // the cards and walkers are rebuilt only while the tab is open; the hungry badge updates everywhere
   subscribe(() => currentTab() === 'nest' ? renderBabies() : checkHunger());
   setInterval(checkHunger, 1000);
+  // (ones landing, or out of the hospital, join the others)
+  setInterval(() => { if (currentTab() === 'nest') syncWalkers(); }, 5000);
   onTabChange(name => {
     if (name === 'nest') {
       updateSky();

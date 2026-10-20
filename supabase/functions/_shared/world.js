@@ -142,6 +142,10 @@ export const teamTripMins = (s, members, key) => tripMins(key, W(s).seed) * team
 export const injuredLeft = (b, now) => Math.max(0, ((b && b.injuredUntil) || 0) - now);
 // brought down in a fight: herbs don't help, a Blood Transfusion does
 export const isCritical = (b, now) => !!(b && b.critical) && injuredLeft(b, now) > 0;
+// in the sanctuary's hospital, after an air rescue: the doctors' care, nothing to hurry it
+export const inHospital = (b, now) => !!(b && b.hospital) && injuredLeft(b, now) > 0;
+// still in the air, flown home
+export const flyingLeft = (b, now) => Math.max(0, ((b && b.flyingUntil) || 0) - now);
 export function transfuse(s, babyId, now) {
   const b = s.hatched.find(x => x.id === babyId);
   if (!b) return { ok: false, reason: 'missing' };
@@ -156,6 +160,7 @@ export function healBaby(s, babyId, now) {
   const b = explorerOf(s, babyId);
   if (!b) return { ok: false, reason: 'missing' };
   if (!injuredLeft(b, now)) return { ok: false, reason: 'not-injured' };
+  if (inHospital(b, now)) return { ok: false, reason: 'hospital' };
   if (isCritical(b, now)) return { ok: false, reason: 'critical' };
   if (countItem(s, 'herb') < 1) return { ok: false, reason: 'no-herb' };
   removeItem(s, 'herb', 1);
@@ -195,7 +200,7 @@ export function memberProblem(s, id, key, now) {
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
-  if (isAway(s, id)) return 'away';
+  if (isAway(s, id) || flyingLeft(b, now)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';
   if (me && isHungry(b, now)) return 'starved';

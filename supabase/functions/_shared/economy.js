@@ -153,9 +153,23 @@ export function deriveCombat(st) {
   };
 }
 
+// coins coming in go to the bills first, while any are owed (bill)
 export function earn(s, coins) {
-  s.coins += coins;
+  const paid = Math.min(s.debt || 0, coins);
+  if (paid) s.debt -= paid;
+  s.coins += coins - paid;
   bump(s, 'coinsEarned', coins);
+}
+// a bill for the sanctuary's services (an air rescue, a hospital), paid when the player chooses
+export function bill(s, coins) {
+  s.debt = (s.debt || 0) + Math.max(0, Math.round(coins));
+}
+// pays what can be paid of the bills now
+export function payDebt(s) {
+  const n = Math.min(s.coins, s.debt || 0);
+  if (!n) return { ok: false, reason: s.debt ? 'coins' : 'no-debt' };
+  s.coins -= n; s.debt -= n;
+  return { ok: true, paid: n, left: s.debt };
 }
 
 // ---------- inventory ----------
@@ -518,7 +532,7 @@ export function cleanPlayer(p) {
   const src = p && typeof p === 'object' ? p : newPlayer();
   const name = String(src.name ?? '').trim().slice(0, 24) || 'You';
   const equip = Object.fromEntries(PLAYER_SLOTS.map(({ id }) => [id, src.equip && src.equip[id]]).filter(([slot, item]) => isArms(item) && ITEMS[item].slot === slot));
-  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}), ...(Number(src.lastFed) > 0 ? { lastFed: Number(src.lastFed) } : {}) };
+  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}), ...(Number(src.lastFed) > 0 ? { lastFed: Number(src.lastFed) } : {}), ...(Number(src.flyingUntil) > 0 ? { flyingUntil: Number(src.flyingUntil) } : {}) };
 }
 
 // ---------- outfits ----------
@@ -774,10 +788,12 @@ export const ACTIONS = {
   // stood its ground), flee (a predator scattered the player's group: run too), hunt (one spotted at a
   // distance), back (turn back home instead of going on), witness (a hunt watched, stepped into:
   // { act: 'prey' | 'predator', hunter: a unit's id })
-  journey(s, { id, fight, flee, hunt, back, witness, nest, decoy }, now) {
+  journey(s, { id, fight, flee, hunt, back, witness, nest, decoy, airlift }, now) {
     const w = witness && typeof witness === 'object' && ['prey', 'predator'].includes(witness.act) ? { act: witness.act, hunter: String(witness.hunter || '') } : null;
     const n = ['take', 'candle', 'keep', 'sneak', 'lure', 'fight'].includes(nest) ? nest : null;
-    return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w, nest: n, decoy: decoy == null ? null : String(decoy) }, now);
+    // (the dinosaurs to fly home: their ids)
+    const air = Array.isArray(airlift) ? airlift.slice(0, 12).map(String) : [];
+    return journeyStep(s, String(id), { fight: !!fight, flee: !!flee, hunt: !!hunt, back: !!back, witness: w, nest: n, decoy: decoy == null ? null : String(decoy), airlift: air }, now);
   },
   equipArms(s, { index }) {
     return equipArms(s, index);
@@ -845,6 +861,9 @@ export const ACTIONS = {
   discard(s, { i }) {
     if (!slotIndex(s, i)) return fail('bad-slot');
     return discardOne(s, i) ? { ok: true } : fail('empty-slot');
+  },
+  payDebt(s) {
+    return payDebt(s);
   },
   sell(s, { i, n }) {
     if (!slotIndex(s, i)) return fail('bad-slot');
