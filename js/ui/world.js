@@ -44,6 +44,7 @@ const PROBLEMS = {
   city: 'A settlement of other colonists. Its people keep to themselves, for now.',
   breeding: 'Busy nesting with its partner.',
   starved: 'You are too hungry to set out. Eat something first (in the Nest).',
+  report: 'Back home by air: see the journey report first.',
   coins: 'Not enough coins for the fare.',
   'no-line': 'No maglev line goes there.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
@@ -111,7 +112,7 @@ function unitProblem(u, t) {
   }
   return null;
 }
-const SHORT = { away: 'away', injured: 'injured', critical: 'critically injured', starved: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
+const SHORT = { report: 'report to read', away: 'away', injured: 'injured', critical: 'critically injured', starved: 'hungry', breeding: 'nesting', 'too-young': 'too young' };
 
 // the map's view (in map units), kept while the player looks around; first framed on the nest
 let view = null;

@@ -184,7 +184,10 @@ export function mendFrill(s, babyId) {
 }
 
 export const expeditionOf = (s, id) => W(s).expeditions.find(e => e.members.includes(id)) || null;
-export const isAway = (s, id) => !!expeditionOf(s, id);
+// away on a journey; given the time, one flown home that has landed is home (though, for exploring, its
+// report is still to be read: memberProblem)
+export const landed = (p, now) => !!(p && p.leg && p.leg.air && now != null && now >= p.leg.arriveAt);
+export const isAway = (s, id, now) => { const p = expeditionOf(s, id); return !!p && !landed(p, now); };
 
 // the items a hex can give, with quantities already scaled by its distance
 export function lootTable(s, key) {
@@ -200,6 +203,7 @@ export function memberProblem(s, id, key, now) {
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
   if (stage === 'baby') return 'too-young';
+  if (landed(expeditionOf(s, id), now)) return 'report';
   if (isAway(s, id) || flyingLeft(b, now)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
   if (injuredLeft(b, now)) return 'injured';

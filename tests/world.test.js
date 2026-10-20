@@ -969,14 +969,19 @@ test('a dinosaur of the team down: the player may call in an aircraft for it, bi
   assert.deepEqual(air.members, ['c', 'c2']);
   assert.equal(air.leg.arriveAt, told.lands);
   assert.equal(air.leg.to, HOME);
-  assert.ok(isAway(s, 'c'));
+  assert.ok(isAway(s, 'c', told.lands - 1));
+  // landed, it is home (in the hospital from the landing), though the report is to be read before it
+  // can set out again
   const c = s.hatched.find(b => b.id === 'c');
-  assert.ok(!c.hospital);
-  const landing = applyAction(s, 'journey', { id: air.id }, told.lands);
-  assert.ok(landing.story.some(e => e.kind === 'home'));
-  assert.ok(!isAway(s, 'c'));
+  assert.ok(!isAway(s, 'c', told.lands));
   assert.equal(c.hospital, true);
   assert.equal(c.injuredUntil, told.lands + hospitalHours(c) * 3600000);
+  assert.equal(exploreProblem(s, 'c', '1,0', told.lands + 1e9), 'report');
+  const landing = applyAction(s, 'journey', { id: air.id }, told.lands + 5e6);
+  assert.ok(landing.story.some(e => e.kind === 'home'));
+  assert.ok(!isAway(s, 'c'));
+  assert.equal(c.injuredUntil, told.lands + hospitalHours(c) * 3600000);
+  assert.notEqual(exploreProblem(s, 'c', '1,0', told.lands + 1e9), 'report');
   // the tougher, the sooner out: a Tyrannosaurus is big, but hard to keep down
   assert.ok(hospitalHours(s.hatched.find(b => b.id === 'ad')) > hospitalHours(c));
   assert.equal(applyAction(s, 'heal', { babyId: 'c' }, told.lands + 1).reason, 'hospital');

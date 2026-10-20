@@ -359,7 +359,7 @@ const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, i
 function land(s, b, lands, grave) {
   if (!b || !grave) return null;
   const hours = hospitalHours(b);
-  b.injuredUntil = Math.max(b.injuredUntil || 0, lands + hours * 3600000);
+  b.injuredUntil = lands + hours * 3600000;
   b.hospital = true;
   delete b.critical;
   return { id: b.id, name: b.name, hours };
@@ -391,6 +391,8 @@ function airlift(ctx, ev, choice) {
   };
   for (const id of ids) leave(ctx, id);
   startFlight(s, q, at);
+  // (to the hospital as soon as it lands: nothing happens in the air)
+  for (const id of q.down) land(s, explorerOf(s, id), q.leg.arriveAt, true);
   W(s).expeditions.push(q);
   bill(s, fare + care);
   story.push({ kind: 'airlift', hex, idx: ev.idx, who: ids, fare, care, lands });
@@ -430,12 +432,15 @@ function flyParty(ctx, idx, kind, paid = 0, when = null) {
   story.push({ kind, hex, idx, fare: cost.fare, paid, later, care: cost.care, lands });
   bill(s, later);
   startFlight(s, p, at);
+  for (const id of p.down.filter(x => x !== PLAYER_ID)) land(s, explorerOf(s, id), p.leg.arriveAt, true);
 }
 // landed at the nest: home, and the gravely injured to the hospital
+// (home since it landed, its report read only now: its wounds are counted from the landing)
 function landed(ctx) {
   const { s, p, story } = ctx, leg = p.leg, down = p.down.filter(id => id !== PLAYER_ID);
   p.at = HOME;
-  comeHome(ctx);
+  comeHome({ ...ctx, now: leg.arriveAt, story });
+  ctx.gone = true;
   const hospital = down.map(id => land(s, explorerOf(s, id), leg.arriveAt, true)).filter(Boolean);
   if (hospital.length) story.push({ kind: 'hospital', hex: HOME, idx: -1, hospital });
 }

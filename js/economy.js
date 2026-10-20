@@ -368,7 +368,7 @@ export function feedBaby(s, id, now) {
   if (id === PLAYER_ID) return feedPlayer(s, now);
   const b = s.hatched.find(x => x.id === id);
   if (!b) return { ok: false, reason: 'missing' };
-  if (isAway(s, id)) return { ok: false, reason: 'away' };
+  if (isAway(s, id, now)) return { ok: false, reason: 'away' };
   if (!needsCapsule(b, now)) return { ok: false, reason: isAdult(b) ? 'grown' : 'full' };
   const food = CAPSULE.item, n = 1;
   if (countItem(s, food) < n) return { ok: false, reason: 'no-food', food, n };
@@ -385,7 +385,7 @@ export function feedBaby(s, id, now) {
 // the player eats (in the nest): no coins for it
 function feedPlayer(s, now) {
   const p = s.player;
-  if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
+  if (isAway(s, PLAYER_ID, now)) return { ok: false, reason: 'away' };
   if (!isHungry(p, now)) return { ok: false, reason: 'full' };
   const food = mealFor(s, null, p);
   if (!food) return { ok: false, reason: 'no-food', food: PLAYER_DIET[0] };

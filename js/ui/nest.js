@@ -3,7 +3,7 @@ import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage } from '../economy.js';
 import { act } from '../actions.js';
-import { expeditionOf, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
+import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { dressedArt, ITEM_ICONS, adultWalk } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
@@ -75,7 +75,8 @@ function checkHunger() {
   const now = gameNow();
   let hungryCount = 0;
   for (const b of S.hatched) {
-    const trip = expeditionOf(S, b.id);
+    // (one flown home is home once it lands, its report still to read)
+    const trip = isAway(S, b.id, now) ? expeditionOf(S, b.id) : null;
     // explorers are away: they don't grow until they are home again
     const hungry = !trip && needsCapsule(b, now);
     if (hungry) hungryCount++;
@@ -120,7 +121,7 @@ function checkHunger() {
 function syncWalkers() {
   // dinosaurs out exploring, in the air or in the hospital are not in the nest
   const t = gameNow();
-  const home = S.hatched.filter(b => !expeditionOf(S, b.id) && !flyingLeft(b, t) && !inHospital(b, t));
+  const home = S.hatched.filter(b => !isAway(S, b.id, t) && !flyingLeft(b, t) && !inHospital(b, t));
   const ids = new Set(home.map(b => b.id));
   for (const [id, w] of walkers) if (!ids.has(id)) { w.el.remove(); walkers.delete(id); }
   for (const b of home) {
