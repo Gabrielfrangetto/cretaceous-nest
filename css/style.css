@@ -349,7 +349,14 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .baby-info { display: grid; gap: 16px; }
 .info-head { display: flex; align-items: center; gap: 16px; padding-right: 24px; }
 .info-head h2 { overflow-wrap: anywhere; }
-.info-art { flex: none; }
+.info-art { flex: none; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; }
+.info-art:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.dino-zoom { border: 0; padding: 16px; background: transparent; max-width: 100vw; max-height: 100dvh; overflow: hidden; cursor: zoom-out; text-align: center; }
+.dino-zoom::backdrop { background: rgb(12 18 24 / .82); }
+.dino-zoom .dino-base, .dino-zoom > img, .dino-zoom > canvas { display: block; width: auto; margin: 0 auto; }
+.dino-zoom .dino-art { margin: 0 auto; }
+.dino-zoom .zoom-name { margin: 10px 0 0; color: #eef2f6; font-family: var(--display); font-size: 18px; }
+.dino-zoom .zoom-name .hint { color: #b9c3cc; font-family: inherit; font-size: 13px; margin-left: 8px; }
 .info-art > img, .info-art > canvas, .info-art .dino-base { display: block; max-height: 136px; width: auto; }
 .info-total { margin: 4px 0 0; font-family: var(--display); font-weight: 600; font-size: 18px; font-variant-numeric: tabular-nums; }
 .info-facts { display: grid; gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }

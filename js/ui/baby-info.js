@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, ageOf, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
 import { act } from '../actions.js';
-import { dressedArt, ITEM_ICONS } from '../art.js';
+import { dressedArt, ITEM_ICONS, sharpen } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
 import { worldTime } from '../sun.js';
@@ -106,7 +106,7 @@ function render() {
   const sex = sexOf(b);
   body.innerHTML = `
     <div class="info-head">
-      <div class="info-art"></div>
+      <button class="info-art" type="button" aria-label="See ${esc(b.name)} up close" title="See up close"></button>
       <div>
         <h2 id="babyTitle">${esc(b.name)} ${SEX[sex].sym}</h2>
         <p class="hint">${SPECIES[b.type].species} · ${SEX[sex].word} · Gen ${b.gen || 1}</p>
@@ -139,6 +139,7 @@ function render() {
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
   body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now())));
+  body.querySelector('.info-art').addEventListener('click', () => openZoom(b));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
     const index = +body.querySelector(`select[data-slot="${btn.dataset.equip}"]`).value;
@@ -180,4 +181,34 @@ export function initBabyInfo() {
   dialog.addEventListener('close', () => { openId = null; });
   // keep the window in step with the server's answer
   subscribe(() => { if (dialog.open && openId && !body.contains(document.activeElement)) render(); });
+}
+
+// A dinosaur up close: as big as its drawing goes without a pixel stretched (and no bigger than the
+// screen). An animated one stands still on its first frame, drawn from the drawing at its full size.
+let zoomBox = null;
+function openZoom(b) {
+  if (!zoomBox) {
+    zoomBox = document.createElement('dialog');
+    zoomBox.className = 'dino-zoom';
+    zoomBox.addEventListener('click', () => zoomBox.close());
+    document.body.appendChild(zoomBox);
+  }
+  const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()));
+  const base = art.querySelector('.dino-base') || art;
+  zoomBox.innerHTML = `<p class="zoom-name">${esc(b.name)} <span class="hint">Tap anywhere to close</span></p>`;
+  zoomBox.prepend(art);
+  const fitTo = (w, h) => {
+    const dpr = window.devicePixelRatio || 1;
+    const tall = Math.min(h / dpr, innerHeight * 0.82, innerWidth * 0.92 * h / w);
+    base.style.height = Math.round(tall) + 'px';
+  };
+  const s = base.sheet;
+  if (s) {
+    if (s.hiresW) { sharpen(base); base.hold = 0; fitTo(s.hiresW, s.h * s.hiresW / s.w); }
+    else fitTo(s.w, s.h);
+  } else if (base.tagName === 'IMG') {
+    const size = () => fitTo(base.naturalWidth, base.naturalHeight);
+    if (base.complete && base.naturalWidth) size(); else base.addEventListener('load', size, { once: true });
+  } else fitTo(base.width || 240, base.height || 240);
+  zoomBox.showModal();
 }
