@@ -471,13 +471,20 @@ function tintOf(mark) {
     const d = g.getImageData(0, 0, c.width, c.height), px = d.data, t = mark.tint;
     // (sewn up, it heals from crimson into the skin around it, painted as the crimson is)
     const skin = mark.skin && [1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255);
+    // (the skin's colour is the drawing's middle tone: its shadows darker, its highlights lighter)
+    let mean = 0, n = 0;
+    if (skin) for (let i = 0; i < px.length; i += 4) {
+      const lum = (0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]) / 255;
+      if (px[i + 3] > 128 && lum >= 0.25) { mean += lum; n++; }
+    }
+    mean = n ? mean / n : 0.6;
     for (let i = 0; i < px.length; i += 4) {
       if (!px[i + 3]) continue;
       const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255, lum = 0.3 * r + 0.59 * gr + 0.11 * b;
       if (lum < 0.25) continue;
       const k = 0.55 + lum * 0.75, ridge = lum > 0.8;
       const red = [Math.min(1, 0.62 * k + (ridge ? 0.25 : 0)), Math.min(1, 0.07 * k + (ridge ? 0.12 : 0)), Math.min(1, 0.08 * k + (ridge ? 0.1 : 0))];
-      const from = skin ? skin.map(v => Math.min(1, v * k * 1.1 + (ridge ? 0.12 : 0))) : [r, gr, b];
+      const from = skin ? skin.map(v => Math.min(1, v * lum / mean)) : [r, gr, b];
       px[i] = (from[0] * (1 - t) + red[0] * t) * 255; px[i + 1] = (from[1] * (1 - t) + red[1] * t) * 255; px[i + 2] = (from[2] * (1 - t) + red[2] * t) * 255;
     }
     g.putImageData(d, 0, 0);
