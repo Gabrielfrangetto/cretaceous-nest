@@ -327,13 +327,17 @@ const SCAR_ART = {
 };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
-export function scarMark(style, level, tint = 0, stitched = false) {
+// (skin: the skin's colour where it is, for a sewn-up wound, which heals into it)
+export function scarMark(style, level, tint = 0, stitched = false, skin = null) {
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   const art = SCAR_ART[style] || {}, src = (stitched && tint && art.stitched) || (level === 2 && !tint && art.healed) || art[level] || art[1] || art[2];
-  return src ? { key: src, src: asset(src), scale: 1, tint: t }
+  const sewn = stitched && tint && art.stitched && src === art.stitched;
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, ...(sewn && skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
+// the skin's colour where a part's scar goes: picked in tools/anchors.html, or the species' own
+const skinAt = (type, sex, part, stage) => { const a = scarAnchor(type, sex, part, stage); return (a && a.c) || (SPECIES[type] && SPECIES[type].body) || null; };
 // the giver of the worst a part got (a species or a creature), as the kind of blow it gave
 // (or the kind itself, as the anchors tool shows it)
 const styleBy = who => (!who ? 'any' : SCARS.style[who] ? who : scarStyle(SPECIES[who] ? { species: who } : { creature: who }));
@@ -381,7 +385,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const sheet = src && SHEETS[src.slice(ROOT.length)];
   const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
-    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt), !!wounds.stitched)
+    .map(([pt, l]) => [pt, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, pt, stage))
       : scarMark(styleBy(scarBy && scarBy[pt]), l)]);
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const base = sheet && scarred.length
@@ -450,7 +454,7 @@ const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
 // as the wound is open; made once per scar and shade
 const tinted = {};
 function tintOf(mark) {
-  const key = mark.key + '|' + mark.tint;
+  const key = mark.key + '|' + mark.tint + '|' + (mark.skin || '');
   if (tinted[key]) return tinted[key];
   const img = scarImage(mark);
   if (!img.complete || !img.naturalWidth) return null;
@@ -460,13 +464,16 @@ function tintOf(mark) {
   g.drawImage(img, 0, 0);
   try {
     const d = g.getImageData(0, 0, c.width, c.height), px = d.data, t = mark.tint;
+    // (sewn up, it heals from crimson into the skin around it, painted as the crimson is)
+    const skin = mark.skin && [1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255);
     for (let i = 0; i < px.length; i += 4) {
       if (!px[i + 3]) continue;
       const r = px[i] / 255, gr = px[i + 1] / 255, b = px[i + 2] / 255, lum = 0.3 * r + 0.59 * gr + 0.11 * b;
       if (lum < 0.25) continue;
       const k = 0.55 + lum * 0.75, ridge = lum > 0.8;
       const red = [Math.min(1, 0.62 * k + (ridge ? 0.25 : 0)), Math.min(1, 0.07 * k + (ridge ? 0.12 : 0)), Math.min(1, 0.08 * k + (ridge ? 0.1 : 0))];
-      px[i] = (r * (1 - t) + red[0] * t) * 255; px[i + 1] = (gr * (1 - t) + red[1] * t) * 255; px[i + 2] = (b * (1 - t) + red[2] * t) * 255;
+      const from = skin ? skin.map(v => Math.min(1, v * k * 1.1 + (ridge ? 0.12 : 0))) : [r, gr, b];
+      px[i] = (from[0] * (1 - t) + red[0] * t) * 255; px[i + 1] = (from[1] * (1 - t) + red[1] * t) * 255; px[i + 2] = (from[2] * (1 - t) + red[2] * t) * 255;
     }
     g.putImageData(d, 0, 0);
   } catch (e) { /* a picture that can't be read stays as it is */ }

@@ -110,6 +110,9 @@ function renderScars() {
   const a = current();
   if (a) { $('w').value = a.w; $('r').value = Math.round(here(a).r || 0); showReadout(a); }
   showFrame();
+  const own = scarsOf()[part] && scarsOf()[part].c;
+  $('swatch').style.background = own || SPECIES[type].body;
+  $('swatch').title = own ? 'Picked here' : 'The species colour, not picked yet';
   $('out').value = output();
 }
 // the frame, its keys, and the dashed box round the scar being placed, where it is now
@@ -203,7 +206,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -233,10 +236,45 @@ function render() {
   $('out').value = output();
 }
 
+// The skin's colour where a scar goes, picked off the drawing (the frame on screen, without its scars):
+// a sewn-up wound heals into it
+let picking = false;
+async function pickAt(e) {
+  picking = false;
+  $('canvas').classList.remove('picking');
+  const base = art.querySelector('.dino-base') || art, rect = base.getBoundingClientRect();
+  let src, sx = 0, sy = 0, w, h;
+  if (sheetCv) { const s = sheetCv.sheet, k = frameNow(); src = new URL('../' + s.sheet, import.meta.url).href; w = s.w; h = s.h; sx = (k % s.cols) * w; sy = Math.floor(k / s.cols) * h; }
+  else src = base.currentSrc || base.src;
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  w = w || img.naturalWidth; h = h || img.naturalHeight;
+  const x = Math.round(sx + (e.clientX - rect.left) / rect.width * w), y = Math.round(sy + (e.clientY - rect.top) / rect.height * h);
+  const c = document.createElement('canvas');
+  c.width = 9; c.height = 9;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, x - 4, y - 4, 9, 9, 0, 0, 9, 9);
+  const px = g.getImageData(0, 0, 9, 9).data, sum = [0, 0, 0];
+  let n = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    // (the skin itself: not the air, nor the ink of its outlines)
+    if (px[i + 3] < 200 || px[i] + px[i + 1] + px[i + 2] < 90) continue;
+    sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; n++;
+  }
+  if (!n) { $('msg').textContent = 'No skin there: pick on the body itself.'; return; }
+  editable().c = '#' + sum.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+  save(); render();
+  $('msg').textContent = `The skin here is ${editable().c}: a sewn-up wound on this part heals into it.`;
+}
+$('pick').addEventListener('click', () => { picking = true; $('canvas').classList.add('picking'); $('msg').textContent = 'Click the skin where this scar goes.'; });
+$('unpick').addEventListener('click', () => { const a = scarsOf()[$('slot').value]; if (a) delete a.c; save(); render(); $('msg').textContent = 'Back to the species colour.'; });
+
 // pointer anywhere on the dinosaur: the chosen piece jumps there and follows until released
 $('canvas').addEventListener('pointerdown', e => {
   if (!art || !art.contains(e.target)) return;
   e.preventDefault();
+  if (picking) { pickAt(e); return; }
   // (a scar is placed on a still frame)
   if (scarring() && sheetCv && held == null) hold(frameNow());
   const place = ev => {
