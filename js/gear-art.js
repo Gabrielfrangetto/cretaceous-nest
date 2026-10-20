@@ -82,5 +82,6 @@ export const FITTED = {
 export const BEHIND = new Set(['back']);
 
 // Where scars go on each sprite, set in tools/anchors.html: SCAR_ANCHORS[type][stage][sex][part] =
-// { x, y, w, r } (as ANCHORS). A part not set here goes where the equipment's anchors put it.
+// { x, y, w, r } (as ANCHORS), on an animated sprite with f: { frame: [x, y, r] }, its keys, as it moves
+// with the body (x, y, r being frame 0's). A part not set here goes where the equipment's anchors put it.
 export const SCAR_ANCHORS = {};

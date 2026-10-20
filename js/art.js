@@ -1,6 +1,7 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
 import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
+import { SHEETS } from './sheets.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -210,6 +211,7 @@ SPRITES.rex = { f: asset('sprites/rex.webp'), m: asset('sprites/rex.webp') };
 const BABY_SCALE = { dilo: 0.8, rex: 0.8 };
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
+// (A new or changed animated .webp needs its sheet made: python3 scripts/sheets.py)
 // Adults without one are drawn with their baby sprite, scaled up.
 export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') } };
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
@@ -313,18 +315,34 @@ const SCAR_MARK = {
   2: '<path d="M14 26 L74 10 M20 46 L88 28 M30 66 L84 52"/><g class="pits"><circle cx="40" cy="80" r="3.5"/><circle cx="54" cy="76" r="3.5"/><circle cx="68" cy="72" r="3.5"/></g>',
 };
 const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_MARK[level]}</svg>`;
+// (a baby looks the same whatever its sex, so a place set on either serves both)
+const ownScar = (type, sex, part, stage) => {
+  const at = ((SCAR_ANCHORS[type] || {})[stage] || {});
+  return (at[sex] || {})[part] || (stage === 'baby' ? (at[sex === 'm' ? 'f' : 'm'] || {})[part] : null) || null;
+};
 export function scarAnchor(type, sex, part, stage = 'adult') {
-  const own = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex] || {})[part];
+  const own = ownScar(type, sex, part, stage);
   if (own) return own;
   const at = slot => anchorFor(type, sex, slot);
   const body = at('body'), back = at('back') || body;
   const head = at('head');
   // (the head's piece sits on top of it: a scar goes on the face, below)
-  if (part === 'head') return head && { ...head, x: head.x - 0.02, y: Math.min(0.9, head.y + 0.1), r: 0 };
-  if (part === 'neck' || part === 'body') return at(part);
+  if (part === 'head') return head && { ...head, x: head.x - 0.02, y: Math.min(0.9, head.y + 0.1), w: head.w * 0.55, r: 0 };
+  if (part === 'neck' || part === 'body') { const a = at(part); return a && { ...a, w: a.w * 0.6 }; }
   if (!body) return null;
-  if (part === 'legs') return { x: body.x - 0.04, y: Math.min(0.85, body.y + 0.3), w: body.w * 0.7, r: 0 };
-  return { x: Math.max(0.08, back.x - 0.32), y: Math.min(0.8, back.y + 0.12), w: back.w * 0.7, r: 0 };
+  if (part === 'legs') return { x: body.x - 0.04, y: Math.min(0.85, body.y + 0.3), w: body.w * 0.42, r: 0 };
+  return { x: Math.max(0.08, back.x - 0.32), y: Math.min(0.8, back.y + 0.12), w: back.w * 0.42, r: 0 };
+}
+// Where a scar is at one frame of an animated sprite: its place may carry keys, f: { frame: [x, y, r] },
+// and between two keys it moves in a straight line (the place itself is frame 0's key)
+export function scarAt(a, frame, frames) {
+  if (!a || !a.f) return a;
+  const keys = [[0, a.x, a.y, a.r || 0], ...Object.entries(a.f).map(([k, v]) => [+k, ...v]).filter(k => k[0] > 0 && k[0] < frames)].sort((p, q) => p[0] - q[0]);
+  let i = keys.length - 1;
+  while (keys[i][0] > frame) i--;
+  const from = keys[i], to = keys[i + 1] || [frames, a.x, a.y, a.r || 0];
+  const t = (frame - from[0]) / (to[0] - from[0]);
+  return { ...a, x: from[1] + (to[1] - from[1]) * t, y: from[2] + (to[2] - from[2]) * t, r: from[3] + (to[3] - from[3]) * t };
 }
 const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 
@@ -334,25 +352,28 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
   const size = look ? 1 : !own ? (BABY_SCALE[type] || 1)
     : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
-  const base = babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
+  const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
+  const sheet = src && SHEETS[src.slice(ROOT.length)];
+  const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([, l]) => l);
+  // a scarred animated sprite is drawn frame by frame, its scars following the body
+  const base = sheet && scarred.length
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, level]) => [scarAnchor(type, sex, part, stage), level, part]).filter(([a]) => a), src)
+    : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
-  const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([, l]) => l);
   if (!worn.length && !scarred.length) return base;
   const box = document.createElement('span');
   box.className = 'dino-art';
   base.classList.add('dino-base');
   box.appendChild(base);
-  // (scars on the skin, under whatever it wears)
-  for (const [part, level] of scarred) {
-    const own = (((SCAR_ANCHORS[type] || {})[stage] || {})[sex] || {})[part];
+  // (scars on the skin, under whatever it wears; on a sheet they are drawn in it)
+  if (base.tagName !== 'CANVAS' || !base.sheet) for (const [part, level] of scarred) {
     const a = scarAnchor(type, sex, part, stage);
     if (!a) continue;
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${level}`;
     layer.dataset.part = part;
-    // (a scar's own place gives its size; one taken from the equipment's is a little smaller)
-    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (own ? 1 : part === 'head' ? 0.55 : 0.6) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     layer.innerHTML = scarSVG(level);
     box.appendChild(layer);
   }
@@ -386,6 +407,68 @@ function pictureOf(src) {
   img.alt = '';
   img.draggable = false;
   return img;
+}
+
+// Animated sprites drawn from their sheet (js/sheets.js), frame by frame, every one on the same clock;
+// the scars are drawn on the skin only, so none ever hangs in the air as a tail swings out under it
+const ROOT = asset('');
+const sheetImages = {}, scarImages = {};
+const imageOf = (cache, key, src) => cache[key] || (cache[key] = Object.assign(new Image(), { src }));
+// (as .scar-layer draws them, but inside one picture)
+const scarImage = level => imageOf(scarImages, level, 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 120 120"><filter id="s"><feDropShadow dx="0" dy="2.4" stdDeviation="0" flood-color="rgb(55,25,20)" flood-opacity=".6"/></filter><g fill="none" stroke="rgba(236,214,198,.78)" stroke-width="${level === 2 ? 4.4 : 3.6}" stroke-linecap="round" filter="url(#s)">${SCAR_MARK[level].replace('class="pits"', 'fill="rgba(60,30,25,.55)" stroke="none"')}</g></svg>`));
+const drawing = new Set();
+let ticking = false;
+function tick(now) {
+  for (const cv of drawing) {
+    if (!cv.isConnected) { if (now - cv.born > 3000) drawing.delete(cv); continue; }
+    const s = cv.sheet, frame = cv.hold != null ? cv.hold : Math.floor(now / s.ms) % s.frames;
+    if (frame !== cv.drawn || cv.dirty) drawFrame(cv, frame);
+  }
+  ticking = drawing.size > 0;
+  if (ticking) requestAnimationFrame(tick);
+}
+export function drawFrame(cv, frame) {
+  const s = cv.sheet, img = imageOf(sheetImages, s.sheet, asset(s.sheet));
+  if (!img.complete || !img.naturalWidth) return;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, s.w, s.h);
+  ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
+  ctx.globalCompositeOperation = 'source-atop';
+  for (const [place, level] of cv.scars) {
+    const a = scarAt(place, frame, s.frames), mark = scarImage(level);
+    if (!mark.complete) { cv.dirty = true; continue; }
+    const size = a.w * s.w * 1.2;
+    ctx.save();
+    ctx.translate(a.x * s.w, a.y * s.h);
+    ctx.rotate((a.r || 0) * Math.PI / 180);
+    ctx.drawImage(mark, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  cv.drawn = frame;
+  cv.dirty = cv.scars.some(([, level]) => !scarImage(level).complete);
+}
+// scars: [place, level, part]; hold a frame by setting the canvas's hold (null plays it); fallback, the
+// animated sprite itself, should the sheet not load
+export function sheetArt(sheet, px, label, scars, fallback) {
+  const cv = document.createElement('canvas');
+  cv.width = sheet.w; cv.height = sheet.h;
+  Object.assign(cv, { sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  cv.style.height = Math.round(px * 17) + 'px';
+  cv.style.width = 'auto';
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', label);
+  const img = imageOf(sheetImages, sheet.sheet, asset(sheet.sheet));
+  img.addEventListener('error', () => {
+    if (!cv.isConnected) return;
+    const plain = pictureOf(fallback);
+    plain.alt = label; plain.className = cv.className; plain.style.height = cv.style.height; plain.style.width = 'auto';
+    cv.replaceWith(plain);
+  }, { once: true });
+  drawing.add(cv);
+  if (!ticking) { ticking = true; requestAnimationFrame(tick); }
+  return cv;
 }
 
 // px sets the size: sprites are px * 17 tall, the pixel fallback is 14 px-sized pixels tall.

@@ -20,7 +20,7 @@ const walkers = new Map();
 function gaitOf(b, art) {
   const g = stageOf(b).id === 'adult' && !b.outfit ? adultWalk(b.type, sexOf(b)) : null;
   const img = art.tagName === 'IMG' ? art : art.querySelector('.dino-base');
-  if (!g || !img) return null;
+  if (!g || !img || img.tagName !== 'IMG') return null;
   const tall = parseFloat(img.style.height) || 70;
   return { img, src: g.src, idle: img.src, speed: g.step * tall / (g.frames / 2 * g.ms / 1000) };
 }

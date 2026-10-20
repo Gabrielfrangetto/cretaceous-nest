@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, scarAt, drawFrame } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here
@@ -55,7 +55,7 @@ const current = () => scarring() ? (scarsOf()[$('slot').value] || withScars(() =
 function editable() {
   if (scarring()) {
     const s = scarsOf(), part = $('slot').value;
-    if (!s[part]) { const a = current(); s[part] = { x: a.x, y: a.y, w: Math.round(a.w * (part === 'head' ? 0.55 : 0.6) * 100) / 100, r: a.r || 0 }; }
+    if (!s[part]) { const a = current(); s[part] = { x: a.x, y: a.y, w: Math.round(a.w * 100) / 100, r: a.r || 0 }; }
     return s[part];
   }
   const s = set(), id = $('item').value;
@@ -63,27 +63,130 @@ function editable() {
   return s[id];
 }
 const showReadout = a => {
-  if (scarring()) { $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}° · ${scarsOf()[$('slot').value] ? 'its own place' : 'guessed from the equipment places, not set yet'}`; return; }
+  if (scarring()) { const b = here(a); $('readout').textContent = `x ${b.x.toFixed(3)} · y ${b.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${Math.round(b.r || 0)}° · ${scarsOf()[$('slot').value] ? 'its own place' : 'guessed from the equipment places, not set yet'}`; return; }
   const own = !!set()[$('item').value];
   $('readout').textContent = `x ${a.x.toFixed(3)} · y ${a.y.toFixed(3)} · w ${a.w.toFixed(2)} · r ${a.r || 0}°${a.m ? ' · mirrored' : ''} · ${own ? 'this item’s own fit' : 'slot default, not tuned yet'}`;
 };
 
 let art = null, active = null;
+// the animated drawing, when there is one: its canvas, and the frame held (null while it plays)
+let sheetCv = null, held = 0, mark = null;
+const frames = () => (sheetCv ? sheetCv.sheet.frames : 1);
+const frameNow = () => (sheetCv ? (held != null ? held : Math.max(0, sheetCv.drawn)) : 0);
+// a scar's place at the frame on screen
+const here = a => scarAt(a, frameNow(), frames());
+const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - q) : []);
 
 function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
   const all = Object.fromEntries(SCARS.parts.map(pt => [pt, SCARS.deep]));
   art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all));
   const base = art.querySelector('.dino-base');
-  if (base && base.tagName === 'IMG') base.style.height = TALL + 'px';
+  if (base) base.style.height = TALL + 'px';
+  sheetCv = base && base.sheet ? base : null;
   $('canvas').innerHTML = '';
   $('canvas').appendChild(art);
+  $('framesField').hidden = !sheetCv;
+  mark = null;
+  if (sheetCv) {
+    // the editor's own places, so a drag shows at once
+    sheetCv.scars = sheetCv.scars.map(([a, level, pt]) => [scarsOf()[pt] || a, level, pt]);
+    sheetCv.hold = held;
+    $('frame').max = frames() - 1;
+    if (held != null) $('frame').value = held;
+    mark = document.createElement('span');
+    mark.className = 'scar-mark';
+    art.appendChild(mark);
+  }
   active = art.querySelector(`.scar-layer[data-part="${part}"]`);
   if (active) active.classList.add('active');
   const a = current();
-  if (a) { $('w').value = a.w; $('r').value = a.r || 0; showReadout(a); }
+  if (a) { $('w').value = a.w; $('r').value = Math.round(here(a).r || 0); showReadout(a); }
+  showFrame();
   $('out').value = output();
 }
+// the frame, its keys, and the dashed box round the scar being placed, where it is now
+function showFrame() {
+  if (!scarring() || !sheetCv) return;
+  const a = current(), k = frameNow(), keys = keysOf(scarsOf()[$('slot').value]);
+  $('frameNo').textContent = `${k + 1} of ${frames()}` + (k === 0 || keys.includes(k) ? ' · a key' : '');
+  $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'Only frame 1 is set: the scar stays still. Move it on another frame, or let it follow the body.';
+  $('play').textContent = held == null ? 'Stop' : 'Play';
+  if (mark && a) {
+    const b = here(a);
+    Object.assign(mark.style, { left: (b.x * 100) + '%', top: (b.y * 100) + '%', width: (a.w * 100) + '%', height: (a.w * sheetCv.sheet.w / sheetCv.sheet.h * 100) + '%', rotate: (b.r || 0) + 'deg' });
+  }
+}
+(function follow() { if (held == null) { showFrame(); if (sheetCv) $('frame').value = frameNow(); } requestAnimationFrame(follow); })();
+const hold = k => { held = k; if (sheetCv) { sheetCv.hold = k; drawFrame(sheetCv, k); } $('frame').value = k; };
+// sets where the scar is at the frame on screen: frame 1 is the place itself, any other a key
+function placeAt(a, x, y, r) {
+  const k = frameNow();
+  if (!sheetCv || k === 0) { if (x != null) { a.x = x; a.y = y; } if (r != null) a.r = r; return; }
+  const b = here(a);
+  a.f = a.f || {};
+  a.f[k] = [x != null ? x : Math.round(b.x * 1000) / 1000, y != null ? y : Math.round(b.y * 1000) / 1000, r != null ? r : Math.round(b.r || 0)];
+}
+
+// Follows the body on its own: the patch of skin under the scar on frame 1 is looked for, frame after
+// frame, near where it was on the last one; then the keys a straight line between others gives anyway go
+function followBody() {
+  const s = sheetCv.sheet, a = editable();
+  const img = new Image();
+  img.src = new URL('../' + s.sheet, import.meta.url).href;
+  return img.decode().then(() => {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const px = g.getImageData(0, 0, c.width, c.height).data;
+    const at = (k, x, y) => {
+      const i = (((Math.floor(k / s.cols) * s.h) + y) * c.width + (k % s.cols) * s.w + x) * 4;
+      return px[i + 3] < 60 ? -255 : (px[i] * 3 + px[i + 1] * 6 + px[i + 2]) / 10;
+    };
+    const R = Math.max(10, Math.min(30, Math.round(a.w * s.w * 0.45))), SEARCH = 12, STEP = 2;
+    const ok = (x, y) => x - R >= 0 && y - R >= 0 && x + R < s.w && y + R < s.h;
+    const x0 = Math.round(a.x * s.w), y0 = Math.round(a.y * s.h);
+    if (!ok(x0, y0)) return false;
+    const ref = [];
+    for (let dy = -R; dy <= R; dy += STEP) for (let dx = -R; dx <= R; dx += STEP) ref.push(at(0, x0 + dx, y0 + dy));
+    const cost = (k, x, y, best) => {
+      let sum = 0, i = 0;
+      for (let dy = -R; dy <= R; dy += STEP) {
+        for (let dx = -R; dx <= R; dx += STEP) sum += Math.abs(at(k, x + dx, y + dy) - ref[i++]);
+        if (sum >= best) return sum;
+      }
+      return sum;
+    };
+    const path = [[a.x, a.y]];
+    let x = x0, y = y0;
+    for (let k = 1; k < s.frames; k++) {
+      let best = Infinity, bx = x, by = y;
+      for (let dy = -SEARCH; dy <= SEARCH; dy++) for (let dx = -SEARCH; dx <= SEARCH; dx++) {
+        if (!ok(x + dx, y + dy)) continue;
+        const v = cost(k, x + dx, y + dy, best);
+        if (v < best) { best = v; bx = x + dx; by = y + dy; }
+      }
+      x = bx; y = by;
+      path.push([Math.round(x / s.w * 1000) / 1000, Math.round(y / s.h * 1000) / 1000]);
+    }
+    // only the keys a straight line between their neighbours would not give
+    const keep = path.map((_, k) => k);
+    for (let gone = true; gone;) {
+      gone = false;
+      for (let i = 1; i < keep.length; i++) {
+        const p = keep[i - 1], k = keep[i], n = keep[i + 1] != null ? keep[i + 1] : s.frames;
+        const end = path[n % s.frames], t = (k - p) / (n - p);
+        const ex = path[p][0] + (end[0] - path[p][0]) * t, ey = path[p][1] + (end[1] - path[p][1]) * t;
+        if (Math.abs(ex - path[k][0]) < 0.0025 && Math.abs(ey - path[k][1]) < 0.0025) { keep.splice(i, 1); gone = true; break; }
+      }
+    }
+    a.f = Object.fromEntries(keep.filter(k => k > 0).map(k => [k, [path[k][0], path[k][1], a.r || 0]]));
+    if (!Object.keys(a.f).length) delete a.f;
+    return true;
+  });
+}
+
 // Drops the species, stages and sexes with nothing placed
 const prune = (o) => {
   if (!o || typeof o !== 'object' || 'x' in o) return o;
@@ -127,12 +230,16 @@ function render() {
 $('canvas').addEventListener('pointerdown', e => {
   if (!art || !art.contains(e.target)) return;
   e.preventDefault();
+  // (a scar is placed on a still frame)
+  if (scarring() && sheetCv && held == null) hold(frameNow());
   const place = ev => {
     const rect = art.getBoundingClientRect();
     const a = editable();
-    a.x = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientX - rect.left) / rect.width)) * 1000) / 1000;
-    a.y = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientY - rect.top) / rect.height)) * 1000) / 1000;
-    if (active) { active.style.left = (a.x * 100) + '%'; active.style.top = (a.y * 100) + '%'; }
+    const x = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientX - rect.left) / rect.width)) * 1000) / 1000;
+    const y = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientY - rect.top) / rect.height)) * 1000) / 1000;
+    if (scarring()) placeAt(a, x, y, null); else { a.x = x; a.y = y; }
+    if (active) { active.style.left = (x * 100) + '%'; active.style.top = (y * 100) + '%'; }
+    if (sheetCv) { sheetCv.scars = sheetCv.scars.map(([b, level, pt]) => [pt === $('slot').value ? a : b, level, pt]); drawFrame(sheetCv, frameNow()); showFrame(); }
     showReadout(a);
   };
   place(e);
@@ -167,7 +274,24 @@ $('mode').addEventListener('change', () => {
   render();
 });
 $('w').addEventListener('input', e => { editable().w = +e.target.value; save(); render(); });
-$('r').addEventListener('input', e => { editable().r = +e.target.value; save(); render(); });
+$('r').addEventListener('input', e => { if (scarring()) placeAt(editable(), null, null, +e.target.value); else editable().r = +e.target.value; save(); render(); });
+$('frame').addEventListener('input', e => { hold(+e.target.value); const a = current(); if (a) { $('r').value = Math.round(here(a).r || 0); showReadout(a); } showFrame(); });
+$('play').addEventListener('click', () => { if (held == null) hold(frameNow()); else { held = null; if (sheetCv) sheetCv.hold = null; } showFrame(); });
+$('unkey').addEventListener('click', () => {
+  const a = scarsOf()[$('slot').value], k = frameNow();
+  if (!a || !a.f || !a.f[k]) { $('msg').textContent = k === 0 ? 'Frame 1 is the scar’s own place: move it instead.' : 'This frame has no key.'; return; }
+  delete a.f[k];
+  if (!Object.keys(a.f).length) delete a.f;
+  save(); render();
+  $('msg').textContent = `The key on frame ${k + 1} is gone.`;
+});
+$('follow').addEventListener('click', async () => {
+  if (!sheetCv) return;
+  $('msg').textContent = 'Following the body…';
+  const done = await followBody();
+  save(); render();
+  $('msg').textContent = done ? 'It follows the body now. Press Play to see it, and move it on any frame where it slips.' : 'Put the scar on the body first, a little away from the edge of the picture.';
+});
 $('m').addEventListener('change', e => { const a = editable(); if (e.target.checked) a.m = true; else delete a.m; save(); render(); });
 $('resetItem').addEventListener('click', () => {
   if (scarring()) { delete scarsOf()[$('slot').value]; save(); render(); $('msg').textContent = 'This scar is back to its guessed place.'; return; }
