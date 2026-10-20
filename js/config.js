@@ -1133,7 +1133,9 @@ export const RESCUE = { coins: 50 };
 // A fresh wound, only seen: the parts struck in a journey's fights show it, red, while the dinosaur is
 // hurt, and it closes as it heals (at home, as long as its injury lasts, and at least mins for the
 // worst of wounds, less for a lighter one); then only its scar is left, if it left one
-export const WOUNDS = { mins: 360 };
+// deep: a wound is deep where one fight took this share of its health from that part at once (or lamed
+// it there): it gapes, and heals into a deep scar; a lighter one stays a scratch all through
+export const WOUNDS = { mins: 360, deep: 0.15 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {

@@ -9,7 +9,7 @@ const world = (expeditions = []) => ({ player: {}, world: { expeditions } });
 test('a wound on a journey is as open as the dinosaur is hurt', () => {
   const b = { id: 'a', wound: { parts: ['body', 'legs'], by: 'raptor' } };
   const p = { members: ['a'], health: { a: 0.3 }, down: [] };
-  assert.deepEqual(woundsOf(world([p]), b, T), { parts: { body: 0.7, legs: 0.7 }, by: 'raptor' });
+  assert.deepEqual(woundsOf(world([p]), b, T), { parts: { body: 0.7, legs: 0.7 }, by: 'raptor', deep: [] });
   p.down = ['a'];
   assert.equal(woundsOf(world([p]), b, T).parts.body, 1);
 });
@@ -24,5 +24,11 @@ test('at home a wound closes over its time, then only the scar is left', () => {
 
 test('in the hospital its wounds are seen to: sewn up, and closing over its stay', () => {
   const b = { id: 'a', wound: { parts: ['body'], by: 'raptor', open: 1, at: T, until: T + 3600000, stitched: true } };
-  assert.deepEqual(woundsOf(world(), b, T + 1800000), { parts: { body: 0.5 }, by: 'raptor', stitched: true });
+  assert.deepEqual(woundsOf(world(), b, T + 1800000), { parts: { body: 0.5 }, by: 'raptor', deep: [], stitched: true });
+});
+
+test('a wound keeps which parts were deeply wounded, so they gape and heal into a deep scar', () => {
+  const b = { id: 'a', wound: { parts: ['body', 'tail'], deep: ['body'], by: 'raptor', open: 1, at: T, until: T + 3600000 } };
+  assert.deepEqual(woundsOf(world(), b, T).deep, ['body']);
+  assert.deepEqual(woundsOf(world(), { id: 'c', wound: { parts: ['head'], open: 1, at: T, until: T + 3600000 } }, T).deep, []);
 });
