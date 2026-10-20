@@ -39,7 +39,7 @@ function render() {
   ].join('');
   box.innerHTML = `
     <div class="sec-head"><h2>Shop</h2>
-      <details class="info"><summary aria-label="How to earn coins">?</summary><p><strong>How to earn coins.</strong> Give a young dinosaur its growth capsule: +${FEED_COINS}. Sell what you bring home to the Scientists, in the Inventory: they pay well for specimens (teeth, blood, shells, amber, bone) and little for food, which they grow in plenty. Win a fight out in the wild. Hatch an egg: ${Object.entries(RARITIES).filter(([name]) => name !== 'Starter').map(([name, r]) => `+${r.coins} (${name})`).join(', ')}.</p></details></div>
+      <details class="info"><summary aria-label="How to earn coins">?</summary><p><strong>How to earn coins.</strong> Give a young dinosaur its growth capsule: +${FEED_COINS}. Sell what you bring home to the Scientists, in the Inventory: they pay well for specimens (teeth, blood, shells, amber, bone) and little for food, which they grow in plenty. Hatch an egg: ${Object.entries(RARITIES).filter(([name]) => name !== 'Starter').map(([name, r]) => `+${r.coins} (${name})`).join(', ')}.</p></details></div>
     ${message ? `<p class="notice" role="status">${esc(message)}</p>` : ''}
     <section class="sec"><h3 class="sub-head">Supplies</h3><ul class="row-list">${supplies}</ul></section>
     <section class="sec"><h3 class="sub-head">Your weapons and armor <span class="meta">wear them from the World tab</span></h3><ul class="row-list">${gearRows('arms')}</ul></section>

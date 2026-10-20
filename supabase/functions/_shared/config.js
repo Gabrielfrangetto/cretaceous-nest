@@ -997,7 +997,6 @@ export const ROUT = 0.5;
 // PACK_BONUS more for each other member of a pack hunting with it. A catch brings home what beating
 // one in a fight would. A team keeps at most HUNT_SIGHTINGS waiting to be decided.
 export const HUNT_SIGHTINGS = 5;
-export const WIN_COINS_PER_HEX = 4;          // coins for beating a creature (double in a lair)
 export const GEAR_DROP = (d, lair) => lair ? 0.3 : 0.04 + 0.01 * d;
 export const INJURY_MINS = 20;               // after losing a fight
 export const BRUISE_MINS = 10;               // a win that left it under half health: up to this many minutes

@@ -14,7 +14,7 @@
 //   arriveAt, recalled: called back mid-way (it ends where it was and turns for home) } | null: waiting
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
-  LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
+  LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
   EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
@@ -1133,9 +1133,8 @@ function run(ctx, ev, choice) {
     if (!choice.hunt) { tell({ ...base, hunted: false }); return true; }
     const caught = rand() < odds.chance;
     const got = caught ? carcass(ctx, threat.entry, threat.step, rand, [threat.foe.members[0]]) : [];
-    const coins = caught ? threat.step * WIN_COINS_PER_HEX * (threat.lair ? 2 : 1) : 0;
-    p.carry.coins += coins;
-    tell({ ...base, hunted: true, caught, loot: got, coins });
+    // (no coins: an animal has none; what it gives is sold at home)
+    tell({ ...base, hunted: true, caught, loot: got });
     return true;
   }
   if (ev.kind === 'nest') return nestEvent(ctx, ev, choice);
@@ -1171,7 +1170,6 @@ function run(ctx, ev, choice) {
         told.caught = rand() < go.chance;
         if (told.caught) told.loot.push(...carcass(ctx, wt.hunter.entry, step, rand, [wt.hunterFoe.members[0]]));
       } else told.battle = fight(ctx, ev, rand, { as: hunterAs, units: [...me, by], defend: true, silent: true });
-      if (told.loot.length && !told.battle) { told.coins = step * WIN_COINS_PER_HEX; p.carry.coins += told.coins; }
     }
     tell(told);
     return true;
@@ -1293,7 +1291,6 @@ function fight(ctx, ev, rand, how = {}) {
   // the spoils of a win
   if (result.win) {
     battle.loot = as.entry && !result.foeFled ? carcass(ctx, as.entry, as.step, rand, foe.members.filter((_, k) => (result.foeHps[k] ?? 0) <= 0)) : [];
-    battle.coins = as.step * WIN_COINS_PER_HEX * (as.lair ? 2 : 1);
     if (result.frenzy.length) for (const drop of FRENZY_DROPS) if (rand() < drop.chance(frenzyCount)) {
       const lo = drop.min(frenzyCount), hi = drop.max(frenzyCount);
       battle.loot.push(carryItem(p, drop.id, lo + Math.floor(rand() * (hi - lo + 1))));
@@ -1303,7 +1300,6 @@ function fight(ctx, ev, rand, how = {}) {
       const gear = Object.keys(ITEMS).filter(id => ITEMS[id].kind === 'gear' && ITEMS[id].price);
       battle.loot.push(carryItem(p, gear[Math.floor(rand() * gear.length)], 1));
     }
-    p.carry.coins += battle.coins;
   }
   if (ev.idx === (p.leg ? p.leg.path.length - 1 : -1)) ctx.endBattle = battle;
   if (!how.silent) {

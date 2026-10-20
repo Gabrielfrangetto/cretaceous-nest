@@ -87,7 +87,7 @@ function lostAtLair() {
   assert.fail('every runt died');
 }
 
-test('beating a creature brings its loot and coins on top of the hex', () => {
+test('beating a creature brings its loot (no coins: an animal has none)', () => {
   const s = game(dino('champ', 100));
   // (a Deinosuchus lair: it goes for anything, a Tyrannosaurus too)
   const key = lairs(42).find(k => showsTo(k, 'rex') && threatAt(42, k.split(',').map(Number)).id === 'deinosuchus');
@@ -96,7 +96,8 @@ test('beating a creature brings its loot and coins on top of the hex', () => {
   assert.equal(r.battle.lair, true);
   const cLoot = threatAt(42, key.split(',').map(Number)).entry.loot.map(l => l[0]);
   assert.ok(r.loot.some(l => cLoot.includes(l.id)));
-  assert.ok(r.coins > 0);
+  assert.equal(r.coins, 0);
+  assert.equal(r.battle.coins, undefined);
   assert.equal(injuredLeft(s.hatched[0], T0 + tripMins(key, 42) * 60000) >= 0, true);
 });
 
@@ -438,7 +439,7 @@ test('a wild animal keeps away from anything bigger than its fear: it can only b
     const sight = there.find(e => e.kind === 'sighting');
     assert.equal(sight.species, 'compy');
     assert.equal(sight.hunted, true);
-    if (sight.caught) { caught.yes++; assert.ok(sight.loot.some(l => l.id === 'meat') && sight.coins > 0 && countItem(s, 'meat') > 0); }
+    if (sight.caught) { caught.yes++; assert.ok(sight.loot.some(l => l.id === 'meat') && !sight.coins && countItem(s, 'meat') > 0); }
     else { caught.no++; assert.deepEqual(sight.loot, []); }
   }
   assert.ok(caught.yes > 0 && caught.no > 0, JSON.stringify(caught));

@@ -455,7 +455,6 @@ function fightHTML(e) {
     : b.win ? (b.foeFled ? (gaveUp ? ` It couldn't get through the armor and gave up.` : ` Badly hurt, it fled and left nothing behind.`) : b.foeRouted ? ' Half of them down, the rest ran off.' : ' You won.')
     : ' You were beaten, and got away as best you could.';
   const got = b.win ? lootText(b.loot || []) : [];
-  if (b.win && b.coins) got.push(`${b.coins} coins`);
   return `${intro}${call ? ` ${esc(b.team[call.by].name)} warned of the predator, leaving the group ready.` : ''}${outcome}`
     + `${ran.length && !b.escaped && !sc ? ` ${esc(listNames(ran))} ran from it and left the others to fight.` : ''}`
     + `${b.frenzy && b.frenzy.length ? ` ${esc(listNames(b.frenzy.map(i => b.team[i].name)))} turned on each other in a frenzy.` : ''}`
