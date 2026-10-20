@@ -27,7 +27,7 @@ export const SHEETS = {
   },
   "sprites/adult/rex-m.webp": {
    "sheet": "sprites/sheets/adult/rex-m.webp",
-   "w": 446,
+   "w": 445,
    "h": 240,
    "frames": 24,
    "cols": 6,
