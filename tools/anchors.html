@@ -60,7 +60,20 @@
       <div class="pair">
         <div class="field"><label for="mode">Placing</label><select id="mode"><option value="gear">Equipment</option><option value="scars">Scars</option></select></div>
         <div class="field" id="lookField" hidden><label for="look">Scar look</label><select id="look"></select></div>
-        <div class="field" id="woundField" hidden><label for="wound">Shown as</label><select id="wound"><option value="2">Scar, deep</option><option value="1">Scar, marked</option><option value="1.0">Wound, just given</option><option value="0.66">Wound, healing</option><option value="0.33">Wound, almost healed</option><option value="s1">Sewn up in the hospital</option><option value="s0.6">Sewn up, healing</option><option value="s0.25">Sewn up, nearly healed</option></select></div>
+        <div class="field" id="woundField" hidden><label for="wound">Shown as</label><select id="wound">
+          <optgroup label="Healing on its own">
+            <option value="1.0">1. Wound, just given</option>
+            <option value="0.66">2. Wound, healing</option>
+            <option value="0.33">3. Wound, almost healed</option>
+            <option value="1">4. Healed: scar, marked</option>
+            <option value="2" selected>Healed after many wounds: scar, deep</option>
+          </optgroup>
+          <optgroup label="Seen to in the hospital">
+            <option value="s1">1. Sewn up</option>
+            <option value="s0.6">2. Sewn up, healing</option>
+            <option value="s0.25">3. Sewn up, nearly healed</option>
+          </optgroup>
+        </select></div>
         <div class="field" id="stageField" hidden><label for="stage">Stage</label><select id="stage"><option value="baby">Baby</option><option value="juvenile">Juvenile</option><option value="adult" selected>Adult</option></select></div>
       </div>
       <div class="pair">
