@@ -322,6 +322,7 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 const SCAR_ART = {
   claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp' },
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
+  horns: { 1: 'sprites/scars/horns-1.webp' },
 };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
