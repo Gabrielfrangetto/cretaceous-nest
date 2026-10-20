@@ -37,3 +37,24 @@ test('event codes: kept only as hashes, each redeemed once per game for its egg'
     assert.equal(applyAction(freshState(), 'redeem', { code: 'TEST-CODE-1' }, T0).reason, 'expired');
   } finally { delete PROMO_CODES.test; }
 });
+
+test('a code can be switched off, and one can give a dinosaur already grown, straight in the nest', async () => {
+  const { stageOf } = await import('../js/economy.js');
+  assert.equal(PROMO_CODES['rex-egg'].off, true);
+  assert.equal(PROMO_CODES['rex-adult'].reward.dino, 'rex');
+  PROMO_CODES.test2 = { hash: sha256(PROMO_SALT + 'TESTCODE2'), reward: { dino: 'rex', stage: 'adult' } };
+  PROMO_CODES.test3 = { hash: sha256(PROMO_SALT + 'TESTCODE3'), reward: { egg: 'proto' }, off: true };
+  try {
+    const s = freshState();
+    assert.equal(applyAction(s, 'redeem', { code: 'TESTCODE3' }, T0).reason, 'expired');
+    const r = applyAction(s, 'redeem', { code: 'TESTCODE2' }, T0);
+    assert.equal(r.ok, true, r.reason);
+    const rex = s.hatched.find(b => b.type === 'rex');
+    assert.ok(rex && stageOf(rex).id === 'adult');
+    assert.ok(s.known.includes('rex'));
+    assert.equal(s.eggs.length, 0);
+    assert.equal(applyAction(s, 'redeem', { code: 'TESTCODE2' }, T0).reason, 'used');
+    // it stays grown in the save
+    assert.equal(stageOf(migrate(JSON.parse(JSON.stringify(s))).hatched.find(b => b.type === 'rex')).id, 'adult');
+  } finally { delete PROMO_CODES.test2; delete PROMO_CODES.test3; }
+});

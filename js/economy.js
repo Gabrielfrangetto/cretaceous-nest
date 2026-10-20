@@ -564,7 +564,7 @@ export function redeemCode(s, code, now) {
   if (!id) return { ok: false, reason: 'invalid' };
   const promo = PROMO_CODES[id];
   if ((s.redeemed || []).includes(id)) return { ok: false, reason: 'used' };
-  if (promo.until && now > promo.until) return { ok: false, reason: 'expired' };
+  if (promo.off || (promo.until && now > promo.until)) return { ok: false, reason: 'expired' };
   const r = promo.reward, out = { ok: true, id };
   if (r.egg) {
     if (trayFull(s)) return { ok: false, reason: 'tray-full' };
@@ -574,6 +574,16 @@ export function redeemCode(s, code, now) {
     egg.sex = rand() < 0.5 ? 'm' : 'f';
     s.eggs = [...(s.eggs || []), egg];
     out.egg = egg;
+  }
+  if (r.dino) {
+    // one hatched already, grown to its stage: its genes and sex settled as an egg's would be
+    const rand = seededRand(`promo:${id}:${(s.world && s.world.seed) || 1}`), [lo, hi] = EGG_GENES(EGG_STEP, false);
+    const b = { id: newId(), type: r.dino, sex: rand() < 0.5 ? 'm' : 'f', name: suggestName(s, r.dino), at: now, gen: 1,
+      genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
+      fed: CAPSULES[r.dino][r.stage || 'baby'] || 0, lastFed: now, equip: {} };
+    s.hatched.unshift(b);
+    if (!(s.known || []).includes(r.dino)) s.known = [...(s.known || []), r.dino];
+    out.dino = b;
   }
   s.redeemed = [...(s.redeemed || []), id];
   return out;

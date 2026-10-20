@@ -1020,7 +1020,10 @@ export const EGG_GENES = (d, lair) => {      // [min, max] genes
 // game's own files. until: the last moment it can be redeemed (ms), or none.
 export const PROMO_SALT = 'cretaceous-nest:';
 export const PROMO_CODES = {
-  'rex-egg': { hash: 'a90ac73eab92cfb63aa2365772291af3071d523f428a357294f104f7695b0696', reward: { egg: 'rex' } },
+  // (off: no longer redeemed)
+  'rex-egg': { hash: 'a90ac73eab92cfb63aa2365772291af3071d523f428a357294f104f7695b0696', reward: { egg: 'rex' }, off: true },
+  // for testing: an adult Tyrannosaurus straight in the nest
+  'rex-adult': { hash: '36a20069a587270c258c1715ee6bf9fa23b2e9756645211e61c6f0734503090b', reward: { dino: 'rex', stage: 'adult' } },
 };
 
 // The Forge: equipment made from materials. needs: { item: count }.

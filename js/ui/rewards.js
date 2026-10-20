@@ -115,7 +115,7 @@ function render() {
     ev.target.querySelector('button').disabled = true;
     const r = await redeem(code);
     codeOk = r.ok;
-    codeMessage = r.ok ? (r.egg ? 'Code redeemed: an egg is waiting in your egg tray, in the Incubator.' : 'Code redeemed.') : CODE_PROBLEMS[r.reason] || 'That code could not be redeemed.';
+    codeMessage = r.ok ? (r.egg ? 'Code redeemed: an egg is waiting in your egg tray, in the Incubator.' : r.dino ? `Code redeemed: ${r.dino.name} is waiting in the Nest.` : 'Code redeemed.') : CODE_PROBLEMS[r.reason] || 'That code could not be redeemed.';
     render();
   });
   box.querySelectorAll('[data-claim]').forEach(b => b.addEventListener('click', () => {
