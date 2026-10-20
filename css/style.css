@@ -850,3 +850,6 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .team-box, .rewards { display: grid; gap: 16px; }
 .stage { border-radius: 14px; }
 @media (max-width: 760px) { .world-layout { grid-template-columns: minmax(0, 1fr); } }
+/* the scene keeps its layers (walkers, the clock) to itself, under the top bar and its menu */
+.scene { isolation: isolate; }
+.topbar { z-index: 100; }
