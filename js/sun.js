@@ -11,8 +11,9 @@ const declination = t => -23.44 * Math.cos(2 * Math.PI / 365 * (dayOfYear(t) + 1
 // the place's sun time (hours, noon when the sun is highest)
 export const sunHours = (t, lon) => ((((t % DAY) + DAY) % DAY) / 3600000 + lon / 15 + 48) % 24;
 export const placeOf = h => ({ lat: latOf(h), lon: lonOf(h) });
-// The world's clock, the same for every player: an instant as the place's sun time reads it, to be
-// shown in UTC (new Date(worldTime(t, lon)) with timeZone 'UTC'); the nest's time unless told otherwise
+// The world's clock, the same for every player: UTC, the nest's sun time (its meridian is the world's
+// first). An instant as a place's sun time reads it, to be shown in UTC (new Date(worldTime(t, lon))
+// with timeZone 'UTC'); the nest's time unless told otherwise
 export const NEST_LON = lonOf([0, 0]);
 export const worldTime = (t, lon = NEST_LON) => t + lon / 15 * 3600000;
 

@@ -13,9 +13,9 @@ const HOUR = 3600000, DAY = 24 * HOUR;
 // 2026-10-14 10:00 in Brasília (UTC-3)
 const MORNING = Date.UTC(2026, 9, 14, 13, 0);
 
-test('the game day turns at midnight in Brasília', () => {
-  const lateEvening = Date.UTC(2026, 9, 15, 2, 59);   // 23:59 on the 14th in Brasília
-  const midnight = Date.UTC(2026, 9, 15, 3, 0);       // 00:00 on the 15th in Brasília
+test('the game day turns at midnight UTC, the game clock', () => {
+  const lateEvening = Date.UTC(2026, 9, 14, 23, 59);
+  const midnight = Date.UTC(2026, 9, 15, 0, 0);
   assert.equal(gameDay(lateEvening), gameDay(MORNING));
   assert.equal(gameDay(midnight), gameDay(MORNING) + 1);
   assert.equal(nextDayAt(MORNING), midnight);

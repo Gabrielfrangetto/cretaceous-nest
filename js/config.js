@@ -418,7 +418,7 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
 export const MAP_VERSION = 8;
 export const MAP = {
-  cols: 300, rows: 200, lat: [55, 20], lon: [-121, -72], wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
+  cols: 300, rows: 200, lat: [55, 20], lonSpan: 49, wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
@@ -1112,9 +1112,9 @@ export const FOOD_PACKS = [
 ];
 export const ROW_PRICE = 50;         // 1st extra row 50, 2nd 100, 3rd 150 ... 9th 450
 
-// Daily reward. The game day starts at midnight in this UTC offset (Brasília, which has no daylight
-// saving), the same for every player so the server can check it.
-export const DAY_OFFSET_HOURS = -3;
+// Daily reward. The game day starts at midnight in this UTC offset (UTC itself, the nest's own time),
+// the same for every player so the server can check it.
+export const DAY_OFFSET_HOURS = 0;
 // one entry per day of the streak; after day 7 it starts again from day 1, and missing a day resets it
 export const DAILY_REWARDS = [
   { coins: 10 },

@@ -8,9 +8,10 @@ const NEST = placeOf([0, 0]);
 const hours = t => (t.set - t.rise) / 3600000;
 const at = (y, m, d, h = 12) => Date.UTC(y, m, d, h);
 
-test('the nest lies about where Minnesota would: long summer days, short winter ones', () => {
+test('the nest lies as far north as Minnesota, on the meridian of the game clock (UTC): long summer days, short winter ones', () => {
   assert.ok(NEST.lat > 40 && NEST.lat < 50);
-  assert.ok(NEST.lon > -100 && NEST.lon < -90);
+  assert.equal(NEST.lon, 0);
+  assert.equal(new Date(worldTime(Date.UTC(2026, 9, 19, 15, 30))).getUTCHours(), 15);
   const june = hours(sunTimes(at(2026, 5, 21, 18), NEST)), dec = hours(sunTimes(at(2026, 11, 21, 18), NEST));
   assert.ok(june > 15 && june < 16, String(june));
   assert.ok(dec > 8.5 && dec < 9.2, String(dec));
