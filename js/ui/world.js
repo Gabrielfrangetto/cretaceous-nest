@@ -786,7 +786,8 @@ function tripsHTML(t) {
     // stopped on the way for the player: it stands there, its bar pulsing, until it is seen to
     const halt = haltOf(p, t);
     if (halt && !done) {
-      const at = leg.pausedAt != null ? leg.pausedAt : halt.at, frac = Math.min(1, (at - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
+      // (the way goes on all the while, unseen)
+      const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
       return `<li class="trip-row halted">
       <div>${names} <span class="hint">stopped in the ${esc(placeName(cellAt(S.world.seed, parseKey(leg.path[halt.idx]))))}</span></div>
       <div class="bar alert"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>

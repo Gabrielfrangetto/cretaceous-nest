@@ -916,3 +916,7 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 @media (prefers-reduced-motion: reduce) { .bar.alert { animation: none; } }
 .alert-text { color: var(--heart); font-weight: 700; font-size: 13px; }
 .trip-row.halted .row { justify-content: space-between; align-items: center; }
+.care { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.care-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.care-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.care-list .row { gap: 6px; }

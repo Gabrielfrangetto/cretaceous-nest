@@ -10,7 +10,7 @@ import {
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
-import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome } from './journey.js';
+import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 import { setTeamSlot, renameTeam } from './teams.js';
 
@@ -867,6 +867,10 @@ export const ACTIONS = {
   },
   flyHome(s, { id }, now) {
     return flyHome(s, String(id), now);
+  },
+  // tending to one of a team stopped on its way: { id, member, what: 'herb' | 'transfusion' | 'eat' | 'drink' }
+  tripCare(s, { id, member, what }) {
+    return tripCare(s, String(id), String(member), String(what));
   },
   sell(s, { i, n }) {
     if (!slotIndex(s, i)) return fail('bad-slot');

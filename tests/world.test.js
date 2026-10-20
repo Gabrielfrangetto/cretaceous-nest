@@ -2,13 +2,13 @@ import { test } from 'node:test';
 import { collect } from './journey-helper.js';
 import { legMins, HOME, partyOf, stopOf, progressOf, airliftFare, careOf, hospitalHours, flightMins, trainMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
-import { applyAction, countItem, feedBaby, breedProblem, bill, earn } from '../js/economy.js';
+import { applyAction, countItem, feedBaby, breedProblem, bill, earn, addItem } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
 import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE, AIRLIFT } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE, AIRLIFT, TRIP_CARE, SURVIVAL } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 // (fed as in meals before growth capsules: 10 a juvenile, 30 an adult)
@@ -242,10 +242,10 @@ test('after something on the way out the player may go on or turn back; the way 
     assert.ok(back.story.some(e => e.kind === 'turned' && e.hex === at));
     const p = s.world.expeditions[0];
     if (p) {
-      // heading home from where it turned, once the player chose to (it stood there until then)
+      // heading home from where it turned, from when it was there: the way went on meanwhile
       assert.equal(p.leg.from, at);
       assert.equal(p.leg.to, '0,0');
-      assert.equal(p.leg.startedAt, leg.arriveAt);
+      assert.ok(p.leg.startedAt < leg.arriveAt && p.leg.startedAt > leg.startedAt);
     }
     turned++;
   }
@@ -457,7 +457,7 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   assert.equal(r.ok, true, r.reason);
   assert.equal(countItem(s, 'water_skin'), 5 - SURVIVAL.pack.water_skin);
   assert.equal(countItem(s, 'ration'), 5 - SURVIVAL.pack.ration);
-  assert.deepEqual(r.expedition.supplies, { water_skin: 3, ration: 3, water: 3 * SURVIVAL.skin });
+  assert.deepEqual(r.expedition.supplies, { water_skin: 3, ration: 3, water: 3 * SURVIVAL.skin, herb: 0, transfusion: 0 });
   collect(s, { id: r.expedition.id, flee: true }, r.expedition.leg.arriveAt);
   assert.equal(countItem(s, 'water_skin'), 5);
   assert.ok(countItem(s, 'ration') <= 5 && countItem(s, 'ration') >= 5 - SURVIVAL.pack.ration);
@@ -1079,7 +1079,7 @@ test('called on its way, a team stops where it is: the way so far is told, then 
   assert.ok(told);
 });
 
-test('what stops a journey happens as the team gets there: it stands there until the player sees to it, and the rest of the way comes that much later', () => {
+test('what stops a journey happens as the team gets there; the way goes on unseen meanwhile, and is told up to then once the player has seen to it', () => {
   const far = hexKey(...landHexes(42).filter(h => threatAt(42, h).id === 'rex').at(-1));
   let seen = 0;
   for (let trip = 0; trip < 40 && !seen; trip++) {
@@ -1088,25 +1088,52 @@ test('what stops a journey happens as the team gets there: it stands there until
     const r = applyAction(s, 'explore', { babyId: 'p', hex: far }, T0);
     const p = partyOf(s, r.expedition.id), leg = { ...p.leg };
     const stop = stopOf(s, p);
-    if (!stop || stop.idx >= leg.path.length - 1) continue;
-    // not before it gets there; then the way up to it is told, and it stands there
+    if (!stop || stop.idx >= leg.path.length - 3) continue;
+    // not before it gets there
     assert.equal(applyAction(s, 'journey', { id: p.id }, stop.at - 1).reason, 'not-back');
-    const step = applyAction(s, 'journey', { id: p.id }, stop.at);
-    if (!step.pending) continue;   // (a fall: flown home)
+    // seen half an hour later: told up to the stop, where it shows, the way not pushed back
+    const late = stop.at + 30 * 60000;
+    const step = applyAction(s, 'journey', { id: p.id }, late);
+    if (!step.pending) continue;
     assert.equal(step.pending.idx, stop.idx);
-    assert.equal(p.leg.pausedAt, stop.at);
-    // on the map, it stays there however long the player takes
-    assert.deepEqual(progressOf(s, p, stop.at + 9e6), progressOf(s, p, stop.at));
-    // the player answers an hour later: the rest of the way an hour later too
-    const late = 3600000;
-    let t = stop.at + late, next = applyAction(s, 'journey', { id: p.id, fight: true }, t);
-    while (next.pending && next.pending.kind !== 'go-on') next = applyAction(s, 'journey', { id: p.id, fight: true }, t);
-    if (!next.pending || !p.leg) continue;
-    next = applyAction(s, 'journey', { id: p.id }, t);
-    if (!p.leg || p.leg.n !== leg.n || p.pending) continue;
-    assert.equal(p.leg.arriveAt, leg.arriveAt + late);
-    assert.equal(p.leg.pausedAt, undefined);
+    assert.deepEqual(progressOf(s, p, late), progressOf(s, p, stop.at));
+    assert.equal(p.leg.arriveAt, leg.arriveAt);
+    // seen to: the way is told on up to now (or the next stop)
+    let next = step;
+    while (next.pending && next.pending.kind !== 'go-on') next = applyAction(s, 'journey', { id: p.id, fight: true }, late);
+    if (!next.pending || !p.leg || p.leg.n !== leg.n) continue;
+    const before = p.leg.step;
+    next = applyAction(s, 'journey', { id: p.id }, late);
+    if (!p.leg || p.leg.n !== leg.n) continue;
+    assert.equal(p.leg.arriveAt, leg.arriveAt);
+    assert.ok(p.leg.step > before || next.pending);
     seen++;
   }
   assert.ok(seen);
+});
+
+test('at a stop the player tends to the team with what it carries: herbs, a transfusion, a meal, a drink', () => {
+  const s = game(dino('ad', 30));
+  addItem(s, 'herb', 5); addItem(s, 'transfusion', 1); addItem(s, 'water_skin', 2);
+  const far = hexKey(...landHexes(42).filter(h => hexDist(h) >= 8)[0]);
+  const r = applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'ad' }, { kind: 'player', id: 'player' }], hex: far }, T0);
+  const p = partyOf(s, r.expedition.id);
+  // packed: as many herbs and transfusions as go along
+  assert.equal(p.supplies.herb, SURVIVAL.pack.herb);
+  assert.equal(p.supplies.transfusion, 1);
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'herb' }, T0).reason, 'not-stopped');
+  p.pending = { kind: 'go-on', idx: 0, hex: p.leg.path[0] };
+  p.health = { ad: 0.3, player: 0.5 }; p.thirst = { player: 0.6 }; p.hunger = { ad: 0.4 };
+  p.carry.items.meat = 400;
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'herb' }, T0).health, 0.3 + TRIP_CARE.herb);
+  assert.equal(p.supplies.herb, SURVIVAL.pack.herb - 1);
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'player', what: 'drink' }, T0).ok, true);
+  assert.equal(p.thirst.player, 0);
+  if (SURVIVAL.hunger > 0) assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'eat' }, T0).food, 'meat');
+  // one down is back on its feet with a transfusion; not the player, who is flown home
+  p.down = ['ad']; p.health.ad = 0;
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'herb' }, T0).reason, 'down');
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'transfusion' }, T0).health, TRIP_CARE.revive);
+  assert.ok(!p.down.includes('ad'));
+  assert.equal(applyAction(s, 'tripCare', { id: p.id, member: 'ad', what: 'transfusion' }, T0).reason, 'not-down');
 });

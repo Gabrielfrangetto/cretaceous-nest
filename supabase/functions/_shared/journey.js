@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, WIN_COINS_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -136,7 +136,7 @@ export function startExpedition(s, team, key, now, train = false, via = []) {
 export function packOf(s, members) {
   const n = id => Math.min(SURVIVAL.pack[id], countItem(s, id));
   const skins = n('water_skin');
-  return { water_skin: skins, ration: members.includes(PLAYER_ID) ? n('ration') : 0, water: skins * SURVIVAL.skin };
+  return { water_skin: skins, ration: members.includes(PLAYER_ID) ? n('ration') : 0, water: skins * SURVIVAL.skin, herb: n('herb'), transfusion: n('transfusion') };
 }
 
 // where a party on a leg is by now: the index of the last hex of its path it reached (-1: still leaving)
@@ -295,14 +295,8 @@ export function journeyStep(s, id, choice = {}, now, dry = false) {
     else if (ev.kind === 'airlift') { airlift(ctx, ev, choice || {}); if (!ctx.gone && !p.pending) afterEvent(ctx, ev); }
     else if (run(ctx, ev, choice || {}) && !ctx.gone && !p.pending && !offerAirlift(ctx, ev.idx)) afterEvent(ctx, ev);
     if (!ctx.gone && playerDown(p)) rescue(ctx, ev.idx);
-    // it stood there while the player decided: the rest of the way comes that much later
-    const leg = p.leg;
-    if (!ctx.gone && leg && !p.pending && leg.pausedAt != null) {
-      const late = Math.max(0, now - leg.pausedAt);
-      leg.startedAt += late; leg.arriveAt += late;
-      delete leg.pausedAt;
-      Object.assign(p, { startedAt: leg.startedAt, returnAt: leg.arriveAt });
-    }
+    // (the way went on all the while, the player not knowing: it is told up to now, or the next stop)
+    if (!ctx.gone && p.leg && !p.pending) delete p.leg.pausedAt;
   }
   walk(ctx);
   // a decision waiting: the party stands where it came to it until the player answers
@@ -395,7 +389,7 @@ function startFlight(s, p, at) {
   Object.assign(p, { hex: HOME, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
 }
 // the hex at idx of the leg, and when the team was there
-const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, idx)], at: ctx.p.leg.pausedAt != null ? ctx.now : timeAt(ctx.s, ctx.p.leg, Math.max(0, idx)) } : { hex: ctx.p.at, at: ctx.now });
+const whereWhen = (ctx, idx) => (ctx.p.leg ? { hex: ctx.p.leg.path[Math.max(0, idx)], at: timeAt(ctx.s, ctx.p.leg, Math.max(0, idx)) } : { hex: ctx.p.at, at: ctx.now });
 // dinosaurs flown home land when the flight is over; one down goes on to the hospital
 function land(s, b, lands, grave) {
   if (!b || !grave) return null;
@@ -528,8 +522,7 @@ function afterEvent(ctx, ev) {
 // the leg ends at the hex at index i, and the party heads home from there, from when it was there
 function turnBack(ctx, i) {
   const { s, p, story } = ctx, leg = p.leg;
-  // (from where it stood: after a wait for the player, from now)
-  const at = leg.pausedAt != null ? ctx.now : timeAt(s, leg, i);
+  const at = timeAt(s, leg, i);
   p.at = leg.path[i];
   p.leg = null;
   story.push({ kind: 'turned', hex: p.at, idx: i });
@@ -635,6 +628,69 @@ function refreshWater(p) {
   if (p.supplies) p.supplies.water = p.supplies.water_skin * SURVIVAL.skin;
 }
 export const levelOf = (p, kind, id) => (p[kind] && p[kind][id]) || 0;
+// one of the team eats what the team carries (the player's rations first; eggs are never eaten on the
+// way): as much as it takes to fill it up, as far as there is (CLOCK: the days its hunger stands for, at
+// its day's food). Returns what it ate ({ food, n }) or null.
+function eatOnTrip(s, p, id) {
+  const level = levelOf(p, 'hunger', id), sup = p.supplies || {};
+  if (level <= 0 || SURVIVAL.hunger <= 0) return null;
+  const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => x !== 'raw_egg' && (p.carry.items[x] || 0) > 0);
+  if (!food) return null;
+  const who = explorerOf(s, id), day = dailyKg(who, food), each = ITEMS[food].kg || 1;
+  const days = level / SURVIVAL.hunger * UNIT_HOURS / 24;
+  const have = food === 'ration' ? sup.ration : p.carry.items[food];
+  const n = Math.min(have, Math.max(1, Math.ceil(days * day / each)));
+  if (food === 'ration') sup.ration -= n;
+  else if (!(p.carry.items[food] -= n)) delete p.carry.items[food];
+  setLevel(p, 'hunger', id, level - n * each / day * 24 / UNIT_HOURS * SURVIVAL.hunger);
+  return { food, n };
+}
+// what the team carries of one kind: in its packs (supplies) and found on the way (carry)
+const carried = (p, id) => ((p.supplies || {})[id] || 0) + ((p.carry && p.carry.items[id]) || 0);
+function useCarried(p, id) {
+  if ((p.supplies || {})[id] > 0) p.supplies[id] -= 1;
+  else if (!(p.carry.items[id] -= 1)) delete p.carry.items[id];
+}
+
+// At a stop on the way (a decision waiting), the player can tend to the team with what it carries:
+// a Healing Herb (TRIP_CARE.herb of one's health back), a Blood Transfusion (one down back on its
+// feet, at TRIP_CARE.revive), a meal, or a drink from the flasks (as many as it takes).
+export function tripCare(s, id, member, what) {
+  const p = partyOf(s, id);
+  if (!p) return { ok: false, reason: 'no-expedition' };
+  if (!p.pending || !p.leg) return { ok: false, reason: 'not-stopped' };
+  if (!p.members.includes(member)) return { ok: false, reason: 'missing' };
+  const down = isDown(p, member), health = healthOf(p, member);
+  if (what === 'herb') {
+    if (down) return { ok: false, reason: 'down' };
+    if (health >= 1) return { ok: false, reason: 'unhurt' };
+    if (!carried(p, 'herb')) return { ok: false, reason: 'none' };
+    useCarried(p, 'herb');
+    p.health[member] = Math.min(1, Math.round((health + TRIP_CARE.herb) * 1000) / 1000);
+    return { ok: true, health: p.health[member] };
+  }
+  if (what === 'transfusion') {
+    if (!down || member === PLAYER_ID) return { ok: false, reason: 'not-down' };
+    if (!carried(p, 'transfusion')) return { ok: false, reason: 'none' };
+    useCarried(p, 'transfusion');
+    p.down = p.down.filter(x => x !== member);
+    p.health[member] = TRIP_CARE.revive;
+    return { ok: true, health: p.health[member] };
+  }
+  if (what === 'eat') {
+    if (levelOf(p, 'hunger', member) <= 0) return { ok: false, reason: 'full' };
+    const ate = eatOnTrip(s, p, member);
+    return ate ? { ok: true, ...ate } : { ok: false, reason: 'none' };
+  }
+  if (what === 'drink') {
+    const sup = p.supplies || {}, need = SURVIVAL.drinks[member === PLAYER_ID ? PLAYER_SIZE : bodyOf(s, member).size] || 1;
+    if (levelOf(p, 'thirst', member) <= 0) return { ok: false, reason: 'full' };
+    if ((sup.water || 0) < need) return { ok: false, reason: 'none' };
+    while (levelOf(p, 'thirst', member) > 0 && sup.water >= need) { sup.water -= need; setLevel(p, 'thirst', member, levelOf(p, 'thirst', member) - SURVIVAL.drink); }
+    return { ok: true };
+  }
+  return { ok: false, reason: 'bad-item' };
+}
 const setLevel = (p, kind, id, v) => { p[kind] = p[kind] || {}; p[kind][id] = Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000; };
 const dietOf = (s, id) => (id === PLAYER_ID ? PLAYER_DIET : bodyOf(s, id).diet || []);
 // fresh water at a hex: a river, a lake beside it, a swamp or a floodplain (the sea is salt)
@@ -708,19 +764,7 @@ function survive(ctx, idx) {
   // a meal of what the team carries (the player's rations first; eggs are never eaten on the way): as
   // much as it takes to fill one up, as far as there is (CLOCK: the days its hunger stands for, at its
   // day's food)
-  for (const id of p.members) {
-    const level = levelOf(p, 'hunger', id);
-    if (level < SURVIVAL.at || SURVIVAL.hunger <= 0) continue;
-    const food = id === PLAYER_ID && sup.ration > 0 ? 'ration' : dietOf(s, id).find(x => x !== 'raw_egg' && (p.carry.items[x] || 0) > 0);
-    if (!food) continue;
-    const who = explorerOf(s, id), day = dailyKg(who, food), each = ITEMS[food].kg || 1;
-    const days = level / SURVIVAL.hunger * UNIT_HOURS / 24;
-    const have = food === 'ration' ? sup.ration : p.carry.items[food];
-    const n = Math.min(have, Math.max(1, Math.ceil(days * day / each)));
-    if (food === 'ration') sup.ration -= n;
-    else if (!(p.carry.items[food] -= n)) delete p.carry.items[food];
-    setLevel(p, 'hunger', id, level - n * each / day * 24 / UNIT_HOURS * SURVIVAL.hunger);
-  }
+  for (const id of p.members) if (levelOf(p, 'hunger', id) >= SURVIVAL.at) eatOnTrip(s, p, id);
   // at the end of one's strength
   for (const id of [...p.members]) {
     const hunger = levelOf(p, 'hunger', id), thirst = levelOf(p, 'thirst', id), worst = Math.max(hunger, thirst);
@@ -1346,7 +1390,7 @@ function comeHome(ctx) {
   }
   // the flasks and the rations left go back in the inventory
   const sup = p.supplies || {};
-  for (const id of ['water_skin', 'ration']) if (sup[id] > 0) addItem(s, id, sup[id]);
+  for (const id of ['water_skin', 'ration', 'herb', 'transfusion']) if (sup[id] > 0) addItem(s, id, sup[id]);
   w.expeditions = w.expeditions.filter(x => x !== p);
   p.leg = null;
   ctx.gone = true;
@@ -1482,7 +1526,8 @@ export function cleanParties(s, w) {
     const level = src => Object.fromEntries(members.filter(id => src && src[id] != null).map(id => [id, Math.max(0, Math.min(1, Number(src[id]) || 0))]));
     const sp = e.supplies && typeof e.supplies === 'object' ? e.supplies : {};
     const skins = Math.min(SURVIVAL.pack.water_skin, int(sp.water_skin));
-    const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)) };
+    const supplies = { water_skin: skins, ration: Math.min(SURVIVAL.pack.ration, int(sp.ration)), water: Math.min(skins * SURVIVAL.skin, int(sp.water)),
+      herb: Math.min(SURVIVAL.pack.herb, int(sp.herb)), transfusion: Math.min(SURVIVAL.pack.transfusion, int(sp.transfusion)) };
     out.push({
       id: String(e.id), team, members, at, leg, ...(e.air === true && leg && leg.air ? { air: true } : {}), health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
       gathered: Object.fromEntries(Object.entries(e.gathered && typeof e.gathered === 'object' ? e.gathered : {}).filter(([id, n]) => ITEMS[id] && int(n) > 0).map(([id, n]) => [id, int(n)])),

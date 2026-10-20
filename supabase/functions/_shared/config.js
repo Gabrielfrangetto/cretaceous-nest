@@ -399,7 +399,7 @@ export const SURVIVAL = {
   green: ['meadow', 'forest', 'scrub', 'floodplain', 'subtropical', 'swamp', 'coast'], graze: 0.04,
   at: 0.5, eat: 0.5, drink: 0.5, weak: 0.35, faint: 0.75, worn: [0.9, 0.75], drain: { thirst: 0.15, hunger: 0.04 },
   drinks: { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, colossal: 4 }, skin: 4,
-  pack: { water_skin: 3, ration: 3 },
+  pack: { water_skin: 3, ration: 3, herb: 3, transfusion: 1 },
   words: { hunger: [[0.2, 'Fed'], [0.35, 'Peckish'], [0.75, 'Hungry'], [Infinity, 'Starving']], thirst: [[0.2, 'Watered'], [0.35, 'Thirsty'], [0.75, 'Parched'], [Infinity, 'Dehydrated']] },
 };
 
@@ -1123,6 +1123,9 @@ export const FOOD_PACKS = [
 // to twice as long); the player's own care costs RESCUE.coins. Everything billed (Debt) is paid when
 // the player chooses; until then, every coin that comes in goes to the bill.
 export const RESCUE = { coins: 50 };
+// Tending to the team at a stop on a journey (journey.js tripCare): a Healing Herb gives back herb of
+// one's health; a Blood Transfusion puts one down back on its feet at revive of its health.
+export const TRIP_CARE = { herb: 0.25, revive: 0.25 };
 export const AIRLIFT = { bad: 0.25, pace: 0.75, load: 500, perHex: 1, lost: 30, grave: 40, hospital: { tiny: 2, small: 3, medium: 5, large: 8, huge: 12, colossal: 18 }, ref: 100 };
 // Factions: the sanctuary's peoples, each paying for what it lacks and little for what it has plenty
 // of, and asking more than it pays. The nest belongs to the Scientists: they grow food for the dinosaurs

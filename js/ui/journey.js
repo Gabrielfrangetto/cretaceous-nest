@@ -6,7 +6,7 @@ import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare, flightBill, flightMins } from '../journey.js';
+import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare, flightBill, flightMins, pendingView } from '../journey.js';
 import { teamOdds, dangerOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
@@ -36,7 +36,7 @@ export function partyStatusHTML(p) {
     return `<span class="${left <= 0 || worn ? 'warn-text' : ''}">${esc(id === PLAYER_ID ? 'You' : b ? b.name : '?')} · ${healthWord(left)}${needs.length ? `, ${needs.join(', ')}` : ''}</span>`;
   }).join(', ');
   const sup = p.supplies || {};
-  const packed = [sup.water_skin ? `${sup.water_skin} ${itemName('water_skin', sup.water_skin)} (${sup.water ? `${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left` : 'empty'})` : '', sup.ration ? `${sup.ration} ${itemName('ration', sup.ration)}` : ''].filter(Boolean);
+  const packed = [sup.water_skin ? `${sup.water_skin} ${itemName('water_skin', sup.water_skin)} (${sup.water ? `${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left` : 'empty'})` : '', ...['ration', 'herb', 'transfusion'].map(id => sup[id] ? `${sup[id]} ${itemName(id, sup[id])}` : '')].filter(Boolean);
   const items = Object.entries(p.carry.items).filter(([, n]) => n > 0).map(([id, n]) => `${n} ${esc(itemName(id, n))}`);
   if (p.carry.coins) items.push(`${p.carry.coins} coins`);
   for (const egg of p.carry.eggs) items.push(`a ${esc(SPECIES[egg.type].egg)}${egg.unseen ? ' (not yet held to the light)' : ''}`);
@@ -288,6 +288,24 @@ const standText = (st, past = false) => {
   return `${cap(article(what))} <strong>${esc(what)}</strong> ${past ? 'spotted' : 'spots'} you and ${ground} to drive you off.`;
 };
 
+// Tending to the team at a stop, with what it carries: a herb for the hurt, a transfusion for one down,
+// a meal for the hungry, a drink for the thirsty (journey.js tripCare)
+function careHTML(p) {
+  const sup = p.supplies || {}, has = id => (sup[id] || 0) + (p.carry.items[id] || 0);
+  const rows = p.members.map(id => {
+    const down = p.down.includes(id), hp = down ? 0 : healthOf(p, id), name = id === PLAYER_ID ? 'You' : (explorerOf(S, id) || {}).name || '?';
+    const btns = [];
+    if (!down && hp < 1 && has('herb')) btns.push(['herb', 'Healing Herb']);
+    if (down && id !== PLAYER_ID && has('transfusion')) btns.push(['transfusion', 'Blood Transfusion']);
+    if (levelOf(p, 'hunger', id) >= SURVIVAL.words.hunger[0][0]) btns.push(['eat', 'Eat']);
+    if (levelOf(p, 'thirst', id) >= SURVIVAL.words.thirst[0][0] && sup.water > 0) btns.push(['drink', 'Drink']);
+    return btns.length ? `<li><span>${esc(name)} <span class="meta">${healthWord(hp)}</span></span><span class="row">${btns.map(([w, label]) => `<button class="ghost" type="button" data-care="${esc(id)}|${w}">${label}</button>`).join('')}</span></li>` : '';
+  }).join('');
+  return rows ? `<details class="fold care" ${careOpen ? 'open' : ''}><summary>Tend to the team before going on</summary><ul class="care-list">${rows}</ul>
+    <p class="hint">Herbs: ${has('herb')} · transfusions: ${has('transfusion')} · drinks: ${sup.water || 0}</p></details>` : '';
+}
+let careOpen = true;
+
 function decide(v) {
   const actBox = document.querySelector('#journeyBody .journey-act');
   const p = partyOf(S, fb.id);
@@ -387,7 +405,14 @@ function decide(v) {
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
       <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}${flyBtn()}</div>`;
   }
-  actBox.innerHTML = html;
+  actBox.innerHTML = html + careHTML(p);
+  const care = actBox.querySelector('.care');
+  if (care) care.addEventListener('toggle', () => { careOpen = care.open; });
+  actBox.querySelectorAll('[data-care]').forEach(b => b.addEventListener('click', () => {
+    const [member, what] = b.dataset.care.split('|');
+    const r = act('tripCare', { id: fb.id, member, what });
+    if (r.ok) { fb.pending = pendingView(S, partyOf(S, fb.id)); decide(fb.pending); }
+  }));
   const fly = actBox.querySelector('[data-fly]');
   if (fly) fly.addEventListener('click', () => {
     actBox.querySelectorAll('button').forEach(b => { b.disabled = true; });
