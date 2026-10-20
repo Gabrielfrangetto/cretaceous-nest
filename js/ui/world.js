@@ -705,9 +705,10 @@ function goOnHTML(p, h, d, t) {
 function traceHTML(t) {
   const party = tracing.party && S.world.expeditions.find(e => e.id === tracing.party);
   const members = party ? party.members : team.flatMap(membersOf);
-  const dest = placeName(cellAt(S.world.seed, parseKey(tracing.to)));
+  const home = tracing.to === '0,0', dest = placeName(cellAt(S.world.seed, parseKey(tracing.to)));
   const sup = party ? party.supplies || {} : null, hexes = plannedPath().length - 1;
-  return `<h3>The way to the ${esc(dest)}</h3>
+  // (home is where it goes: only the way there can change)
+  return `<h3>${home ? 'The way home' : `The way to the ${esc(dest)}`}</h3>
     <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again, never over the same ground twice. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
     <p class="hint">${legMins(S, members, tracing.from, tracing.to, route)} min to get there.</p>
     ${(() => { const units = teamUnits(S, party ? standingUnits(S, party) : (teamFrom(S, team) || []).filter(Boolean)); return units.length ? routeHTML(units, tracing.to, !!cityAt(S.world.seed, parseKey(tracing.to)), plannedPath().slice(1)) : ''; })()}
@@ -777,7 +778,7 @@ function tripsHTML(t) {
       return `<li class="trip-row">
         <div>${names} <span class="hint">· waiting in the ${esc(placeName(cellAt(S.world.seed, parseKey(p.at))))}</span></div>
         ${partyStatusHTML(p)}
-        ${p.camp ? campHTML(p, t) : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-order="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
+        ${p.camp ? campHTML(p, t) : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-trace="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
         <span class="hint">Pick a hex on the map to explore on from here.</span>
         ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(${CAMP.mins} min: look for water and food, rest)</span></button>`}${flyButton(p, t)}</div>`}
       </li>`;
@@ -857,7 +858,8 @@ function render() {
     const { to, party } = tracing, names = team.map(unitName);
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
     const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
-    message = r.ok ? `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${mins} min: then you wait there for orders.` : esc(PROBLEMS[r.reason] || 'The team could not go.');
+    message = !r.ok ? esc(PROBLEMS[r.reason] || 'The team could not go.') : to === '0,0' ? `You set off for home. Home in ${mins} min.`
+      : `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${mins} min: then you wait there for orders.`;
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
   });
