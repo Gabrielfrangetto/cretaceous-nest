@@ -18,6 +18,11 @@ STEP, R, S = 16, 8, 10   # grid spacing, patch radius, how far a point is looked
 def motion(frames, start=None, S=S):
     if start is not None:
         frames = [start] + frames
+    # (a big drawing is followed on a copy 240 px tall, its moves scaled back up: as close, and quicker)
+    big = frames[0].shape[0] / 240
+    if big > 1.2:
+        size = lambda f: (round(f.shape[1] / big), 240)
+        frames = [np.asarray(Image.fromarray(f.astype(np.uint8)).resize(size(f), Image.LANCZOS)).astype(np.float32) for f in frames]
     h, w = frames[0].shape[:2]
     pad = R + S
     lum = [np.pad(np.where(f[..., 3] < 60, -200.0, f[..., :3] @ [0.3, 0.59, 0.11]), pad, constant_values=-200.0) for f in frames]
@@ -67,10 +72,14 @@ def motion(frames, start=None, S=S):
                     d[:, j, i] = d[:, b, a]
     if start is not None:
         d = d[1:]
-    # (in quarter pixels, or whole ones for a walk, whose feet travel far)
-    unit = 0.25 if np.abs(d).max() < 31 else 1
+    step = STEP
+    if big > 1.2:
+        d *= big
+        step = STEP * big
+    # (in quarter pixels, or coarser for a walk, whose feet travel far)
+    unit = max(0.25, float(np.ceil(np.abs(d).max() / 127 * 4) / 4))
     raw = np.clip(np.round(d / unit), -127, 127).astype(np.int8).tobytes()
-    return {'step': STEP, 'gw': len(xs), 'gh': len(ys), 'unit': unit, 'moves': base64.b64encode(raw).decode()}
+    return {'step': step, 'gw': len(xs), 'gh': len(ys), 'unit': unit, 'moves': base64.b64encode(raw).decode()}
 
 
 COLS = 6

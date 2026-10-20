@@ -554,7 +554,7 @@ function tick(now) {
   ticking = drawing.size > 0;
   if (ticking) requestAnimationFrame(tick);
 }
-const SHARP = 2;
+const SHARP = 1;
 export function drawFrame(cv, frame) {
   const s = cv.sheet, img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return;
@@ -587,7 +587,7 @@ export function drawFrame(cv, frame) {
 // animated sprite itself, should the sheet not load
 export function sheetArt(sheet, px, label, scars, fallback) {
   const cv = document.createElement('canvas');
-  // (drawn at twice the sprite's size, so the scars over it keep their own detail)
+  // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
   Object.assign(cv, { sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
