@@ -371,6 +371,27 @@ export function scarAnchor(type, sex, part, stage = 'adult') {
   if (part === 'legs') return { x: body.x - 0.04, y: Math.min(0.85, body.y + 0.3), w: body.w * 0.42, r: 0 };
   return { x: Math.max(0.08, back.x - 0.32), y: Math.min(0.8, back.y + 0.12), w: back.w * 0.42, r: 0 };
 }
+// How the skin at (x, y) (shares of the drawing) has moved by a frame, from frame 0: the sheet's grid of
+// followed points (scripts/sheets.py), between its four nearest. [dx, dy] as shares.
+const moves = {};
+export function motionAt(sheet, x, y, frame) {
+  if (!sheet || !sheet.moves || !frame) return [0, 0];
+  const m = moves[sheet.sheet] || (moves[sheet.sheet] = Int8Array.from(atob(sheet.moves), ch => (ch.charCodeAt(0) << 24) >> 24));
+  const { step, gw, gh } = sheet;
+  const gx = Math.max(0, Math.min(gw - 1.001, x * sheet.w / step - 0.5)), gy = Math.max(0, Math.min(gh - 1.001, y * sheet.h / step - 0.5));
+  const i = Math.floor(gx), j = Math.floor(gy), u = gx - i, v = gy - j;
+  const at = (a, b, c) => m[((frame * gh + b) * gw + a) * 2 + c];
+  const lerp = c => (at(i, j, c) * (1 - u) + at(Math.min(gw - 1, i + 1), j, c) * u) * (1 - v)
+    + (at(i, Math.min(gh - 1, j + 1), c) * (1 - u) + at(Math.min(gw - 1, i + 1), Math.min(gh - 1, j + 1), c) * u) * v;
+  return [lerp(0) / sheet.w, lerp(1) / sheet.h];
+}
+// where something set on the skin is at a frame: by its own keys if it has them, else as the skin moves
+export function placeOn(sheet, a, frame) {
+  if (!a || !sheet) return a;
+  if (a.f) return scarAt(a, frame, sheet.frames);
+  const [dx, dy] = motionAt(sheet, a.x, a.y, frame);
+  return dx || dy ? { ...a, x: a.x + dx, y: a.y + dy } : a;
+}
 // Where a scar is at one frame of an animated sprite: its place may carry keys, f: { frame: [x, y, r] },
 // and between two keys it moves in a straight line (the place itself is frame 0's key)
 export function scarAt(a, frame, frames) {
@@ -401,7 +422,9 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), open(pt) > 0.5 ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage))
       : scarMark(styleBy(scarBy && scarBy[pt]), l)]));
   // a scarred animated sprite is drawn frame by frame, its scars following the body
-  const base = sheet && scarred.length
+  const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
+  // (a walker with its own walk keeps its picture, which it swaps for the walk)
+  const base = sheet && (scarred.length || (wearing && !adultWalk(type, sex)))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarAnchor(type, sex, part, stage), mark, part]).filter(([a]) => a), src)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
@@ -439,6 +462,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
       layer.style.top = (a.y * 100) + '%';
       layer.style.width = (a.w * 100) + '%';
       layer.style.transform = `translate(-50%, -50%) rotate(${a.r || 0}deg)${a.m ? ' scaleX(-1)' : ''}`;
+      if (base.sheet) (base.followers = base.followers || []).push([layer, a]);
       const art = gearArtFor(id, type);
       if (art) layer.appendChild(pictureOf(asset(art)));
       else layer.innerHTML = ITEM_ICONS[id];
@@ -534,7 +558,7 @@ export function drawFrame(cv, frame) {
   ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
   ctx.globalCompositeOperation = 'source-atop';
   for (const [place, mark] of cv.scars) {
-    const a = scarAt(place, frame, s.frames), img = markImage(mark);
+    const a = placeOn(s, place, frame), img = markImage(mark);
     if (!markReady(mark)) { cv.dirty = true; continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
@@ -544,6 +568,11 @@ export function drawFrame(cv, frame) {
     ctx.restore();
   }
   ctx.globalCompositeOperation = 'source-over';
+  // (equipment over the drawing moves with the skin under it)
+  for (const [layer, a] of cv.followers || []) {
+    const b = placeOn(s, a, frame);
+    layer.style.left = (b.x * 100) + '%'; layer.style.top = (b.y * 100) + '%';
+  }
   cv.drawn = frame;
   cv.dirty = cv.scars.some(([, mark]) => !markReady(mark));
 }

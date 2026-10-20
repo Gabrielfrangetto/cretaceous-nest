@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, scarAt, drawFrame, SCAR_LOOKS } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, SCAR_LOOKS } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here
@@ -80,7 +80,7 @@ let sheetCv = null, held = 0, mark = null;
 const frames = () => (sheetCv ? sheetCv.sheet.frames : 1);
 const frameNow = () => (sheetCv ? (held != null ? held : Math.max(0, sheetCv.drawn)) : 0);
 // a scar's place at the frame on screen
-const here = a => scarAt(a, frameNow(), frames());
+const here = a => (sheetCv ? placeOn(sheetCv.sheet, a, frameNow()) : a);
 const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - q) : []);
 
 function renderScars() {
@@ -132,7 +132,7 @@ function showFrame() {
   if (!scarring() || !sheetCv) return;
   const a = current(), k = frameNow(), keys = keysOf(scarsOf()[$('slot').value]);
   $('frameNo').textContent = `${k + 1} of ${frames()}` + (k === 0 || keys.includes(k) ? ' · a key' : '');
-  $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'Only frame 1 is set: the scar stays still. Move it on another frame, or let it follow the body.';
+  $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'It moves with the skin under it by itself. To steer it yourself, move it on a frame: that frame becomes a key.';
   $('play').textContent = held == null ? 'Stop' : 'Play';
   if (mark) mark.hidden = !scarsOf()[$('slot').value];
   if (mark && a) {
@@ -151,64 +151,6 @@ function placeAt(a, x, y, r) {
   a.f[k] = [x != null ? x : Math.round(b.x * 1000) / 1000, y != null ? y : Math.round(b.y * 1000) / 1000, r != null ? r : Math.round(b.r || 0)];
 }
 
-// Follows the body on its own: the patch of skin under the scar on frame 1 is looked for, frame after
-// frame, near where it was on the last one; then the keys a straight line between others gives anyway go
-function followBody() {
-  const s = sheetCv.sheet, a = editable();
-  const img = new Image();
-  img.src = new URL('../' + s.sheet, import.meta.url).href;
-  return img.decode().then(() => {
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth; c.height = img.naturalHeight;
-    const g = c.getContext('2d', { willReadFrequently: true });
-    g.drawImage(img, 0, 0);
-    const px = g.getImageData(0, 0, c.width, c.height).data;
-    const at = (k, x, y) => {
-      const i = (((Math.floor(k / s.cols) * s.h) + y) * c.width + (k % s.cols) * s.w + x) * 4;
-      return px[i + 3] < 60 ? -255 : (px[i] * 3 + px[i + 1] * 6 + px[i + 2]) / 10;
-    };
-    const R = Math.max(10, Math.min(30, Math.round(a.w * s.w * 0.45))), SEARCH = 12, STEP = 2;
-    const ok = (x, y) => x - R >= 0 && y - R >= 0 && x + R < s.w && y + R < s.h;
-    const x0 = Math.round(a.x * s.w), y0 = Math.round(a.y * s.h);
-    if (!ok(x0, y0)) return false;
-    const ref = [];
-    for (let dy = -R; dy <= R; dy += STEP) for (let dx = -R; dx <= R; dx += STEP) ref.push(at(0, x0 + dx, y0 + dy));
-    const cost = (k, x, y, best) => {
-      let sum = 0, i = 0;
-      for (let dy = -R; dy <= R; dy += STEP) {
-        for (let dx = -R; dx <= R; dx += STEP) sum += Math.abs(at(k, x + dx, y + dy) - ref[i++]);
-        if (sum >= best) return sum;
-      }
-      return sum;
-    };
-    const path = [[a.x, a.y]];
-    let x = x0, y = y0;
-    for (let k = 1; k < s.frames; k++) {
-      let best = Infinity, bx = x, by = y;
-      for (let dy = -SEARCH; dy <= SEARCH; dy++) for (let dx = -SEARCH; dx <= SEARCH; dx++) {
-        if (!ok(x + dx, y + dy)) continue;
-        const v = cost(k, x + dx, y + dy, best);
-        if (v < best) { best = v; bx = x + dx; by = y + dy; }
-      }
-      x = bx; y = by;
-      path.push([Math.round(x / s.w * 1000) / 1000, Math.round(y / s.h * 1000) / 1000]);
-    }
-    // only the keys a straight line between their neighbours would not give
-    const keep = path.map((_, k) => k);
-    for (let gone = true; gone;) {
-      gone = false;
-      for (let i = 1; i < keep.length; i++) {
-        const p = keep[i - 1], k = keep[i], n = keep[i + 1] != null ? keep[i + 1] : s.frames;
-        const end = path[n % s.frames], t = (k - p) / (n - p);
-        const ex = path[p][0] + (end[0] - path[p][0]) * t, ey = path[p][1] + (end[1] - path[p][1]) * t;
-        if (Math.abs(ex - path[k][0]) < 0.0025 && Math.abs(ey - path[k][1]) < 0.0025) { keep.splice(i, 1); gone = true; break; }
-      }
-    }
-    a.f = Object.fromEntries(keep.filter(k => k > 0).map(k => [k, [path[k][0], path[k][1], a.r || 0]]));
-    if (!Object.keys(a.f).length) delete a.f;
-    return true;
-  });
-}
 
 // Drops the species, stages and sexes with nothing placed
 const prune = (o) => {
@@ -386,13 +328,6 @@ $('unkey').addEventListener('click', () => {
   if (!Object.keys(a.f).length) delete a.f;
   save(); render();
   $('msg').textContent = `The key on frame ${k + 1} is gone.`;
-});
-$('follow').addEventListener('click', async () => {
-  if (!sheetCv || needScar()) return;
-  $('msg').textContent = 'Following the body…';
-  const done = await followBody();
-  save(); render();
-  $('msg').textContent = done ? 'It follows the body now. Press Play to see it, and move it on any frame where it slips.' : 'Put the scar on the body first, a little away from the edge of the picture.';
 });
 $('m').addEventListener('change', e => { const a = editable(); if (e.target.checked) a.m = true; else delete a.m; save(); render(); });
 $('resetItem').addEventListener('click', () => {
