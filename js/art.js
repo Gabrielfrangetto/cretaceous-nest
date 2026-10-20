@@ -319,7 +319,7 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 // Scars drawn for each kind of blow (sprites/scars/<style>-<level>.webp, square, the scar filling its
 // width), by how it was given (journey.js scarStyle) and how deep; a deep one not drawn yet shows the
 // marked one, and a kind with none drawn the slashes above
-const SCAR_ART = { claw: { 1: 'sprites/scars/claw-1.webp' } };
+const SCAR_ART = { claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp' } };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
 export function scarMark(style, level) {
