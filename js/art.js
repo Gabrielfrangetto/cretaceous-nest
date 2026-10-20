@@ -322,6 +322,9 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 // width), by how it was given (journey.js scarStyle) and how deep; a deep one not drawn yet shows the
 // marked one, and a kind with none drawn the slashes above. healed: a deep one's scar, when the deep one
 // is drawn as the open wound; stitched: the wound sewn up in the hospital (cuts, not bites)
+// TURN: how far a picture is turned to lie as its kind's deep one does (degrees, as a place's r), so a
+// scar placed once lines up whichever of them shows
+const SCAR_TURN = { 'sprites/scars/claw-1.webp': -26 };
 const SCAR_ART = {
   claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp', stitched: 'sprites/scars/claw-stitched.webp' },
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
@@ -335,7 +338,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null) 
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   const art = SCAR_ART[style] || {}, src = (stitched && tint && art.stitched) || (level === 2 && !tint && art.healed) || art[level] || art[1] || art[2];
   const sewn = stitched && tint && art.stitched && src === art.stitched;
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, ...(sewn && skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, turn: SCAR_TURN[src] || 0, ...(sewn && skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -445,7 +448,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
     layer.dataset.part = part;
-    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
+    Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${(a.r || 0) + (mark.turn || 0)}deg)` });
     if (mark.level) layer.innerHTML = scarSVG(mark.level);
     else if (mark.tint) layer.appendChild(tintedCanvas(mark));
     else layer.appendChild(pictureOf(mark.src));
@@ -577,7 +580,7 @@ export function drawFrame(cv, frame) {
     const size = a.w * s.w * mark.scale;
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
-    ctx.rotate((a.r || 0) * Math.PI / 180);
+    ctx.rotate(((a.r || 0) + (mark.turn || 0)) * Math.PI / 180);
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
     ctx.restore();
   }
