@@ -559,10 +559,17 @@ export function drawFrame(cv, frame) {
   const s = cv.sheet, img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return;
   const ctx = cv.getContext('2d');
-  ctx.setTransform(SHARP, 0, 0, SHARP, 0, 0);
+  const k = cv.sharp || SHARP;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.imageSmoothingQuality = 'high';
   ctx.clearRect(0, 0, s.w, s.h);
-  ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
+  // (sharpened, its first frame from the drawing at full size, once that has loaded)
+  const hi = cv.sharp > SHARP && frame === 0 && s.hires && imageOf(sheetImages, s.hires, asset(s.hires));
+  const waiting = hi && !(hi.complete && hi.naturalWidth);
+  if (hi && !waiting) ctx.drawImage(hi, 0, 0, s.w, s.h);
+  else {
+    ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
+  }
   ctx.globalCompositeOperation = 'source-atop';
   for (const [place, mark] of cv.scars) {
     const a = placeOn(s, place, frame), img = markImage(mark);
@@ -581,7 +588,18 @@ export function drawFrame(cv, frame) {
     layer.style.left = (b.x * 100) + '%'; layer.style.top = (b.y * 100) + '%';
   }
   cv.drawn = frame;
-  cv.dirty = cv.scars.some(([, mark]) => !markReady(mark));
+  cv.dirty = !!waiting || cv.scars.some(([, mark]) => !markReady(mark));
+}
+// Drawn at the full size of the drawing, for a close look (the anchors tool's zoom): its first frame
+// sharp from the drawing itself, the others from the sheet, larger
+export function sharpen(cv, on = true) {
+  const s = cv && cv.sheet;
+  if (!s) return;
+  const k = on && s.hiresW ? s.hiresW / s.w : SHARP;
+  if (k === (cv.sharp || SHARP)) return;
+  cv.sharp = k;
+  cv.width = Math.round(s.w * k); cv.height = Math.round(s.h * k);
+  cv.dirty = true;
 }
 // scars: [place, mark (scarMark), part]; hold a frame by setting the canvas's hold (null plays it); fallback, the
 // animated sprite itself, should the sheet not load

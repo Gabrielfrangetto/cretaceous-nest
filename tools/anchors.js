@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, SCAR_LOOKS } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, SCAR_LOOKS } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here, times the zoom
@@ -103,6 +103,8 @@ function renderScars() {
   const on = !!scarsOf()[$('slot').value];
   $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
   if (base) base.style.height = TALL * zoom + 'px';
+  // (zoomed in, drawn from the drawing at its full size)
+  if (base && base.sheet && zoom > 1) sharpen(base);
   sheetCv = base && base.sheet ? base : null;
   $('canvas').innerHTML = '';
   $('canvas').appendChild(art);
@@ -183,6 +185,7 @@ function render() {
   ANCHORS[type][sex] = real;
   const gearBase = art.querySelector('.dino-base');
   if (gearBase) gearBase.style.height = TALL * zoom + 'px';
+  if (gearBase && gearBase.sheet && zoom > 1) sharpen(gearBase);
   $('canvas').innerHTML = '';
   $('canvas').appendChild(art);
   const order = Object.keys(equip);

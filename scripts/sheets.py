@@ -96,7 +96,7 @@ def durations(path):
 
 sheets = {}
 for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
-    if path.startswith('sprites/sheets/') or path.startswith('sprites/gear/'):
+    if path.startswith('sprites/sheets/') or path.startswith('sprites/gear/') or path.startswith('sprites/hires/'):
         continue
     im = Image.open(path)
     n = getattr(im, 'n_frames', 1)
@@ -121,7 +121,10 @@ for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
         base = Image.open(path.replace('-walk.webp', '.webp'))
         base.seek(0)
         idle = np.asarray(base.convert('RGBA')).astype(np.float32)
-    sheets[path] = {'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **motion(frames, idle, 28 if walk else S)}
+    # (its first frame at the drawing's full size, sprites/hires/, if made: for the anchors tool's zoom)
+    hires = 'sprites/hires/' + path[len('sprites/'):]
+    extra = {'hires': hires, 'hiresW': Image.open(hires).size[0]} if os.path.exists(hires) else {}
+    sheets[path] = {**extra, 'sheet': out, 'w': w, 'h': h, 'frames': n, 'cols': COLS, 'ms': round(sum(ms) / len(ms)) if ms else 95, **motion(frames, idle, 28 if walk else S)}
     print(f'{out}: {n} frames, {os.path.getsize(out) // 1024} KB')
 
 with open('js/sheets.js', 'w') as f:
