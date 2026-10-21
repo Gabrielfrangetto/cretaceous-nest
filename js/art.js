@@ -654,13 +654,18 @@ const onEye = (place, eye) => {
   const f = place.f && Object.fromEntries(Object.entries(place.f).map(([k, [x, y, r]]) => [k, [x + dx, y + dy, r]]));
   return { ...place, x: eye.x, y: eye.y, ...(f ? { f } : {}) };
 };
+// (the blind eye itself, painted: sprites/scars/eye-blind.webp, clouded over the eye's circle; false
+// until it has loaded)
+const BLIND_EYE = 'sprites/scars/eye-blind.webp';
 function blindEye(ctx, eye, s, disp) {
-  if (!eye) return;
+  if (!eye) return true;
+  const img = imageOf(scarImages, BLIND_EYE, asset(BLIND_EYE));
+  if (!img.complete || !img.naturalWidth) return false;
   const [dx, dy] = disp(eye.x * s.w, eye.y * s.h), x = eye.x * s.w + dx, y = eye.y * s.h + dy, r = eye.r * s.w;
-  const glow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.25, r * 0.1, x, y, r);
-  glow.addColorStop(0, 'rgba(244,247,250,0.95)'); glow.addColorStop(0.6, 'rgba(218,228,236,0.9)'); glow.addColorStop(1, 'rgba(176,192,204,0.7)');
-  ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'source-atop';
+  ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+  ctx.restore();
+  return true;
 }
 // The drawing's own outlines over a scar: where an ink line of the sprite crosses it (a leg against the
 // belly, the rim of an eye, a fold), the scar goes under it; and a scar told to stay (place.stay) keeps
@@ -964,7 +969,7 @@ export function drawFrame(cv, frame) {
     if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
   for (const [a, mark, piece, disp, blinds] of made) {
-    if (blinds) blindEye(ctx, cv.eye, s, disp);
+    if (blinds && !blindEye(ctx, cv.eye, s, disp)) cv.dirty = true;
     if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
