@@ -341,7 +341,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(src === art.healed ? { rim: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -854,6 +854,9 @@ function linesOf(s, place, mark) {
 // palest, as a share of the picture), never over its ink: the skin under it paled (pale of the way to
 // white, dull of its colour lost), so a red face's scar is pale red and a green neck's pale green.
 const MIDDLE = { colour: [206, 186, 176], alpha: 1, depth: 0.05, pale: 0.22, dull: 0 };
+// A deep wound sewn up in the hospital heals into a neat line paler than the skin around, all of it the
+// skin under it paled (pale of the way to white), its relief laid back over by relief to keep its shape
+const SURGICAL = { pale: 0.3, relief: 0.4 };
 const middles = {};
 function middleOf(mark) {
   if (middles[mark.key]) return middles[mark.key];
@@ -953,20 +956,23 @@ function onSkin(cv, place, mark, k) {
   if (lines) lay(lines, 'destination-in');
   const middle = mark.rim && middleOf(mark);
   // (the middle the skin under it paled, its own colour kept: MIDDLE.pale of the way to white, and
-  // less of its colour, laid where the middle is)
-  if (middle) {
+  // less of its colour, laid where the middle is; a surgical scar all of it, SURGICAL.pale, its own
+  // relief laid back over a little, SURGICAL.relief, so it keeps its shape)
+  const veil = middle || (mark.pale ? relief : null), paleBy = middle ? MIDDLE.pale : SURGICAL.pale;
+  if (veil) {
     const pale = document.createElement('canvas'); pale.width = P; pale.height = P;
     const pg = pale.getContext('2d');
     pg.drawImage(small, 0, 0, q, q, 0, 0, P, P);
     const pd = pg.getImageData(0, 0, P, P), ppx = pd.data;
     for (let j = 0; j < ppx.length; j += 4) {
       const lum = 0.3 * ppx[j] + 0.59 * ppx[j + 1] + 0.11 * ppx[j + 2];
-      for (let c = 0; c < 3; c++) { const v = ppx[j + c] + (lum - ppx[j + c]) * MIDDLE.dull; ppx[j + c] = v + (255 - v) * MIDDLE.pale; }
+      for (let c = 0; c < 3; c++) { const v = ppx[j + c] + (lum - ppx[j + c]) * MIDDLE.dull; ppx[j + c] = v + (255 - v) * paleBy; }
     }
     pg.putImageData(pd, 0, 0);
-    pg.globalCompositeOperation = 'destination-in';
     pg.translate(P / 2, P / 2); pg.rotate((place.r || 0) * Math.PI / 180);
-    pg.drawImage(middle, -size * k / 2, -size * k / 2, size * k, size * k);
+    if (!middle) { pg.globalCompositeOperation = 'multiply'; pg.globalAlpha = SURGICAL.relief; pg.drawImage(relief, -size * k / 2, -size * k / 2, size * k, size * k); pg.globalAlpha = 1; }
+    pg.globalCompositeOperation = 'destination-in';
+    pg.drawImage(veil, -size * k / 2, -size * k / 2, size * k, size * k);
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
   }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
