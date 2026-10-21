@@ -756,7 +756,7 @@ function blindEye(ctx, eye, s, disp, turn = 0) {
 // it, not stuck on top. Only the long lines (LINE_LONG): the little outlines of scales are covered. A scar told to stay (place.stay) keeps to the part of the drawing its middle is on,
 // those lines its edge. Worked out once for a place, on the first frame, as a mask over the scar's square
 // (it moves with the skin as the scar does).
-const LINE_GAP = 3.2, LINE_SOFT = 0.8, LINE_LONG = 0.18;
+const LINE_GAP = 0.96, LINE_SOFT = 0.8, LINE_LONG = 0.18;
 // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
