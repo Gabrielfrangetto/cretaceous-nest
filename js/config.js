@@ -1136,11 +1136,16 @@ export const RESCUE = { coins: 50 };
 // deep: a wound is deep where one fight took this share of its health from that part at once (or lamed
 // it there): it gapes, and heals into a deep scar; a lighter one stays a scratch all through
 export const WOUNDS = { mins: 360, deep: 0.15 };
+// A horn driven into the flank or the neck (GORE.parts): half the time it goes deep (deep), whatever the
+// harm; then it may kill outright (more the less tough it is and the more hurt it was already: kill of
+// what its toughness, DEATH, and its health leave), and if not it is down, and dies unless flown to the
+// hospital there and then.
+export const GORE = { parts: ['body', 'neck'], deep: 0.5, kill: 0.6 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {
     bigBite: { head: 3, neck: 2, body: 1 }, bite: { neck: 2, body: 2, head: 1, legs: 1 }, claw: { body: 3, legs: 2, neck: 1 },
-    horns: { body: 2, legs: 2, head: 1 }, club: { legs: 3, body: 1, tail: 1 }, stomp: { body: 2, legs: 2, tail: 1 },
+    horns: { legs: 3, head: 2, neck: 1, tail: 1, body: 1 }, club: { legs: 3, body: 1, tail: 1 }, stomp: { body: 2, legs: 2, tail: 1 },
     butt: { body: 2, head: 1, legs: 1 }, croc: { legs: 3, neck: 1, head: 1, tail: 1 }, any: { body: 2, legs: 1, head: 1 },
   },
 };

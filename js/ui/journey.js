@@ -592,6 +592,8 @@ function entryHTML(e) {
     case 'care': return e.coins ? `Your medical care cost ${e.coins} coins.` : 'Your medical care was on the house: you had no coins to pay for it.';
     case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, to land at the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
     case 'flown': return `You called an aircraft, and it flew you all home with all you carried, straight over the land. The journey was over. ${plural(e.paid, 'coin', 'coins')} paid${e.later ? `; ${e.later} billed for the badly hurt, to pay at the nest` : ''}.`;
+    case 'gored': return e.killed ? `The horn went deep into ${nm(e.who)}'s ${e.part === 'neck' ? 'neck' : 'flank'}. It never got up.` : `The horn went deep into ${nm(e.who)}'s ${e.part === 'neck' ? 'neck' : 'flank'}. It went down, gravely hurt: only the hospital could save it now.`;
+    case 'goreDied': return `${cap(esc(e.who.name))} died of the horn wound before it could reach help.`;
     case 'carried': return `You carried ${listNames(e.who.map(nm))} on.`;
     case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;

@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -422,7 +422,14 @@ function offerAirlift(ctx, idx) {
 function airlift(ctx, ev, choice) {
   const { s, p, story } = ctx;
   const ids = [...new Set(Array.isArray(choice.airlift) ? choice.airlift : [])].filter(id => (ev.ids || []).includes(id) && p.members.includes(id));
-  if (!ids.length) { story.push({ kind: 'carried', hex: ev.hex, idx: ev.idx, who: (ev.ids || []).filter(id => p.members.includes(id)) }); return; }
+  // (one gored deep and not flown home dies of it on the way: GORE)
+  const left = (ev.ids || []).filter(id => p.members.includes(id) && !ids.includes(id));
+  for (const id of left.filter(id => (p.gored || []).includes(id))) { story.push({ kind: 'goreDied', hex: ev.hex, idx: ev.idx, who: { id, name: (explorerOf(s, id) || {}).name || '?' } }); die(ctx, id); }
+  p.gored = (p.gored || []).filter(id => p.members.includes(id) && !ids.includes(id));
+  if (!p.gored.length) delete p.gored;
+  if (ctx.gone) return;
+  const carried = left.filter(id => p.members.includes(id));
+  if (!ids.length) { if (carried.length) story.push({ kind: 'carried', hex: ev.hex, idx: ev.idx, who: carried }); return; }
   const { hex, at } = whereWhen(ctx, ev.idx), lands = at + flightMins(hex) * 60000;
   const fare = airliftFare(s, ids, hex), care = ids.reduce((t, id) => t + careOf(healthOf(p, id), isDown(p, id)), 0);
   // they fly home in a party of their own, as they were
@@ -1264,7 +1271,7 @@ export function scarStyle(entry) {
 }
 function scar(ctx, ev, id, lost, lame, entry) {
   const b = explorerOf(ctx.s, id);
-  if (!b || (lost <= 0 && !lame)) return;
+  if (!b || (lost <= 0 && !lame)) return null;
   const rand = seededRand(`scar:${W(ctx.s).seed}:${ctx.p.leg ? ctx.p.leg.n : 0}:${ev.idx}:${id}`);
   const weights = Object.entries(SCARS.style[scarStyle(entry)]), total = weights.reduce((t, [, w]) => t + w, 0);
   const got = {};
@@ -1282,9 +1289,12 @@ function scar(ctx, ev, id, lost, lame, entry) {
   if (who) b.scarBy = { ...(b.scarBy || {}), [most]: who };
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
-  const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || (got[pt] || 0) >= WOUNDS.deep || (lame && pt === 'legs'));
+  // (a horn in the flank or the neck goes deep half the time, whatever the harm: GORE)
+  const horn = scarStyle(entry) === 'horns', gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < GORE.deep) : [];
+  const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || gored.includes(pt) || (!(horn && GORE.parts.includes(pt)) && (got[pt] || 0) >= WOUNDS.deep) || (lame && pt === 'legs'));
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
+  return gored.length ? gored[0] : null;
 }
 // How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur
 // is; at home, closing as it heals. Returns { parts: { part: how open }, by, deep (the parts deeply
@@ -1321,13 +1331,26 @@ function fight(ctx, ev, rand, how = {}) {
   if (chased && rand() < chased.chance) caught = fall(ctx, fought[chased.unit].members[chased.member], rand() < chased.death);
   const died = [];
   const downed = [];
+  const gores = [];
   // health carries on: brought down, it may be killed (slain outright, or by its resistance), or is
   // down; a lamed leg or a lost fight means coming home injured whatever its health
   fought.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
     const left = Math.max(0, result.hp[i][j] / result.teamHps[i][j]);
     const lame = result.lamed.some(([a, b]) => a === i && b === j);
     // (the scars it will carry, if it lives)
-    if (id !== PLAYER_ID) scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry);
+    const gored = id !== PLAYER_ID ? scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry) : null;
+    // (gored deep in the flank or the neck: it may die of it there and then, more the less tough it is
+    // and the more hurt it was; if not it is down, for the hospital or death: GORE)
+    if (gored) {
+      const res = team[i].members[j].res, tough = Math.min(DEATH.max, Math.max(DEATH.min, res / (res + DEATH.resBase)));
+      const killed = rand() < GORE.kill * (1 - tough * (0.5 + 0.5 * opts.hp[i][j]));
+      gores.push({ id, part: gored, killed });
+      if (killed) { died.push(id); return; }
+      fall(ctx, id, false);
+      downed.push(id);
+      p.gored = [...new Set([...(p.gored || []), id])];
+      return;
+    }
     if (left <= 0) {
       if (id !== PLAYER_ID) {
         const slain = result.slain.some(([a, b]) => a === i && b === j);
@@ -1374,6 +1397,7 @@ function fight(ctx, ev, rand, how = {}) {
       ...(how.standoff ? { standoff: standoffOf(threat) } : {}), ...(how.scatter ? { scatter: { ...scatterView(how.scatter), choice: 'fight' } } : {}),
     });
   }
+  for (const g of gores) story.push({ hex: ev.hex, idx: ev.idx, kind: 'gored', who: g.id, part: g.part, killed: g.killed });
   // (the dead are buried once the fight is told)
   for (const id of died) die(ctx, id);
   return battle;
@@ -1599,7 +1623,7 @@ export function cleanParties(s, w) {
     out.push({
       id: String(e.id), team, members, at, leg, ...(e.air === true && leg && leg.air ? { air: true } : {}), health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
       gathered: Object.fromEntries(Object.entries(e.gathered && typeof e.gathered === 'object' ? e.gathered : {}).filter(([id, n]) => ITEMS[id] && int(n) > 0).map(([id, n]) => [id, int(n)])),
-      camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt), offered: inParty(e.offered),
+      camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt), offered: inParty(e.offered), ...(inParty(e.gored).length ? { gored: inParty(e.gored) } : {}),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
       carry: { items, coins: int(c.coins), eggs }, pending,
       hex: leg ? leg.to : at, trip: leg ? leg.n : int(e.trip, 1), startedAt: leg ? leg.startedAt : num(e.startedAt), returnAt: leg ? leg.arriveAt : num(e.returnAt),

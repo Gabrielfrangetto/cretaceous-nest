@@ -48,3 +48,33 @@ test('the eye a dinosaur lost is kept with the save, one only', async () => {
   assert.equal(out.find(b => b.id === 'a').blind, 'right');
   assert.equal(out.find(b => b.id === 'b').blind, undefined);
 });
+
+test('a horn driven deep into the flank or neck: the hospital there and then, or death', async () => {
+  const { freshState } = await import('../js/state.js');
+  const { newWorld, threatAt, landHexes, hexKey } = await import('../js/world.js');
+  const { applyAction } = await import('../js/economy.js');
+  const { collect } = await import('./journey-helper.js');
+  const { GORE } = await import('../js/config.js');
+  const dino = id => ({ id, type: 'rex', sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: T, genes: { str: 70, agi: 70, vit: 70, res: 70 }, equip: {} });
+  const hexes = landHexes(42).filter(h => threatAt(42, h).id === 'trike').slice(0, 40);
+  const outcome = fly => {
+    for (const h of hexes) for (let r = 0; r < 4; r++) {
+      const s = freshState(); s.world = newWorld(42); s.coins = 1e6;
+      s.hatched.push(dino('rx'));
+      if (!applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'rx' }], hex: hexKey(...h) }, T + r * 997).ok) continue;
+      const p = s.world.expeditions.at(-1);
+      const story = collect(s, { id: p.id, fight: true, hunt: true, ...(fly ? { airlift: ['rx'] } : {}) }, p.leg.arriveAt).story;
+      const gore = story.find(e => e.kind === 'gored' && !e.killed);
+      if (gore) return { gore, story, s };
+    }
+    return null;
+  };
+  const left = outcome(false), flown = outcome(true);
+  assert.ok(left && flown, 'a Triceratops gores deep now and then');
+  assert.ok(GORE.parts.includes(left.gore.part));
+  // carried on, it dies of it; flown home, it lands at the hospital
+  assert.ok(left.story.some(e => e.kind === 'goreDied'));
+  assert.ok(!left.s.hatched.some(b => b.id === 'rx'));
+  assert.ok(flown.story.some(e => e.kind === 'airlift' && e.who.includes('rx')));
+  assert.ok(flown.s.hatched.find(b => b.id === 'rx').hospital);
+});
