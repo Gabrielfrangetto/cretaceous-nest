@@ -1136,10 +1136,6 @@ export const RESCUE = { coins: 50 };
 // deep: a wound is deep where one fight took this share of its health from that part at once (or lamed
 // it there): it gapes, and heals into a deep scar; a lighter one stays a scratch all through
 export const WOUNDS = { mins: 360, deep: 0.15 };
-// Losing an eye: rarely, a deep wound to the head tears across one (chance of it, on each deep head
-// wound of a dinosaur with both eyes still). Only ever one: the scar it leaves runs across that eye,
-// milky white for good.
-export const BLIND = { chance: 0.04 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {

@@ -647,7 +647,7 @@ function reliefOf(mark) {
 }
 const work = { small: null };
 // The eye, where it is on each drawing (SCAR_ANCHORS[type][stage][sex].eye: { x, y, r }, r a share of
-// its width, h and a its flattening and tilt, set in tools/anchors.html): no scar is drawn over it. A dinosaur that lost an eye (BLIND)
+// its width, h and a its flattening and tilt, set in tools/anchors.html): no scar is drawn over it. A dinosaur drawn blind in one eye (b.blind, a skin to come)
 // has its first head scar moved across it, and the eye milky white as a scarred cornea
 const onEye = (place, eye) => {
   const dx = eye.x - place.x, dy = eye.y - place.y;

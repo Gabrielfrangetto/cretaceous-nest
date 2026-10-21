@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, BLIND,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -1285,13 +1285,6 @@ function scar(ctx, ev, id, lost, lame, entry) {
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || (got[pt] || 0) >= WOUNDS.deep || (lame && pt === 'legs'));
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
-  // (rarely, a deep blow to the head takes an eye, one only: BLIND; its scar is deep, across it)
-  if (!b.blind && (got.head || 0) >= WOUNDS.deep && rand() < BLIND.chance) {
-    b.blind = rand() < 0.5 ? 'left' : 'right';
-    b.scars.head = Math.max(b.scars.head || 0, SCARS.deep);
-    return b.blind;
-  }
-  return null;
 }
 // How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur
 // is; at home, closing as it heals. Returns { parts: { part: how open }, by, deep (the parts deeply
@@ -1328,15 +1321,13 @@ function fight(ctx, ev, rand, how = {}) {
   if (chased && rand() < chased.chance) caught = fall(ctx, fought[chased.unit].members[chased.member], rand() < chased.death);
   const died = [];
   const downed = [];
-  const blinded = [];
   // health carries on: brought down, it may be killed (slain outright, or by its resistance), or is
   // down; a lamed leg or a lost fight means coming home injured whatever its health
   fought.forEach((u, i) => !result.fled.includes(i) && u.members.forEach((id, j) => {
     const left = Math.max(0, result.hp[i][j] / result.teamHps[i][j]);
     const lame = result.lamed.some(([a, b]) => a === i && b === j);
     // (the scars it will carry, if it lives)
-    const eye = id !== PLAYER_ID ? scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry) : null;
-    if (eye) blinded.push({ id, side: eye });
+    if (id !== PLAYER_ID) scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry);
     if (left <= 0) {
       if (id !== PLAYER_ID) {
         const slain = result.slain.some(([a, b]) => a === i && b === j);
@@ -1383,7 +1374,6 @@ function fight(ctx, ev, rand, how = {}) {
       ...(how.standoff ? { standoff: standoffOf(threat) } : {}), ...(how.scatter ? { scatter: { ...scatterView(how.scatter), choice: 'fight' } } : {}),
     });
   }
-  for (const x of blinded) story.push({ hex: ev.hex, idx: ev.idx, kind: 'blinded', who: x.id, side: x.side });
   // (the dead are buried once the fight is told)
   for (const id of died) die(ctx, id);
   return battle;
