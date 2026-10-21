@@ -661,56 +661,85 @@ const BLIND_EYE = 'sprites/scars/eye-blind.webp';
 const eyeFlat = eye => (eye.h > 0 ? eye.h : 1);
 // Where the eye is on each frame of an animated drawing, found in the frames themselves: the eye and
 // the skin round it on the first frame, matched in each frame near where it was (the closest likeness,
-// to a fraction of a pixel), so a lost eye stays on the eye exactly as the drawing moves it. Offsets in
-// the sheet's pixels per frame, worked out once a sheet and eye; null until its picture has loaded.
+// to a fraction of a pixel), so a lost eye stays on the eye exactly as the drawing moves it. How the head
+// turns is found the same way on more of it round the eye (an eye alone is too round to tell), and
+// evened over the frames next to each. A frame where nothing near looks like the eye (shut in a blink)
+// has none (EYE_SHUT: how unlike, as a share of how much the eye's own look varies). Per frame [dx, dy]
+// in the sheet's pixels and the turn in degrees (NaN while shut), worked out once a sheet and eye; null
+// until its picture has loaded.
+const EYE_TURN = 12, EYE_SHUT = 0.6;
 const eyeTracks = new Map();
 export function eyeTrack(s, eye) {
   const key = [s.sheet, eye.x, eye.y, eye.r].join('|');
   if (eyeTracks.has(key)) return eyeTracks.get(key);
   const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return null;
-  const T = Math.max(5, Math.ceil(eye.r * s.w * 1.6)), S = Math.max(10, Math.ceil(eye.r * s.w * 2.5)), N = 2 * (T + S) + 1;
+  const T = Math.max(5, Math.ceil(eye.r * s.w * 1.6)), S = Math.max(10, Math.ceil(eye.r * s.w * 2.5)), H = T * 3;
+  const M = Math.ceil(H * 1.42) + S + 2, N = 2 * M + 1;
   const cx = Math.round(eye.x * s.w), cy = Math.round(eye.y * s.h);
   const c = document.createElement('canvas'); c.width = N; c.height = N * s.frames;
   const g = c.getContext('2d', { willReadFrequently: true });
-  for (let f = 0; f < s.frames; f++) g.drawImage(img, (f % s.cols) * s.w + cx - T - S, Math.floor(f / s.cols) * s.h + cy - T - S, N, N, 0, f * N, N, N);
+  for (let f = 0; f < s.frames; f++) g.drawImage(img, (f % s.cols) * s.w + cx - M, Math.floor(f / s.cols) * s.h + cy - M, N, N, 0, f * N, N, N);
   let d;
   try { d = g.getImageData(0, 0, N, N * s.frames).data; } catch (e) { return null; }
   const lum = new Float32Array(N * N * s.frames);
   for (let i = 0; i < lum.length; i++) lum[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) * d[i * 4 + 3] / 255;
-  const at = (f, x, y) => lum[(f * N + y) * N + x];
-  const out = new Float32Array(s.frames * 2);
+  // (a frame's look at a point, between pixels)
+  const at = (f, x, y) => {
+    x = Math.max(0, Math.min(N - 1.001, x)); y = Math.max(0, Math.min(N - 1.001, y));
+    const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, o = f * N * N;
+    return (lum[o + j * N + i] * (1 - u) + lum[o + j * N + i + 1] * u) * (1 - v) + (lum[o + (j + 1) * N + i] * (1 - u) + lum[o + (j + 1) * N + i + 1] * u) * v;
+  };
+  // (the first frame's look: the eye, and more of the head round it, every other pixel)
+  const patch = (rad, by) => {
+    const p = [];
+    for (let y = -rad; y <= rad; y += by) for (let x = -rad; x <= rad; x += by) if (x * x + y * y <= rad * rad) p.push([x, y, lum[(M + y) * N + M + x]]);
+    return p;
+  };
+  const eyeLook = patch(T, 1), headLook = patch(H, 2);
+  const mean = eyeLook.reduce((t, p) => t + p[2], 0) / eyeLook.length, spread = eyeLook.reduce((t, p) => t + (p[2] - mean) ** 2, 0) || 1;
+  const unlike = (look, f, ox, oy, deg) => {
+    const a = deg * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+    let e = 0;
+    for (const [x, y, v] of look) { const w = at(f, M + ox + x * cos - y * sin, M + oy + x * sin + y * cos) - v; e += w * w; }
+    return e;
+  };
+  const low = (m, o, p) => { const den = m - 2 * o + p; return den > 0 ? Math.max(-0.5, Math.min(0.5, (m - p) / (2 * den))) : 0; };
+  const out = new Float32Array(s.frames * 3), turns = new Float32Array(s.frames), shut = new Uint8Array(s.frames);
+  let turn = 0;
   for (let f = 1; f < s.frames; f++) {
-    const cost = new Float32Array((2 * S + 1) ** 2);
-    let best = Infinity, bi = 0;
-    for (let oy = -S; oy <= S; oy++) for (let ox = -S; ox <= S; ox++) {
-      let e = 0;
-      for (let y = -T; y <= T; y++) for (let x = -T; x <= T; x++) {
-        const v = at(f, S + T + x + ox, S + T + y + oy) - at(0, S + T + x, S + T + y);
-        e += v * v;
-      }
-      const i = (oy + S) * (2 * S + 1) + ox + S;
-      cost[i] = e;
-      if (e < best) { best = e; bi = i; }
+    // the head's turn, near the last frame's (on the eye's place in the last frame, roughly)
+    const px = Math.round(out[(f - 1) * 3]) || 0, py = Math.round(out[(f - 1) * 3 + 1]) || 0;
+    let hb = Infinity;
+    for (let deg = Math.max(-EYE_TURN, turn - 4); deg <= Math.min(EYE_TURN, turn + 4); deg += 0.5) {
+      const e = unlike(headLook, f, px, py, deg); if (e < hb) { hb = e; turns[f] = deg; }
     }
-    const bx = bi % (2 * S + 1) - S, by = Math.floor(bi / (2 * S + 1)) - S;
-    // (to a fraction of a pixel: the low point of a parabola through the best and its neighbours)
-    const part = (m, o, p) => { const den = m - 2 * o + p; return den > 0 ? Math.max(-0.5, Math.min(0.5, (m - p) / (2 * den))) : 0; };
-    const C = (ox, oy) => cost[(oy + S) * (2 * S + 1) + ox + S];
-    out[f * 2] = bx + (Math.abs(bx) < S ? part(C(bx - 1, by), best, C(bx + 1, by)) : 0);
-    out[f * 2 + 1] = by + (Math.abs(by) < S ? part(C(bx, by - 1), best, C(bx, by + 1)) : 0);
+    turns[f] += 0.5 * low(unlike(headLook, f, px, py, turns[f] - 0.5), hb, unlike(headLook, f, px, py, turns[f] + 0.5));
+    turn = turns[f];
+    // the eye moved, so turned: every whole pixel near, then the fraction
+    let best = Infinity, bx = 0, by = 0;
+    for (let oy = -S; oy <= S; oy++) for (let ox = -S; ox <= S; ox++) { const e = unlike(eyeLook, f, ox, oy, turn); if (e < best) { best = e; bx = ox; by = oy; } }
+    if (best / spread > EYE_SHUT) { shut[f] = 1; out[f * 3] = bx; out[f * 3 + 1] = by; continue; }
+    out[f * 3] = bx + low(unlike(eyeLook, f, bx - 1, by, turn), best, unlike(eyeLook, f, bx + 1, by, turn));
+    out[f * 3 + 1] = by + low(unlike(eyeLook, f, bx, by - 1, turn), best, unlike(eyeLook, f, bx, by + 1, turn));
+  }
+  // (the turn evened a little with the frames either side, as the drawing loops; the first frame is the
+  // eye as set)
+  for (let f = 0; f < s.frames; f++) {
+    out[f * 3 + 2] = f ? (turns[(f + s.frames - 1) % s.frames] + 2 * turns[f] + turns[(f + 1) % s.frames]) / 4 : 0;
+    if (shut[f]) out[f * 3] = out[f * 3 + 1] = out[f * 3 + 2] = NaN;
   }
   if (eyeTracks.size > 50) eyeTracks.clear();
   eyeTracks.set(key, out);
   return out;
 }
-function blindEye(ctx, eye, s, disp) {
+function blindEye(ctx, eye, s, disp, turn = 0) {
   if (!eye) return true;
   const img = imageOf(scarImages, BLIND_EYE, asset(BLIND_EYE));
   if (!img.complete || !img.naturalWidth) return false;
   const [dx, dy] = disp(eye.x * s.w, eye.y * s.h), x = eye.x * s.w + dx, y = eye.y * s.h + dy, r = eye.r * s.w;
   ctx.save(); ctx.globalCompositeOperation = 'source-atop';
-  ctx.translate(x, y); ctx.rotate((eye.a || 0) * Math.PI / 180); ctx.scale(1, eyeFlat(eye));
+  ctx.translate(x, y); ctx.rotate(((eye.a || 0) + turn) * Math.PI / 180); ctx.scale(1, eyeFlat(eye));
   // (a little over the eye's ring, so its soft edge falls past the coloured part, all of it clouded)
   ctx.drawImage(img, -r * 1.1, -r * 1.1, r * 2.2, r * 2.2);
   ctx.restore();
@@ -1019,8 +1048,9 @@ export function drawFrame(cv, frame) {
   }
   for (const [a, mark, piece, disp, blinds] of made) {
     // (the eye where the drawing has it on this frame, whatever keys steer the scar across it)
-    const track = blinds && eyeTrack(s, cv.eye);
-    if (blinds && (!track || !blindEye(ctx, cv.eye, s, () => [track[frame * 2], track[frame * 2 + 1]]))) cv.dirty = true;
+    // (and none while the eye is shut)
+    const track = blinds && eyeTrack(s, cv.eye), shut = track && Number.isNaN(track[frame * 3]);
+    if (blinds && !shut && (!track || !blindEye(ctx, cv.eye, s, () => [track[frame * 3], track[frame * 3 + 1]], track[frame * 3 + 2]))) cv.dirty = true;
     if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();

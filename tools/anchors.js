@@ -170,8 +170,9 @@ function showFrame() {
   // (the eye's ring follows the eye, found in each frame)
   const eye = scarsOf().eye;
   if (eyeRing && eye) {
-    const s = sheetCv.sheet, t = eyeTrack(s, eye), k = frameNow(), dx = t ? t[k * 2] / s.w : 0, dy = t ? t[k * 2 + 1] / s.h : 0;
-    Object.assign(eyeRing.style, { left: (eye.x + dx) * 100 + '%', top: (eye.y + dy) * 100 + '%' });
+    const s = sheetCv.sheet, t = eyeTrack(s, eye), k = frameNow(), shut = t && Number.isNaN(t[k * 3]);
+    const dx = t && !shut ? t[k * 3] / s.w : 0, dy = t && !shut ? t[k * 3 + 1] / s.h : 0, turn = t && !shut ? t[k * 3 + 2] : 0;
+    Object.assign(eyeRing.style, { left: (eye.x + dx) * 100 + '%', top: (eye.y + dy) * 100 + '%', rotate: ((eye.a || 0) + turn) + 'deg', opacity: shut ? 0.3 : 1 });
   }
   if (mark && a) {
     const b = here(a);
