@@ -345,6 +345,9 @@ const VARIANTS = {
 };
 // the stitches of a sewn-up wound picture, apart (laid over it in their own colour, never reddened)
 const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-claw-stitched-thread.webp' };
+// blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
+// cut at the drawing's lines, never spilling over a fold onto the next part
+const STAYS = new Set(['horns', 'butt']);
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
@@ -359,7 +362,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -828,10 +831,10 @@ function blindEye(ctx, eye, s, disp, turn = 0) {
 // belly, the rim of an eye, a fold), the line stays as it is and the scar stops a little short of it and
 // takes up again a little past it, the skin beside the line untouched (LINE_GAP, in the sprite's pixels,
 // the last LINE_SOFT of it fading in), as if the fold hid it: the drawing keeps its relief, the scar is in
-// it, not stuck on top. Only the long lines (LINE_LONG): the little outlines of scales are covered. A scar told to stay (place.stay) keeps to the part of the drawing its middle is on,
+// it, not stuck on top. Only the long lines (LINE_LONG): the little outlines of scales are covered; a wound keeping to its part stops at shorter ones too (LINE_WALL), so a broken line still holds it. A scar told to stay (place.stay) keeps to the part of the drawing its middle is on,
 // those lines its edge. Worked out once for a place, on the first frame, as a mask over the scar's square
 // (it moves with the skin as the scar does).
-const LINE_GAP = 0.96, LINE_SOFT = 0.8, LINE_LONG = 0.18;
+const LINE_GAP = 0.96, LINE_SOFT = 0.8, LINE_LONG = 0.18, LINE_WALL = 0.13;
 // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
@@ -857,7 +860,7 @@ function linesOf(s, place, mark) {
     }
     // (only the drawing's long lines count, its folds and edges: the little outlines of its scales are
     // covered, a scar has none; a line is one at least LINE_LONG of the scar's width end to end)
-    const line = new Uint8Array(M * M), seen = new Uint8Array(M * M);
+    const line = new Uint8Array(M * M), wallLine = new Uint8Array(M * M), seen = new Uint8Array(M * M);
     for (let i0 = 0; i0 < M * M; i0++) {
       if (!ink[i0] || seen[i0]) continue;
       const part = [i0], todo = [i0];
@@ -872,31 +875,35 @@ function linesOf(s, place, mark) {
           seen[j] = 1; part.push(j); todo.push(j);
         }
       }
-      if (Math.max(x1 - x0, y1 - y0) >= LINE_LONG * M) for (const i of part) line[i] = 1;
+      const reach = Math.max(x1 - x0, y1 - y0);
+      if (reach >= LINE_LONG * M) for (const i of part) line[i] = 1;
+      if (reach >= LINE_WALL * M) for (const i of part) wallLine[i] = 1;
     }
     let keep = skin;
     if (!place.stay) { keep = new Uint8Array(M * M); for (let i = 0; i < M * M; i++) keep[i] = skin[i] || (ink[i] && !line[i]) ? 1 : 0; }
     if (place.stay) {
+      const open = new Uint8Array(M * M);
+      for (let i = 0; i < M * M; i++) open[i] = skin[i] || (ink[i] && !line[i]) ? 1 : 0;
       // the part its middle is on: skin reached from there without crossing an outline (thickened a
       // pixel, so a hairline gap doesn't let it through)
       const wall = new Uint8Array(M * M);
-      for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (ink[y * M + x]) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (wallLine[y * M + x]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
         const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < M && yy < M) wall[yy * M + xx] = 1;
       }
       let seed = -1;
       for (let r = 0; r < M / 4 && seed < 0; r++) for (let dy = -r; dy <= r && seed < 0; dy++) for (let dx = -r; dx <= r && seed < 0; dx++) {
-        const i = (M / 2 + dy) * M + M / 2 + dx; if (skin[i] && !wall[i]) seed = i;
+        const i = (M / 2 + dy) * M + M / 2 + dx; if (open[i] && !wall[i]) seed = i;
       }
       keep = new Uint8Array(M * M);
       if (seed >= 0) {
         const todo = [seed]; keep[seed] = 1;
         while (todo.length) {
           const i = todo.pop(), x = i % M, y = (i - x) / M;
-          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && skin[j] && !wall[j]) { keep[j] = 1; todo.push(j); }
+          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && open[j] && !wall[j]) { keep[j] = 1; todo.push(j); }
         }
         // (and back out to the outline it stopped at, so it meets the line)
         const grown = keep.slice();
-        for (let i = 0; i < M * M; i++) if (keep[i]) for (const j of [i - 1, i + 1, i - M, i + M]) if (j >= 0 && j < M * M && skin[j]) grown[j] = 1;
+        for (let i = 0; i < M * M; i++) if (keep[i]) for (const j of [i - 1, i + 1, i - M, i + M]) if (j >= 0 && j < M * M && open[j]) grown[j] = 1;
         keep = grown;
       }
     }
@@ -967,6 +974,7 @@ function middleOf(mark) {
   return (middles[mark.key] = c);
 }
 function onSkin(cv, place, mark, k) {
+  if (mark.stay && !place.stay) place = { ...place, stay: true };
   const s = cv.home || cv.sheet, relief = reliefOf(mark);
   if (!relief || !mark.skin) return null;
   const crimson = mark.tint ? tintOf({ key: mark.key, src: mark.src, tint: 1 }) : null;
