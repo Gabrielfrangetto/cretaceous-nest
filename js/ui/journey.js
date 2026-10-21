@@ -1,19 +1,20 @@
 // The journey told as a flashback: the way the party went, drawn on a little map, a marker walking it
 // and stopping wherever something happened, for the player to see (and watch the fights) and, when it
 // comes to it, decide: fight or flee, hunt or let be, go on or turn back.
-import { BIOMES, ITEMS, SPECIES, PLAYER_ID, SURVIVAL } from '../config.js';
+import { BIOMES, ITEMS, SPECIES, PLAYER_ID, SURVIVAL, AIRLIFT } from '../config.js';
 import { S } from '../state.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { parseKey, cellAt, cityAt, explorerOf, teamUnits } from '../world.js';
-import { partyOf, healthOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare, flightBill, flightMins, pendingView } from '../journey.js';
-import { teamOdds, dangerOf } from '../combat.js';
+import { partyOf, healthOf, isDown, woundsOf, standingUnits, legMins, HOME, levelOf, needWord, knows, airliftFare, flightBill, flightMins, pendingView } from '../journey.js';
+import { teamOdds, dangerOf, fighterOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
 import { GRID, fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
-import { eventArtUrls } from '../art.js';
+import { eventArtUrls, dressedArt, playerArt } from '../art.js';
+import { sexOf, stageOf, wornGear } from '../economy.js';
 
 const STEP_MS = 160;
 const itemName = (id, n) => (n === 1 ? ITEMS[id].name : ITEMS[id].plural);
@@ -54,6 +55,7 @@ export function openJourney(id, onChange) {
   const dialog = document.getElementById('journeyDialog');
   dialog.querySelector('#journeyBody').innerHTML = `<h2 id="journeyTitle"></h2>
     <div class="journey-map"></div>
+    <div class="journey-team" aria-label="Your team"></div>
     <ol class="journey-log" aria-live="polite"></ol>
     <div class="journey-act"></div>
     <div class="journey-event" hidden><div class="event-card" role="group" aria-label="What happened">
@@ -71,6 +73,7 @@ function ingest(r) {
   fb.pending = r.pending;
   fb.party = r.expedition;
   drawMap();
+  drawTeam();
   next();
 }
 
@@ -194,7 +197,8 @@ function showEvent(e, text) {
     img.src = urls[0];
   }
   card.querySelector('.event-text').innerHTML = text ? `<p>${text}</p>` : '';
-  // the buttons go on the card
+  // the team and the buttons go on the card
+  card.appendChild(body.querySelector('.journey-team'));
   card.appendChild(body.querySelector('.journey-act'));
   if (box.hidden) {
     box.hidden = false;
@@ -205,6 +209,7 @@ function hideEvent() {
   const body = document.getElementById('journeyBody'), box = body && body.querySelector('.journey-event');
   if (!box || box.hidden) return;
   body.insertBefore(body.querySelector('.journey-act'), box);
+  body.querySelector('.journey-map').after(body.querySelector('.journey-team'));
   box.classList.remove('on');
   box.hidden = true;
 }
@@ -267,6 +272,7 @@ function end() {
     if (r.ok) { fb.party = r.expedition; end(); }
   });
   actBox.querySelector('[data-close]').addEventListener('click', () => document.getElementById('journeyDialog').close());
+  drawTeam();
 }
 
 // ---------- decisions ----------
@@ -288,23 +294,49 @@ const standText = (st, past = false) => {
   return `${cap(article(what))} <strong>${esc(what)}</strong> ${past ? 'spotted' : 'spots'} you and ${ground} to drive you off.`;
 };
 
-// Tending to the team at a stop, with what it carries: a herb for the hurt, a transfusion for one down,
-// a meal for the hungry, a drink for the thirsty (journey.js tripCare)
-function careHTML(p) {
-  const sup = p.supplies || {}, has = id => (sup[id] || 0) + (p.carry.items[id] || 0);
-  const rows = p.members.map(id => {
-    const down = p.down.includes(id), hp = down ? 0 : healthOf(p, id), name = id === PLAYER_ID ? 'You' : (explorerOf(S, id) || {}).name || '?';
+// The team as it is now, a card each: its picture, its health (a bar, and what it has left of what it
+// can take), hunger and thirst once they show, and what can be done for it with what the team carries: a
+// herb for the hurt, a transfusion for one down, a meal for the hungry, a drink for the thirsty. Those
+// only at a stop on the way, where the journey waits for the player to decide (journey.js tripCare).
+function drawTeam() {
+  const box = document.querySelector('#journeyBody .journey-team');
+  if (!box) return;
+  const p = partyOf(S, fb.id);
+  box.hidden = !p;
+  if (!p) return;
+  const sup = p.supplies || {}, has = id => (sup[id] || 0) + (p.carry.items[id] || 0), stopped = !!(p.pending && p.leg);
+  box.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'member-cards';
+  for (const id of p.members) {
+    const b = explorerOf(S, id), me = id === PLAYER_ID, down = isDown(p, id), left = down ? 0 : healthOf(p, id);
+    const max = b ? fighterOf(b).hp : 0, cur = Math.round(max * left);
+    const needs = ['hunger', 'thirst'].filter(k => levelOf(p, k, id) >= SURVIVAL.words[k][0][0]).map(k => needWord(k, levelOf(p, k, id)));
     const btns = [];
-    if (!down && hp < 1 && has('herb')) btns.push(['herb', 'Healing Herb']);
-    if (down && id !== PLAYER_ID && has('transfusion')) btns.push(['transfusion', 'Blood Transfusion']);
+    if (!down && left < 1 && has('herb')) btns.push(['herb', 'Healing Herb']);
+    if (down && !me && has('transfusion')) btns.push(['transfusion', 'Blood Transfusion']);
     if (levelOf(p, 'hunger', id) >= SURVIVAL.words.hunger[0][0]) btns.push(['eat', 'Eat']);
     if (levelOf(p, 'thirst', id) >= SURVIVAL.words.thirst[0][0] && sup.water > 0) btns.push(['drink', 'Drink']);
-    return btns.length ? `<li><span>${esc(name)} <span class="meta">${healthWord(hp)}</span></span><span class="row">${btns.map(([w, label]) => `<button class="ghost" type="button" data-care="${esc(id)}|${w}">${label}</button>`).join('')}</span></li>` : '';
-  }).join('');
-  return rows ? `<details class="fold care" ${careOpen ? 'open' : ''}><summary>Tend to the team before going on</summary><ul class="care-list">${rows}</ul>
-    <p class="hint">Herbs: ${has('herb')} · transfusions: ${has('transfusion')} · drinks: ${sup.water || 0}</p></details>` : '';
+    const card = document.createElement('div');
+    card.className = 'member-card' + (down || left <= AIRLIFT.bad ? ' hurt' : '');
+    card.innerHTML = `<div class="member-art"></div>
+      <strong>${esc(me ? 'You' : b ? b.name : '?')}</strong>
+      <div class="hp" role="meter" aria-label="${esc(me ? 'Your' : (b ? b.name : '?') + "'s")} health" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${cur}"><i style="width:${left * 100}%"></i><span>${cur} / ${max}</span></div>
+      <span class="hint">${cap(healthWord(left))}${needs.length ? `, ${needs.map(w => w.toLowerCase()).join(', ')}` : ''}</span>
+      ${btns.length ? `<span class="member-care">${btns.map(([w, label]) => `<button class="ghost small" type="button" data-care="${esc(id)}|${w}" ${stopped ? '' : 'disabled'}>${label}</button>`).join('')}</span>` : ''}`;
+    if (me) card.querySelector('.member-art').appendChild(playerArt(S.player.equip, 52));
+    else if (b && b.type) card.querySelector('.member-art').appendChild(dressedArt(b.type, 3, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
+    list.appendChild(card);
+  }
+  box.appendChild(list);
+  box.insertAdjacentHTML('beforeend', `<p class="hint">Herbs: ${has('herb')} · transfusions: ${has('transfusion')} · drinks: ${sup.water || 0}${stopped ? '' : ' · they can be used when the journey stops for you to decide'}</p>`);
+  box.querySelectorAll('[data-care]').forEach(btn => btn.addEventListener('click', () => {
+    const [member, what] = btn.dataset.care.split('|');
+    const r = act('tripCare', { id: fb.id, member, what });
+    if (!r.ok) return;
+    if (fb.pending) { fb.pending = pendingView(S, partyOf(S, fb.id)); decide(fb.pending); } else drawTeam();
+  }));
 }
-let careOpen = true;
 
 function decide(v) {
   const actBox = document.querySelector('#journeyBody .journey-act');
@@ -405,14 +437,8 @@ function decide(v) {
       ${v.down.length ? `<p class="hint warn-text">${cap(listNames(v.down.map(nm)))} ${v.down.length > 1 || v.down.includes(PLAYER_ID) ? 'were' : 'was'} down: carried, out of any fight.</p>` : ''}
       <div class="row">${btn({}, 'Went on')}${btn({ back: true }, 'Turned back', true)}${flyBtn()}</div>`;
   }
-  actBox.innerHTML = html + careHTML(p);
-  const care = actBox.querySelector('.care');
-  if (care) care.addEventListener('toggle', () => { careOpen = care.open; });
-  actBox.querySelectorAll('[data-care]').forEach(b => b.addEventListener('click', () => {
-    const [member, what] = b.dataset.care.split('|');
-    const r = act('tripCare', { id: fb.id, member, what });
-    if (r.ok) { fb.pending = pendingView(S, partyOf(S, fb.id)); decide(fb.pending); }
-  }));
+  actBox.innerHTML = html;
+  drawTeam();
   const fly = actBox.querySelector('[data-fly]');
   if (fly) fly.addEventListener('click', () => {
     actBox.querySelectorAll('button').forEach(b => { b.disabled = true; });
