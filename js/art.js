@@ -918,6 +918,15 @@ function linesOf(s, place, mark) {
         const grown = keep.slice();
         for (let i = 0; i < M * M; i++) if (keep[i]) for (const j of [i - 1, i + 1, i - M, i + M]) if (j >= 0 && j < M * M && open[j]) grown[j] = 1;
         keep = grown;
+        // (and whatever it closes round, painted over: the outlines of a few scales run together look
+        // like a line, but a line of the body runs on out of it; only what reaches the edge stays out)
+        const out = new Uint8Array(M * M), edge = [];
+        for (let k = 0; k < M; k++) for (const i of [k, (M - 1) * M + k, k * M, k * M + M - 1]) if (!keep[i] && !out[i]) { out[i] = 1; edge.push(i); }
+        while (edge.length) {
+          const i = edge.pop(), x = i % M, y = (i - x) / M;
+          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && !out[j]) { out[j] = 1; edge.push(j); }
+        }
+        for (let i = 0; i < M * M; i++) if (!out[i] && px[i * 4 + 3] > 200) keep[i] = 1;
       }
     }
     // (how far each pixel is from a line, in the mask's pixels: a two-pass chamfer)
