@@ -340,6 +340,7 @@ const VARIANTS = {
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
   horns: {
+    2: ['sprites/scars/body-horns-2.webp'],
     healed: ['sprites/scars/body-horns-2-healed.webp'],
     surgical: ['sprites/scars/body-horns-surgical.webp'],
   },
