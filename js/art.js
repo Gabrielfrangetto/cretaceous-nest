@@ -503,6 +503,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), sideOf(seed, part)]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
+  if (base.sheet) base.eye = ownScars(type, sex, stage).eye || null;
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;
@@ -639,9 +640,40 @@ function reliefOf(mark) {
     }
     g.putImageData(d, 0, 0);
   } catch (e) { return null; }
+  c.dataset.key = mark.key;
   return (reliefs[mark.key] = c);
 }
 const work = { small: null };
+// The eye, where it is on each drawing (SCAR_ANCHORS[type][stage][sex].eye: { x, y, r }, r a share of
+// its width, set in tools/anchors.html): no scar is drawn over it, and one that covers more than
+// EYE.blind of it leaves it blind, milky white as a scarred cornea
+const EYE = { blind: 0.3 };
+const reliefAlpha = {};
+function covers(relief, place, s, size, ex, ey, er) {
+  let a = reliefAlpha[relief.width + ':' + relief.height + ':' + relief.dataset.key];
+  if (!a) {
+    try { a = reliefAlpha[relief.width + ':' + relief.height + ':' + relief.dataset.key] = relief.getContext('2d').getImageData(0, 0, relief.width, relief.height).data; } catch (e) { return 0; }
+  }
+  const cx = place.x * s.w, cy = place.y * s.h, t = -(place.r || 0) * Math.PI / 180, cos = Math.cos(t), sin = Math.sin(t);
+  let hit = 0, all = 0;
+  for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+    if (i * i + j * j > 16) continue;
+    all++;
+    const px = ex + i / 4 * er - cx, py = ey + j / 4 * er - cy;
+    const u = (px * cos - py * sin) / size + 0.5, v = (px * sin + py * cos) / size + 0.5;
+    if (u < 0 || v < 0 || u >= 1 || v >= 1) continue;
+    if (a[(Math.floor(v * relief.height) * relief.width + Math.floor(u * relief.width)) * 4 + 3] > 100) hit++;
+  }
+  return all ? hit / all : 0;
+}
+function blindEye(ctx, eye, s, disp) {
+  if (!eye) return;
+  const [dx, dy] = disp(eye.x * s.w, eye.y * s.h), x = eye.x * s.w + dx, y = eye.y * s.h + dy, r = eye.r * s.w;
+  const glow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.25, r * 0.1, x, y, r);
+  glow.addColorStop(0, 'rgba(244,247,250,0.95)'); glow.addColorStop(0.6, 'rgba(218,228,236,0.9)'); glow.addColorStop(1, 'rgba(176,192,204,0.7)');
+  ctx.save(); ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
 // The drawing's own outlines over a scar: where an ink line of the sprite crosses it (a leg against the
 // belly, the rim of an eye, a fold), the scar goes under it; and a scar told to stay (place.stay) keeps
 // to the part of the drawing its middle is on, those lines its edge. Worked out once for a place, on the
@@ -745,7 +777,8 @@ function onSkin(cv, place, mark, k) {
   if (mark.tint && !crimson) return null;
   const first = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!first.complete || !first.naturalWidth) return null;
-  const key = [place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.key, mark.tint, mark.skin, mark.rim ? 1 : 0, k, s.sheet].join('|');
+  const eye = cv.eye;
+  const key = [place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.key, mark.tint, mark.skin, mark.rim ? 1 : 0, k, s.sheet, eye ? [eye.x, eye.y, eye.r].join(',') : ''].join('|');
   const kept = cv.made || (cv.made = new Map());
   if (kept.has(key)) return kept.get(key);
   const size = place.w * s.w * mark.scale, side = size * 1.42, x = place.x * s.w - side / 2, y = place.y * s.h - side / 2;
@@ -781,7 +814,15 @@ function onSkin(cv, place, mark, k) {
   const middle = mark.rim && middleOf(mark);
   if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s) };
+  // (never over the eye: cut round it; and if it covers enough of it, the eye is blinded, EYE)
+  let blind = false;
+  if (eye) {
+    const ex = eye.x * s.w, ey = eye.y * s.h, er = eye.r * s.w;
+    blind = covers(relief, place, s, size, ex, ey, er) >= EYE.blind;
+    g.save(); g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc((ex - x) * k, (ey - y) * k, er * k * 1.08, 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  const made = { canvas: piece, x, y, side, blind, halo: haloPiece(first, place, mark, k, size, s) };
   if (kept.size > 40) kept.clear();
   kept.set(key, made);
   return made;
@@ -937,7 +978,7 @@ export function drawFrame(cv, frame) {
     if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
   for (const [a, mark, piece, disp] of made) {
-    if (piece) { laySkin(ctx, piece, disp, k); continue; }
+    if (piece) { laySkin(ctx, piece, disp, k); if (piece.blind) blindEye(ctx, cv.eye, s, disp); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
@@ -971,7 +1012,7 @@ export function sheetArt(sheet, px, label, scars, fallback, seed = null) {
   const cv = document.createElement('canvas');
   // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
-  Object.assign(cv, { sheet, home: sheet, seed, side: 'left', scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  Object.assign(cv, { sheet, home: sheet, seed, side: 'left', eye: null, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
   cv.setAttribute('role', 'img');

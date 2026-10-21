@@ -107,6 +107,15 @@ function renderScars() {
   if ($('slot').value !== part) $('slot').value = keysOn(baseOf(part))[0] || baseOf(part);
   const on = !!scarsOf()[$('slot').value];
   $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
+  // (the eye, its ring)
+  const eye = scarsOf().eye;
+  $('eyeR').value = eye ? eye.r : 0.02; $('eyeR').disabled = !eye; $('eyeRNo').textContent = eye ? (eye.r * 100).toFixed(1) + '%' : 'not set';
+  if (eye) {
+    const ring = document.createElement('span');
+    ring.className = 'eye-ring';
+    Object.assign(ring.style, { left: eye.x * 100 + '%', top: eye.y * 100 + '%', width: eye.r * 2 * 100 + '%', aspectRatio: '1' });
+    art.appendChild(ring);
+  }
   $('stay').disabled = !on; $('stay').checked = !!(on && scarsOf()[$('slot').value].stay);
   const sp = (on && scarsOf()[$('slot').value].spread) || SPREAD;
   for (const [id, v, t] of [['spreadD', sp.d, (sp.d * 100).toFixed(1) + '%'], ['spreadR', sp.r, '±' + sp.r + '°'], ['spreadS', sp.s, '±' + Math.round(sp.s * 100) + '%']]) { $(id).value = v; $(id).disabled = !on; $(id + 'No').textContent = t; }
@@ -181,7 +190,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['stayField', scarring()], ['spreadField', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['stayField', scarring()], ['spreadField', scarring()], ['eyeField', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -216,7 +225,7 @@ function render() {
 
 // The skin's colour where a scar goes, picked off the drawing (the frame on screen, without its scars):
 // a sewn-up wound heals into it
-let picking = false;
+let picking = false, eyeing = false;
 // the dinosaur shown: none (each scar right in its place) or one picked at random, to see where its
 // scars fall
 let seed = null;
@@ -264,6 +273,14 @@ $('canvas').addEventListener('pointerdown', e => {
   if (!art || !art.contains(e.target)) return;
   e.preventDefault();
   if (picking) { pickAt(e); return; }
+  if (eyeing) {
+    const r = art.getBoundingClientRect(), eye = scarsOf().eye || { r: 0.02 };
+    scarsOf().eye = { x: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, y: Math.round((e.clientY - r.top) / r.height * 1000) / 1000, r: eye.r };
+    eyeing = false; $('canvas').classList.remove('eyeing');
+    save(); render();
+    $('msg').textContent = 'The eye is there: size it so the ring sits on it.';
+    return;
+  }
   if (scarring()) {
     // (a click on another added scar picks it; on bare skin, the chosen one goes there, if added)
     const rect = art.getBoundingClientRect(), fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
@@ -272,7 +289,7 @@ $('canvas').addEventListener('pointerdown', e => {
       return Math.abs(fx - b.x) <= hw && Math.abs(fy - b.y) <= hh;
     };
     // (the chosen one first, where they overlap)
-    const hit = scarsOf()[$('slot').value] && under($('slot').value) ? $('slot').value : Object.keys(scarsOf()).find(under);
+    const hit = scarsOf()[$('slot').value] && under($('slot').value) ? $('slot').value : Object.keys(scarsOf()).filter(k => SCARS.parts.includes(baseOf(k))).find(under);
     if (hit && hit !== $('slot').value) { $('slot').value = hit; render(); $('msg').textContent = `${label(hit)} chosen.`; return; }
     if (!scarsOf()[$('slot').value]) { $('msg').textContent = 'This scar is not on the drawing: press “Add this scar”, or click one already added.'; return; }
   }
@@ -335,6 +352,9 @@ $('spreadR').addEventListener('input', e => setSpread('r', +e.target.value));
 $('spreadS').addEventListener('input', e => setSpread('s', +e.target.value));
 $('another').addEventListener('click', () => { seed = 'preview-' + Math.random().toString(36).slice(2, 8); render(); $('msg').textContent = 'Another dinosaur: its scars where they fell on it. Moving one moves where they fall from.'; });
 $('middle').addEventListener('click', () => { seed = null; render(); $('msg').textContent = 'Each scar right in its place again.'; });
+$('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classList.add('eyeing'); $('msg').textContent = 'Click the middle of the eye.'; });
+$('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); render(); $('msg').textContent = 'No eye set on this drawing.'; });
+$('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };
