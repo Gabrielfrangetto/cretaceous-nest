@@ -319,6 +319,7 @@ export function journeyStep(s, id, choice = {}, now, dry = false) {
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
       reveal(s, [key]);
+      if (p.news) { for (const x of p.news) x.walk += 1; tellNews(c, idx); }
       const z = hazardsOf(W(s).seed, leg.n, leg.path).find(x => x.idx === idx);
       if (z) suffer(c, z);
       if (!c.gone) survive(c, idx);
@@ -442,9 +443,40 @@ function airlift(ctx, ev, choice) {
   startFlight(s, q, at);
   // (to the hospital as soon as it lands: nothing happens in the air)
   for (const id of q.down) land(s, explorerOf(s, id), q.leg.arriveAt, true);
+  doomFlown(ctx, ids, ev.idx, q.leg.arriveAt);
   W(s).expeditions.push(q);
   bill(s, fare + care);
   story.push({ kind: 'airlift', hex, idx: ev.idx, who: ids, fare, care, lands });
+  // (nobody left to walk on: the news is waiting at the nest)
+  if (!p.members.length && p.news) tellNews(ctx, ev.idx, true);
+}
+// Those flown to the hospital gored deep (GORE): flown of them die of it there even so, and the team
+// hears only later (tellNews); kept in the hospital till then
+function doomFlown(ctx, ids, idx, lands) {
+  const { s, p } = ctx;
+  for (const id of ids.filter(x => (p.gored || []).includes(x))) {
+    if (seededRand(`goreFlown:${W(s).seed}:${p.leg ? p.leg.n : 0}:${idx}:${id}`)() >= GORE.flown) continue;
+    const b = explorerOf(s, id);
+    if (b && lands != null) b.injuredUntil = Math.max(b.injuredUntil || 0, lands + 30 * 86400000);
+    p.news = [...(p.news || []), { id, name: b ? b.name : '?', walk: 0 }];
+  }
+  p.gored = (p.gored || []).filter(id => !ids.includes(id));
+  if (!p.gored.length) delete p.gored;
+}
+// News from the hospital of one flown there gored, who died of it: told once the team has walked on
+// GORE.news hexes, or at once on reaching a city or home (all), and only then is it gone from the nest
+function tellNews(ctx, idx, all = false) {
+  const { s, p, story } = ctx;
+  if (!p.news) return;
+  const told = p.news.filter(x => all || x.walk >= GORE.news);
+  for (const x of told) {
+    if (p.members.includes(x.id)) leave(ctx, x.id);
+    bury(s, x.id);
+    for (const e of W(s).expeditions) if (e !== p && e.members.includes(x.id)) { e.members = e.members.filter(m => m !== x.id); e.team = e.team.map(u => ({ ...u, members: u.members.filter(m => m !== x.id) })).filter(u => u.members.length); }
+    story.push({ kind: 'goreLost', hex: idx >= 0 && p.leg ? p.leg.path[idx] : p.at, idx, who: { id: x.id, name: x.name } });
+  }
+  p.news = p.news.filter(x => !told.includes(x));
+  if (!p.news.length) delete p.news;
 }
 // one leaves the team (flown home)
 function leave(ctx, id) {
@@ -471,6 +503,8 @@ export function flightBill(s, p, hex) {
 // over: rescued (the player down: all of it billed) or called (the fit's share of the flight paid
 // already: paid)
 function flyParty(ctx, idx, kind, paid = 0, when = null) {
+  tellNews(ctx, idx, true);
+  doomFlown(ctx, ctx.p.members, idx, null);
   const { s, p, story } = ctx;
   const { hex, at } = kind === 'rescued' ? whereWhen(ctx, idx) : { hex: p.leg ? p.leg.path[Math.max(0, idx)] : p.at, at: when == null ? ctx.now : when };
   // (down at the nest's door: home already)
@@ -559,6 +593,7 @@ function arrive(ctx) {
   }
   // the train: everyone fed and watered aboard, the flasks filled at the station
   if (leg.train) {
+    tellNews(ctx, leg.path.length - 1, true);
     story.push({ kind: 'train', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, stops: trainRoute(w.seed, leg.from, leg.to)?.stops || [leg.from, leg.to] });
     refresh(p);
     if (leg.to === HOME) { comeHome(ctx); return; }
@@ -572,6 +607,7 @@ function arrive(ctx) {
     refresh(p);
     p.leg = null;
     story.push({ kind: 'city', hex: leg.to, idx: leg.path.length - 1, name: city });
+    tellNews(ctx, leg.path.length - 1, true);
     Object.assign(p, { hex: p.at, returnAt: leg.arriveAt });
     return;
   }
@@ -1441,6 +1477,7 @@ function gather(ctx, leg) {
 // leg: injured; under half health: bruised), everyone is hungry but a small hunter (Compsognathus) that
 // fed itself on the way, and the party breaks up
 function comeHome(ctx) {
+  tellNews(ctx, -1, true);
   const { s, p, story, now } = ctx, w = W(s);
   const loot = [];
   // the eggs grabbed without a look are held to the light at the nest: those that would never hatch are food
@@ -1623,7 +1660,7 @@ export function cleanParties(s, w) {
     out.push({
       id: String(e.id), team, members, at, leg, ...(e.air === true && leg && leg.air ? { air: true } : {}), health, hunger: level(e.hunger), thirst: level(e.thirst), supplies,
       gathered: Object.fromEntries(Object.entries(e.gathered && typeof e.gathered === 'object' ? e.gathered : {}).filter(([id, n]) => ITEMS[id] && int(n) > 0).map(([id, n]) => [id, int(n)])),
-      camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt), offered: inParty(e.offered), ...(inParty(e.gored).length ? { gored: inParty(e.gored) } : {}),
+      camp: !leg && e.camp && typeof e.camp === 'object' && at !== HOME ? { startedAt: num(e.camp.startedAt), endsAt: Math.max(num(e.camp.endsAt), num(e.camp.startedAt)) } : null, down: inParty(e.down), hurt: inParty(e.hurt), offered: inParty(e.offered), ...(inParty(e.gored).length ? { gored: inParty(e.gored) } : {}), ...(Array.isArray(e.news) && e.news.length ? { news: e.news.filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id, name: String(x.name || '?'), walk: Math.max(0, Math.floor(Number(x.walk) || 0)) })) } : {}),
       dead: (Array.isArray(e.dead) ? e.dead : []).filter(d => d && typeof d === 'object').slice(0, 12).map(d => ({ id: String(d.id), name: String(d.name || '').slice(0, 24), type: SPECIES[d.type] ? d.type : null })),
       carry: { items, coins: int(c.coins), eggs }, pending,
       hex: leg ? leg.to : at, trip: leg ? leg.n : int(e.trip, 1), startedAt: leg ? leg.startedAt : num(e.startedAt), returnAt: leg ? leg.arriveAt : num(e.returnAt),

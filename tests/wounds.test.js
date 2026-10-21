@@ -78,3 +78,23 @@ test('a horn driven deep into the flank or neck: the hospital there and then, or
   assert.ok(flown.story.some(e => e.kind === 'airlift' && e.who.includes('rx')));
   assert.ok(flown.s.hatched.find(b => b.id === 'rx').hospital);
 });
+
+test('news of one who died in the hospital of a horn wound comes after the team walks two hexes on', async () => {
+  const { freshState } = await import('../js/state.js');
+  const { newWorld, landHexes, hexKey, hexDist } = await import('../js/world.js');
+  const { applyAction } = await import('../js/economy.js');
+  const { collect } = await import('./journey-helper.js');
+  const { GORE } = await import('../js/config.js');
+  const dino = (id, type) => ({ id, type, sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: T, genes: { str: 90, agi: 90, vit: 90, res: 90 }, equip: {} });
+  const h = landHexes(42).find(x => hexDist(x) >= 4);
+  const s = freshState(); s.world = newWorld(42);
+  s.hatched.push(dino('rx', 'rex'), dino('gone', 'dilo'));
+  assert.ok(applyAction(s, 'explore', { team: [{ kind: 'dino', id: 'rx' }], hex: hexKey(...h) }, T).ok);
+  const p = s.world.expeditions.at(-1);
+  p.news = [{ id: 'gone', name: 'Gone', walk: 0 }];
+  // (still in the hospital, as far as the nest knows, till the word comes)
+  assert.ok(s.hatched.some(b => b.id === 'gone'));
+  const told = collect(s, { id: p.id, fight: true }, p.leg.arriveAt).story.find(e => e.kind === 'goreLost');
+  assert.equal(told.idx, GORE.news - 1);
+  assert.ok(!s.hatched.some(b => b.id === 'gone'));
+});

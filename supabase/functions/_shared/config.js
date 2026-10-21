@@ -1140,7 +1140,9 @@ export const WOUNDS = { mins: 360, deep: 0.15 };
 // harm; then it may kill outright (more the less tough it is and the more hurt it was already: kill of
 // what its toughness, DEATH, and its health leave), and if not it is down, and dies unless flown to the
 // hospital there and then.
-export const GORE = { parts: ['body', 'neck'], deep: 0.5, kill: 0.6 };
+// Even flown to the hospital, flown dies of it there (the team hears only after walking on news
+// hexes, or on reaching a city or home).
+export const GORE = { parts: ['body', 'neck'], deep: 0.5, kill: 0.6, flown: 0.1, news: 2 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {

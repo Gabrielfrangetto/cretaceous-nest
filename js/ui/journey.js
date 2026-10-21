@@ -214,7 +214,7 @@ function hideEvent() {
   box.hidden = true;
 }
 
-const STOPS = ['fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'hazard', 'lost', 'perished', 'collapse', 'nest', 'rescued', 'airlift'];
+const STOPS = ['goreLost', 'fight', 'chase', 'standoff', 'sighting', 'witness', 'backedOff', 'hazard', 'lost', 'perished', 'collapse', 'nest', 'rescued', 'airlift'];
 function next() {
   hideEvent();
   const actBox = document.querySelector('#journeyBody .journey-act');
@@ -593,6 +593,7 @@ function entryHTML(e) {
     case 'airlift': return `You called the sanctuary's rescue: an aircraft flew ${listNames(e.who.map(nm))} home, to land at the hospital. The bill, to pay at the nest: ${plural(e.fare, 'coin', 'coins')} for the flight and ${e.care} for the care.`;
     case 'flown': return `You called an aircraft, and it flew you all home with all you carried, straight over the land. The journey was over. ${plural(e.paid, 'coin', 'coins')} paid${e.later ? `; ${e.later} billed for the badly hurt, to pay at the nest` : ''}.`;
     case 'gored': return e.killed ? `The horn went deep into ${nm(e.who)}'s ${e.part === 'neck' ? 'neck' : 'flank'}. It never got up.` : `The horn went deep into ${nm(e.who)}'s ${e.part === 'neck' ? 'neck' : 'flank'}. It went down, gravely hurt: only the hospital could save it now.`;
+    case 'goreLost': return `Word came from the sanctuary's hospital: ${esc(e.who.name)} had not pulled through. The horn wound was too deep.`;
     case 'goreDied': return `${cap(esc(e.who.name))} died of the horn wound before it could reach help.`;
     case 'carried': return `You carried ${listNames(e.who.map(nm))} on.`;
     case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
