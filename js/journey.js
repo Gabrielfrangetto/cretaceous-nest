@@ -455,8 +455,9 @@ function airlift(ctx, ev, choice) {
 function doomFlown(ctx, ids, idx, lands) {
   const { s, p } = ctx;
   for (const id of ids.filter(x => (p.gored || []).includes(x))) {
-    if (seededRand(`goreFlown:${W(s).seed}:${p.leg ? p.leg.n : 0}:${idx}:${id}`)() >= GORE.flown) continue;
-    const b = explorerOf(s, id);
+    const b = explorerOf(s, id), sev = severity(b, b && b.wound && b.wound.by);
+    const dies = Math.max(GORE.flownMin, Math.min(GORE.flownMax, GORE.flown * sev * sev));
+    if (seededRand(`goreFlown:${W(s).seed}:${p.leg ? p.leg.n : 0}:${idx}:${id}`)() >= dies) continue;
     if (b && lands != null) b.injuredUntil = Math.max(b.injuredUntil || 0, lands + 30 * 86400000);
     p.news = [...(p.news || []), { id, name: b ? b.name : '?', walk: 0 }];
   }
@@ -1329,12 +1330,22 @@ function scar(ctx, ev, id, lost, lame, entry) {
   if (who) b.scarBy = { ...(b.scarBy || {}), [most]: who };
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
-  // (a horn in the flank or the neck goes deep half the time, whatever the harm: GORE)
-  const horn = ['horns', 'spikes'].includes(scarStyle(entry)), gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < GORE.deep) : [];
+  // (a horn in the flank or the neck goes deep as often as it reaches far into the body, whatever the
+  // harm: GORE)
+  const horn = ['horns', 'spikes'].includes(scarStyle(entry)), sev = horn ? severity(b, who) : 0;
+  const gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < Math.min(1, GORE.deep * sev)) : [];
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || gored.includes(pt) || (!(horn && GORE.parts.includes(pt)) && (got[pt] || 0) >= WOUNDS.deep) || (lame && pt === 'legs'));
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
-  return gored.length ? gored[0] : null;
+  return gored.length ? { part: gored[0], sev } : null;
+}
+// how far a horn or spike reaches into a body against how thick it is (1: right through the middle;
+// more: through it): GORE
+export function severity(b, by) {
+  const reach = GORE.reach[by] || 0;
+  if (!b || !reach) return 0;
+  const armor = (SPECIES[b.type] || {}).armor;
+  return reach * (armor ? GORE.armor[armor] || 1 : 1) / (GORE.torso * Math.cbrt(massOf(b)));
 }
 // How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur
 // is; at home, closing as it heals. Returns { parts: { part: how open }, by, deep (the parts deeply
@@ -1383,8 +1394,9 @@ function fight(ctx, ev, rand, how = {}) {
     // and the more hurt it was; if not it is down, for the hospital or death: GORE)
     if (gored) {
       const res = team[i].members[j].res, tough = Math.min(DEATH.max, Math.max(DEATH.min, res / (res + DEATH.resBase)));
-      const killed = rand() < GORE.kill * (1 - tough * (0.5 + 0.5 * opts.hp[i][j]));
-      gores.push({ id, part: gored, killed });
+      // (right through it: dead; otherwise the graver, the less tough and the more hurt, the likelier)
+      const killed = gored.sev >= 1 || rand() < gored.sev * gored.sev * (1 - GORE.kill * tough * (0.5 + 0.5 * opts.hp[i][j]));
+      gores.push({ id, part: gored.part, killed });
       if (killed) { died.push(id); return; }
       fall(ctx, id, false);
       downed.push(id);

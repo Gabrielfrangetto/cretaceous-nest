@@ -55,8 +55,9 @@ test('a horn driven deep into the flank or neck: the hospital there and then, or
   const { applyAction } = await import('../js/economy.js');
   const { collect } = await import('./journey-helper.js');
   const { GORE } = await import('../js/config.js');
-  const dino = id => ({ id, type: 'rex', sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: T, genes: { str: 70, agi: 70, vit: 70, res: 70 }, equip: {} });
-  const hexes = landHexes(42).filter(h => threatAt(42, h).id === 'trike').slice(0, 40);
+  // (an Allosaurus: big enough to live through it now and then, small enough to be gored deep)
+  const dino = id => ({ id, type: 'allo', sex: 'm', name: id, at: 0, gen: 1, fed: 999, lastFed: T, genes: { str: 70, agi: 70, vit: 70, res: 70 }, equip: {} });
+  const hexes = landHexes(42).filter(h => threatAt(42, h).id === 'trike').slice(0, 120);
   const outcome = fly => {
     for (const h of hexes) for (let r = 0; r < 4; r++) {
       const s = freshState(); s.world = newWorld(42); s.coins = 1e6;
@@ -69,7 +70,11 @@ test('a horn driven deep into the flank or neck: the hospital there and then, or
     }
     return null;
   };
+  // (every horn in the flank or neck deep, for the test)
+  const deep = GORE.deep;
+  GORE.deep = 2;
   const left = outcome(false), flown = outcome(true);
+  GORE.deep = deep;
   assert.ok(left && flown, 'a Triceratops gores deep now and then');
   assert.ok(GORE.parts.includes(left.gore.part));
   // carried on, it dies of it; flown home, it lands at the hospital
@@ -97,4 +102,18 @@ test('news of one who died in the hospital of a horn wound comes after the team 
   const told = collect(s, { id: p.id, fight: true }, p.leg.arriveAt).story.find(e => e.kind === 'goreLost');
   assert.equal(told.idx, GORE.news - 1);
   assert.ok(!s.hatched.some(b => b.id === 'gone'));
+});
+
+test('how grave a horn wound is goes by how far it reaches into the body', async () => {
+  const { severity } = await import('../js/journey.js');
+  const grown = type => ({ id: type, type, sex: 'm', fed: 1e9 });
+  // right through a Velociraptor; into a Dilophosaurus' middle; the outside of a Tyrannosaurus
+  assert.ok(severity(grown('raptor'), 'trike') > 1);
+  assert.ok(severity(grown('dilo'), 'trike') > 0.8 && severity(grown('dilo'), 'trike') < 1);
+  assert.ok(severity(grown('rex'), 'trike') < 0.4);
+  // a spike reaches less than a horn; bony plates keep both out
+  assert.ok(severity(grown('dilo'), 'stego') < severity(grown('dilo'), 'trike'));
+  assert.ok(severity(grown('ankylo'), 'trike') < severity(grown('rex'), 'trike') / 2);
+  // a young one, smaller, takes it worse
+  assert.ok(severity({ ...grown('rex'), fed: 0 }, 'trike') > severity(grown('rex'), 'trike'));
 });

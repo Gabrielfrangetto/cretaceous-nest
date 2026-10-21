@@ -1140,9 +1140,17 @@ export const WOUNDS = { mins: 360, deep: 0.15 };
 // harm; then it may kill outright (more the less tough it is and the more hurt it was already: kill of
 // what its toughness, DEATH, and its health leave), and if not it is down, and dies unless flown to the
 // hospital there and then.
-// Even flown to the hospital, flown dies of it there (the team hears only after walking on news
-// hexes, or on reaching a city or home).
-export const GORE = { parts: ['body', 'neck'], deep: 0.5, kill: 0.6, flown: 0.1, news: 2 };
+// How grave it is goes by how far the weapon reaches into the body against how thick the body is
+// (severity: reach, metres, over the trunk's thickness, torso × the cube root of its weight; bony plates
+// keep the weapon out by armor): half the time deep for one just as thick, deep always for one it
+// passes through, rarely for one far thicker; and then killing it outright the likelier the graver and
+// the less tough and more hurt it was (kill), certainly when it passes through; and even flown to the
+// hospital it may die of it there (flown), the team hearing only after walking on news hexes, or on
+// reaching a city or home.
+export const GORE = {
+  parts: ['body', 'neck'], deep: 0.5, reach: { trike: 0.5, stego: 0.3 }, torso: 0.075, armor: { heavy: 0.3, light: 0.7 },
+  kill: 0.5, flown: 0.3, flownMin: 0.01, flownMax: 0.5, news: 2,
+};
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
   style: {
