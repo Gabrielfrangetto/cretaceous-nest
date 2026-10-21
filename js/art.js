@@ -720,7 +720,55 @@ function onSkin(cv, a, mark, k, i, place) {
   const middle = mark.rim && middleOf(mark);
   if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  return { canvas: piece, x, y, side };
+  return { canvas: piece, x, y, side, halo: haloPiece(cv, a, mark, k, i, size) };
+}
+// The skin around a fresh wound, reddened: a soft glow about it, laid on the skin by multiplying, so it
+// shows pink on pale skin and next to nothing on dark (as on a reptile's thick, pigmented hide), and
+// only while the wound is fresh (HALO.from: how open it still is when it starts showing)
+const HALO = { reach: 2, colour: [255, 90, 80], from: 0.45, strength: 1 };
+const halos = {};
+function haloOf(mark) {
+  if (halos[mark.key]) return halos[mark.key];
+  const img = scarImage(mark);
+  if (!img.complete || !img.naturalWidth) return null;
+  const M = 256, c = document.createElement('canvas'), t = document.createElement('canvas'), n = 20;
+  c.width = M; c.height = M; t.width = n; t.height = n;
+  const g = c.getContext('2d'), tg = t.getContext('2d');
+  // (its shape, much blurred: drawn tiny and back)
+  tg.drawImage(img, (n - n / HALO.reach) / 2, (n - n / HALO.reach) / 2, n / HALO.reach, n / HALO.reach);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(t, 0, 0, n, n, 0, 0, M, M);
+  try {
+    const d = g.getImageData(0, 0, M, M), px = d.data;
+    for (let i = 0; i < px.length; i += 4) {
+      px[i] = HALO.colour[0]; px[i + 1] = HALO.colour[1]; px[i + 2] = HALO.colour[2];
+      px[i + 3] = Math.min(255, px[i + 3] * 1.6);
+    }
+    g.putImageData(d, 0, 0);
+  } catch (e) { return null; }
+  return (halos[mark.key] = c);
+}
+function haloPiece(cv, a, mark, k, i, size) {
+  const t = mark.tint || 0, glow = Math.min(1, Math.max(0, (t - HALO.from) / (1 - HALO.from)));
+  const img = glow > 0 && haloOf(mark);
+  if (!img) return null;
+  const s = cv.sheet, side = size * HALO.reach * 1.42, x = a.x * s.w - side / 2, y = a.y * s.h - side / 2;
+  const P = Math.max(2, Math.ceil(side * k));
+  const halos = cv.halos || (cv.halos = []), h = halos[i] || (halos[i] = document.createElement('canvas'));
+  h.width = P; h.height = P;
+  const g = h.getContext('2d');
+  g.drawImage(cv, x * k, y * k, P, P, 0, 0, P, P);
+  const lay = op => {
+    g.save();
+    g.globalCompositeOperation = op;
+    g.translate(P / 2, P / 2); g.rotate((a.r || 0) * Math.PI / 180);
+    const w = size * HALO.reach * k;
+    g.drawImage(img, -w / 2, -w / 2, w, w);
+    g.restore();
+  };
+  lay('multiply');
+  lay('destination-in');
+  return { canvas: h, x, y, side, alpha: glow * HALO.strength };
 }
 const markImage = mark => (mark.tint || mark.skin ? tintOf(mark) : scarImage(mark));
 const markReady = mark => { const m = markImage(mark); return !!m && (m.tagName === 'CANVAS' || (m.complete && m.naturalWidth > 0)); };
@@ -773,6 +821,11 @@ export function drawFrame(cv, frame) {
     made.push([a, mark, onSkin(cv, a, mark, k, made.length, place)]);
   }
   ctx.globalCompositeOperation = 'source-atop';
+  // (the reddened skin around fresh wounds first, under them)
+  for (const [, , piece] of made) {
+    const h = piece && piece.halo;
+    if (h) { ctx.globalAlpha = h.alpha; ctx.drawImage(h.canvas, h.x, h.y, h.side, h.side); ctx.globalAlpha = 1; }
+  }
   for (const [a, mark, piece] of made) {
     const size = a.w * s.w * mark.scale;
     if (piece) { ctx.drawImage(piece.canvas, piece.x, piece.y, piece.side, piece.side); continue; }
