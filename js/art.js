@@ -510,6 +510,14 @@ const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
 // as the wound is open; made once per scar and shade
 const tinted = {};
 const SCAR_SHADE = 0.72;   // how much darker a scar is than the skin around it
+// and duller: scar tissue loses most of the bright colours of the skin (their cells don't come back in
+// it) and keeps the dark pigment, so it goes brown: DULL of the colour lost, BROWN of that dark brown
+const SCAR_DULL = 0.65, SCAR_BROWN = 0.25, SCAR_PIGMENT = [107, 85, 68];
+const dullen = rgb => {
+  const lum = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2], grey = rgb.map(v => v + (lum - v) * SCAR_DULL);
+  const pl = (0.3 * SCAR_PIGMENT[0] + 0.59 * SCAR_PIGMENT[1] + 0.11 * SCAR_PIGMENT[2]) / 255;
+  return grey.map((v, i) => v * (1 - SCAR_BROWN) + SCAR_PIGMENT[i] / 255 / pl * lum * SCAR_BROWN);
+};
 function tintOf(mark) {
   const key = mark.key + '|' + mark.tint + '|' + (mark.skin || '');
   if (tinted[key]) return tinted[key];
@@ -523,7 +531,7 @@ function tintOf(mark) {
     const d = g.getImageData(0, 0, c.width, c.height), px = d.data, t = mark.tint;
     // (a scar is the skin around it, darker (SCAR_SHADE), painted as the crimson is; a wound heals from
     // crimson into it)
-    const skin = mark.skin && [1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255 * SCAR_SHADE);
+    const skin = mark.skin && dullen([1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255 * SCAR_SHADE));
     // (the skin's colour is the drawing's middle tone: its shadows darker, its highlights lighter)
     let mean = 0, n = 0;
     if (skin) for (let i = 0; i < px.length; i += 4) {
@@ -592,6 +600,13 @@ function onSkin(cv, a, mark, k, i) {
   sg.imageSmoothingQuality = 'high';
   sg.clearRect(0, 0, q, q);
   sg.drawImage(cv, x * k, y * k, P, P, 0, 0, q, q);
+  // (dulled as scar tissue is: the bright colours mostly gone, browner)
+  const sd = sg.getImageData(0, 0, q, q), spx = sd.data;
+  for (let j = 0; j < spx.length; j += 4) {
+    const c = dullen([spx[j] / 255, spx[j + 1] / 255, spx[j + 2] / 255]);
+    spx[j] = c[0] * 255; spx[j + 1] = c[1] * 255; spx[j + 2] = c[2] * 255;
+  }
+  sg.putImageData(sd, 0, 0);
   g.imageSmoothingQuality = 'high';
   g.drawImage(small, 0, 0, q, q, 0, 0, P, P);
   const lay = (img, op, alpha = 1) => {
