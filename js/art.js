@@ -339,6 +339,8 @@ const VARIANTS = {
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
 };
+// the stitches of a sewn-up wound picture, apart (laid over it in their own colour, never reddened)
+const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-claw-stitched-thread.webp' };
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
@@ -353,7 +355,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -1049,6 +1051,12 @@ function onSkin(cv, place, mark, k) {
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
   }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
+  // (the stitches over it all, as they are: thread is not skin and does not redden)
+  if (mark.thread) {
+    const thread = imageOf(scarImages, mark.thread, asset(mark.thread));
+    if (!thread.complete || !thread.naturalWidth) return null;
+    lay(thread, 'source-atop');
+  }
   // (painted on, not a veil: solid wherever the scar is, only its very edge soft, so the scales and
   // pattern of the skin don't show through what has none; SCAR_SOLID: the art's alpha from where it is
   // solid)
