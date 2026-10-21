@@ -232,6 +232,50 @@ let picking = false, eyeing = false;
 // scars fall
 let seed = null;
 const SEWN = ['claw'];   // the kinds of wound sewn up in the hospital, so far drawn
+// The eye fitted to its coloured part (the iris, around the pupil) on the drawing's first frame, at its
+// sharpest: the bright, coloured pixels joined to the one clicked nearest it, as an oval (their spread
+// along and across). Null if none is near.
+async function fitEye(x, y) {
+  const s = sheetCv && sheetCv.sheet;
+  const src = s ? (s.hires || s.sheet) : null;
+  if (!src) return null;
+  const img = new Image();
+  img.src = new URL('../' + src, import.meta.url).href;
+  try { await img.decode(); } catch (e) { return null; }
+  // (the first frame: all of the hi-res picture, or the sheet's first cell)
+  const W = s.hires ? img.naturalWidth : s.w, H = s.hires ? img.naturalHeight : s.h;
+  const R = Math.round(W * 0.03), cx = Math.round(x * W), cy = Math.round(y * H);
+  const c = document.createElement('canvas'); c.width = c.height = R * 2;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, cx - R, cy - R, R * 2, R * 2, 0, 0, R * 2, R * 2);
+  const d = g.getImageData(0, 0, R * 2, R * 2).data, n = R * 2;
+  const iris = i => { const r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2], hi = Math.max(r, gg, b), lo = Math.min(r, gg, b); return d[i * 4 + 3] > 200 && hi > 120 && hi - lo > 50; };
+  // (the coloured pixel nearest the click, and those joined to it)
+  let start = -1, best = Infinity;
+  for (let i = 0; i < n * n; i++) if (iris(i)) { const dd = (i % n - R) ** 2 + (Math.floor(i / n) - R) ** 2; if (dd < best) { best = dd; start = i; } }
+  if (start < 0) return null;
+  const seen = new Uint8Array(n * n), stack = [start], pts = [];
+  seen[start] = 1;
+  while (stack.length) {
+    const i = stack.pop(), px = i % n, py = Math.floor(i / n);
+    pts.push([px, py]);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const qx = px + dx, qy = py + dy, q = qy * n + qx;
+      if (qx < 0 || qy < 0 || qx >= n || qy >= n || seen[q] || !iris(q)) continue;
+      seen[q] = 1; stack.push(q);
+    }
+  }
+  if (pts.length < 6 || pts.length > n * n * 0.4) return null;
+  const mx = pts.reduce((t, p) => t + p[0], 0) / pts.length, my = pts.reduce((t, p) => t + p[1], 0) / pts.length;
+  let xx = 0, yy = 0, xy = 0;
+  for (const [px, py] of pts) { xx += (px - mx) ** 2; yy += (py - my) ** 2; xy += (px - mx) * (py - my); }
+  const t = Math.atan2(2 * xy, xx - yy) / 2, cos = Math.cos(t), sin = Math.sin(t);
+  // (its extent along the long way and across it)
+  let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+  for (const [px, py] of pts) { const u = (px - mx) * cos + (py - my) * sin, v = -(px - mx) * sin + (py - my) * cos; a0 = Math.min(a0, u); a1 = Math.max(a1, u); b0 = Math.min(b0, v); b1 = Math.max(b1, v); }
+  const long = a1 - a0 + 1, across = b1 - b0 + 1;
+  return { x: (cx - R + mx + 0.5) / W, y: (cy - R + my + 0.5) / H, r: long / 2 / W, h: Math.min(1, across / long), a: t * 180 / Math.PI };
+}
 async function pickAt(e) {
   picking = false;
   $('canvas').classList.remove('picking');
@@ -277,10 +321,15 @@ $('canvas').addEventListener('pointerdown', e => {
   if (picking) { pickAt(e); return; }
   if (eyeing) {
     const r = art.getBoundingClientRect(), eye = scarsOf().eye || { r: 0.02 };
-    scarsOf().eye = { ...eye, x: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, y: Math.round((e.clientY - r.top) / r.height * 1000) / 1000 };
+    const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
     eyeing = false; $('canvas').classList.remove('eyeing');
-    save(); render();
-    $('msg').textContent = 'The eye is there: size it so the ring sits on it.';
+    fitEye(x, y).then(fit => {
+      const round = v => Math.round(v * 10000) / 10000;
+      scarsOf().eye = fit ? { x: round(fit.x), y: round(fit.y), r: round(fit.r), ...(fit.h < 0.97 ? { h: Math.round(fit.h * 100) / 100, ...(Math.round(fit.a) ? { a: Math.round(fit.a) } : {}) } : {}) }
+        : { ...eye, x: round(x), y: round(y) };
+      save(); render();
+      $('msg').textContent = fit ? 'Fitted to the coloured part of the eye: adjust it if it is off.' : 'The eye is there (its colour not found): size, flatten and tilt it so the ring sits on it.';
+    });
     return;
   }
   if (scarring()) {
@@ -354,7 +403,7 @@ $('spreadR').addEventListener('input', e => setSpread('r', +e.target.value));
 $('spreadS').addEventListener('input', e => setSpread('s', +e.target.value));
 $('another').addEventListener('click', () => { seed = 'preview-' + Math.random().toString(36).slice(2, 8); render(); $('msg').textContent = 'Another dinosaur: its scars where they fell on it. Moving one moves where they fall from.'; });
 $('middle').addEventListener('click', () => { seed = null; render(); $('msg').textContent = 'Each scar right in its place again.'; });
-$('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classList.add('eyeing'); $('msg').textContent = 'Click the middle of the eye.'; });
+$('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classList.add('eyeing'); $('msg').textContent = 'Click the coloured part of the eye: the ring fits itself to it.'; });
 $('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); render(); $('msg').textContent = 'No eye set on this drawing.'; });
 $('eyeBlind').addEventListener('change', render);
 $('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
