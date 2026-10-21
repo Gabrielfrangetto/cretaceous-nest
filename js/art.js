@@ -571,9 +571,13 @@ const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
 // as the wound is open; made once per scar and shade
 const tinted = {};
 const SCAR_SHADE = 0.72;   // how much darker a scar is than the skin around it
-// and duller: scar tissue loses most of the bright colours of the skin (their cells don't come back in
-// it) and keeps the dark pigment, so it goes brown: DULL of the colour lost, BROWN of that dark brown
-const SCAR_DULL = 0.65, SCAR_BROWN = 0.25, SCAR_PIGMENT = [107, 85, 68];
+// and duller: scar tissue loses some of the bright colours of the skin (not all their cells come back in
+// it) and keeps the dark pigment, so it goes browner: DULL of the colour lost, BROWN of that dark brown;
+// enough kept that a scar across a red face and a green neck still shows each under it
+const SCAR_DULL = 0.4, SCAR_BROWN = 0.15, SCAR_PIGMENT = [107, 85, 68];
+// how finely the skin under a scar is taken (the drawing there at a SKIN_FINE-th of its size: its scales
+// smoothed, its colours kept), and how dark a pixel of it is to be one of its lines, left out
+const SKIN_FINE = 4, SKIN_INK = 60, SCAR_SOLID = 90;
 const dullen = rgb => {
   const lum = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2], grey = rgb.map(v => v + (lum - v) * SCAR_DULL);
   const pl = (0.3 * SCAR_PIGMENT[0] + 0.59 * SCAR_PIGMENT[1] + 0.11 * SCAR_PIGMENT[2]) / 255;
@@ -805,8 +809,9 @@ function linesOf(s, place, mark) {
 // A deep wound that closed on its own fills in from its edges: the new skin there brings the dark
 // pigment of the skin around, the middle, last to close, is pale and pinkish grey. Its middle as a
 // pale veil, the stronger the farther from the scar's edge (MIDDLE: how pale, and how far in it is
-// palest, as a share of the picture), never over its ink.
-const MIDDLE = { colour: [206, 186, 176], alpha: 0.6, depth: 0.05 };
+// palest, as a share of the picture), never over its ink: the skin under it paled (pale of the way to
+// white, dull of its colour lost), so a red face's scar is pale red and a green neck's pale green.
+const MIDDLE = { colour: [206, 186, 176], alpha: 1, depth: 0.05, pale: 0.22, dull: 0 };
 const middles = {};
 function middleOf(mark) {
   if (middles[mark.key]) return middles[mark.key];
@@ -853,7 +858,7 @@ function onSkin(cv, place, mark, k) {
   const kept = cv.made || (cv.made = new Map());
   if (kept.has(key)) return kept.get(key);
   const size = place.w * s.w * mark.scale, side = size * 1.42, x = place.x * s.w - side / 2, y = place.y * s.h - side / 2;
-  const P = Math.max(2, Math.ceil(side * k)), q = Math.max(2, Math.round(P / 10));
+  const P = Math.max(2, Math.ceil(side * k)), q = Math.max(2, Math.round(P / SKIN_FINE));
   const piece = document.createElement('canvas');
   const small = work.small || (work.small = document.createElement('canvas'));
   piece.width = P; piece.height = P; small.width = q; small.height = q;
@@ -862,8 +867,30 @@ function onSkin(cv, place, mark, k) {
   sg.imageSmoothingQuality = 'high';
   sg.clearRect(0, 0, q, q);
   sg.drawImage(first, x, y, side, side, 0, 0, q, q);
-  // (dulled as scar tissue is: the bright colours mostly gone, browner)
   const sd = sg.getImageData(0, 0, q, q), spx = sd.data;
+  // (the drawing's dark lines left out: each filled from the skin beside it, so they don't darken and
+  // grey the colours they part)
+  const inkAt = j => spx[j * 4 + 3] > 0 && (0.3 * spx[j * 4] + 0.59 * spx[j * 4 + 1] + 0.11 * spx[j * 4 + 2]) < SKIN_INK;
+  let left = [];
+  for (let j = 0; j < q * q; j++) if (inkAt(j)) left.push(j);
+  const done = new Uint8Array(q * q).fill(1);
+  for (const j of left) done[j] = 0;
+  for (let pass = 0; pass < 6 && left.length; pass++) {
+    const fill = [];
+    for (const j of left) {
+      const x = j % q, y = (j - x) / q;
+      let r = 0, g2 = 0, b = 0, n = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+        const xx = x + dx, yy = y + dy, o = yy * q + xx;
+        if (xx < 0 || yy < 0 || xx >= q || yy >= q || !done[o] || !spx[o * 4 + 3]) continue;
+        r += spx[o * 4]; g2 += spx[o * 4 + 1]; b += spx[o * 4 + 2]; n++;
+      }
+      if (n) fill.push([j, r / n, g2 / n, b / n]);
+    }
+    for (const [j, r, g2, b] of fill) { spx[j * 4] = r; spx[j * 4 + 1] = g2; spx[j * 4 + 2] = b; done[j] = 1; }
+    left = left.filter(j => !done[j]);
+  }
+  // (dulled as scar tissue is: some of the bright colours gone, browner)
   for (let j = 0; j < spx.length; j += 4) {
     const c = dullen([spx[j] / 255, spx[j + 1] / 255, spx[j + 2] / 255]);
     spx[j] = c[0] * 255; spx[j + 1] = c[1] * 255; spx[j + 2] = c[2] * 255;
@@ -883,8 +910,30 @@ function onSkin(cv, place, mark, k) {
   const lines = linesOf(s, place, mark);
   if (lines) lay(lines, 'destination-in');
   const middle = mark.rim && middleOf(mark);
-  if (middle) lay(middle, 'source-atop');
+  // (the middle the skin under it paled, its own colour kept: MIDDLE.pale of the way to white, and
+  // less of its colour, laid where the middle is)
+  if (middle) {
+    const pale = document.createElement('canvas'); pale.width = P; pale.height = P;
+    const pg = pale.getContext('2d');
+    pg.drawImage(small, 0, 0, q, q, 0, 0, P, P);
+    const pd = pg.getImageData(0, 0, P, P), ppx = pd.data;
+    for (let j = 0; j < ppx.length; j += 4) {
+      const lum = 0.3 * ppx[j] + 0.59 * ppx[j + 1] + 0.11 * ppx[j + 2];
+      for (let c = 0; c < 3; c++) { const v = ppx[j + c] + (lum - ppx[j + c]) * MIDDLE.dull; ppx[j + c] = v + (255 - v) * MIDDLE.pale; }
+    }
+    pg.putImageData(pd, 0, 0);
+    pg.globalCompositeOperation = 'destination-in';
+    pg.translate(P / 2, P / 2); pg.rotate((place.r || 0) * Math.PI / 180);
+    pg.drawImage(middle, -size * k / 2, -size * k / 2, size * k, size * k);
+    g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
+  }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
+  // (painted on, not a veil: solid wherever the scar is, only its very edge soft, so the scales and
+  // pattern of the skin don't show through what has none; SCAR_SOLID: the art's alpha from where it is
+  // solid)
+  const od = g.getImageData(0, 0, P, P), opx = od.data;
+  for (let j = 3; j < opx.length; j += 4) opx[j] = opx[j] >= SCAR_SOLID ? 255 : opx[j] * 255 / SCAR_SOLID;
+  g.putImageData(od, 0, 0);
   // (never over the eye: cut round it)
   if (eye) {
     const ex = eye.x * s.w, ey = eye.y * s.h, er = eye.r * s.w;
