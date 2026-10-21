@@ -915,7 +915,7 @@ function linesOf(s, place, mark) {
 // pale veil, the stronger the farther from the scar's edge (MIDDLE: how pale, and how far in it is
 // palest, as a share of the picture), never over its ink: the skin under it paled (pale of the way to
 // white, dull of its colour lost), so a red face's scar is pale red and a green neck's pale green.
-const MIDDLE = { colour: [206, 186, 176], alpha: 1, depth: 0.05, pale: 0.22, dull: 0 };
+const MIDDLE = { colour: [206, 186, 176], alpha: 1, depth: 0.05, pale: 0.35, dull: 0, relief: 1 };
 // A deep wound sewn up in the hospital heals into a neat line paler than the skin around, all of it the
 // skin under it paled (pale of the way to white), its relief laid back over by relief to keep its shape
 const SURGICAL = { pale: 0.45, relief: 1 };
@@ -1035,7 +1035,8 @@ function onSkin(cv, place, mark, k) {
     }
     pg.putImageData(pd, 0, 0);
     pg.translate(P / 2, P / 2); pg.rotate((place.r || 0) * Math.PI / 180);
-    if (!middle) { pg.globalCompositeOperation = 'multiply'; pg.globalAlpha = SURGICAL.relief; pg.drawImage(relief, -size * k / 2, -size * k / 2, size * k, size * k); pg.globalAlpha = 1; }
+    // (its own relief over the paled skin too, so its texture shows inside it)
+    pg.globalCompositeOperation = 'multiply'; pg.globalAlpha = middle ? MIDDLE.relief : SURGICAL.relief; pg.drawImage(relief, -size * k / 2, -size * k / 2, size * k, size * k); pg.globalAlpha = 1;
     pg.globalCompositeOperation = 'destination-in';
     pg.drawImage(veil, -size * k / 2, -size * k / 2, size * k, size * k);
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
