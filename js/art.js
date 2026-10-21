@@ -751,13 +751,13 @@ function blindEye(ctx, eye, s, disp, turn = 0) {
 }
 // The drawing's own outlines under a scar: where an ink line of the sprite crosses it (a leg against the
 // belly, the rim of an eye, a fold), the scar covers it, the line kept as a crease in the scar's own
-// colour, stronger (CREASE), not a black stroke over a wound; only the body's own edge (a line beside the
+// colour, darker (CREASE), not a black stroke over a wound; only the body's own edge (a line beside the
 // outside of the drawing) stays black over it. A scar told to stay (place.stay) keeps to the part of the
 // drawing its middle is on, those lines its edge. Worked out once for a place, on the first frame, as a
 // mask over the scar's square, and its creases (.ink) as another (they move with the skin as the scar does).
-// a crease is painted solid in the scar's own colour made stronger: dark of its lightness, and its
-// colour pushed further from grey by rich
-const CREASE = { dark: 0.55, rich: 1.5 };
+// a crease is painted solid in the scar's own colour, the same shade only darker: dark of its lightness
+// (a grey scar, a dark grey line; a pale red one, a dark red one)
+const CREASE = { dark: 0.55 };
 // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
@@ -950,16 +950,13 @@ function onSkin(cv, place, mark, k) {
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
   }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  // (the drawing's lines under it as creases: the scar's own colour, stronger, painted on)
+  // (the drawing's lines under it as creases: the scar's own colour, darker, painted on)
   if (lines && lines.ink) {
     const cr = document.createElement('canvas'); cr.width = P; cr.height = P;
     const cg = cr.getContext('2d', { willReadFrequently: true });
     cg.drawImage(piece, 0, 0);
     const cd = cg.getImageData(0, 0, P, P), cpx = cd.data;
-    for (let j = 0; j < cpx.length; j += 4) {
-      const lum = 0.3 * cpx[j] + 0.59 * cpx[j + 1] + 0.11 * cpx[j + 2];
-      for (let c = 0; c < 3; c++) cpx[j + c] = Math.max(0, Math.min(255, (lum + (cpx[j + c] - lum) * CREASE.rich) * CREASE.dark));
-    }
+    for (let j = 0; j < cpx.length; j += 4) for (let c = 0; c < 3; c++) cpx[j + c] *= CREASE.dark;
     cg.putImageData(cd, 0, 0);
     cg.globalCompositeOperation = 'destination-in';
     cg.translate(P / 2, P / 2); cg.rotate((place.r || 0) * Math.PI / 180);
