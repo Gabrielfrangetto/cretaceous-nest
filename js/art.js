@@ -351,6 +351,13 @@ const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-c
 const STAYS = new Set(['horns', 'butt']);
 // and their healed scar is the skin's own colour, not paled nor dulled: only its relief shows it
 const OWN_COLOUR = new Set(['horns', 'butt']);
+// pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
+// and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
+const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.1, 0.5] };
+const sizeOf = (src, seed, part) => {
+  const r = SIZES[src];
+  return r ? r[0] + (r[1] - r[0]) * (seed == null ? 1 : seededRand(`size:${seed}:${part}`)()) : 1;
+};
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
@@ -365,7 +372,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: sizeOf(src, seed, part), tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -879,8 +886,9 @@ function linesOf(s, place, mark) {
         }
       }
       const reach = Math.max(x1 - x0, y1 - y0);
-      if (reach >= LINE_LONG * M) for (const i of part) line[i] = 1;
-      if (reach >= LINE_WALL * M) for (const i of part) wallLine[i] = 1;
+      // (measured against the place, not the picture: a small scar's scales are still scales)
+      if (reach * mark.scale >= LINE_LONG * M) for (const i of part) line[i] = 1;
+      if (reach * mark.scale >= LINE_WALL * M) for (const i of part) wallLine[i] = 1;
     }
     let keep = skin;
     if (!place.stay) { keep = new Uint8Array(M * M); for (let i = 0; i < M * M; i++) keep[i] = skin[i] || (ink[i] && !line[i]) ? 1 : 0; }
