@@ -778,7 +778,7 @@ function linesOf(s, place, mark) {
     for (let i = 0; i < M * M; i++) {
       const k = i * 4, lum = (0.3 * px[k] + 0.59 * px[k + 1] + 0.11 * px[k + 2]) / 255;
       const hue = Math.max(px[k], px[k + 1], px[k + 2]) - Math.min(px[k], px[k + 1], px[k + 2]);
-      if (px[k + 3] > 200 && lum < INK && hue < INK_HUE) ink[i] = 1; else if (px[k + 3] > 40) skin[i] = 1;
+      if (px[k + 3] > 200 && lum < INK && hue < INK_HUE) ink[i] = 1; else if (px[k + 3] > 200) skin[i] = 1;   // (not the soft rim of the drawing: nothing painted past its edge)
     }
     // (only the drawing's long lines count, its folds and edges: the little outlines of its scales are
     // covered, a scar has none; a line is one at least LINE_LONG of the scar's width end to end)
