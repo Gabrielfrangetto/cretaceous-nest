@@ -1,5 +1,5 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS } from './config.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS, MASS } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
 import { SHEETS } from './sheets.js';
 import { scarStyle } from './journey.js';
@@ -228,6 +228,27 @@ export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || n
 // Velociraptor as it did. Animated sprites (.webp) play their idle on their own. (A Velociraptor male
 // a little smaller than the female, as in hawks.)
 const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7 } };
+// how tall an animal stands at its stage, in metres (a young one as its weight allows: MASS.stage), or
+// 0 when not known
+export const heightOf = (type, sex, stage = 'adult') => {
+  const own = ADULT_HEIGHT[type] || {}, h = own[sex] || own.m || own.f || 0;
+  return h * Math.cbrt(MASS.stage[stage] || 1);
+};
+// metres a pixel of a sheet's drawing is, from how tall the animal is in it (its first frame, top of
+// its head to its feet) and how tall it stands
+const tallPx = {};
+function metresPerPx(s, metres) {
+  if (!metres) return 0;
+  if (tallPx[s.sheet] == null) {
+    const b = bodyOf(s);
+    if (!b) return 0;
+    let top = -1, bottom = -1;
+    for (let y = 0; y < b.H && top < 0; y++) for (let x = 0; x < b.W; x++) if (b.on[y * b.W + x]) { top = y; break; }
+    for (let y = b.H - 1; y >= 0 && bottom < 0; y--) for (let x = 0; x < b.W; x++) if (b.on[y * b.W + x]) { bottom = y; break; }
+    tallPx[s.sheet] = top >= 0 ? (bottom - top + 1) * s.h / b.H : 0;
+  }
+  return tallPx[s.sheet] ? metres / tallPx[s.sheet] : 0;
+}
 const HEIGHT_REF = 2.6;
 export const adultScale = (type, sex) => {
   const h = (ADULT_HEIGHT[type] || {})[sex];
@@ -354,9 +375,24 @@ const THREADS = {
 };
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
-const STAYS = new Set(['horns', 'butt']);
+const STAYS = new Set(['horns', 'spikes', 'butt']);
 // and their healed scar is the skin's own colour, not paled nor dulled: only its relief shows it
-const OWN_COLOUR = new Set(['horns', 'butt']);
+const OWN_COLOUR = new Set(['horns', 'spikes', 'butt']);
+// A wound the size of what gave it, whoever it is on (so the same on a Velociraptor and a Tyrannosaurus,
+// the drawing's own height in metres telling how big): metres across, by the giver (or its kind, as the
+// anchors tool shows it); a graze drawn out longer, slid along (GRAZE). Each picture's wound filling
+// FILL of it.
+const WOUND_SIZE = { trike: 0.3, stego: 0.18, horns: 0.3, spikes: 0.18 }, GRAZE = 1.5;
+const FILL = {
+  'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
+  'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
+  'sprites/scars/body-horns-2-healed.webp': 0.49, 'sprites/scars/body-horns-surgical.webp': 0.49,
+};
+const metresOf = (who, style, src, level) => {
+  const m = WOUND_SIZE[who] || (SIZED.has(style) ? WOUND_SIZE[style] : 0);
+  return m ? m * (level === 1 ? GRAZE : 1) / (FILL[src] || 0.6) : 0;
+};
+const SIZED = new Set(['horns', 'spikes']);
 // pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
 // and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
 const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.25, 0.6] };
@@ -364,21 +400,24 @@ const sizeOf = (src, seed, part) => {
   const r = SIZES[src];
   return r ? r[0] + (r[1] - r[0]) * (seed == null ? 1 : seededRand(`size:${seed}:${part}`)()) : 1;
 };
+// (kinds drawn with another's pictures: a Stegosaurus' spike wound as a horn's)
+const ALIAS = { spikes: 'horns' };
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
 // (skin: the skin's colour where it is: a scar is that, darker, and a wound heals into it)
-export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false, part = null, seed = null) {
+export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false, part = null, seed = null, who = null) {
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   // (a deep one: the open wound while it gapes, its healed look as it closes and once closed)
   const art = { ...(SCAR_ART[style] || {}) };
-  for (const [k, list] of Object.entries(VARIANTS[style] || {})) art[k] = variantOf(list, seed, part);
+  for (const [k, list] of Object.entries(VARIANTS[style] || VARIANTS[ALIAS[style]] || {})) art[k] = variantOf(list, seed, part);
   const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: sizeOf(src, seed, part), tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
+  const metres = src ? metresOf(who, style, src, level) : 0;
+  return src ? { key: src, src: asset(src), scale: sizeOf(src, seed, part), ...(metres ? { metres } : {}), tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -531,8 +570,8 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const deepWound = pt => (wounds && Array.isArray(wounds.deep) ? wounds.deep.includes(pt) : open(pt) > 0.5);
   // (each scar placed on the part: [its place's key, how it looks])
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
-    .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5, pt, seed)
-      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage), false, pt, seed)]));
+    .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5, pt, seed, wounds.by || (scarBy && scarBy[pt]))
+      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage), false, pt, seed, scarBy && scarBy[pt])]));
   // (one that lost an eye: its first head scar is the one across it, on that side)
   const tookEye = blind && scarred.length ? (scarred.find(([key]) => key.split('~')[0] === 'head') || [])[0] : null;
   // a scarred animated sprite is drawn frame by frame, its scars following the body
@@ -542,7 +581,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
-  if (base.sheet) base.eye = ownScars(type, sex, stage).eye || null;
+  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.metres = heightOf(type, sex, stage); }
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;
@@ -1246,7 +1285,11 @@ export function drawFrame(cv, frame) {
   const made = [];
   for (const [placed, mark, key, main, side, eyed] of cv.scars) {
     if (side && cv.side && side !== cv.side) continue;
-    const blinds = eyed && cv.eye, place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
+    const blinds = eyed && cv.eye;
+    let place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
+    // (a wound the size of what gave it: its metres in this drawing's pixels, WOUND_SIZE)
+    const mpp = mark.metres && metresPerPx(cv.home || s, cv.metres);
+    if (mpp) place = { ...place, w: mark.metres / mpp / (cv.home || s).w };
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
     const piece = onSkin(cv, place, mark, k);
     if (mark.skin && !piece) cv.dirty = true;
@@ -1303,7 +1346,7 @@ export function sheetArt(sheet, px, label, scars, fallback, seed = null) {
   const cv = document.createElement('canvas');
   // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
-  Object.assign(cv, { sheet, home: sheet, seed, side: 'left', eye: null, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  Object.assign(cv, { sheet, home: sheet, seed, side: 'left', eye: null, metres: 0, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
   cv.setAttribute('role', 'img');

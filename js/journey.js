@@ -1300,7 +1300,11 @@ export function scarStyle(entry) {
   const sp = SPECIES[entry.species] || {};
   if (sp.claw) return 'claw';
   if (sp.build === 'theropod') return ['large', 'huge', 'colossal'].includes(sp.size) ? 'bigBite' : 'bite';
-  if (sp.build === 'ceratopsian') return 'horns';
+  // (only a Triceratops gores with horns; the small ceratopsians had none, and bit with their beaks;
+  // a Stegosaurus drives the spikes of its tail in; the other armoured ones club)
+  if (entry.species === 'trike') return 'horns';
+  if (sp.build === 'ceratopsian') return 'bite';
+  if (entry.species === 'stego') return 'spikes';
   if (sp.build === 'armored') return 'club';
   if (sp.build === 'sauropod') return 'stomp';
   return 'butt';
@@ -1326,7 +1330,7 @@ function scar(ctx, ev, id, lost, lame, entry) {
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
   // (a horn in the flank or the neck goes deep half the time, whatever the harm: GORE)
-  const horn = scarStyle(entry) === 'horns', gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < GORE.deep) : [];
+  const horn = ['horns', 'spikes'].includes(scarStyle(entry)), gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < GORE.deep) : [];
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || gored.includes(pt) || (!(horn && GORE.parts.includes(pt)) && (got[pt] || 0) >= WOUNDS.deep) || (lame && pt === 'legs'));
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };

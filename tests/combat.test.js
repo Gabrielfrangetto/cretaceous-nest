@@ -1326,6 +1326,10 @@ test('scars: what a dinosaur loses in fights is counted where the foe struck, an
   assert.equal(scarStyle({ species: 'rex' }), 'bigBite');
   assert.equal(scarStyle({ species: 'raptor' }), 'claw');
   assert.equal(scarStyle({ species: 'ankylo' }), 'club');
+  // (only a Triceratops gores, a Stegosaurus spikes; the small ceratopsians had no horns and bit)
+  assert.equal(scarStyle({ species: 'trike' }), 'horns');
+  assert.equal(scarStyle({ species: 'stego' }), 'spikes');
+  assert.equal(scarStyle({ species: 'proto' }), 'bite');
   assert.equal(scarStyle({ creature: 'deinosuchus' }), 'croc');
   const { s } = lostAtLair();
   const b = s.hatched[0];
