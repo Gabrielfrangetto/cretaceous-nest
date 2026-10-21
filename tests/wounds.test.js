@@ -39,3 +39,12 @@ test('the parts sewn up in the hospital are kept with the save', async () => {
   s.hatched.push({ id: 'a', type: 'rex', sex: 'm', name: 'King', at: T, gen: 1, sewn: ['body', 'nonsense', 'legs'] });
   assert.deepEqual(migrate(JSON.parse(JSON.stringify(s))).hatched.find(b => b.id === 'a').sewn, ['body', 'legs']);
 });
+
+test('the eye a dinosaur lost is kept with the save, one only', async () => {
+  const { migrate, freshState } = await import('../js/state.js');
+  const s = freshState();
+  s.hatched.push({ id: 'a', type: 'rex', sex: 'm', name: 'King', at: T, gen: 1, blind: 'right' }, { id: 'b', type: 'rex', sex: 'f', name: 'Queen', at: T, gen: 1, blind: 'both' });
+  const out = migrate(JSON.parse(JSON.stringify(s))).hatched;
+  assert.equal(out.find(b => b.id === 'a').blind, 'right');
+  assert.equal(out.find(b => b.id === 'b').blind, undefined);
+});

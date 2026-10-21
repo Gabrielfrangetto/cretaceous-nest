@@ -172,6 +172,8 @@ function sanitize(s) {
     wound: cleanWound(b.wound),
     // the parts whose last wound was sewn up in the hospital: their scars are its neat ones
     sewn: Array.isArray(b.sewn) && b.sewn.some(pt => SCARS.parts.includes(pt)) ? SCARS.parts.filter(pt => b.sewn.includes(pt)) : undefined,
+    // the eye it lost, if it did (one only: 'left' or 'right')
+    blind: b.blind === 'left' || b.blind === 'right' ? b.blind : undefined,
     // flown home by air, landing then
     flyingUntil: Number(b.flyingUntil) > 0 ? Number(b.flyingUntil) : undefined,
     // raised among Hypacrosaurus: a share more of every stat (NURSE)

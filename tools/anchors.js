@@ -98,7 +98,7 @@ function renderScars() {
   const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.slice(1);
   const wounds = open && placed.length ? { parts: Object.fromEntries(placed.map(pt => [pt, open])), by: $('look').value, deep: shown[0] === 'm' ? [] : placed, ...(sewn ? { stitched: true } : {}) } : null;
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null, seed));
+  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null, seed, $('eyeBlind').checked ? 'left' : null));
   // (with none, the plain drawing: boxed the same, to be clicked the same)
   if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');
@@ -137,7 +137,7 @@ function renderScars() {
   mark = null;
   if (sheetCv) {
     // the editor's own places, so a drag shows at once
-    sheetCv.scars = sheetCv.scars.map(([a, mark, pt, main]) => { const own = scarsOf()[pt]; return [own ? (mark.deep && own.deep ? own.deep : own) : a, mark, pt, own || main]; });
+    sheetCv.scars = sheetCv.scars.map(([a, mark, pt, main, ...rest]) => { const own = scarsOf()[pt]; return [own ? (mark.deep && own.deep ? own.deep : own) : a, mark, pt, own || main, ...rest]; });
     sheetCv.hold = held;
     $('frame').max = frames() - 1;
     if (held != null) $('frame').value = held;
@@ -354,6 +354,7 @@ $('another').addEventListener('click', () => { seed = 'preview-' + Math.random()
 $('middle').addEventListener('click', () => { seed = null; render(); $('msg').textContent = 'Each scar right in its place again.'; });
 $('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classList.add('eyeing'); $('msg').textContent = 'Click the middle of the eye.'; });
 $('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); render(); $('msg').textContent = 'No eye set on this drawing.'; });
+$('eyeBlind').addEventListener('change', render);
 $('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };

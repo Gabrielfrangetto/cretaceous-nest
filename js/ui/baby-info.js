@@ -18,7 +18,7 @@ function scarsHTML(b) {
   const lv = scarLevels(b), list = Object.entries(lv).filter(([, l]) => l);
   if (!list.length) return '';
   const by = id => (SPECIES[id] ? SPECIES[id].species : CREATURES[id] ? CREATURES[id].name : null);
-  return `<div><dt>Scars</dt><dd>${list.map(([pt, l]) => `${PART[pt]} (${sideOf(b.id, pt)} side)${l === 2 ? ', deep' : ''}${b.scarBy && by(b.scarBy[pt]) ? ` (a ${esc(by(b.scarBy[pt]))})` : ''}`).join('; ')}</dd></div>`;
+  return `<div><dt>Scars</dt><dd>${list.map(([pt, l]) => `${PART[pt]} (${pt === 'head' && b.blind ? b.blind : sideOf(b.id, pt)} side)${l === 2 ? ', deep' : ''}${pt === 'head' && b.blind ? `, across its ${b.blind} eye, blind` : ''}${b.scarBy && by(b.scarBy[pt]) ? ` (a ${esc(by(b.scarBy[pt]))})` : ''}`).join('; ')}</dd></div>`;
 }
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
@@ -138,7 +138,7 @@ function render() {
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
   body.querySelector('.info-art').addEventListener('click', () => openZoom(b));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
@@ -193,7 +193,7 @@ function openZoom(b) {
     zoomBox.addEventListener('click', () => zoomBox.close());
     document.body.appendChild(zoomBox);
   }
-  const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id);
+  const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind);
   const base = art.querySelector('.dino-base') || art;
   zoomBox.innerHTML = `<p class="zoom-name">${esc(b.name)} <button class="ghost" type="button" data-turn>Turn around</button> <span class="hint">Tap anywhere else to close</span></p>`;
   zoomBox.prepend(art);

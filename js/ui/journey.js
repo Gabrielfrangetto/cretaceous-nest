@@ -570,6 +570,7 @@ function entryHTML(e) {
     case 'hospital': return `${cap(listNames(e.hospital.map(x => esc(x.name))))} went straight to the hospital.`;
     case 'collapse': return `You collapsed, ${e.need === 'thirst' ? 'parched' : 'starved'}, and had to be carried.`;
     case 'perished': return `${esc(e.who.name)} ${e.need === 'thirst' ? 'died of thirst' : 'starved to death'} on the way.`;
+    case 'blinded': return `You saw the blow tear across ${nm(e.who)}'s ${e.side} eye. It would never see from it again.`;
     case 'turned': return e.recalled ? 'Called back, you turned for home here.' : 'You turned back for home.';
     case 'lost': return 'Nobody of the team was left. Everything it carried was lost.';
     case 'arrived': {

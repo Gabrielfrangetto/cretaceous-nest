@@ -480,7 +480,7 @@ const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 // they close (or, sewn up in the hospital, the stitches all along); once closed, the scar it has there
 // sewn: the parts whose last wound was sewn up in the hospital, so their scars are its neat ones
 // seed: the dinosaur's own (its id), so its scars fall where they fall on it alone (SPREAD)
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null) {
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null, blind = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
@@ -496,12 +496,14 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
     .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5)
       : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage))]));
+  // (one that lost an eye: its first head scar is the one across it, on that side)
+  const tookEye = blind && scarred.length ? (scarred.find(([key]) => key.split('~')[0] === 'head') || [])[0] : null;
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
-    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), sideOf(seed, part)]).filter(([a]) => a), src, seed)
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   if (base.sheet) base.eye = ownScars(type, sex, stage).eye || null;
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
@@ -518,7 +520,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
     layer.dataset.part = part;
-    if (seed != null) { layer.dataset.side = sideOf(seed, part); layer.hidden = layer.dataset.side !== 'left'; }
+    if (seed != null) { layer.dataset.side = part === tookEye ? blind : sideOf(seed, part); layer.hidden = layer.dataset.side !== 'left'; }
     Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     if (mark.level) layer.innerHTML = scarSVG(mark.level);
     else if (mark.tint || mark.skin) layer.appendChild(tintedCanvas(mark));
@@ -645,27 +647,13 @@ function reliefOf(mark) {
 }
 const work = { small: null };
 // The eye, where it is on each drawing (SCAR_ANCHORS[type][stage][sex].eye: { x, y, r }, r a share of
-// its width, set in tools/anchors.html): no scar is drawn over it, and one that covers more than
-// EYE.blind of it leaves it blind, milky white as a scarred cornea
-const EYE = { blind: 0.3 };
-const reliefAlpha = {};
-function covers(relief, place, s, size, ex, ey, er) {
-  let a = reliefAlpha[relief.width + ':' + relief.height + ':' + relief.dataset.key];
-  if (!a) {
-    try { a = reliefAlpha[relief.width + ':' + relief.height + ':' + relief.dataset.key] = relief.getContext('2d').getImageData(0, 0, relief.width, relief.height).data; } catch (e) { return 0; }
-  }
-  const cx = place.x * s.w, cy = place.y * s.h, t = -(place.r || 0) * Math.PI / 180, cos = Math.cos(t), sin = Math.sin(t);
-  let hit = 0, all = 0;
-  for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
-    if (i * i + j * j > 16) continue;
-    all++;
-    const px = ex + i / 4 * er - cx, py = ey + j / 4 * er - cy;
-    const u = (px * cos - py * sin) / size + 0.5, v = (px * sin + py * cos) / size + 0.5;
-    if (u < 0 || v < 0 || u >= 1 || v >= 1) continue;
-    if (a[(Math.floor(v * relief.height) * relief.width + Math.floor(u * relief.width)) * 4 + 3] > 100) hit++;
-  }
-  return all ? hit / all : 0;
-}
+// its width, set in tools/anchors.html): no scar is drawn over it. A dinosaur that lost an eye (BLIND)
+// has its first head scar moved across it, and the eye milky white as a scarred cornea
+const onEye = (place, eye) => {
+  const dx = eye.x - place.x, dy = eye.y - place.y;
+  const f = place.f && Object.fromEntries(Object.entries(place.f).map(([k, [x, y, r]]) => [k, [x + dx, y + dy, r]]));
+  return { ...place, x: eye.x, y: eye.y, ...(f ? { f } : {}) };
+};
 function blindEye(ctx, eye, s, disp) {
   if (!eye) return;
   const [dx, dy] = disp(eye.x * s.w, eye.y * s.h), x = eye.x * s.w + dx, y = eye.y * s.h + dy, r = eye.r * s.w;
@@ -814,15 +802,13 @@ function onSkin(cv, place, mark, k) {
   const middle = mark.rim && middleOf(mark);
   if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  // (never over the eye: cut round it; and if it covers enough of it, the eye is blinded, EYE)
-  let blind = false;
+  // (never over the eye: cut round it)
   if (eye) {
     const ex = eye.x * s.w, ey = eye.y * s.h, er = eye.r * s.w;
-    blind = covers(relief, place, s, size, ex, ey, er) >= EYE.blind;
     g.save(); g.globalCompositeOperation = 'destination-out';
     g.beginPath(); g.arc((ex - x) * k, (ey - y) * k, er * k * 1.08, 0, Math.PI * 2); g.fill(); g.restore();
   }
-  const made = { canvas: piece, x, y, side, blind, halo: haloPiece(first, place, mark, k, size, s) };
+  const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s) };
   if (kept.size > 40) kept.clear();
   kept.set(key, made);
   return made;
@@ -957,9 +943,9 @@ export function drawFrame(cv, frame) {
   // (each scar made once on the first frame, from the skin under it there, then laid bent as that skin
   // has moved: by its own keys if it has them, else point by point as the drawing moves)
   const made = [];
-  for (const [placed, mark, key, main, side] of cv.scars) {
+  for (const [placed, mark, key, main, side, eyed] of cv.scars) {
     if (side && cv.side && side !== cv.side) continue;
-    const place = spread(placed, main, cv.seed, key, cv.home || s);
+    const blinds = eyed && cv.eye, place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
     const piece = onSkin(cv, place, mark, k);
     if (mark.skin && !piece) cv.dirty = true;
@@ -969,7 +955,7 @@ export function drawFrame(cv, frame) {
       const cos = Math.cos(dr), sin = Math.sin(dr), c1x = a.x * s.w, c1y = a.y * s.h;
       disp = (x, y) => [c1x + (x - c0x) * cos - (y - c0y) * sin - x, c1y + (x - c0x) * sin + (y - c0y) * cos - y];
     } else disp = (x, y) => { const [dx, dy] = motionAt(s, x / s.w, y / s.h, frame); return [dx * s.w, dy * s.h]; };
-    made.push([placeOn(s, place, frame), mark, piece, disp]);
+    made.push([placeOn(s, place, frame), mark, piece, disp, blinds]);
   }
   ctx.globalCompositeOperation = 'source-atop';
   // (the reddened skin around fresh wounds first, under them)
@@ -977,8 +963,9 @@ export function drawFrame(cv, frame) {
     const h = piece && piece.halo;
     if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
-  for (const [a, mark, piece, disp] of made) {
-    if (piece) { laySkin(ctx, piece, disp, k); if (piece.blind) blindEye(ctx, cv.eye, s, disp); continue; }
+  for (const [a, mark, piece, disp, blinds] of made) {
+    if (blinds) blindEye(ctx, cv.eye, s, disp);
+    if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
