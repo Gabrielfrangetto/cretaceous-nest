@@ -109,11 +109,13 @@ function renderScars() {
   $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
   // (the eye, its ring)
   const eye = scarsOf().eye;
-  $('eyeR').value = eye ? eye.r : 0.02; $('eyeR').disabled = !eye; $('eyeRNo').textContent = eye ? (eye.r * 100).toFixed(1) + '%' : 'not set';
+  $('eyeR').value = eye ? eye.r : 0.02; $('eyeR').disabled = !eye; $('eyeRNo').textContent = eye ? (eye.r * 100).toFixed(2) + '%' : 'not set';
+  $('eyeH').value = eye && eye.h ? eye.h : 1; $('eyeH').disabled = !eye; $('eyeHNo').textContent = eye ? (eye.h && eye.h < 1 ? Math.round(eye.h * 100) + '% as tall as wide' : 'round') : '';
+  $('eyeA').value = eye ? eye.a || 0 : 0; $('eyeA').disabled = !eye; $('eyeANo').textContent = eye ? (eye.a || 0) + '°' : '';
   if (eye) {
     const ring = document.createElement('span');
     ring.className = 'eye-ring';
-    Object.assign(ring.style, { left: eye.x * 100 + '%', top: eye.y * 100 + '%', width: eye.r * 2 * 100 + '%', aspectRatio: '1' });
+    Object.assign(ring.style, { left: eye.x * 100 + '%', top: eye.y * 100 + '%', width: eye.r * 2 * 100 + '%', aspectRatio: String(1 / (eye.h || 1)), rotate: (eye.a || 0) + 'deg' });
     art.appendChild(ring);
   }
   $('stay').disabled = !on; $('stay').checked = !!(on && scarsOf()[$('slot').value].stay);
@@ -275,7 +277,7 @@ $('canvas').addEventListener('pointerdown', e => {
   if (picking) { pickAt(e); return; }
   if (eyeing) {
     const r = art.getBoundingClientRect(), eye = scarsOf().eye || { r: 0.02 };
-    scarsOf().eye = { x: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, y: Math.round((e.clientY - r.top) / r.height * 1000) / 1000, r: eye.r };
+    scarsOf().eye = { ...eye, x: Math.round((e.clientX - r.left) / r.width * 1000) / 1000, y: Math.round((e.clientY - r.top) / r.height * 1000) / 1000 };
     eyeing = false; $('canvas').classList.remove('eyeing');
     save(); render();
     $('msg').textContent = 'The eye is there: size it so the ring sits on it.';
@@ -356,6 +358,8 @@ $('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classLi
 $('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); render(); $('msg').textContent = 'No eye set on this drawing.'; });
 $('eyeBlind').addEventListener('change', render);
 $('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
+$('eyeH').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value < 1) eye.h = +e.target.value; else delete eye.h; save(); render(); });
+$('eyeA').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value) eye.a = +e.target.value; else delete eye.a; save(); render(); });
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };

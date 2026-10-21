@@ -647,7 +647,7 @@ function reliefOf(mark) {
 }
 const work = { small: null };
 // The eye, where it is on each drawing (SCAR_ANCHORS[type][stage][sex].eye: { x, y, r }, r a share of
-// its width, set in tools/anchors.html): no scar is drawn over it. A dinosaur that lost an eye (BLIND)
+// its width, h and a its flattening and tilt, set in tools/anchors.html): no scar is drawn over it. A dinosaur that lost an eye (BLIND)
 // has its first head scar moved across it, and the eye milky white as a scarred cornea
 const onEye = (place, eye) => {
   const dx = eye.x - place.x, dy = eye.y - place.y;
@@ -657,13 +657,16 @@ const onEye = (place, eye) => {
 // (the blind eye itself, painted: sprites/scars/eye-blind.webp, clouded over the eye's circle; false
 // until it has loaded)
 const BLIND_EYE = 'sprites/scars/eye-blind.webp';
+// (an eye is an oval: h its height as a share of its width, a its tilt in degrees; round if unset)
+const eyeFlat = eye => (eye.h > 0 ? eye.h : 1);
 function blindEye(ctx, eye, s, disp) {
   if (!eye) return true;
   const img = imageOf(scarImages, BLIND_EYE, asset(BLIND_EYE));
   if (!img.complete || !img.naturalWidth) return false;
   const [dx, dy] = disp(eye.x * s.w, eye.y * s.h), x = eye.x * s.w + dx, y = eye.y * s.h + dy, r = eye.r * s.w;
   ctx.save(); ctx.globalCompositeOperation = 'source-atop';
-  ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+  ctx.translate(x, y); ctx.rotate((eye.a || 0) * Math.PI / 180); ctx.scale(1, eyeFlat(eye));
+  ctx.drawImage(img, -r, -r, r * 2, r * 2);
   ctx.restore();
   return true;
 }
@@ -811,7 +814,7 @@ function onSkin(cv, place, mark, k) {
   if (eye) {
     const ex = eye.x * s.w, ey = eye.y * s.h, er = eye.r * s.w;
     g.save(); g.globalCompositeOperation = 'destination-out';
-    g.beginPath(); g.arc((ex - x) * k, (ey - y) * k, er * k * 1.08, 0, Math.PI * 2); g.fill(); g.restore();
+    g.beginPath(); g.ellipse((ex - x) * k, (ey - y) * k, er * k * 1.08, er * eyeFlat(eye) * k * 1.08, (eye.a || 0) * Math.PI / 180, 0, Math.PI * 2); g.fill(); g.restore();
   }
   const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s) };
   if (kept.size > 40) kept.clear();
