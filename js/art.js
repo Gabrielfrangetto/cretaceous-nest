@@ -749,15 +749,14 @@ function blindEye(ctx, eye, s, disp, turn = 0) {
   ctx.restore();
   return true;
 }
-// The drawing's own outlines under a scar: where an ink line of the sprite crosses it (a leg against the
-// belly, the rim of an eye, a fold), the scar covers it, the line kept as a crease in the scar's own
-// colour, darker (CREASE), not a black stroke over a wound; only the body's own edge (a line beside the
-// outside of the drawing) stays black over it. A scar told to stay (place.stay) keeps to the part of the
-// drawing its middle is on, those lines its edge. Worked out once for a place, on the first frame, as a
-// mask over the scar's square, and its creases (.ink) as another (they move with the skin as the scar does).
-// a crease is painted solid in the scar's own colour, the same shade only darker: dark of its lightness
-// (a grey scar, a dark grey line; a pale red one, a dark red one)
-const CREASE = { dark: 0.55 };
+// The drawing's own outlines over a scar: where an ink line of the sprite crosses it (a leg against the
+// belly, the rim of an eye, a fold), the line stays as it is and the scar stops a little short of it and
+// takes up again a little past it, the skin beside the line untouched (LINE_GAP, in the sprite's pixels,
+// the last LINE_SOFT of it fading in), as if the fold hid it: the drawing keeps its relief, the scar is in
+// it, not stuck on top. Only the long lines (LINE_LONG): the little outlines of scales are covered. A scar told to stay (place.stay) keeps to the part of the drawing its middle is on,
+// those lines its edge. Worked out once for a place, on the first frame, as a mask over the scar's square
+// (it moves with the skin as the scar does).
+const LINE_GAP = 1.6, LINE_SOFT = 0.8, LINE_LONG = 0.18;
 // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
@@ -781,7 +780,27 @@ function linesOf(s, place, mark) {
       const hue = Math.max(px[k], px[k + 1], px[k + 2]) - Math.min(px[k], px[k + 1], px[k + 2]);
       if (px[k + 3] > 200 && lum < INK && hue < INK_HUE) ink[i] = 1; else if (px[k + 3] > 40) skin[i] = 1;
     }
+    // (only the drawing's long lines count, its folds and edges: the little outlines of its scales are
+    // covered, a scar has none; a line is one at least LINE_LONG of the scar's width end to end)
+    const line = new Uint8Array(M * M), seen = new Uint8Array(M * M);
+    for (let i0 = 0; i0 < M * M; i0++) {
+      if (!ink[i0] || seen[i0]) continue;
+      const part = [i0], todo = [i0];
+      seen[i0] = 1;
+      let x0 = M, x1 = 0, y0 = M, y1 = 0;
+      while (todo.length) {
+        const i = todo.pop(), x = i % M, y = (i - x) / M;
+        x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy, j = yy * M + xx;
+          if (xx < 0 || yy < 0 || xx >= M || yy >= M || seen[j] || !ink[j]) continue;
+          seen[j] = 1; part.push(j); todo.push(j);
+        }
+      }
+      if (Math.max(x1 - x0, y1 - y0) >= LINE_LONG * M) for (const i of part) line[i] = 1;
+    }
     let keep = skin;
+    if (!place.stay) { keep = new Uint8Array(M * M); for (let i = 0; i < M * M; i++) keep[i] = skin[i] || (ink[i] && !line[i]) ? 1 : 0; }
     if (place.stay) {
       // the part its middle is on: skin reached from there without crossing an outline (thickened a
       // pixel, so a hairline gap doesn't let it through)
@@ -806,24 +825,25 @@ function linesOf(s, place, mark) {
         keep = grown;
       }
     }
-    // (the body's edge: a line within EDGE pixels of the outside of the drawing)
-    const out = i => px[i * 4 + 3] <= 40, EDGE = 3, edge = new Uint8Array(M * M);
+    // (how far each pixel is from a line, in the mask's pixels: a two-pass chamfer)
+    const far = new Float32Array(M * M), BIG = 1e6;
+    for (let i = 0; i < M * M; i++) far[i] = line[i] ? 0 : BIG;
     for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) {
-      if (!ink[y * M + x]) continue;
-      for (let dy = -EDGE; dy <= EDGE && !edge[y * M + x]; dy++) for (let dx = -EDGE; dx <= EDGE; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx >= 0 && yy >= 0 && xx < M && yy < M && out(yy * M + xx)) { edge[y * M + x] = 1; break; }
-      }
+      const i = y * M + x;
+      if (!far[i]) continue;
+      far[i] = Math.min(far[i], x ? far[i - 1] + 1 : BIG, y ? far[i - M] + 1 : BIG, x && y ? far[i - M - 1] + 1.414 : BIG, y && x < M - 1 ? far[i - M + 1] + 1.414 : BIG);
     }
-    // (every line inside is covered, a crease; keeping to a part, its lines are its edge, left as they are)
-    const crease = new Uint8Array(M * M);
-    if (!place.stay) for (let i = 0; i < M * M; i++) if (ink[i] && !edge[i]) crease[i] = 1;
-    const ic = document.createElement('canvas'); ic.width = M; ic.height = M;
-    const ig = ic.getContext('2d'), id = ig.createImageData(M, M);
-    for (let i = 0; i < M * M; i++) { const k = i * 4; id.data[k] = id.data[k + 1] = id.data[k + 2] = 255; id.data[k + 3] = crease[i] ? 255 : 0; }
-    ig.putImageData(id, 0, 0);
-    c.ink = ic;
-    for (let i = 0; i < M * M; i++) { const k = i * 4; px[k] = px[k + 1] = px[k + 2] = 255; px[k + 3] = (keep[i] && !ink[i]) || crease[i] ? 255 : 0; }
+    for (let y = M - 1; y >= 0; y--) for (let x = M - 1; x >= 0; x--) {
+      const i = y * M + x;
+      if (!far[i]) continue;
+      far[i] = Math.min(far[i], x < M - 1 ? far[i + 1] + 1 : BIG, y < M - 1 ? far[i + M] + 1 : BIG, x < M - 1 && y < M - 1 ? far[i + M + 1] + 1.414 : BIG, y < M - 1 && x ? far[i + M - 1] + 1.414 : BIG);
+    }
+    // (the gap and its soft end, from the sprite's pixels to the mask's)
+    const per = M / size, gap = LINE_GAP * per, soft = Math.max(0.5, LINE_SOFT * per);
+    for (let i = 0; i < M * M; i++) {
+      const k = i * 4, t = Math.max(0, Math.min(1, (far[i] - gap) / soft));
+      px[k] = px[k + 1] = px[k + 2] = 255; px[k + 3] = keep[i] ? Math.round(255 * t * t * (3 - 2 * t)) : 0;
+    }
     g.putImageData(d, 0, 0);
   } catch (e) { return null; }
   return (linesCache[key] = c);
@@ -950,19 +970,6 @@ function onSkin(cv, place, mark, k) {
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
   }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  // (the drawing's lines under it as creases: the scar's own colour, darker, painted on)
-  if (lines && lines.ink) {
-    const cr = document.createElement('canvas'); cr.width = P; cr.height = P;
-    const cg = cr.getContext('2d', { willReadFrequently: true });
-    cg.drawImage(piece, 0, 0);
-    const cd = cg.getImageData(0, 0, P, P), cpx = cd.data;
-    for (let j = 0; j < cpx.length; j += 4) for (let c = 0; c < 3; c++) cpx[j + c] *= CREASE.dark;
-    cg.putImageData(cd, 0, 0);
-    cg.globalCompositeOperation = 'destination-in';
-    cg.translate(P / 2, P / 2); cg.rotate((place.r || 0) * Math.PI / 180);
-    cg.drawImage(lines.ink, -size * k / 2, -size * k / 2, size * k, size * k);
-    g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(cr, 0, 0); g.restore();
-  }
   // (painted on, not a veil: solid wherever the scar is, only its very edge soft, so the scales and
   // pattern of the skin don't show through what has none; SCAR_SOLID: the art's alpha from where it is
   // solid)
