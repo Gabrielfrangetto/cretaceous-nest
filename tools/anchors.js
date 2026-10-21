@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, SCAR_LOOKS, SPREAD } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, sheetFor, SCAR_LOOKS, SPREAD } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here, times the zoom
@@ -240,7 +240,10 @@ const SEWN = ['claw'];   // the kinds of wound sewn up in the hospital, so far d
 // sharpest: the bright, coloured pixels joined to the one clicked nearest it, as an oval (their spread
 // along and across). Null if none is near.
 async function fitEye(x, y) {
-  const s = sheetCv && sheetCv.sheet;
+  // (the drawing's sheet: the one shown, or, with no scar on it yet and so drawn as a plain picture,
+  // the picture's own)
+  const base = art.querySelector('.dino-base') || art;
+  const s = (sheetCv && sheetCv.sheet) || (base.tagName === 'IMG' && sheetFor(base.src)) || null;
   const src = s ? (s.hires || s.sheet) : null;
   if (!src) return null;
   const img = new Image();
