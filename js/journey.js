@@ -1293,8 +1293,8 @@ function die(ctx, id) {
 // came off its mount; how.forced: the one caught running turned to fight. A win carries home the
 // carcass (unless it got away badly hurt) and coins. Returns the battle, for the replay.
 // The health one of the player's dinosaurs lost in a fight, counted on the parts of its body the foe's
-// blows fell on (SCARS: as the foe fights), and on its legs if it was lamed; the part that got the
-// most this time remembers who gave it
+// blows fell on (SCARS: as the foe fights), and on its legs if it was lamed; each part it struck
+// remembers who gave it
 export function scarStyle(entry) {
   if (!entry) return 'any';
   if (entry.creature) return entry.creature === 'deinosuchus' ? 'croc' : 'any';
@@ -1325,9 +1325,9 @@ function scar(ctx, ev, id, lost, lame, entry) {
   if (lame) got.legs = (got.legs || 0) + SCARS.lame;
   b.scars = b.scars || {};
   for (const [part, n] of Object.entries(got)) b.scars[part] = Math.round(((b.scars[part] || 0) + n) * 1000) / 1000;
-  const most = Object.entries(got).sort((x, y) => y[1] - x[1])[0][0];
+  // (each part it struck carries its mark: who gave the scars there last)
   const who = entry && (entry.species || entry.creature);
-  if (who) b.scarBy = { ...(b.scarBy || {}), [most]: who };
+  if (who) b.scarBy = { ...(b.scarBy || {}), ...Object.fromEntries(Object.keys(got).map(pt => [pt, who])) };
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
   // (a horn in the flank or the neck goes deep as often as it reaches far into the body, whatever the
@@ -1337,6 +1337,8 @@ function scar(ctx, ev, id, lost, lame, entry) {
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || gored.includes(pt) || (!(horn && GORE.parts.includes(pt)) && (got[pt] || 0) >= WOUNDS.deep) || (lame && pt === 'legs'));
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
+  // (and each wound leaves its scar however little it took: a deep one a deep scar)
+  for (const pt of Object.keys(got)) b.scars[pt] = Math.max(b.scars[pt], deep.includes(pt) ? SCARS.deep : SCARS.marked);
   return gored.length ? { part: gored[0], sev } : null;
 }
 // how far a horn or spike reaches into a body against how thick it is (1: right through the middle;
