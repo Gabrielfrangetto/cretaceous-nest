@@ -341,6 +341,7 @@ const VARIANTS = {
   },
   horns: {
     2: ['sprites/scars/body-horns-2.webp'],
+    stitched: ['sprites/scars/body-horns-stitched.webp'],
     healed: ['sprites/scars/body-horns-2-healed.webp'],
     surgical: ['sprites/scars/body-horns-surgical.webp'],
   },
