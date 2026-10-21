@@ -681,22 +681,26 @@ function middleOf(mark) {
   } catch (e) { return null; }
   return (middles[mark.key] = c);
 }
-function onSkin(cv, a, mark, k, i, place) {
-  const s = cv.sheet, relief = reliefOf(mark);
+function onSkin(cv, place, mark, k) {
+  const s = cv.home || cv.sheet, relief = reliefOf(mark);
   if (!relief || !mark.skin) return null;
   const crimson = mark.tint ? tintOf({ key: mark.key, src: mark.src, tint: 1 }) : null;
   if (mark.tint && !crimson) return null;
-  const size = a.w * s.w * mark.scale, side = size * 1.42, x = a.x * s.w - side / 2, y = a.y * s.h - side / 2;
+  const first = imageOf(sheetImages, s.sheet, asset(s.sheet));
+  if (!first.complete || !first.naturalWidth) return null;
+  const key = [place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.key, mark.tint, mark.skin, mark.rim ? 1 : 0, k, s.sheet].join('|');
+  const kept = cv.made || (cv.made = new Map());
+  if (kept.has(key)) return kept.get(key);
+  const size = place.w * s.w * mark.scale, side = size * 1.42, x = place.x * s.w - side / 2, y = place.y * s.h - side / 2;
   const P = Math.max(2, Math.ceil(side * k)), q = Math.max(2, Math.round(P / 10));
-  // (each scar's piece kept with its drawing, made again each frame)
-  const pieces = cv.pieces || (cv.pieces = []), piece = pieces[i] || (pieces[i] = document.createElement('canvas'));
+  const piece = document.createElement('canvas');
   const small = work.small || (work.small = document.createElement('canvas'));
   piece.width = P; piece.height = P; small.width = q; small.height = q;
   const g = piece.getContext('2d'), sg = small.getContext('2d');
-  // the skin under it, smoothed: drawn small and back
+  // the skin under it on the first frame (the sheet's first), smoothed: drawn small and back
   sg.imageSmoothingQuality = 'high';
   sg.clearRect(0, 0, q, q);
-  sg.drawImage(cv, x * k, y * k, P, P, 0, 0, q, q);
+  sg.drawImage(first, x, y, side, side, 0, 0, q, q);
   // (dulled as scar tissue is: the bright colours mostly gone, browner)
   const sd = sg.getImageData(0, 0, q, q), spx = sd.data;
   for (let j = 0; j < spx.length; j += 4) {
@@ -709,18 +713,21 @@ function onSkin(cv, a, mark, k, i, place) {
   const lay = (img, op, alpha = 1) => {
     g.save();
     g.globalCompositeOperation = op; g.globalAlpha = alpha;
-    g.translate(P / 2, P / 2); g.rotate((a.r || 0) * Math.PI / 180);
+    g.translate(P / 2, P / 2); g.rotate((place.r || 0) * Math.PI / 180);
     g.drawImage(img, -size * k / 2, -size * k / 2, size * k, size * k);
     g.restore();
   };
   lay(relief, 'multiply');
   lay(relief, 'destination-in');
-  const lines = place && linesOf(s, place, mark);
+  const lines = linesOf(s, place, mark);
   if (lines) lay(lines, 'destination-in');
   const middle = mark.rim && middleOf(mark);
   if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
-  return { canvas: piece, x, y, side, halo: haloPiece(cv, a, mark, k, i, size) };
+  const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s) };
+  if (kept.size > 40) kept.clear();
+  kept.set(key, made);
+  return made;
 }
 // The skin around a fresh wound, reddened: a soft glow about it, laid on the skin by multiplying, so it
 // shows pink on pale skin and next to nothing on dark (as on a reptile's thick, pigmented hide), and
@@ -748,20 +755,19 @@ function haloOf(mark) {
   } catch (e) { return null; }
   return (halos[mark.key] = c);
 }
-function haloPiece(cv, a, mark, k, i, size) {
+function haloPiece(first, place, mark, k, size, s) {
   const t = mark.tint || 0, glow = Math.min(1, Math.max(0, (t - HALO.from) / (1 - HALO.from)));
   const img = glow > 0 && haloOf(mark);
   if (!img) return null;
-  const s = cv.sheet, side = size * HALO.reach * 1.42, x = a.x * s.w - side / 2, y = a.y * s.h - side / 2;
-  const P = Math.max(2, Math.ceil(side * k));
-  const halos = cv.halos || (cv.halos = []), h = halos[i] || (halos[i] = document.createElement('canvas'));
+  const side = size * HALO.reach * 1.42, x = place.x * s.w - side / 2, y = place.y * s.h - side / 2;
+  const P = Math.max(2, Math.ceil(side * k)), h = document.createElement('canvas');
   h.width = P; h.height = P;
   const g = h.getContext('2d');
-  g.drawImage(cv, x * k, y * k, P, P, 0, 0, P, P);
+  g.drawImage(first, x, y, side, side, 0, 0, P, P);
   const lay = op => {
     g.save();
     g.globalCompositeOperation = op;
-    g.translate(P / 2, P / 2); g.rotate((a.r || 0) * Math.PI / 180);
+    g.translate(P / 2, P / 2); g.rotate((place.r || 0) * Math.PI / 180);
     const w = size * HALO.reach * k;
     g.drawImage(img, -w / 2, -w / 2, w, w);
     g.restore();
@@ -769,6 +775,43 @@ function haloPiece(cv, a, mark, k, i, size) {
   lay('multiply');
   lay('destination-in');
   return { canvas: h, x, y, side, alpha: glow * HALO.strength };
+}
+// A piece made on the first frame, laid on a later one bent as the skin under it has moved: cut into a
+// mesh of triangles, each corner moved as the skin there (disp, in sheet pixels); in one go where it all
+// moved alike. The triangles are a hair larger, so no seam shows between them.
+const MESH = 6;
+function laySkin(ctx, piece, disp, k) {
+  const { canvas: img, x, y, side } = piece, n = MESH, at = [];
+  let lo = Infinity, hi = -Infinity;
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+    const sx = x + side * i / n, sy = y + side * j / n, [dx, dy] = disp(sx, sy);
+    at.push([sx, sy, sx + dx, sy + dy]);
+    lo = Math.min(lo, dx, dy); hi = Math.max(hi, dx, dy);
+  }
+  if (hi - lo < 0.25) { const [dx, dy] = disp(x + side / 2, y + side / 2); ctx.drawImage(img, x + dx, y + dy, side, side); return; }
+  const px = img.width / side, grow = 0.6 / k;
+  const tri = (p, q, r) => {
+    const cx = (p[2] + q[2] + r[2]) / 3, cy = (p[3] + q[3] + r[3]) / 3;
+    const out = v => { const ex = v[2] - cx, ey = v[3] - cy, l = Math.hypot(ex, ey) || 1; return [v[2] + ex / l * grow, v[3] + ey / l * grow]; };
+    const [a0, a1, a2] = [out(p), out(q), out(r)];
+    const u = v => [(v[0] - x) * px, (v[1] - y) * px], [u0, u1, u2] = [u(p), u(q), u(r)];
+    const den = (u1[0] - u0[0]) * (u2[1] - u0[1]) - (u2[0] - u0[0]) * (u1[1] - u0[1]);
+    if (!den) return;
+    const ma = ((q[2] - p[2]) * (u2[1] - u0[1]) - (r[2] - p[2]) * (u1[1] - u0[1])) / den;
+    const mc = ((r[2] - p[2]) * (u1[0] - u0[0]) - (q[2] - p[2]) * (u2[0] - u0[0])) / den;
+    const mb = ((q[3] - p[3]) * (u2[1] - u0[1]) - (r[3] - p[3]) * (u1[1] - u0[1])) / den;
+    const md = ((r[3] - p[3]) * (u1[0] - u0[0]) - (q[3] - p[3]) * (u2[0] - u0[0])) / den;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(...a0); ctx.lineTo(...a1); ctx.lineTo(...a2); ctx.closePath(); ctx.clip();
+    ctx.transform(ma, mb, mc, md, p[2] - ma * u0[0] - mc * u0[1], p[3] - mb * u0[0] - md * u0[1]);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  };
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const v = (a, b) => at[b * (n + 1) + a];
+    tri(v(i, j), v(i + 1, j), v(i, j + 1));
+    tri(v(i + 1, j), v(i + 1, j + 1), v(i, j + 1));
+  }
 }
 const markImage = mark => (mark.tint || mark.skin ? tintOf(mark) : scarImage(mark));
 const markReady = mark => { const m = markImage(mark); return !!m && (m.tagName === 'CANVAS' || (m.complete && m.naturalWidth > 0)); };
@@ -813,22 +856,30 @@ export function drawFrame(cv, frame) {
   else {
     ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
   }
-  // (each scar takes the skin under it, so all are made from the drawing before any is laid on it)
+  // (each scar made once on the first frame, from the skin under it there, then laid bent as that skin
+  // has moved: by its own keys if it has them, else point by point as the drawing moves)
   const made = [];
   for (const [place, mark] of cv.scars) {
-    const a = placeOn(s, place, frame);
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
-    made.push([a, mark, onSkin(cv, a, mark, k, made.length, place)]);
+    const piece = onSkin(cv, place, mark, k);
+    if (mark.skin && !piece) cv.dirty = true;
+    let disp;
+    if (place.f) {
+      const a = scarAt(place, frame, s.frames), c0x = place.x * s.w, c0y = place.y * s.h, dr = ((a.r || 0) - (place.r || 0)) * Math.PI / 180;
+      const cos = Math.cos(dr), sin = Math.sin(dr), c1x = a.x * s.w, c1y = a.y * s.h;
+      disp = (x, y) => [c1x + (x - c0x) * cos - (y - c0y) * sin - x, c1y + (x - c0x) * sin + (y - c0y) * cos - y];
+    } else disp = (x, y) => { const [dx, dy] = motionAt(s, x / s.w, y / s.h, frame); return [dx * s.w, dy * s.h]; };
+    made.push([placeOn(s, place, frame), mark, piece, disp]);
   }
   ctx.globalCompositeOperation = 'source-atop';
   // (the reddened skin around fresh wounds first, under them)
-  for (const [, , piece] of made) {
+  for (const [, , piece, disp] of made) {
     const h = piece && piece.halo;
-    if (h) { ctx.globalAlpha = h.alpha; ctx.drawImage(h.canvas, h.x, h.y, h.side, h.side); ctx.globalAlpha = 1; }
+    if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
-  for (const [a, mark, piece] of made) {
+  for (const [a, mark, piece, disp] of made) {
+    if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
-    if (piece) { ctx.drawImage(piece.canvas, piece.x, piece.y, piece.side, piece.side); continue; }
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
     ctx.rotate((a.r || 0) * Math.PI / 180);
@@ -861,7 +912,7 @@ export function sheetArt(sheet, px, label, scars, fallback) {
   const cv = document.createElement('canvas');
   // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
-  Object.assign(cv, { sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  Object.assign(cv, { sheet, home: sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
   cv.setAttribute('role', 'img');
