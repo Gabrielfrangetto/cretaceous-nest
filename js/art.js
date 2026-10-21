@@ -339,6 +339,9 @@ const VARIANTS = {
     surgical: ['sprites/scars/body-claw-surgical.webp'],
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
+  horns: {
+    surgical: ['sprites/scars/body-horns-surgical.webp'],
+  },
 };
 // the stitches of a sewn-up wound picture, apart (laid over it in their own colour, never reddened)
 const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-claw-stitched-thread.webp' };
