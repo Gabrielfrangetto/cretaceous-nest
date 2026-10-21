@@ -578,6 +578,61 @@ const SCAR_DULL = 0.4, SCAR_BROWN = 0.15, SCAR_PIGMENT = [107, 85, 68];
 // how finely the skin under a scar is taken (the drawing there at a SKIN_FINE-th of its size: its scales
 // smoothed, its colours kept), and how dark a pixel of it is to be one of its lines, left out
 const SKIN_FINE = 4, SKIN_INK = 60, SCAR_SOLID = 90;
+// The skin under a scar as a few flat colours: its pixels grouped by colour (up to SKIN_COLOURS groups,
+// any two nearer than SKIN_MERGE apart one, any of fewer than SKIN_FEW of them given to the nearest
+// other), their borders evened (SKIN_EVEN passes), each pixel then its group's colour
+const SKIN_COLOURS = 4, SKIN_MERGE = 48, SKIN_FEW = 0.04, SKIN_EVEN = 3;
+function flatten(px, w) {
+  const idx = [];
+  for (let j = 0; j < px.length; j += 4) if (px[j + 3] > 0) idx.push(j);
+  if (!idx.length) return;
+  const dist = (j, c) => (px[j] - c[0]) ** 2 + (px[j + 1] - c[1]) ** 2 + (px[j + 2] - c[2]) ** 2;
+  // (seeds far apart: the first pixel, then each the one farthest from those so far)
+  let cs = [[px[idx[0]], px[idx[0] + 1], px[idx[0] + 2]]];
+  while (cs.length < SKIN_COLOURS) {
+    let far = -1, at = 0;
+    for (const j of idx) { const d = Math.min(...cs.map(c => dist(j, c))); if (d > far) { far = d; at = j; } }
+    if (far < SKIN_MERGE * SKIN_MERGE) break;
+    cs.push([px[at], px[at + 1], px[at + 2]]);
+  }
+  const group = new Int8Array(px.length / 4);
+  const assign = () => { for (const j of idx) { let b = 0, bd = Infinity; cs.forEach((c, i) => { const d = dist(j, c); if (d < bd) { bd = d; b = i; } }); group[j / 4] = b; } };
+  const mean = () => {
+    const sum = cs.map(() => [0, 0, 0, 0]);
+    for (const j of idx) { const t = sum[group[j / 4]]; t[0] += px[j]; t[1] += px[j + 1]; t[2] += px[j + 2]; t[3]++; }
+    return sum;
+  };
+  for (let it = 0; it < 6; it++) { assign(); cs = mean().map((t, i) => (t[3] ? [t[0] / t[3], t[1] / t[3], t[2] / t[3]] : cs[i])); }
+  // (near ones as one, and the few left to the nearest)
+  for (let merged = true; merged;) {
+    merged = false;
+    const n = mean();
+    outer: for (let a = 0; a < cs.length; a++) for (let b = a + 1; b < cs.length; b++) {
+      const d = Math.sqrt((cs[a][0] - cs[b][0]) ** 2 + (cs[a][1] - cs[b][1]) ** 2 + (cs[a][2] - cs[b][2]) ** 2);
+      if (d < SKIN_MERGE || n[a][3] < idx.length * SKIN_FEW || n[b][3] < idx.length * SKIN_FEW) {
+        const keep = n[a][3] >= n[b][3] ? a : b;
+        cs.splice(keep === a ? b : a, 1); assign(); cs = mean().map((t, i) => (t[3] ? [t[0] / t[3], t[1] / t[3], t[2] / t[3]] : cs[i]));
+        merged = cs.length > 1; break outer;
+      }
+    }
+  }
+  assign();
+  // (the borders between them evened: each pixel the group most of its neighbours are in, twice)
+  for (let pass = 0; pass < SKIN_EVEN; pass++) {
+    const next = group.slice();
+    for (const j of idx) {
+      const i = j / 4, x = i % w, y = (i - x) / w, votes = new Array(cs.length).fill(0);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy, o = yy * w + xx;
+        if (xx < 0 || yy < 0 || xx >= w || yy * w >= group.length || !px[o * 4 + 3]) continue;
+        votes[group[o]]++;
+      }
+      next[i] = votes.indexOf(Math.max(...votes));
+    }
+    group.set(next);
+  }
+  for (const j of idx) { const c = cs[group[j / 4]]; px[j] = c[0]; px[j + 1] = c[1]; px[j + 2] = c[2]; }
+}
 const dullen = rgb => {
   const lum = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2], grey = rgb.map(v => v + (lum - v) * SCAR_DULL);
   const pl = (0.3 * SCAR_PIGMENT[0] + 0.59 * SCAR_PIGMENT[1] + 0.11 * SCAR_PIGMENT[2]) / 255;
@@ -935,6 +990,9 @@ function onSkin(cv, place, mark, k) {
     for (const [j, r, g2, b] of fill) { spx[j * 4] = r; spx[j * 4 + 1] = g2; spx[j * 4 + 2] = b; done[j] = 1; }
     left = left.filter(j => !done[j]);
   }
+  // (painted, not copied: the skin under it in a few flat colours, one for each colour it crosses (a red
+  // face, a green neck, a cream jaw), so the scar is solid paint in each, its shading its own)
+  flatten(spx, q);
   // (dulled as scar tissue is: some of the bright colours gone, browner)
   for (let j = 0; j < spx.length; j += 4) {
     const c = dullen([spx[j] / 255, spx[j + 1] / 255, spx[j + 2] / 255]);
