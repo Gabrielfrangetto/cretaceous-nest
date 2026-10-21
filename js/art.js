@@ -571,6 +571,8 @@ const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
 // as the wound is open; made once per scar and shade
 const tinted = {};
 const SCAR_SHADE = 0.72;   // how much darker a scar is than the skin around it
+// how much a scar's own light and shade (its picture's) is made stronger, so its texture shows through the skin's colour
+const RELIEF_CONTRAST = 2;
 // and duller: scar tissue loses some of the bright colours of the skin (not all their cells come back in
 // it) and keeps the dark pigment, so it goes browner: DULL of the colour lost, BROWN of that dark brown;
 // enough kept that a scar across a red face and a green neck still shows each under it
@@ -697,7 +699,7 @@ function reliefOf(mark) {
       if (!px[i + 3]) continue;
       const lum = (0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]) / 255;
       if (lum < 0.25) continue;
-      px[i] = px[i + 1] = px[i + 2] = Math.min(255, lum / mean * SCAR_SHADE * 255);
+      px[i] = px[i + 1] = px[i + 2] = Math.max(0, Math.min(255, (1 + (lum / mean - 1) * RELIEF_CONTRAST) * SCAR_SHADE * 255));
     }
     g.putImageData(d, 0, 0);
   } catch (e) { return null; }
@@ -911,7 +913,7 @@ function linesOf(s, place, mark) {
 const MIDDLE = { colour: [206, 186, 176], alpha: 1, depth: 0.05, pale: 0.22, dull: 0 };
 // A deep wound sewn up in the hospital heals into a neat line paler than the skin around, all of it the
 // skin under it paled (pale of the way to white), its relief laid back over by relief to keep its shape
-const SURGICAL = { pale: 0.3, relief: 0.4 };
+const SURGICAL = { pale: 0.45, relief: 1 };
 const middles = {};
 function middleOf(mark) {
   if (middles[mark.key]) return middles[mark.key];
