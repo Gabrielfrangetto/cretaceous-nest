@@ -32,3 +32,10 @@ test('a wound keeps which parts were deeply wounded, so they gape and heal into 
   assert.deepEqual(woundsOf(world(), b, T).deep, ['body']);
   assert.deepEqual(woundsOf(world(), { id: 'c', wound: { parts: ['head'], open: 1, at: T, until: T + 3600000 } }, T).deep, []);
 });
+
+test('the parts sewn up in the hospital are kept with the save', async () => {
+  const { migrate, freshState } = await import('../js/state.js');
+  const s = freshState();
+  s.hatched.push({ id: 'a', type: 'rex', sex: 'm', name: 'King', at: T, gen: 1, sewn: ['body', 'nonsense', 'legs'] });
+  assert.deepEqual(migrate(JSON.parse(JSON.stringify(s))).hatched.find(b => b.id === 'a').sewn, ['body', 'legs']);
+});

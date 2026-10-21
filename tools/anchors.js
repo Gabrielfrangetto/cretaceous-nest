@@ -59,7 +59,7 @@ function withScars(fn) {
 // the item's own fit, or its slot's as a starting point; a scar's own place, or where it goes now
 // The look being placed: the deep one (open wound, deep scar, sewn up) or the superficial one (marked,
 // a wound closing), each with its place; the deep one starts where the superficial one is
-const DEEP_VIEWS = ['2', 'd1', 'd0.66', 'd0.33', 's1', 's0.6', 's0.25'];
+const DEEP_VIEWS = ['2', 'd1', 'd0.66', 'd0.33', 's1', 's0.6', 's0.25', 'h'];
 const deepView = () => DEEP_VIEWS.includes($('wound').value);
 const lookOf = (a, make) => (!a || !deepView() ? a : a.deep || (make ? (a.deep = { x: a.x, y: a.y, w: a.w, r: a.r || 0 }) : a));
 const current = () => scarring() ? (lookOf(scarsOf()[$('slot').value]) || withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)))
@@ -91,14 +91,14 @@ const keysOf = a => (a && a.f ? Object.keys(a.f).map(Number).sort((p, q) => p - 
 
 function renderScars() {
   const type = $('type').value, sex = $('sex').value, part = $('slot').value, stage = $('stage').value;
-  const shown = $('wound').value, scar = shown === '2' || shown === '1';
+  const shown = $('wound').value, scar = ['2', '1', 'h'].includes(shown);
   // (only the scars added to this drawing are drawn)
   const placed = SCARS.parts.filter(pt => keysOn(pt).length);
   const all = Object.fromEntries(placed.map(pt => [pt, shown === '1' ? SCARS.marked : SCARS.deep]));
   const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.slice(1);
   const wounds = open && placed.length ? { parts: Object.fromEntries(placed.map(pt => [pt, open])), by: $('look').value, deep: shown[0] === 'm' ? [] : placed, ...(sewn ? { stitched: true } : {}) } : null;
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds));
+  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null));
   // (with none, the plain drawing: boxed the same, to be clicked the same)
   if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');

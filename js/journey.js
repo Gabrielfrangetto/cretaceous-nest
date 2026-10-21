@@ -399,7 +399,11 @@ function land(s, b, lands, grave) {
   delete b.critical;
   // (its wounds seen to there, fresh: the cuts sewn up, the bites left open to drain; they close
   // over its stay)
-  if (b.wound) b.wound = { ...b.wound, open: 1, at: lands, until: b.injuredUntil, stitched: true };
+  if (b.wound) {
+    b.wound = { ...b.wound, open: 1, at: lands, until: b.injuredUntil, stitched: true };
+    // (and the scar each leaves is the hospital's, until a later wound there heals on its own)
+    b.sewn = SCARS.parts.filter(pt => (b.sewn || []).includes(pt) || b.wound.parts.includes(pt));
+  }
   return { id: b.id, name: b.name, hours };
 }
 
@@ -1279,6 +1283,7 @@ function scar(ctx, ev, id, lost, lame, entry) {
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || (got[pt] || 0) >= WOUNDS.deep || (lame && pt === 'legs'));
+  if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
 }
 // How open each wound is, from 1 (just given) to 0 (closed): on a journey, as hurt as the dinosaur

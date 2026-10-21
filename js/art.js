@@ -321,9 +321,10 @@ const scarSVG = level => `<svg viewBox="0 0 100 100" aria-hidden="true">${SCAR_M
 // Scars drawn for each kind of blow (sprites/scars/<style>-<level>.webp, square, the scar filling its
 // width), by how it was given (journey.js scarStyle) and how deep; a deep one not drawn yet shows the
 // marked one, and a kind with none drawn the slashes above. healed: a deep one's scar, when the deep one
-// is drawn as the open wound; stitched: the wound sewn up in the hospital (cuts, not bites)
+// is drawn as the open wound; stitched: the wound sewn up in the hospital (cuts, not bites); surgical:
+// the neat scar it closes into, the stitches out
 const SCAR_ART = {
-  claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp', healed: 'sprites/scars/claw-2-healed.webp', stitched: 'sprites/scars/claw-stitched.webp' },
+  claw: { 1: 'sprites/scars/claw-1.webp', 2: 'sprites/scars/claw-2.webp', healed: 'sprites/scars/claw-2-healed.webp', stitched: 'sprites/scars/claw-stitched.webp', surgical: 'sprites/scars/claw-surgical.webp' },
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
   horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp', healed: 'sprites/scars/horns-2-healed.webp' },
 };
@@ -334,10 +335,11 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   // (a deep one: the open wound while it gapes, its healed look as it closes and once closed)
-  const art = SCAR_ART[style] || {}, src = (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
-  const sewn = stitched && tint && art.stitched && src === art.stitched;
+  const art = SCAR_ART[style] || {};
+  const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
+  const sewn = stitched && tint && (src === art.stitched || src === art.surgical);
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
-  const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched);
+  const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(sewn && skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
 }
@@ -420,7 +422,8 @@ const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 // scarBy: who gave each part its worst (a dinosaur's own), so its scar looks like that blow
 // wounds: its open wounds (journey.js woundsOf): red, the deep scar while they gape, the marked one as
 // they close (or, sewn up in the hospital, the stitches all along); once closed, the scar it has there
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null) {
+// sewn: the parts whose last wound was sewn up in the hospital, so their scars are its neat ones
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
@@ -435,7 +438,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (each scar placed on the part: [its place's key, how it looks])
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
     .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5)
-      : scarMark(styleBy(scarBy && scarBy[pt]), l)]));
+      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)))]));
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)

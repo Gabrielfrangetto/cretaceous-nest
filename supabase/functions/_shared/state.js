@@ -170,6 +170,8 @@ function sanitize(s) {
     scarBy: b.scarBy && typeof b.scarBy === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => typeof b.scarBy[pt] === 'string').map(pt => [pt, b.scarBy[pt].slice(0, 24)])) : undefined,
     // its open wounds (WOUNDS): the parts, who gave them, and once home how open, from when, until when
     wound: cleanWound(b.wound),
+    // the parts whose last wound was sewn up in the hospital: their scars are its neat ones
+    sewn: Array.isArray(b.sewn) && b.sewn.some(pt => SCARS.parts.includes(pt)) ? SCARS.parts.filter(pt => b.sewn.includes(pt)) : undefined,
     // flown home by air, landing then
     flyingUntil: Number(b.flyingUntil) > 0 ? Number(b.flyingUntil) : undefined,
     // raised among Hypacrosaurus: a share more of every stat (NURSE)
