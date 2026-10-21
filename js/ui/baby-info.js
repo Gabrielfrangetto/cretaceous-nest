@@ -138,7 +138,7 @@ function render() {
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
       <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
-  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn));
+  body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id));
   body.querySelector('.info-art').addEventListener('click', () => openZoom(b));
 
   body.querySelectorAll('[data-equip]').forEach(btn => btn.addEventListener('click', () => {
@@ -193,7 +193,7 @@ function openZoom(b) {
     zoomBox.addEventListener('click', () => zoomBox.close());
     document.body.appendChild(zoomBox);
   }
-  const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn);
+  const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id);
   const base = art.querySelector('.dino-base') || art;
   zoomBox.innerHTML = `<p class="zoom-name">${esc(b.name)} <span class="hint">Tap anywhere to close</span></p>`;
   zoomBox.prepend(art);

@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, SCAR_LOOKS } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, SCAR_LOOKS, SPREAD } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here, times the zoom
@@ -98,7 +98,7 @@ function renderScars() {
   const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.slice(1);
   const wounds = open && placed.length ? { parts: Object.fromEntries(placed.map(pt => [pt, open])), by: $('look').value, deep: shown[0] === 'm' ? [] : placed, ...(sewn ? { stitched: true } : {}) } : null;
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null));
+  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null, seed));
   // (with none, the plain drawing: boxed the same, to be clicked the same)
   if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');
@@ -108,6 +108,16 @@ function renderScars() {
   const on = !!scarsOf()[$('slot').value];
   $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
   $('stay').disabled = !on; $('stay').checked = !!(on && scarsOf()[$('slot').value].stay);
+  const sp = (on && scarsOf()[$('slot').value].spread) || SPREAD;
+  for (const [id, v, t] of [['spreadD', sp.d, (sp.d * 100).toFixed(1) + '%'], ['spreadR', sp.r, '±' + sp.r + '°'], ['spreadS', sp.s, '±' + Math.round(sp.s * 100) + '%']]) { $(id).value = v; $(id).disabled = !on; $(id + 'No').textContent = t; }
+  // (the ring it falls within, round the place as shown)
+  const shownAt = on && lookOf(scarsOf()[$('slot').value]);
+  if (shownAt && sp.d) {
+    const ring = document.createElement('span'), r = sp.d * 2 * 100;
+    ring.className = 'spread-ring';
+    Object.assign(ring.style, { left: shownAt.x * 100 + '%', top: shownAt.y * 100 + '%', width: r + '%', aspectRatio: '1' });
+    art.appendChild(ring);
+  }
   if (base) base.style.height = TALL * zoom + 'px';
   // (zoomed in, drawn from the drawing at its full size)
   if (base && base.sheet && zoom > 1) sharpen(base);
@@ -118,7 +128,7 @@ function renderScars() {
   mark = null;
   if (sheetCv) {
     // the editor's own places, so a drag shows at once
-    sheetCv.scars = sheetCv.scars.map(([a, mark, pt]) => { const own = scarsOf()[pt]; return [own ? (mark.deep && own.deep ? own.deep : own) : a, mark, pt]; });
+    sheetCv.scars = sheetCv.scars.map(([a, mark, pt, main]) => { const own = scarsOf()[pt]; return [own ? (mark.deep && own.deep ? own.deep : own) : a, mark, pt, own || main]; });
     sheetCv.hold = held;
     $('frame').max = frames() - 1;
     if (held != null) $('frame').value = held;
@@ -171,7 +181,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['stayField', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['stayField', scarring()], ['spreadField', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -207,6 +217,9 @@ function render() {
 // The skin's colour where a scar goes, picked off the drawing (the frame on screen, without its scars):
 // a sewn-up wound heals into it
 let picking = false;
+// the dinosaur shown: none (each scar right in its place) or one picked at random, to see where its
+// scars fall
+let seed = null;
 const SEWN = ['claw'];   // the kinds of wound sewn up in the hospital, so far drawn
 async function pickAt(e) {
   picking = false;
@@ -272,7 +285,7 @@ $('canvas').addEventListener('pointerdown', e => {
     const y = Math.round(Math.min(1.2, Math.max(-0.2, (ev.clientY - rect.top) / rect.height)) * 1000) / 1000;
     if (scarring()) placeAt(a, x, y, null); else { a.x = x; a.y = y; }
     if (active) { active.style.left = (x * 100) + '%'; active.style.top = (y * 100) + '%'; }
-    if (sheetCv) { sheetCv.scars = sheetCv.scars.map(([b, level, pt]) => [pt === $('slot').value ? a : b, level, pt]); drawFrame(sheetCv, frameNow()); showFrame(); }
+    if (sheetCv) { sheetCv.scars = sheetCv.scars.map(([b, level, pt, main]) => [pt === $('slot').value ? a : b, level, pt, main]); drawFrame(sheetCv, frameNow()); showFrame(); }
     showReadout(a);
   };
   place(e);
@@ -309,6 +322,19 @@ $('stay').addEventListener('change', e => {
   for (const p of [own, own.deep].filter(Boolean)) { if (e.target.checked) p.stay = true; else delete p.stay; }
   save(); render();
 });
+// how far a scar wanders on each dinosaur, both its looks
+const setSpread = (k, v) => {
+  const own = scarsOf()[$('slot').value];
+  if (!own) return;
+  const sp = { ...(own.spread || SPREAD), [k]: v };
+  for (const p of [own, own.deep].filter(Boolean)) p.spread = sp;
+  save(); render();
+};
+$('spreadD').addEventListener('input', e => setSpread('d', +e.target.value));
+$('spreadR').addEventListener('input', e => setSpread('r', +e.target.value));
+$('spreadS').addEventListener('input', e => setSpread('s', +e.target.value));
+$('another').addEventListener('click', () => { seed = 'preview-' + Math.random().toString(36).slice(2, 8); render(); $('msg').textContent = 'Another dinosaur: its scars where they fell on it. Moving one moves where they fall from.'; });
+$('middle').addEventListener('click', () => { seed = null; render(); $('msg').textContent = 'Each scar right in its place again.'; });
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };

@@ -3,6 +3,7 @@ import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS } from './conf
 import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
 import { SHEETS } from './sheets.js';
 import { scarStyle } from './journey.js';
+import { seededRand } from './economy.js';
 
 // ---------- eggs ----------
 let uid = 0;
@@ -407,6 +408,49 @@ export function scarPlace(type, sex, part, stage, mark) {
   const a = scarAnchor(type, sex, part, stage);
   return a && mark && mark.deep && a.deep ? a.deep : a;
 }
+// Each dinosaur's scars where they fell on it: a scar's place is the middle of where it may be, and each
+// dinosaur (by its id, and the scar's key) has it moved, turned and sized within the place's spread
+// (d: how far, as a share of the drawing's width; r: degrees either way; s: a share bigger or smaller),
+// tried until it lies on its body, the same every time for that dinosaur. Both a scar's looks move alike.
+export const SPREAD = { d: 0.03, r: 15, s: 0.1 };
+const fell = new Map(), bodies = {};
+function bodyOf(s) {
+  if (bodies[s.sheet]) return bodies[s.sheet];
+  const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
+  if (!img.complete || !img.naturalWidth) return null;
+  const W = Math.round(s.w / 4), H = Math.round(s.h / 4), c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, s.w, s.h, 0, 0, W, H);
+  try { const px = g.getImageData(0, 0, W, H).data, on = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) on[i] = px[i * 4 + 3] > 160; return (bodies[s.sheet] = { W, H, on }); } catch (e) { return null; }
+}
+const onBody = (b, x, y, w, aspect) => {
+  let hits = 0;
+  for (const [ox, oy] of [[0, 0], [0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3], [0.2, 0.2], [-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2]]) {
+    const i = Math.floor((y + oy * w * aspect) * b.H) * b.W + Math.floor((x + ox * w) * b.W);
+    if (i >= 0 && i < b.on.length && b.on[i]) hits++;
+  }
+  return hits >= 8;
+};
+export function spread(place, main, seed, key, s) {
+  const sp = (main && main.spread) || SPREAD;
+  if (!place || seed == null || place.f || (!sp.d && !sp.r && !sp.s)) return place;
+  const at = [seed, key, main.x, main.y, main.w, main.r || 0, sp.d, sp.r, sp.s, s ? s.sheet : ''].join('|');
+  let o = fell.get(at);
+  if (!o) {
+    const body = s && bodyOf(s), aspect = s ? s.w / s.h : 1, rand = seededRand(`scar:${seed}:${key}`);
+    if (s && !body) return place;
+    for (let n = 0; n < 12; n++) {
+      const turn = rand() * Math.PI * 2, far = Math.sqrt(rand()) * sp.d;
+      o = { dx: Math.cos(turn) * far, dy: Math.sin(turn) * far * aspect, dr: (rand() * 2 - 1) * sp.r, ds: (rand() * 2 - 1) * sp.s };
+      if (!body || onBody(body, main.x + o.dx, main.y + o.dy, main.w * (1 + o.ds), aspect)) break;
+      if (n === 11) o = { dx: 0, dy: 0, dr: 0, ds: 0 };
+    }
+    if (fell.size > 500) fell.clear();
+    fell.set(at, o);
+  }
+  return { ...place, x: place.x + o.dx, y: place.y + o.dy, r: (place.r || 0) + o.dr, w: place.w * (1 + o.ds) };
+}
 // Where a scar is at one frame of an animated sprite: its place may carry keys, f: { frame: [x, y, r] },
 // and between two keys it moves in a straight line (the place itself is frame 0's key)
 export function scarAt(a, frame, frames) {
@@ -424,7 +468,8 @@ const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 // wounds: its open wounds (journey.js woundsOf): red, the deep scar while they gape, the marked one as
 // they close (or, sewn up in the hospital, the stitches all along); once closed, the scar it has there
 // sewn: the parts whose last wound was sewn up in the hospital, so their scars are its neat ones
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null) {
+// seed: the dinosaur's own (its id), so its scars fall where they fall on it alone (SPREAD)
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
@@ -445,7 +490,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
-    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part]).filter(([a]) => a), src)
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage)]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
@@ -456,7 +501,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   box.appendChild(base);
   // (scars on the skin, under whatever it wears; on a sheet they are drawn in it)
   if (base.tagName !== 'CANVAS' || !base.sheet) for (const [part, mark] of scarred) {
-    const a = scarPlace(type, sex, part, stage, mark);
+    const a = spread(scarPlace(type, sex, part, stage, mark), scarAnchor(type, sex, part, stage), seed, part, null);
     if (!a) continue;
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
@@ -859,7 +904,8 @@ export function drawFrame(cv, frame) {
   // (each scar made once on the first frame, from the skin under it there, then laid bent as that skin
   // has moved: by its own keys if it has them, else point by point as the drawing moves)
   const made = [];
-  for (const [place, mark] of cv.scars) {
+  for (const [placed, mark, key, main] of cv.scars) {
+    const place = spread(placed, main, cv.seed, key, cv.home || s);
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
     const piece = onSkin(cv, place, mark, k);
     if (mark.skin && !piece) cv.dirty = true;
@@ -908,11 +954,11 @@ export function sharpen(cv, on = true) {
 }
 // scars: [place, mark (scarMark), part]; hold a frame by setting the canvas's hold (null plays it); fallback, the
 // animated sprite itself, should the sheet not load
-export function sheetArt(sheet, px, label, scars, fallback) {
+export function sheetArt(sheet, px, label, scars, fallback, seed = null) {
   const cv = document.createElement('canvas');
   // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
-  Object.assign(cv, { sheet, home: sheet, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  Object.assign(cv, { sheet, home: sheet, seed, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
   cv.setAttribute('role', 'img');

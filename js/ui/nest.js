@@ -62,7 +62,7 @@ function renderBabies() {
       card.setAttribute('aria-label', `${b.name}, ${sp.species}. Show stats`);
       card.addEventListener('click', () => openBabyInfo(b.id));
       const art = document.createElement('span'); art.className = 'baby-art';
-      art.appendChild(dressedArt(b.type, 3, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn));
+      art.appendChild(dressedArt(b.type, 3, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id));
       const info = document.createElement('span'); info.className = 'baby-info-col';
       const nm = document.createElement('strong'); nm.textContent = nameTag(b);
       const sps = document.createElement('span'); sps.className = 'meta'; sps.textContent = `${sp.species} · ${ageLabel(ageOf(b, gameNow()))}`;
@@ -143,7 +143,7 @@ function syncWalkers() {
       // redraw when the baby grows, or puts on or takes off equipment
       const key = lookKey(b);
       if (have.gearKey !== key) {
-        const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn);
+        const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id);
         art.style.transform = have.art.style.transform;
         have.art.replaceWith(art);
         have.art = art;
@@ -158,7 +158,7 @@ function syncWalkers() {
     const bubble = document.createElement('span');
     bubble.className = 'bubble'; bubble.hidden = true;
     bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + '<span>Needs a capsule</span>';
-    const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn);
+    const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
     el.append(bubble, art, name);
     const depth = Math.random();
