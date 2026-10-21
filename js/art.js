@@ -329,10 +329,10 @@ const SCAR_ART = {
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
   horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp', healed: 'sprites/scars/horns-2-healed.webp' },
 };
-// a part's own pictures, over its kind's (their healed deep claw scars)
+// a part's own pictures, over its kind's (their claw scars, light and deep)
 const PART_ART = {
   neck: { claw: { healed: 'sprites/scars/neck-claw-2-healed.webp' } },
-  body: { claw: { healed: 'sprites/scars/body-claw-2-healed.webp' } },
+  body: { claw: { 1: 'sprites/scars/body-claw-1.webp', healed: 'sprites/scars/body-claw-2-healed.webp' } },
   legs: { claw: { healed: 'sprites/scars/legs-claw-2-healed.webp' } },
 };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
