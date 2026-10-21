@@ -5,7 +5,7 @@ import { S, subscribe } from '../state.js';
 import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, ageOf, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
 import { act } from '../actions.js';
-import { dressedArt, ITEM_ICONS, sharpen } from '../art.js';
+import { dressedArt, ITEM_ICONS, sharpen, sideOf, face } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
 import { worldTime } from '../sun.js';
@@ -18,7 +18,7 @@ function scarsHTML(b) {
   const lv = scarLevels(b), list = Object.entries(lv).filter(([, l]) => l);
   if (!list.length) return '';
   const by = id => (SPECIES[id] ? SPECIES[id].species : CREATURES[id] ? CREATURES[id].name : null);
-  return `<div><dt>Scars</dt><dd>${list.map(([pt, l]) => `${PART[pt]}${l === 2 ? ', deep' : ''}${b.scarBy && by(b.scarBy[pt]) ? ` (a ${esc(by(b.scarBy[pt]))})` : ''}`).join('; ')}</dd></div>`;
+  return `<div><dt>Scars</dt><dd>${list.map(([pt, l]) => `${PART[pt]} (${sideOf(b.id, pt)} side)${l === 2 ? ', deep' : ''}${b.scarBy && by(b.scarBy[pt]) ? ` (a ${esc(by(b.scarBy[pt]))})` : ''}`).join('; ')}</dd></div>`;
 }
 import { statsHTML, powerText, genesText, derivedHTML, breakdownHTML, modsHTML, loadHTML } from './stats.js';
 import { setTab } from './tabs.js';
@@ -195,8 +195,11 @@ function openZoom(b) {
   }
   const art = dressedArt(b.type, 8, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id);
   const base = art.querySelector('.dino-base') || art;
-  zoomBox.innerHTML = `<p class="zoom-name">${esc(b.name)} <span class="hint">Tap anywhere to close</span></p>`;
+  zoomBox.innerHTML = `<p class="zoom-name">${esc(b.name)} <button class="ghost" type="button" data-turn>Turn around</button> <span class="hint">Tap anywhere else to close</span></p>`;
   zoomBox.prepend(art);
+  // (it faces right, its left side showing; turned, its right side and the scars on it)
+  let dir = 1;
+  zoomBox.querySelector('[data-turn]').addEventListener('click', e => { e.stopPropagation(); dir = -dir; face(art, dir); });
   const fitTo = (w, h) => {
     const dpr = window.devicePixelRatio || 1;
     const tall = Math.min(h / dpr, innerHeight * 0.82, innerWidth * 0.92 * h / w);

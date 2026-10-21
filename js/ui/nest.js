@@ -6,7 +6,7 @@ import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
-import { dressedArt, ITEM_ICONS, adultWalk, sheetFor } from '../art.js';
+import { dressedArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
 import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime } from '../sun.js';
 import { powerText } from './stats.js';
@@ -144,7 +144,7 @@ function syncWalkers() {
       const key = lookKey(b);
       if (have.gearKey !== key) {
         const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id);
-        art.style.transform = have.art.style.transform;
+        art.style.transform = have.art.style.transform; have.faced = null;
         have.art.replaceWith(art);
         have.art = art;
         have.gearKey = key;
@@ -295,7 +295,7 @@ function step(t) {
     let lift = moving && !w.gait ? Math.abs(Math.sin(w.t)) * 3 : 0;
     if (w.hop > 0) { w.hop -= dt; lift += Math.sin(Math.PI * (1 - Math.max(0, w.hop) / 0.45)) * 16; }
     w.el.style.transform = `translate(${w.x.toFixed(1)}px, ${(-lift).toFixed(1)}px)`;
-    w.art.style.transform = `scaleX(${w.dir})`;
+    if (w.dir !== w.faced) { w.faced = w.dir; face(w.art, w.dir); }
   }
   raf = requestAnimationFrame(step);
 }

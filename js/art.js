@@ -408,6 +408,17 @@ export function scarPlace(type, sex, part, stage, mark) {
   const a = scarAnchor(type, sex, part, stage);
   return a && mark && mark.deep && a.deep ? a.deep : a;
 }
+// Which side of a dinosaur each scar is on, its own way (by its id and the scar's key): the sprites face
+// right, showing the left side; turned to face left, its right side shows, and the scars on it
+export const sideOf = (seed, key) => (seed == null ? null : seededRand(`side:${seed}:${key}`)() < 0.5 ? 'left' : 'right');
+// a dinosaur's picture turned to face one way (dir 1 right, -1 left): mirrored, with the scars of the side
+// that shows
+export function face(art, dir) {
+  const base = art.classList.contains('dino-base') ? art : art.querySelector('.dino-base') || art, side = dir < 0 ? 'right' : 'left';
+  art.style.transform = `scaleX(${dir})`;
+  if (base.sheet && base.side !== side) { base.side = side; base.dirty = true; }
+  art.querySelectorAll && art.querySelectorAll('.scar-layer[data-side]').forEach(l => { l.hidden = l.dataset.side !== side; });
+}
 // Each dinosaur's scars where they fell on it: a scar's place is the middle of where it may be, and each
 // dinosaur (by its id, and the scar's key) has it moved, turned and sized within the place's spread
 // (d: how far, as a share of the drawing's width; r: degrees either way; s: a share bigger or smaller),
@@ -490,7 +501,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
-    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage)]).filter(([a]) => a), src, seed)
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), sideOf(seed, part)]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
@@ -506,6 +517,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     const layer = document.createElement('span');
     layer.className = `scar-layer scar-${mark.level || 'art'}`;
     layer.dataset.part = part;
+    if (seed != null) { layer.dataset.side = sideOf(seed, part); layer.hidden = layer.dataset.side !== 'left'; }
     Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     if (mark.level) layer.innerHTML = scarSVG(mark.level);
     else if (mark.tint || mark.skin) layer.appendChild(tintedCanvas(mark));
@@ -904,7 +916,8 @@ export function drawFrame(cv, frame) {
   // (each scar made once on the first frame, from the skin under it there, then laid bent as that skin
   // has moved: by its own keys if it has them, else point by point as the drawing moves)
   const made = [];
-  for (const [placed, mark, key, main] of cv.scars) {
+  for (const [placed, mark, key, main, side] of cv.scars) {
+    if (side && cv.side && side !== cv.side) continue;
     const place = spread(placed, main, cv.seed, key, cv.home || s);
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
     const piece = onSkin(cv, place, mark, k);
@@ -958,7 +971,7 @@ export function sheetArt(sheet, px, label, scars, fallback, seed = null) {
   const cv = document.createElement('canvas');
   // (at the sprite's own size: SHARP more, should scars want more detail than the drawing has)
   cv.width = sheet.w * SHARP; cv.height = sheet.h * SHARP;
-  Object.assign(cv, { sheet, home: sheet, seed, scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
+  Object.assign(cv, { sheet, home: sheet, seed, side: 'left', scars, hold: null, drawn: -1, dirty: true, born: performance.now() });
   cv.style.height = Math.round(px * 17) + 'px';
   cv.style.width = 'auto';
   cv.setAttribute('role', 'img');
