@@ -339,7 +339,8 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(skin ? { skin } : {}) }
+  // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(src === art.healed ? { rim: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -584,6 +585,45 @@ function reliefOf(mark) {
   return (reliefs[mark.key] = c);
 }
 const work = { small: null };
+// A deep wound that closed on its own fills in from its edges: the new skin there brings the dark
+// pigment of the skin around, the middle, last to close, is pale and pinkish grey. Its middle as a
+// pale veil, the stronger the farther from the scar's edge (MIDDLE: how pale, and how far in it is
+// palest, as a share of the picture), never over its ink.
+const MIDDLE = { colour: [206, 186, 176], alpha: 0.6, depth: 0.05 };
+const middles = {};
+function middleOf(mark) {
+  if (middles[mark.key]) return middles[mark.key];
+  const img = scarImage(mark);
+  if (!img.complete || !img.naturalWidth) return null;
+  const W = img.naturalWidth, H = img.naturalHeight, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  try {
+    const d = g.getImageData(0, 0, W, H), px = d.data, far = new Float32Array(W * H), BIG = 1e6;
+    // how far each pixel of the scar is from its edge (a two-pass chamfer)
+    for (let i = 0; i < W * H; i++) far[i] = px[i * 4 + 3] > 128 ? BIG : 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (!far[i]) continue;
+      far[i] = Math.min(far[i], x ? far[i - 1] + 1 : 0, y ? far[i - W] + 1 : 0, x && y ? far[i - W - 1] + 1.414 : 0, y && x < W - 1 ? far[i - W + 1] + 1.414 : 0);
+    }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+      const i = y * W + x;
+      if (!far[i]) continue;
+      far[i] = Math.min(far[i], x < W - 1 ? far[i + 1] + 1 : 0, y < H - 1 ? far[i + W] + 1 : 0, x < W - 1 && y < H - 1 ? far[i + W + 1] + 1.414 : 0, y < H - 1 && x ? far[i + W - 1] + 1.414 : 0);
+    }
+    const deep = MIDDLE.depth * W;
+    for (let i = 0; i < W * H; i++) {
+      const k = i * 4, lum = (0.3 * px[k] + 0.59 * px[k + 1] + 0.11 * px[k + 2]) / 255;
+      const t = Math.min(1, far[i] / deep), v = t * t * (3 - 2 * t);
+      px[k] = MIDDLE.colour[0]; px[k + 1] = MIDDLE.colour[1]; px[k + 2] = MIDDLE.colour[2];
+      px[k + 3] = lum < 0.25 ? 0 : px[k + 3] * v * MIDDLE.alpha;
+    }
+    g.putImageData(d, 0, 0);
+  } catch (e) { return null; }
+  return (middles[mark.key] = c);
+}
 function onSkin(cv, a, mark, k, i) {
   const s = cv.sheet, relief = reliefOf(mark);
   if (!relief || !mark.skin) return null;
@@ -618,6 +658,8 @@ function onSkin(cv, a, mark, k, i) {
   };
   lay(relief, 'multiply');
   lay(relief, 'destination-in');
+  const middle = mark.rim && middleOf(mark);
+  if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
   return { canvas: piece, x, y, side };
 }
