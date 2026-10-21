@@ -353,7 +353,7 @@ const STAYS = new Set(['horns', 'butt']);
 const OWN_COLOUR = new Set(['horns', 'butt']);
 // pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
 // and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
-const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.1, 0.5] };
+const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.25, 0.6] };
 const sizeOf = (src, seed, part) => {
   const r = SIZES[src];
   return r ? r[0] + (r[1] - r[0]) * (seed == null ? 1 : seededRand(`size:${seed}:${part}`)()) : 1;
