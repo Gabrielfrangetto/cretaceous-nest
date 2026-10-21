@@ -330,10 +330,11 @@ const SCAR_ART = {
   horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp', healed: 'sprites/scars/horns-2-healed.webp' },
 };
 // a look with more than one picture (a list): each dinosaur its own of them, by its id and the part,
-// always the same for it (the claw's light and healed deep scars: three each, for the neck, flank and legs)
+// always the same for it (the claw's: three light and three healed deep scars, for the neck, flank and legs; its open deep wound)
 const VARIANTS = {
   claw: {
     1: ['sprites/scars/body-claw-1.webp', 'sprites/scars/neck-claw-1.webp', 'sprites/scars/legs-claw-1.webp'],
+    2: ['sprites/scars/body-claw-2.webp'],
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
 };
