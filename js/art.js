@@ -749,10 +749,13 @@ function blindEye(ctx, eye, s, disp, turn = 0) {
   ctx.restore();
   return true;
 }
-// The drawing's own outlines over a scar: where an ink line of the sprite crosses it (a leg against the
-// belly, the rim of an eye, a fold), the scar goes under it; and a scar told to stay (place.stay) keeps
-// to the part of the drawing its middle is on, those lines its edge. Worked out once for a place, on the
-// first frame, as a mask over the scar's square (it moves with the skin as the scar does).
+// The drawing's own outlines under a scar: where an ink line of the sprite crosses it (a leg against the
+// belly, the rim of an eye, a fold), the scar covers it, the line kept as a crease in the scar's own
+// colour, darker (CREASE), not a black stroke over a wound; only the body's own edge (a line beside the
+// outside of the drawing) stays black over it. A scar told to stay (place.stay) keeps to the part of the
+// drawing its middle is on, those lines its edge. Worked out once for a place, on the first frame, as a
+// mask over the scar's square, and its creases (.ink) as another (they move with the skin as the scar does).
+const CREASE = 0.55;   // how much of the scar's colour again a crease is multiplied by (0 none)
 // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
@@ -801,7 +804,24 @@ function linesOf(s, place, mark) {
         keep = grown;
       }
     }
-    for (let i = 0; i < M * M; i++) { const k = i * 4; px[k] = px[k + 1] = px[k + 2] = 255; px[k + 3] = keep[i] && !ink[i] ? 255 : 0; }
+    // (the body's edge: a line within EDGE pixels of the outside of the drawing)
+    const out = i => px[i * 4 + 3] <= 40, EDGE = 3, edge = new Uint8Array(M * M);
+    for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) {
+      if (!ink[y * M + x]) continue;
+      for (let dy = -EDGE; dy <= EDGE && !edge[y * M + x]; dy++) for (let dx = -EDGE; dx <= EDGE; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < M && yy < M && out(yy * M + xx)) { edge[y * M + x] = 1; break; }
+      }
+    }
+    // (every line inside is covered, a crease; keeping to a part, its lines are its edge, left as they are)
+    const crease = new Uint8Array(M * M);
+    if (!place.stay) for (let i = 0; i < M * M; i++) if (ink[i] && !edge[i]) crease[i] = 1;
+    const ic = document.createElement('canvas'); ic.width = M; ic.height = M;
+    const ig = ic.getContext('2d'), id = ig.createImageData(M, M);
+    for (let i = 0; i < M * M; i++) { const k = i * 4; id.data[k] = id.data[k + 1] = id.data[k + 2] = 255; id.data[k + 3] = crease[i] ? 255 : 0; }
+    ig.putImageData(id, 0, 0);
+    c.ink = ic;
+    for (let i = 0; i < M * M; i++) { const k = i * 4; px[k] = px[k + 1] = px[k + 2] = 255; px[k + 3] = (keep[i] && !ink[i]) || crease[i] ? 255 : 0; }
     g.putImageData(d, 0, 0);
   } catch (e) { return null; }
   return (linesCache[key] = c);
@@ -928,6 +948,16 @@ function onSkin(cv, place, mark, k) {
     g.save(); g.globalCompositeOperation = 'source-atop'; g.drawImage(pale, 0, 0); g.restore();
   }
   if (crimson) lay(crimson, 'source-atop', mark.tint);
+  // (the drawing's lines under it as creases: the scar's own colour, darker)
+  if (lines && lines.ink && CREASE) {
+    const cr = document.createElement('canvas'); cr.width = P; cr.height = P;
+    const cg = cr.getContext('2d');
+    cg.drawImage(piece, 0, 0);
+    cg.globalCompositeOperation = 'destination-in';
+    cg.translate(P / 2, P / 2); cg.rotate((place.r || 0) * Math.PI / 180);
+    cg.drawImage(lines.ink, -size * k / 2, -size * k / 2, size * k, size * k);
+    g.save(); g.globalCompositeOperation = 'multiply'; g.globalAlpha = CREASE; g.drawImage(cr, 0, 0); g.restore();
+  }
   // (painted on, not a veil: solid wherever the scar is, only its very edge soft, so the scales and
   // pattern of the skin don't show through what has none; SCAR_SOLID: the art's alpha from where it is
   // solid)
