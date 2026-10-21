@@ -340,6 +340,7 @@ const VARIANTS = {
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
   horns: {
+    healed: ['sprites/scars/body-horns-2-healed.webp'],
     surgical: ['sprites/scars/body-horns-surgical.webp'],
   },
 };
@@ -364,7 +365,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
