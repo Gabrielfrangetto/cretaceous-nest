@@ -82,7 +82,7 @@ const showReadout = a => {
 
 let art = null, active = null;
 // the animated drawing, when there is one: its canvas, and the frame held (null while it plays)
-let sheetCv = null, held = 0, mark = null;
+let sheetCv = null, held = 0, mark = null, eyeRing = null;
 const frames = () => (sheetCv ? sheetCv.sheet.frames : 1);
 const frameNow = () => (sheetCv ? (held != null ? held : Math.max(0, sheetCv.drawn)) : 0);
 // a scar's place at the frame on screen
@@ -112,8 +112,9 @@ function renderScars() {
   $('eyeR').value = eye ? eye.r : 0.02; $('eyeR').disabled = !eye; $('eyeRNo').textContent = eye ? (eye.r * 100).toFixed(2) + '%' : 'not set';
   $('eyeH').value = eye && eye.h ? eye.h : 1; $('eyeH').disabled = !eye; $('eyeHNo').textContent = eye ? (eye.h && eye.h < 1 ? Math.round(eye.h * 100) + '% as tall as wide' : 'round') : '';
   $('eyeA').value = eye ? eye.a || 0 : 0; $('eyeA').disabled = !eye; $('eyeANo').textContent = eye ? (eye.a || 0) + '°' : '';
+  eyeRing = null;
   if (eye) {
-    const ring = document.createElement('span');
+    const ring = eyeRing = document.createElement('span');
     ring.className = 'eye-ring';
     Object.assign(ring.style, { left: eye.x * 100 + '%', top: eye.y * 100 + '%', width: eye.r * 2 * 100 + '%', aspectRatio: String(1 / (eye.h || 1)), rotate: (eye.a || 0) + 'deg' });
     art.appendChild(ring);
@@ -166,6 +167,9 @@ function showFrame() {
   $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'It moves with the skin under it by itself. To steer it yourself, move it on a frame: that frame becomes a key.';
   $('play').textContent = held == null ? 'Stop' : 'Play';
   if (mark) mark.hidden = !scarsOf()[$('slot').value];
+  // (the eye's ring moves with the skin under it, as the eye does)
+  const eye = scarsOf().eye;
+  if (eyeRing && eye) { const e = here(eye); Object.assign(eyeRing.style, { left: e.x * 100 + '%', top: e.y * 100 + '%' }); }
   if (mark && a) {
     const b = here(a);
     Object.assign(mark.style, { left: (b.x * 100) + '%', top: (b.y * 100) + '%', width: (a.w * 100) + '%', height: (a.w * sheetCv.sheet.w / sheetCv.sheet.h * 100) + '%', rotate: (b.r || 0) + 'deg' });

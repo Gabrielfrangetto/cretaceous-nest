@@ -973,7 +973,8 @@ export function drawFrame(cv, frame) {
     if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
   for (const [a, mark, piece, disp, blinds] of made) {
-    if (blinds && !blindEye(ctx, cv.eye, s, disp)) cv.dirty = true;
+    // (the eye moves with the skin under it, whatever keys steer the scar across it)
+    if (blinds && !blindEye(ctx, cv.eye, s, (x, y) => { const [dx, dy] = motionAt(s, x / s.w, y / s.h, frame); return [dx * s.w, dy * s.h]; })) cv.dirty = true;
     if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
