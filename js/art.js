@@ -544,6 +544,68 @@ function tintOf(mark) {
   } catch (e) { /* a picture that can't be read stays as it is */ }
   return (tinted[key] = c);
 }
+// A scar in the colours of the skin under it, pixel by pixel: the drawing there blurred (its outlines
+// and scales smoothed away), times the scar's relief (its light and shade, darker by SCAR_SHADE, its
+// ink kept), then the crimson of a wound over it as much as it is open. Made on the frame being drawn,
+// in its own pixels (k a sheet pixel's size), as a square piece to lay over it.
+const reliefs = {};
+function reliefOf(mark) {
+  if (reliefs[mark.key]) return reliefs[mark.key];
+  const img = scarImage(mark);
+  if (!img.complete || !img.naturalWidth) return null;
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  try {
+    const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+    let mean = 0, n = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = (0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]) / 255;
+      if (px[i + 3] > 128 && lum >= 0.25) { mean += lum; n++; }
+    }
+    mean = n ? mean / n : 0.6;
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3]) continue;
+      const lum = (0.3 * px[i] + 0.59 * px[i + 1] + 0.11 * px[i + 2]) / 255;
+      if (lum < 0.25) continue;
+      px[i] = px[i + 1] = px[i + 2] = Math.min(255, lum / mean * SCAR_SHADE * 255);
+    }
+    g.putImageData(d, 0, 0);
+  } catch (e) { return null; }
+  return (reliefs[mark.key] = c);
+}
+const work = { small: null };
+function onSkin(cv, a, mark, k, i) {
+  const s = cv.sheet, relief = reliefOf(mark);
+  if (!relief || !mark.skin) return null;
+  const crimson = mark.tint ? tintOf({ key: mark.key, src: mark.src, tint: 1 }) : null;
+  if (mark.tint && !crimson) return null;
+  const size = a.w * s.w * mark.scale, side = size * 1.42, x = a.x * s.w - side / 2, y = a.y * s.h - side / 2;
+  const P = Math.max(2, Math.ceil(side * k)), q = Math.max(2, Math.round(P / 10));
+  // (each scar's piece kept with its drawing, made again each frame)
+  const pieces = cv.pieces || (cv.pieces = []), piece = pieces[i] || (pieces[i] = document.createElement('canvas'));
+  const small = work.small || (work.small = document.createElement('canvas'));
+  piece.width = P; piece.height = P; small.width = q; small.height = q;
+  const g = piece.getContext('2d'), sg = small.getContext('2d');
+  // the skin under it, smoothed: drawn small and back
+  sg.imageSmoothingQuality = 'high';
+  sg.clearRect(0, 0, q, q);
+  sg.drawImage(cv, x * k, y * k, P, P, 0, 0, q, q);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(small, 0, 0, q, q, 0, 0, P, P);
+  const lay = (img, op, alpha = 1) => {
+    g.save();
+    g.globalCompositeOperation = op; g.globalAlpha = alpha;
+    g.translate(P / 2, P / 2); g.rotate((a.r || 0) * Math.PI / 180);
+    g.drawImage(img, -size * k / 2, -size * k / 2, size * k, size * k);
+    g.restore();
+  };
+  lay(relief, 'multiply');
+  lay(relief, 'destination-in');
+  if (crimson) lay(crimson, 'source-atop', mark.tint);
+  return { canvas: piece, x, y, side };
+}
 const markImage = mark => (mark.tint || mark.skin ? tintOf(mark) : scarImage(mark));
 const markReady = mark => { const m = markImage(mark); return !!m && (m.tagName === 'CANVAS' || (m.complete && m.naturalWidth > 0)); };
 // (on a sprite drawn as it is, the wound is a canvas of its own, filled once its scar has loaded)
@@ -587,15 +649,21 @@ export function drawFrame(cv, frame) {
   else {
     ctx.drawImage(img, (frame % s.cols) * s.w, Math.floor(frame / s.cols) * s.h, s.w, s.h, 0, 0, s.w, s.h);
   }
-  ctx.globalCompositeOperation = 'source-atop';
+  // (each scar takes the skin under it, so all are made from the drawing before any is laid on it)
+  const made = [];
   for (const [place, mark] of cv.scars) {
-    const a = placeOn(s, place, frame), img = markImage(mark);
-    if (!markReady(mark)) { cv.dirty = true; continue; }
+    const a = placeOn(s, place, frame);
+    if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
+    made.push([a, mark, onSkin(cv, a, mark, k, made.length)]);
+  }
+  ctx.globalCompositeOperation = 'source-atop';
+  for (const [a, mark, piece] of made) {
     const size = a.w * s.w * mark.scale;
+    if (piece) { ctx.drawImage(piece.canvas, piece.x, piece.y, piece.side, piece.side); continue; }
     ctx.save();
     ctx.translate(a.x * s.w, a.y * s.h);
     ctx.rotate((a.r || 0) * Math.PI / 180);
-    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.drawImage(markImage(mark), -size / 2, -size / 2, size, size);
     ctx.restore();
   }
   ctx.globalCompositeOperation = 'source-over';
