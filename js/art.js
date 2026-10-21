@@ -331,7 +331,7 @@ const SCAR_ART = {
 };
 // a part's own pictures, over its kind's (their claw scars, light and deep)
 const PART_ART = {
-  neck: { claw: { healed: 'sprites/scars/neck-claw-2-healed.webp' } },
+  neck: { claw: { 1: 'sprites/scars/neck-claw-1.webp', healed: 'sprites/scars/neck-claw-2-healed.webp' } },
   body: { claw: { 1: 'sprites/scars/body-claw-1.webp', healed: 'sprites/scars/body-claw-2-healed.webp' } },
   legs: { claw: { healed: 'sprites/scars/legs-claw-2-healed.webp' } },
 };
