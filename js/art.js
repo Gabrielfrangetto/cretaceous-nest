@@ -589,7 +589,9 @@ const work = { small: null };
 // belly, the rim of an eye, a fold), the scar goes under it; and a scar told to stay (place.stay) keeps
 // to the part of the drawing its middle is on, those lines its edge. Worked out once for a place, on the
 // first frame, as a mask over the scar's square (it moves with the skin as the scar does).
-const INK = 0.13;   // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter)
+// how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter), and how
+// little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
+const INK = 0.13, INK_HUE = 45;
 const linesCache = {};
 function linesOf(s, place, mark) {
   const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale].join('|');
@@ -607,7 +609,8 @@ function linesOf(s, place, mark) {
     const d = g.getImageData(0, 0, M, M), px = d.data, ink = new Uint8Array(M * M), skin = new Uint8Array(M * M);
     for (let i = 0; i < M * M; i++) {
       const k = i * 4, lum = (0.3 * px[k] + 0.59 * px[k + 1] + 0.11 * px[k + 2]) / 255;
-      if (px[k + 3] > 200 && lum < INK) ink[i] = 1; else if (px[k + 3] > 40) skin[i] = 1;
+      const hue = Math.max(px[k], px[k + 1], px[k + 2]) - Math.min(px[k], px[k + 1], px[k + 2]);
+      if (px[k + 3] > 200 && lum < INK && hue < INK_HUE) ink[i] = 1; else if (px[k + 3] > 40) skin[i] = 1;
     }
     let keep = skin;
     if (place.stay) {
