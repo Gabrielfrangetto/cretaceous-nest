@@ -330,18 +330,17 @@ const SCAR_ART = {
 };
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
-// (skin: the skin's colour where it is, for a sewn-up wound, which heals into it)
+// (skin: the skin's colour where it is: a scar is that, darker, and a wound heals into it)
 export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false) {
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   // (a deep one: the open wound while it gapes, its healed look as it closes and once closed)
   const art = SCAR_ART[style] || {};
   const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
-  const sewn = stitched && tint && (src === art.stitched || src === art.surgical);
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(sewn && skin ? { skin } : {}) }
-    : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t ? 0 : level, tint: t };
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(skin ? { skin } : {}) }
+    : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
 // the same drawing, or the species' own
@@ -439,7 +438,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (each scar placed on the part: [its place's key, how it looks])
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
     .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5)
-      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)))]));
+      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage))]));
   // a scarred animated sprite is drawn frame by frame, its scars following the body
   const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
@@ -463,7 +462,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
     layer.dataset.part = part;
     Object.assign(layer.style, { left: (a.x * 100) + '%', top: (a.y * 100) + '%', width: (a.w * (mark.level ? 1 : mark.scale) * 100) + '%', transform: `translate(-50%, -50%) rotate(${a.r || 0}deg)` });
     if (mark.level) layer.innerHTML = scarSVG(mark.level);
-    else if (mark.tint) layer.appendChild(tintedCanvas(mark));
+    else if (mark.tint || mark.skin) layer.appendChild(tintedCanvas(mark));
     else layer.appendChild(pictureOf(mark.src));
     box.appendChild(layer);
   }
@@ -510,6 +509,7 @@ const scarImage = mark => imageOf(scarImages, mark.key, mark.src);
 // An open wound: the scar's flesh dark crimson (its pale ridges a little lighter, its ink kept), as much
 // as the wound is open; made once per scar and shade
 const tinted = {};
+const SCAR_SHADE = 0.72;   // how much darker a scar is than the skin around it
 function tintOf(mark) {
   const key = mark.key + '|' + mark.tint + '|' + (mark.skin || '');
   if (tinted[key]) return tinted[key];
@@ -521,8 +521,9 @@ function tintOf(mark) {
   g.drawImage(img, 0, 0);
   try {
     const d = g.getImageData(0, 0, c.width, c.height), px = d.data, t = mark.tint;
-    // (sewn up, it heals from crimson into the skin around it, painted as the crimson is)
-    const skin = mark.skin && [1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255);
+    // (a scar is the skin around it, darker (SCAR_SHADE), painted as the crimson is; a wound heals from
+    // crimson into it)
+    const skin = mark.skin && [1, 3, 5].map(i => parseInt(mark.skin.slice(i, i + 2), 16) / 255 * SCAR_SHADE);
     // (the skin's colour is the drawing's middle tone: its shadows darker, its highlights lighter)
     let mean = 0, n = 0;
     if (skin) for (let i = 0; i < px.length; i += 4) {
@@ -543,7 +544,7 @@ function tintOf(mark) {
   } catch (e) { /* a picture that can't be read stays as it is */ }
   return (tinted[key] = c);
 }
-const markImage = mark => (mark.tint ? tintOf(mark) : scarImage(mark));
+const markImage = mark => (mark.tint || mark.skin ? tintOf(mark) : scarImage(mark));
 const markReady = mark => { const m = markImage(mark); return !!m && (m.tagName === 'CANVAS' || (m.complete && m.naturalWidth > 0)); };
 // (on a sprite drawn as it is, the wound is a canvas of its own, filled once its scar has loaded)
 function tintedCanvas(mark) {
