@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, sheetFor, SCAR_LOOKS, SPREAD } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, sheetFor, eyeTrack, SCAR_LOOKS, SPREAD } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here, times the zoom
@@ -167,9 +167,12 @@ function showFrame() {
   $('keys').textContent = keys.length ? `Keys on frames 1, ${keys.map(f => f + 1).join(', ')}.` : 'It moves with the skin under it by itself. To steer it yourself, move it on a frame: that frame becomes a key.';
   $('play').textContent = held == null ? 'Stop' : 'Play';
   if (mark) mark.hidden = !scarsOf()[$('slot').value];
-  // (the eye's ring moves with the skin under it, as the eye does)
+  // (the eye's ring follows the eye, found in each frame)
   const eye = scarsOf().eye;
-  if (eyeRing && eye) { const e = here(eye); Object.assign(eyeRing.style, { left: e.x * 100 + '%', top: e.y * 100 + '%' }); }
+  if (eyeRing && eye) {
+    const s = sheetCv.sheet, t = eyeTrack(s, eye), k = frameNow(), dx = t ? t[k * 2] / s.w : 0, dy = t ? t[k * 2 + 1] / s.h : 0;
+    Object.assign(eyeRing.style, { left: (eye.x + dx) * 100 + '%', top: (eye.y + dy) * 100 + '%' });
+  }
   if (mark && a) {
     const b = here(a);
     Object.assign(mark.style, { left: (b.x * 100) + '%', top: (b.y * 100) + '%', width: (a.w * 100) + '%', height: (a.w * sheetCv.sheet.w / sheetCv.sheet.h * 100) + '%', rotate: (b.r || 0) + 'deg' });

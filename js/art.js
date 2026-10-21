@@ -659,6 +659,51 @@ const onEye = (place, eye) => {
 const BLIND_EYE = 'sprites/scars/eye-blind.webp';
 // (an eye is an oval: h its height as a share of its width, a its tilt in degrees; round if unset)
 const eyeFlat = eye => (eye.h > 0 ? eye.h : 1);
+// Where the eye is on each frame of an animated drawing, found in the frames themselves: the eye and
+// the skin round it on the first frame, matched in each frame near where it was (the closest likeness,
+// to a fraction of a pixel), so a lost eye stays on the eye exactly as the drawing moves it. Offsets in
+// the sheet's pixels per frame, worked out once a sheet and eye; null until its picture has loaded.
+const eyeTracks = new Map();
+export function eyeTrack(s, eye) {
+  const key = [s.sheet, eye.x, eye.y, eye.r].join('|');
+  if (eyeTracks.has(key)) return eyeTracks.get(key);
+  const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
+  if (!img.complete || !img.naturalWidth) return null;
+  const T = Math.max(5, Math.ceil(eye.r * s.w * 1.6)), S = Math.max(10, Math.ceil(eye.r * s.w * 2.5)), N = 2 * (T + S) + 1;
+  const cx = Math.round(eye.x * s.w), cy = Math.round(eye.y * s.h);
+  const c = document.createElement('canvas'); c.width = N; c.height = N * s.frames;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  for (let f = 0; f < s.frames; f++) g.drawImage(img, (f % s.cols) * s.w + cx - T - S, Math.floor(f / s.cols) * s.h + cy - T - S, N, N, 0, f * N, N, N);
+  let d;
+  try { d = g.getImageData(0, 0, N, N * s.frames).data; } catch (e) { return null; }
+  const lum = new Float32Array(N * N * s.frames);
+  for (let i = 0; i < lum.length; i++) lum[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) * d[i * 4 + 3] / 255;
+  const at = (f, x, y) => lum[(f * N + y) * N + x];
+  const out = new Float32Array(s.frames * 2);
+  for (let f = 1; f < s.frames; f++) {
+    const cost = new Float32Array((2 * S + 1) ** 2);
+    let best = Infinity, bi = 0;
+    for (let oy = -S; oy <= S; oy++) for (let ox = -S; ox <= S; ox++) {
+      let e = 0;
+      for (let y = -T; y <= T; y++) for (let x = -T; x <= T; x++) {
+        const v = at(f, S + T + x + ox, S + T + y + oy) - at(0, S + T + x, S + T + y);
+        e += v * v;
+      }
+      const i = (oy + S) * (2 * S + 1) + ox + S;
+      cost[i] = e;
+      if (e < best) { best = e; bi = i; }
+    }
+    const bx = bi % (2 * S + 1) - S, by = Math.floor(bi / (2 * S + 1)) - S;
+    // (to a fraction of a pixel: the low point of a parabola through the best and its neighbours)
+    const part = (m, o, p) => { const den = m - 2 * o + p; return den > 0 ? Math.max(-0.5, Math.min(0.5, (m - p) / (2 * den))) : 0; };
+    const C = (ox, oy) => cost[(oy + S) * (2 * S + 1) + ox + S];
+    out[f * 2] = bx + (Math.abs(bx) < S ? part(C(bx - 1, by), best, C(bx + 1, by)) : 0);
+    out[f * 2 + 1] = by + (Math.abs(by) < S ? part(C(bx, by - 1), best, C(bx, by + 1)) : 0);
+  }
+  if (eyeTracks.size > 50) eyeTracks.clear();
+  eyeTracks.set(key, out);
+  return out;
+}
 function blindEye(ctx, eye, s, disp) {
   if (!eye) return true;
   const img = imageOf(scarImages, BLIND_EYE, asset(BLIND_EYE));
@@ -973,8 +1018,9 @@ export function drawFrame(cv, frame) {
     if (h) { ctx.globalAlpha = h.alpha; laySkin(ctx, h, disp, k); ctx.globalAlpha = 1; }
   }
   for (const [a, mark, piece, disp, blinds] of made) {
-    // (the eye moves with the skin under it, whatever keys steer the scar across it)
-    if (blinds && !blindEye(ctx, cv.eye, s, (x, y) => { const [dx, dy] = motionAt(s, x / s.w, y / s.h, frame); return [dx * s.w, dy * s.h]; })) cv.dirty = true;
+    // (the eye where the drawing has it on this frame, whatever keys steer the scar across it)
+    const track = blinds && eyeTrack(s, cv.eye);
+    if (blinds && (!track || !blindEye(ctx, cv.eye, s, () => [track[frame * 2], track[frame * 2 + 1]]))) cv.dirty = true;
     if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
