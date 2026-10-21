@@ -107,6 +107,7 @@ function renderScars() {
   if ($('slot').value !== part) $('slot').value = keysOn(baseOf(part))[0] || baseOf(part);
   const on = !!scarsOf()[$('slot').value];
   $('addScar').hidden = on; $('anotherScar').hidden = !on; $('removeScar').hidden = !on;
+  $('stay').disabled = !on; $('stay').checked = !!(on && scarsOf()[$('slot').value].stay);
   if (base) base.style.height = TALL * zoom + 'px';
   // (zoomed in, drawn from the drawing at its full size)
   if (base && base.sheet && zoom > 1) sharpen(base);
@@ -170,7 +171,7 @@ const prune = (o) => {
 const output = () => 'export const ANCHORS = ' + format(anchors) + ';\n\nexport const SCAR_ANCHORS = ' + JSON.stringify(prune(scarSet) || {}, (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v), 2) + ';\n';
 
 function render() {
-  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
+  for (const [id, on] of [['stageField', scarring()], ['lookField', scarring()], ['woundField', scarring()], ['skinField', scarring()], ['scarAddRow', scarring()], ['stayField', scarring()], ['resetItem', !scarring()], ['itemField', !scarring()], ['mField', !scarring()], ['allField', !scarring()]]) $(id).hidden = !on;
   $('slotLabel').textContent = scarring() ? 'Scar' : 'Slot';
   if (scarring()) return renderScars();
   const type = $('type').value, sex = $('sex').value, slot = $('slot').value;
@@ -301,6 +302,13 @@ $('type').addEventListener('change', () => { fillSex(); render(); });
 $('slot').addEventListener('change', () => { if (!scarring()) fillItems(); render(); });
 $('stage').addEventListener('change', render);
 // a scar added where it would go by the equipment's places, to be moved from there
+// a scar kept to its part of the body, both its looks
+$('stay').addEventListener('change', e => {
+  const own = scarsOf()[$('slot').value];
+  if (!own) return;
+  for (const p of [own, own.deep].filter(Boolean)) { if (e.target.checked) p.stay = true; else delete p.stay; }
+  save(); render();
+});
 $('addScar').addEventListener('click', () => {
   const a = withScars(() => scarAnchor($('type').value, $('sex').value, $('slot').value, $('stage').value)) || { x: 0.5, y: 0.5, w: 0.15, r: 0 };
   scarsOf()[$('slot').value] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };

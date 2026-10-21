@@ -585,6 +585,60 @@ function reliefOf(mark) {
   return (reliefs[mark.key] = c);
 }
 const work = { small: null };
+// The drawing's own outlines over a scar: where an ink line of the sprite crosses it (a leg against the
+// belly, the rim of an eye, a fold), the scar goes under it; and a scar told to stay (place.stay) keeps
+// to the part of the drawing its middle is on, those lines its edge. Worked out once for a place, on the
+// first frame, as a mask over the scar's square (it moves with the skin as the scar does).
+const INK = 0.13;   // how dark a pixel of the drawing is to be an outline (its stripes and scales are lighter)
+const linesCache = {};
+function linesOf(s, place, mark) {
+  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale].join('|');
+  if (linesCache[key]) return linesCache[key];
+  const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
+  if (!img.complete || !img.naturalWidth) return null;
+  const M = 192, size = place.w * s.w * mark.scale, c = document.createElement('canvas');
+  c.width = M; c.height = M;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.translate(M / 2, M / 2); g.rotate(-(place.r || 0) * Math.PI / 180); g.scale(M / size, M / size);
+  g.translate(-place.x * s.w, -place.y * s.h);
+  g.drawImage(img, 0, 0, s.w, s.h, 0, 0, s.w, s.h);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  try {
+    const d = g.getImageData(0, 0, M, M), px = d.data, ink = new Uint8Array(M * M), skin = new Uint8Array(M * M);
+    for (let i = 0; i < M * M; i++) {
+      const k = i * 4, lum = (0.3 * px[k] + 0.59 * px[k + 1] + 0.11 * px[k + 2]) / 255;
+      if (px[k + 3] > 200 && lum < INK) ink[i] = 1; else if (px[k + 3] > 40) skin[i] = 1;
+    }
+    let keep = skin;
+    if (place.stay) {
+      // the part its middle is on: skin reached from there without crossing an outline (thickened a
+      // pixel, so a hairline gap doesn't let it through)
+      const wall = new Uint8Array(M * M);
+      for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (ink[y * M + x]) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < M && yy < M) wall[yy * M + xx] = 1;
+      }
+      let seed = -1;
+      for (let r = 0; r < M / 4 && seed < 0; r++) for (let dy = -r; dy <= r && seed < 0; dy++) for (let dx = -r; dx <= r && seed < 0; dx++) {
+        const i = (M / 2 + dy) * M + M / 2 + dx; if (skin[i] && !wall[i]) seed = i;
+      }
+      keep = new Uint8Array(M * M);
+      if (seed >= 0) {
+        const todo = [seed]; keep[seed] = 1;
+        while (todo.length) {
+          const i = todo.pop(), x = i % M, y = (i - x) / M;
+          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && skin[j] && !wall[j]) { keep[j] = 1; todo.push(j); }
+        }
+        // (and back out to the outline it stopped at, so it meets the line)
+        const grown = keep.slice();
+        for (let i = 0; i < M * M; i++) if (keep[i]) for (const j of [i - 1, i + 1, i - M, i + M]) if (j >= 0 && j < M * M && skin[j]) grown[j] = 1;
+        keep = grown;
+      }
+    }
+    for (let i = 0; i < M * M; i++) { const k = i * 4; px[k] = px[k + 1] = px[k + 2] = 255; px[k + 3] = keep[i] && !ink[i] ? 255 : 0; }
+    g.putImageData(d, 0, 0);
+  } catch (e) { return null; }
+  return (linesCache[key] = c);
+}
 // A deep wound that closed on its own fills in from its edges: the new skin there brings the dark
 // pigment of the skin around, the middle, last to close, is pale and pinkish grey. Its middle as a
 // pale veil, the stronger the farther from the scar's edge (MIDDLE: how pale, and how far in it is
@@ -624,7 +678,7 @@ function middleOf(mark) {
   } catch (e) { return null; }
   return (middles[mark.key] = c);
 }
-function onSkin(cv, a, mark, k, i) {
+function onSkin(cv, a, mark, k, i, place) {
   const s = cv.sheet, relief = reliefOf(mark);
   if (!relief || !mark.skin) return null;
   const crimson = mark.tint ? tintOf({ key: mark.key, src: mark.src, tint: 1 }) : null;
@@ -658,6 +712,8 @@ function onSkin(cv, a, mark, k, i) {
   };
   lay(relief, 'multiply');
   lay(relief, 'destination-in');
+  const lines = place && linesOf(s, place, mark);
+  if (lines) lay(lines, 'destination-in');
   const middle = mark.rim && middleOf(mark);
   if (middle) lay(middle, 'source-atop');
   if (crimson) lay(crimson, 'source-atop', mark.tint);
@@ -711,7 +767,7 @@ export function drawFrame(cv, frame) {
   for (const [place, mark] of cv.scars) {
     const a = placeOn(s, place, frame);
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
-    made.push([a, mark, onSkin(cv, a, mark, k, made.length)]);
+    made.push([a, mark, onSkin(cv, a, mark, k, made.length, place)]);
   }
   ctx.globalCompositeOperation = 'source-atop';
   for (const [a, mark, piece] of made) {
