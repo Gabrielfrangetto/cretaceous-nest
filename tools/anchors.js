@@ -130,7 +130,8 @@ function renderScars() {
   const a = current();
   if (a) { $('w').value = a.w; $('r').value = Math.round(here(a).r || 0); showReadout(a); }
   showFrame();
-  const own = scarsOf()[part] && scarsOf()[part].c, other = Object.values(scarsOf()).map(o => o && o.c).find(Boolean);
+  const colour = o => o && (o.c || (o.deep && o.deep.c));
+  const own = colour(scarsOf()[part]), other = Object.values(scarsOf()).map(colour).find(Boolean);
   $('swatch').style.background = own || other || SPECIES[type].body;
   $('swatch').title = own ? 'Picked for this part' : other ? 'Picked on another part of this drawing' : 'The species colour, not picked yet';
   $('out').value = output();
@@ -230,16 +231,19 @@ async function pickAt(e) {
     sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; n++;
   }
   if (!n) { $('msg').textContent = 'No skin there: pick on the body itself.'; return; }
-  editable().c = '#' + sum.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+  // (the colour is the part's, kept on its place whichever look is shown)
+  const own = scarsOf()[$('slot').value];
+  own.c = '#' + sum.map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+  if (own.deep) delete own.deep.c;
   // (shown at once: only a sewn-up wound, past its first crimson, takes it, and only the kinds sewn up)
   if (!['s0.6', 's0.25'].includes($('wound').value)) $('wound').value = 's0.25';
   if (!SEWN.includes($('look').value)) $('look').value = SEWN[0];
   save(); render();
-  $('msg').textContent = `The skin here is ${editable().c}: a wound sewn up on this part heals into it (shown nearly healed).`;
+  $('msg').textContent = `The skin here is ${own.c}: a wound sewn up on this part heals into it (shown nearly healed).`;
 }
 $('pick').addEventListener('click', () => {
   if (needScar()) return; picking = true; $('canvas').classList.add('picking'); $('msg').textContent = 'Click the skin where this scar goes.'; });
-$('unpick').addEventListener('click', () => { const a = scarsOf()[$('slot').value]; if (a) delete a.c; save(); render(); $('msg').textContent = 'Back to the species colour.'; });
+$('unpick').addEventListener('click', () => { const a = scarsOf()[$('slot').value]; if (a) { delete a.c; if (a.deep) delete a.deep.c; } save(); render(); $('msg').textContent = 'Back to the species colour.'; });
 
 // pointer anywhere on the dinosaur: the chosen piece jumps there and follows until released
 $('canvas').addEventListener('pointerdown', e => {

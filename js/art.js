@@ -346,8 +346,9 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
 // the same drawing, or the species' own
 const skinAt = (type, sex, part, stage) => {
-  const a = scarAnchor(type, sex, part, stage), other = Object.values(ownScars(type, sex, stage)).map(o => o && o.c).find(Boolean);
-  return (a && a.c) || other || (SPECIES[type] && SPECIES[type].body) || null;
+  const colour = o => o && (o.c || (o.deep && o.deep.c));
+  const a = scarAnchor(type, sex, part, stage), other = Object.values(ownScars(type, sex, stage)).map(colour).find(Boolean);
+  return colour(a) || other || (SPECIES[type] && SPECIES[type].body) || null;
 };
 // the giver of the worst a part got (a species or a creature), as the kind of blow it gave
 // (or the kind itself, as the anchors tool shows it)
