@@ -329,14 +329,18 @@ const SCAR_ART = {
   bigBite: { 1: 'sprites/scars/bigBite-1.webp' },
   horns: { 1: 'sprites/scars/horns-1.webp', 2: 'sprites/scars/horns-2.webp', healed: 'sprites/scars/horns-2-healed.webp' },
 };
+// a part's own pictures, over its kind's (the neck: its healed deep claw scar)
+const PART_ART = {
+  neck: { claw: { healed: 'sprites/scars/neck-claw-2-healed.webp' } },
+};
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
 // (skin: the skin's colour where it is: a scar is that, darker, and a wound heals into it)
-export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false) {
+export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false, part = null) {
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
   // (a deep one: the open wound while it gapes, its healed look as it closes and once closed)
-  const art = SCAR_ART[style] || {};
+  const art = { ...(SCAR_ART[style] || {}), ...((PART_ART[part] || {})[style] || {}) };
   const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
@@ -494,8 +498,8 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const deepWound = pt => (wounds && Array.isArray(wounds.deep) ? wounds.deep.includes(pt) : open(pt) > 0.5);
   // (each scar placed on the part: [its place's key, how it looks])
   const scarred = look ? [] : SCARS.parts.map(pt => [pt, scarLevel((scars && scars[pt]) || 0)]).filter(([pt, l]) => l || open(pt))
-    .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5)
-      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage))]));
+    .flatMap(([pt, l]) => scarPlaces(type, sex, pt, stage).map(key => [key, open(pt) ? scarMark(styleBy(wounds.by || (scarBy && scarBy[pt])), deepWound(pt) ? 2 : 1, open(pt), !!wounds.stitched, skinAt(type, sex, key, stage), open(pt) <= 0.5, pt)
+      : scarMark(styleBy(scarBy && scarBy[pt]), l, 0, !!(sewn && sewn.includes(pt)), skinAt(type, sex, key, stage), false, pt)]));
   // (one that lost an eye: its first head scar is the one across it, on that side)
   const tookEye = blind && scarred.length ? (scarred.find(([key]) => key.split('~')[0] === 'head') || [])[0] : null;
   // a scarred animated sprite is drawn frame by frame, its scars following the body
