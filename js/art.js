@@ -348,6 +348,8 @@ const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-c
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'butt']);
+// and their healed scar is the skin's own colour, not paled nor dulled: only its relief shows it
+const OWN_COLOUR = new Set(['horns', 'butt']);
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
@@ -362,7 +364,7 @@ export function scarMark(style, level, tint = 0, stitched = false, skin = null, 
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
   const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
-  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t ? { pale: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: 1, tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(src === art.healed ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
@@ -1022,7 +1024,9 @@ function onSkin(cv, place, mark, k) {
   // face, a green neck, a cream jaw), so the scar is solid paint in each, its shading its own)
   flatten(spx, q);
   // (dulled as scar tissue is: some of the bright colours gone, browner)
-  for (let j = 0; j < spx.length; j += 4) {
+  // (one in the skin's own colour: lightened as much as its relief darkens, so it averages the skin)
+  if (mark.own) for (let j = 0; j < spx.length; j += 4) for (let c = 0; c < 3; c++) spx[j + c] = Math.min(255, spx[j + c] / SCAR_SHADE);
+  if (!mark.own) for (let j = 0; j < spx.length; j += 4) {
     const c = dullen([spx[j] / 255, spx[j + 1] / 255, spx[j + 2] / 255]);
     spx[j] = c[0] * 255; spx[j + 1] = c[1] * 255; spx[j + 2] = c[2] * 255;
   }
