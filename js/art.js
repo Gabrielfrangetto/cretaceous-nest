@@ -347,7 +347,10 @@ const VARIANTS = {
   },
 };
 // the stitches of a sewn-up wound picture, apart (laid over it in their own colour, never reddened)
-const THREADS = { 'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-claw-stitched-thread.webp' };
+const THREADS = {
+  'sprites/scars/body-claw-stitched.webp': 'sprites/scars/body-claw-stitched-thread.webp',
+  'sprites/scars/body-horns-stitched.webp': 'sprites/scars/body-horns-stitched-thread.webp',
+};
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'butt']);
