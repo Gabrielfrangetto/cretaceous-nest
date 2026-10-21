@@ -667,7 +667,7 @@ function blindEye(ctx, eye, s, disp) {
   ctx.save(); ctx.globalCompositeOperation = 'source-atop';
   ctx.translate(x, y); ctx.rotate((eye.a || 0) * Math.PI / 180); ctx.scale(1, eyeFlat(eye));
   // (a little over the eye's ring, so its soft edge falls past the coloured part, all of it clouded)
-  ctx.drawImage(img, -r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
+  ctx.drawImage(img, -r * 1.1, -r * 1.1, r * 2.2, r * 2.2);
   ctx.restore();
   return true;
 }

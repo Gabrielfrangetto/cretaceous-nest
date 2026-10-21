@@ -254,17 +254,27 @@ async function fitEye(x, y) {
   let start = -1, best = Infinity;
   for (let i = 0; i < n * n; i++) if (iris(i)) { const dd = (i % n - R) ** 2 + (Math.floor(i / n) - R) ** 2; if (dd < best) { best = dd; start = i; } }
   if (start < 0) return null;
-  const seen = new Uint8Array(n * n), stack = [start], pts = [];
-  seen[start] = 1;
-  while (stack.length) {
-    const i = stack.pop(), px = i % n, py = Math.floor(i / n);
-    pts.push([px, py]);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const qx = px + dx, qy = py + dy, q = qy * n + qx;
-      if (qx < 0 || qy < 0 || qx >= n || qy >= n || seen[q] || !iris(q)) continue;
-      seen[q] = 1; stack.push(q);
+  // (grown from it over all but the dark outline round the eye, its shaded top too; then with the
+  // pupil and the light's gleam inside it: all that the outside cannot reach)
+  const lit = i => d[i * 4 + 3] > 200 && Math.max(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]) >= 46;
+  const grow = (from, ok) => {
+    const seen = new Uint8Array(n * n), stack = from.filter(i => ok(i));
+    for (const i of stack) seen[i] = 1;
+    while (stack.length) {
+      const i = stack.pop(), px = i % n, py = Math.floor(i / n);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const qx = px + dx, qy = py + dy, q = qy * n + qx;
+        if (qx < 0 || qy < 0 || qx >= n || qy >= n || seen[q] || !ok(q)) continue;
+        seen[q] = 1; stack.push(q);
+      }
     }
-  }
+    return seen;
+  };
+  const inside = grow([start], lit);
+  const edge = []; for (let k = 0; k < n; k++) edge.push(k, (n - 1) * n + k, k * n, k * n + n - 1);
+  const outside = grow(edge, i => !inside[i]);
+  const pts = [];
+  for (let i = 0; i < n * n; i++) if (!outside[i]) pts.push([i % n, Math.floor(i / n)]);
   if (pts.length < 6 || pts.length > n * n * 0.4) return null;
   const mx = pts.reduce((t, p) => t + p[0], 0) / pts.length, my = pts.reduce((t, p) => t + p[1], 0) / pts.length;
   let xx = 0, yy = 0, xy = 0;
