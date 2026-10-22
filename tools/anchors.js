@@ -3,7 +3,7 @@
 // stage. Click or drag anywhere on the dinosaur: the chosen one goes there.
 import { SPECIES, ORDER, ITEMS, GEAR_SLOTS, DRAWN_SLOTS, SCARS } from '../js/config.js';
 import { ANCHORS, SCAR_ANCHORS } from '../js/gear-art.js';
-import { dressedArt, adultSpriteUrl, scarAnchor, placeOn, drawFrame, sharpen, sheetFor, eyeTrack, SCAR_LOOKS, SPREAD } from '../js/art.js';
+import { dressedArt, adultSpriteUrl, scarAnchor, noScarOf, placeOn, drawFrame, sharpen, sheetFor, eyeTrack, SCAR_LOOKS, SPREAD } from '../js/art.js';
 
 const KEY = 'cretaceous-nest:anchors', SCAR_KEY = 'cretaceous-nest:scar-anchors';
 const TALL = 340;   // every sprite drawn this tall here, times the zoom
@@ -120,7 +120,7 @@ function renderScars() {
     art.appendChild(ring);
   }
   // (where it is painted that no scar goes)
-  const feathers = scarsOf().noScar || [];
+  const feathers = scarsOf().noScar || shownNoScar();
   $('brushNo').textContent = (+$('brush').value * 100).toFixed(1) + '%';
   $('featherPaint').textContent = feathering ? 'Done painting' : 'Paint';
   if (feathers.length || feathering) {
@@ -205,7 +205,7 @@ function placeAt(a, x, y, r) {
 
 // Drops the species, stages and sexes with nothing placed
 const prune = (o) => {
-  if (Array.isArray(o)) return o.length ? o : undefined;
+  if (Array.isArray(o)) return o;   // (an empty noScar kept: cleared on purpose, not guessed)
   if (!o || typeof o !== 'object' || 'x' in o) return o;
   const kept = Object.fromEntries(Object.entries(o).map(([k, v]) => [k, prune(v)]).filter(([, v]) => v));
   return Object.keys(kept).length ? kept : undefined;
@@ -249,11 +249,13 @@ function render() {
 // The skin's colour where a scar goes, picked off the drawing (the frame on screen, without its scars):
 // a sewn-up wound heals into it
 let picking = false, eyeing = false, feathering = false, featherSvg = null;
+// where no scar goes as the game has it now: painted here, or guessed (horn, beak, claws)
+const shownNoScar = () => withScars(() => noScarOf($('type').value, $('sex').value, $('stage').value)) || [];
 // the feather circles drawn over the drawing (an ellipse each, the drawing not square)
 function drawFeathers() {
   if (!featherSvg) return;
   const r = art.getBoundingClientRect(), aspect = r.width && r.height ? r.width / r.height : 2;
-  featherSvg.innerHTML = (scarsOf().noScar || []).map(([x, y, rr]) => `<ellipse cx="${x * 1000}" cy="${y * 1000}" rx="${rr * 1000}" ry="${rr * 1000 * aspect}"/>`).join('');
+  featherSvg.innerHTML = (scarsOf().noScar || shownNoScar()).map(([x, y, rr]) => `<ellipse cx="${x * 1000}" cy="${y * 1000}" rx="${rr * 1000}" ry="${rr * 1000 * aspect}"/>`).join('');
 }
 // the dinosaur shown: none (each scar right in its place) or one picked at random, to see where its
 // scars fall
@@ -361,7 +363,8 @@ $('canvas').addEventListener('pointerdown', e => {
   if (picking) { pickAt(e); return; }
   if (feathering) {
     // (painting: a circle every half a brush along the stroke; erasing: off goes every circle under it)
-    const brush = +$('brush').value, list = scarsOf().noScar = scarsOf().noScar || [];
+    // (the first stroke starts from where it was guessed: horn, beak and claws)
+    const brush = +$('brush').value, list = scarsOf().noScar = scarsOf().noScar || shownNoScar().map(c => [...c]);
     let last = null;
     const paint = ev => {
       const r = art.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height, aspect = r.width / r.height;
@@ -375,7 +378,6 @@ $('canvas').addEventListener('pointerdown', e => {
     const up = ev => {
       if (ev.pointerId !== e.pointerId) return;
       removeEventListener('pointermove', move); removeEventListener('pointerup', up);
-      if (!list.length) delete scarsOf().noScar;
       save(); render();
     };
     addEventListener('pointermove', move); addEventListener('pointerup', up);
@@ -470,7 +472,7 @@ $('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); re
 $('eyeBlind').addEventListener('change', render);
 $('featherPaint').addEventListener('click', () => { feathering = !feathering; $('canvas').classList.toggle('feathering', feathering); render(); $('msg').textContent = feathering ? 'Paint where no scar goes (tick Erase to rub out). A scar stops where it meets it.' : 'Done: no scar goes where it is painted.'; });
 $('brush').addEventListener('input', () => { $('brushNo').textContent = (+$('brush').value * 100).toFixed(1) + '%'; });
-$('featherClear').addEventListener('click', () => { delete scarsOf().noScar; save(); render(); $('msg').textContent = 'Nothing painted on this drawing: scars may go anywhere on it.'; });
+$('featherClear').addEventListener('click', () => { scarsOf().noScar = []; save(); render(); $('msg').textContent = 'Nothing painted on this drawing: scars may go anywhere on it.'; });
 $('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
 $('eyeH').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value < 1) eye.h = +e.target.value; else delete eye.h; save(); render(); });
 $('eyeA').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value) eye.a = +e.target.value; else delete eye.a; save(); render(); });

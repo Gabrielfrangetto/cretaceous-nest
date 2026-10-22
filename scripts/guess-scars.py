@@ -5,7 +5,7 @@
 # Run after scripts/sheets.py: python3 scripts/guess-scars.py (needs Pillow, numpy)
 import json, re, sys
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 src = open('js/sheets.js').read()
 sheets = json.loads(src[src.index('{'):src.rindex('}') + 1])
@@ -72,6 +72,57 @@ def guess(a):
     }
 
 
+# Horn, beak and claw: keratin over bone, where no scar goes. Found as the drawing's grey patches, each a
+# stretch closed in by its ink lines, of little colour (KERATIN_GREY, the spread of its red, green and blue),
+# neither ink nor pale, and small against the body (KERATIN_SMALL): a beak, a cheek horn, a claw; a grey
+# animal's whole flank is too big to be one. Marked as circles over it, as the anchors tool's brush paints.
+KERATIN_GREY, KERATIN_SMALL = 22, 0.03
+def keratin(rgba):
+    from PIL import ImageDraw
+    a = rgba[..., 3] > 200
+    H, W = a.shape
+    rgb = rgba[..., :3]
+    lum = rgb @ [0.3, 0.59, 0.11]
+    spread = rgb.max(-1) - rgb.min(-1)
+    ink = a & (lum < 255 * 0.13) & (spread < 45)
+    # (the lines thickened a pixel first, so halving the picture doesn't open a gap in a thin one)
+    thick = np.asarray(Image.fromarray((ink * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))) > 0
+    open_ = a & ~thick
+    D = 2
+    sm = open_[::D, ::D]; h, w = sm.shape
+    lab = np.zeros((h, w), int); n = 0; out = []
+    body = sm.sum()
+    ys_, xs_ = np.nonzero(a); bx0, bx1, by0, by1 = xs_.min(), xs_.max(), ys_.min(), ys_.max()
+    bw, bh = bx1 - bx0, by1 - by0
+    for y0 in range(h):
+        for x0 in range(w):
+            if not sm[y0, x0] or lab[y0, x0]: continue
+            n += 1; st = [(y0, x0)]; lab[y0, x0] = n; pts = []
+            while st:
+                y, x = st.pop(); pts.append((y, x))
+                for yy, xx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                    if 0 <= yy < h and 0 <= xx < w and sm[yy, xx] and not lab[yy, xx]: lab[yy, xx] = n; st.append((yy, xx))
+            if len(pts) > KERATIN_SMALL * body or len(pts) < 6: continue
+            ys = np.array([p[0] for p in pts]) * D; xs = np.array([p[1] for p in pts]) * D
+            sp, lm = spread[ys, xs].mean(), lum[ys, xs].mean()
+            # (where keratin is: on the head, the far right (a beak, a horn); at the feet, the bottom (the
+            # claws); or a small dark point anywhere (a hand's claw, a spike); not a grey feather or arm)
+            head = xs.mean() > bx1 - 0.2 * bw and ys.mean() < by0 + 0.6 * bh
+            feet = ys.mean() > by1 - 0.08 * bh and len(pts) < 0.004 * body
+            point = sp < 12 and lm < 140 and len(pts) < 0.002 * body
+            if sp < KERATIN_GREY and 45 < lm < 205 and (head or feet or point):
+                out.append((ys, xs))
+    circles = []
+    d = max(3, int(0.008 * W))
+    for ys, xs in out:
+        m = np.zeros((H, W), bool); m[ys, xs] = True
+        m = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+        for y in range(0, H, d):
+            for x in range(0, W, d):
+                if m[y, x]: circles.append([round(x / W, 4), round(y / H, 4), round(0.8 * d / W, 4)])
+    return circles
+
+
 out = {}
 for key, s in sheets.items():
     if key.endswith('-walk.webp'):
@@ -80,11 +131,14 @@ for key, s in sheets.items():
     a = np.asarray(img)[..., 3] > 128
     try:
         out[key] = guess(a)
+        no = keratin(np.asarray(img).astype(float))
+        if no: out[key]['noScar'] = no
     except (ValueError, IndexError) as e:
         print('no guess for', key, e, file=sys.stderr)
 
 with open('js/scar-guess.js', 'w') as f:
     f.write('// Made by scripts/guess-scars.py: where each scar goes on each animated drawing (its sprite path),\n'
-            '// guessed from its outline, until set in tools/anchors.html: { part: { x, y, w, r } }\n')
+            '// guessed from its outline, until set in tools/anchors.html: { part: { x, y, w, r } }, and noScar: its\n'
+            '// horn, beak and claws, where no scar goes (circles [x, y, r], as painted in the tool)\n')
     f.write('export const SCAR_GUESS = ' + json.dumps(out, indent=1) + ';\n')
 print(len(out), 'drawings guessed')

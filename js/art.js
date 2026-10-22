@@ -467,6 +467,12 @@ const drawingOf = (type, sex, stage) => {
   const url = (stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null) || (SPRITES[type] && SPRITES[type][sex]);
   return url ? url.slice(ROOT.length) : null;
 };
+// where no scar goes on a drawing: as painted in the anchors tool, or, till then, its horn, beak and claws
+// as scripts/guess-scars.py found them
+export const noScarOf = (type, sex, stage) => {
+  const own = ownScars(type, sex, stage);
+  return own.noScar || own.feathers || (SCAR_GUESS[drawingOf(type, sex, stage)] || {}).noScar || null;
+};
 export function scarAnchor(type, sex, part, stage = 'adult') {
   const own = ownScar(type, sex, part, stage);
   if (own) return own;
@@ -615,7 +621,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
-  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = ownScars(type, sex, stage).noScar || ownScars(type, sex, stage).feathers || null; base.metres = heightOf(type, sex, stage); }
+  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = noScarOf(type, sex, stage); base.metres = heightOf(type, sex, stage); }
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;
