@@ -228,7 +228,7 @@ export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || n
 // head, in metres; HEIGHT_REF metres drawn at the usual size), so a Tyrannosaurus towers over a
 // Velociraptor as it did. Animated sprites (.webp) play their idle on their own. (A Velociraptor male
 // a little smaller than the female, as in hawks.)
-const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7, f: 3.7 } };
+const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7, f: 3.85 } };
 // how tall an animal stands at its stage, in metres (a young one as its weight allows: MASS.stage), or
 // 0 when not known
 export const heightOf = (type, sex, stage = 'adult') => {
