@@ -260,8 +260,8 @@ export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRIT
 
 // juvenile sprites drawn so far (sprites/juvenile/), and how tall each is drawn against the others;
 // juveniles without one keep their baby sprite, scaled up
-export const JUVENILE_SPRITES = { dilo: { m: asset('sprites/juvenile/dilo-m.webp') }, raptor: { m: asset('sprites/juvenile/raptor-m.webp') } };
-const JUVENILE_SCALE = { dilo: { m: 0.8 }, raptor: { m: 0.8 } };
+export const JUVENILE_SPRITES = { dilo: { m: asset('sprites/juvenile/dilo-m.webp') }, raptor: { m: asset('sprites/juvenile/raptor-m.webp'), f: asset('sprites/juvenile/raptor-f.webp') } };
+const JUVENILE_SCALE = { dilo: { m: 0.8 }, raptor: { m: 0.8, f: 0.8 } };
 export const juvenileSpriteUrl = (type, sex) => (JUVENILE_SPRITES[type] && JUVENILE_SPRITES[type][sex]) || null;
 
 // pixel-art fallback for species without a sprite, or when an image fails to load

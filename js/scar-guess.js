@@ -225,6 +225,38 @@ export const SCAR_GUESS = {
    "r": 9
   }
  },
+ "sprites/juvenile/raptor-f.webp": {
+  "head": {
+   "x": 0.899,
+   "y": 0.148,
+   "w": 0.065,
+   "r": 0
+  },
+  "neck": {
+   "x": 0.822,
+   "y": 0.111,
+   "w": 0.071,
+   "r": 0
+  },
+  "body": {
+   "x": 0.646,
+   "y": 0.408,
+   "w": 0.11,
+   "r": 0
+  },
+  "legs": {
+   "x": 0.579,
+   "y": 0.575,
+   "w": 0.098,
+   "r": 0
+  },
+  "tail": {
+   "x": 0.22,
+   "y": 0.256,
+   "w": 0.041,
+   "r": 15
+  }
+ },
  "sprites/juvenile/raptor-m.webp": {
   "head": {
    "x": 0.899,
