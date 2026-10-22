@@ -942,6 +942,10 @@ function linesOf(s, place, mark) {
       if (reach * mark.scale >= LINE_LONG * M) for (const i of part) line[i] = 1;
       if (reach * mark.scale >= LINE_WALL * M) for (const i of part) wallLine[i] = 1;
     }
+    // (a fold that ends in the skin, the crease of a thigh's muscle, is covered too: only a line with
+    // something else on its other side stays over a scar)
+    const crease = creasesOf(img, s, place, mark, M, size);
+    if (crease) for (let i = 0; i < M * M; i++) if (crease[i]) line[i] = wallLine[i] = 0;
     let keep = skin;
     if (!place.stay) { keep = new Uint8Array(M * M); for (let i = 0; i < M * M; i++) keep[i] = skin[i] || (ink[i] && !line[i]) ? 1 : 0; }
     if (place.stay) {
@@ -1001,6 +1005,60 @@ function linesOf(s, place, mark) {
     g.putImageData(d, 0, 0);
   } catch (e) { return null; }
   return (linesCache[key] = c);
+}
+// The drawing's lines that part nothing: looked at over a window three times the scar's (so a fold is
+// seen whole), a long line counts as an edge if it runs along the drawing's rim or has two different
+// stretches of skin on its sides (a leg against the belly); one with the same skin all round it, the
+// way round its end, is a fold within the part. Marked over the scar's square, the mask's pixels.
+const CREASE_AREA = 0.12;
+function creasesOf(img, s, place, mark, M, size) {
+  const B = 3 * M, c = document.createElement('canvas');
+  c.width = B; c.height = B;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.translate(B / 2, B / 2); g.rotate(-(place.r || 0) * Math.PI / 180); g.scale(M / size, M / size);
+  g.translate(-place.x * s.w, -place.y * s.h);
+  g.drawImage(img, 0, 0, s.w, s.h, 0, 0, s.w, s.h);
+  const px = g.getImageData(0, 0, B, B).data, N = B * B, ink = new Uint8Array(N), solid = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    const k = i * 4, lum = (0.3 * px[k] + 0.59 * px[k + 1] + 0.11 * px[k + 2]) / 255;
+    const hue = Math.max(px[k], px[k + 1], px[k + 2]) - Math.min(px[k], px[k + 1], px[k + 2]);
+    if (px[k + 3] > 200) { solid[i] = 1; if (lum < INK && hue < INK_HUE) ink[i] = 1; }
+  }
+  // (the skin in stretches, walled by every line; a stretch counts when it is more than a scale's)
+  const region = new Int32Array(N).fill(-1), big = [], least = (CREASE_AREA * M / mark.scale) ** 2;
+  for (let i0 = 0, n = 0; i0 < N; i0++) {
+    if (!solid[i0] || ink[i0] || region[i0] >= 0) continue;
+    const todo = [i0]; region[i0] = n;
+    let area = 0;
+    while (todo.length) {
+      const i = todo.pop(), x = i % B; area++;
+      for (const j of [x > 0 ? i - 1 : -1, x < B - 1 ? i + 1 : -1, i - B, i + B]) if (j >= 0 && j < N && solid[j] && !ink[j] && region[j] < 0) { region[j] = n; todo.push(j); }
+    }
+    big[n++] = area >= least;
+  }
+  const out = new Uint8Array(M * M), seen = new Uint8Array(N);
+  for (let i0 = 0; i0 < N; i0++) {
+    if (!ink[i0] || seen[i0]) continue;
+    const part = [i0], todo = [i0], sides = new Set();
+    seen[i0] = 1;
+    let rim = false;
+    while (todo.length) {
+      const i = todo.pop(), x = i % B, y = (i - x) / B;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const xx = x + dx, yy = y + dy, j = yy * B + xx;
+        if (xx < 0 || yy < 0 || xx >= B || yy >= B) { rim = true; continue; }
+        if (!solid[j]) rim = true;
+        else if (!ink[j]) { if (big[region[j]]) sides.add(region[j]); }
+        else if (!seen[j] && Math.abs(dx) <= 1 && Math.abs(dy) <= 1) { seen[j] = 1; part.push(j); todo.push(j); }
+      }
+    }
+    if (rim || sides.size > 1) continue;
+    for (const i of part) {
+      const x = i % B - M, y = (i - i % B) / B - M;
+      if (x >= 0 && y >= 0 && x < M && y < M) out[y * M + x] = 1;
+    }
+  }
+  return out;
 }
 // A deep wound that closed on its own fills in from its edges: the new skin there brings the dark
 // pigment of the skin around, the middle, last to close, is pale and pinkish grey. Its middle as a
