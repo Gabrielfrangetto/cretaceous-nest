@@ -1323,11 +1323,7 @@ function scar(ctx, ev, id, lost, lame, entry) {
     got[part] = (got[part] || 0) + lost / 3;
   }
   if (lame) got.legs = (got.legs || 0) + SCARS.lame;
-  b.scars = b.scars || {};
-  for (const [part, n] of Object.entries(got)) b.scars[part] = Math.round(((b.scars[part] || 0) + n) * 1000) / 1000;
-  // (each part it struck carries its mark: who gave the scars there last)
   const who = entry && (entry.species || entry.creature);
-  if (who) b.scarBy = { ...(b.scarBy || {}), ...Object.fromEntries(Object.keys(got).map(pt => [pt, who])) };
   // (and its wounds, open while it is hurt: WOUNDS)
   const open = b.wound && !b.wound.until ? b.wound.parts : [], wasDeep = (b.wound && !b.wound.until && b.wound.deep) || [];
   // (a horn in the flank or the neck goes deep as often as it reaches far into the body, whatever the
@@ -1335,8 +1331,15 @@ function scar(ctx, ev, id, lost, lame, entry) {
   const horn = ['horns', 'spikes'].includes(scarStyle(entry)), sev = horn ? severity(b, who) : 0;
   const gored = horn ? GORE.parts.filter(pt => got[pt] && rand() < Math.min(1, GORE.deep * sev)) : [];
   const deep = SCARS.parts.filter(pt => wasDeep.includes(pt) || gored.includes(pt) || (!(horn && GORE.parts.includes(pt)) && (got[pt] || 0) >= WOUNDS.deep) || (lame && pt === 'legs'));
+  // (a blunt blow that went no deeper than a bruise leaves nothing to see: CRUSH)
+  if (SCARS.crush.includes(scarStyle(entry))) for (const pt of Object.keys(got)) if (!deep.includes(pt)) delete got[pt];
+  b.scars = b.scars || {};
+  for (const [part, n] of Object.entries(got)) b.scars[part] = Math.round(((b.scars[part] || 0) + n) * 1000) / 1000;
+  // (each part it struck carries its mark: who gave the scars there last)
+  if (who && Object.keys(got).length) b.scarBy = { ...(b.scarBy || {}), ...Object.fromEntries(Object.keys(got).map(pt => [pt, who])) };
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
-  b.wound = { parts: SCARS.parts.filter(pt => got[pt] || open.includes(pt)), ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
+  const parts = SCARS.parts.filter(pt => got[pt] || open.includes(pt));
+  if (parts.length) b.wound = { parts, ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
   // (and each wound leaves its scar however little it took: a deep one a deep scar)
   for (const pt of Object.keys(got)) b.scars[pt] = Math.max(b.scars[pt], deep.includes(pt) ? SCARS.deep : SCARS.marked);
   return gored.length ? { part: gored[0], sev } : null;

@@ -1153,6 +1153,8 @@ export const GORE = {
 };
 export const SCARS = {
   parts: ['head', 'neck', 'body', 'legs', 'tail'], marked: 1, deep: 2.5, lame: 0.5,
+  // blunt blows: one that goes no deeper than a bruise leaves no wound or scar to see
+  crush: ['club', 'stomp'],
   style: {
     bigBite: { head: 3, neck: 2, body: 1 }, bite: { neck: 2, body: 2, head: 1, legs: 1 }, claw: { body: 3, legs: 2, neck: 1 },
     horns: { legs: 3, head: 2, neck: 1, tail: 1, body: 1 }, spikes: { legs: 3, body: 2, tail: 2 }, club: { legs: 3, body: 1, tail: 1 }, stomp: { body: 2, legs: 2, tail: 1 },
