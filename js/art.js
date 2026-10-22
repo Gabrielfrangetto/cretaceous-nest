@@ -379,7 +379,7 @@ const THREADS = {
   'sprites/scars/body-club-stitched.webp': 'sprites/scars/body-club-stitched-thread.webp',
 };
 // pictures whose edge fades out into the skin, unevenly, as drawn: their alpha kept, not made solid
-const SOFT_EDGE = new Set(['sprites/scars/body-club-stitched.webp']);
+const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body-club-stitched.webp']);
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
