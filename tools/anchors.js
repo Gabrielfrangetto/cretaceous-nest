@@ -119,10 +119,10 @@ function renderScars() {
     Object.assign(ring.style, { left: eye.x * 100 + '%', top: eye.y * 100 + '%', width: eye.r * 2 * 100 + '%', aspectRatio: String(1 / (eye.h || 1)), rotate: (eye.a || 0) + 'deg' });
     art.appendChild(ring);
   }
-  // (the feathers painted on it)
-  const feathers = scarsOf().feathers || [];
+  // (where it is painted that no scar goes)
+  const feathers = scarsOf().noScar || [];
   $('brushNo').textContent = (+$('brush').value * 100).toFixed(1) + '%';
-  $('featherPaint').textContent = feathering ? 'Done painting' : 'Paint feathers';
+  $('featherPaint').textContent = feathering ? 'Done painting' : 'Paint';
   if (feathers.length || feathering) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('feather-paint');
@@ -253,7 +253,7 @@ let picking = false, eyeing = false, feathering = false, featherSvg = null;
 function drawFeathers() {
   if (!featherSvg) return;
   const r = art.getBoundingClientRect(), aspect = r.width && r.height ? r.width / r.height : 2;
-  featherSvg.innerHTML = (scarsOf().feathers || []).map(([x, y, rr]) => `<ellipse cx="${x * 1000}" cy="${y * 1000}" rx="${rr * 1000}" ry="${rr * 1000 * aspect}"/>`).join('');
+  featherSvg.innerHTML = (scarsOf().noScar || []).map(([x, y, rr]) => `<ellipse cx="${x * 1000}" cy="${y * 1000}" rx="${rr * 1000}" ry="${rr * 1000 * aspect}"/>`).join('');
 }
 // the dinosaur shown: none (each scar right in its place) or one picked at random, to see where its
 // scars fall
@@ -361,7 +361,7 @@ $('canvas').addEventListener('pointerdown', e => {
   if (picking) { pickAt(e); return; }
   if (feathering) {
     // (painting: a circle every half a brush along the stroke; erasing: off goes every circle under it)
-    const brush = +$('brush').value, list = scarsOf().feathers = scarsOf().feathers || [];
+    const brush = +$('brush').value, list = scarsOf().noScar = scarsOf().noScar || [];
     let last = null;
     const paint = ev => {
       const r = art.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height, aspect = r.width / r.height;
@@ -375,7 +375,7 @@ $('canvas').addEventListener('pointerdown', e => {
     const up = ev => {
       if (ev.pointerId !== e.pointerId) return;
       removeEventListener('pointermove', move); removeEventListener('pointerup', up);
-      if (!list.length) delete scarsOf().feathers;
+      if (!list.length) delete scarsOf().noScar;
       save(); render();
     };
     addEventListener('pointermove', move); addEventListener('pointerup', up);
@@ -468,9 +468,9 @@ $('middle').addEventListener('click', () => { seed = null; render(); $('msg').te
 $('eyeSet').addEventListener('click', () => { eyeing = true; $('canvas').classList.add('eyeing'); $('msg').textContent = 'Click the coloured part of the eye: the ring fits itself to it.'; });
 $('eyeClear').addEventListener('click', () => { delete scarsOf().eye; save(); render(); $('msg').textContent = 'No eye set on this drawing.'; });
 $('eyeBlind').addEventListener('change', render);
-$('featherPaint').addEventListener('click', () => { feathering = !feathering; $('canvas').classList.toggle('feathering', feathering); render(); $('msg').textContent = feathering ? 'Paint over the feathers that lie on the skin (tick Erase to rub out). The scars stop at them.' : 'Feathers set.'; });
+$('featherPaint').addEventListener('click', () => { feathering = !feathering; $('canvas').classList.toggle('feathering', feathering); render(); $('msg').textContent = feathering ? 'Paint where no scar goes (tick Erase to rub out). A scar stops where it meets it.' : 'Done: no scar goes where it is painted.'; });
 $('brush').addEventListener('input', () => { $('brushNo').textContent = (+$('brush').value * 100).toFixed(1) + '%'; });
-$('featherClear').addEventListener('click', () => { delete scarsOf().feathers; save(); render(); $('msg').textContent = 'No feathers painted on this drawing.'; });
+$('featherClear').addEventListener('click', () => { delete scarsOf().noScar; save(); render(); $('msg').textContent = 'Nothing painted on this drawing: scars may go anywhere on it.'; });
 $('eyeR').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; eye.r = +e.target.value; save(); render(); });
 $('eyeH').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value < 1) eye.h = +e.target.value; else delete eye.h; save(); render(); });
 $('eyeA').addEventListener('input', e => { const eye = scarsOf().eye; if (!eye) return; if (+e.target.value) eye.a = +e.target.value; else delete eye.a; save(); render(); });

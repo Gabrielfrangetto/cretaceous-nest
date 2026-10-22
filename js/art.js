@@ -609,7 +609,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
-  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = ownScars(type, sex, stage).feathers || null; base.metres = heightOf(type, sex, stage); }
+  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = ownScars(type, sex, stage).noScar || ownScars(type, sex, stage).feathers || null; base.metres = heightOf(type, sex, stage); }
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;
@@ -922,9 +922,9 @@ const LINE_GAP = 0.96, LINE_SOFT = 0.8, LINE_WALL = 0.13, LINE_RIM = 6;
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
 const linesCache = {};
-// Feathers over the skin, as painted in the anchors tool (SCAR_ANCHORS[type][stage][sex].feathers: circles
-// [x, y, r] on the drawing's first frame, r a share of its width): a scar is never drawn on them, the
-// feathers lie over it
+// Where no scar goes, as painted in the anchors tool (feathers over the skin, a crest, the claws:
+// SCAR_ANCHORS[type][stage][sex].noScar, circles [x, y, r] on the drawing's first frame, r a share of its
+// width): a scar that reaches it stops there
 const featherKey = f => (f && f.length ? f.length + ':' + Math.round(f.reduce((t, [x, y, r], i) => t + (x * 1e3 + y * 7e3 + r * 13e3) * (i + 1), 0)) : '');
 function linesOf(s, place, mark, feathers = null) {
   const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale, featherKey(feathers)].join('|');
