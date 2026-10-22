@@ -363,6 +363,7 @@ const VARIANTS = {
   club: {
     2: ['sprites/scars/body-club-2.webp'],
     stitched: ['sprites/scars/body-club-stitched.webp'],
+    closing: ['sprites/scars/body-club-2-closing.webp'],
     healed: ['sprites/scars/body-club-2-healed.webp'],
   },
   horns: {
@@ -380,7 +381,7 @@ const THREADS = {
   'sprites/scars/body-club-stitched.webp': 'sprites/scars/body-club-stitched-thread.webp',
 };
 // pictures whose edge fades out into the skin, unevenly, as drawn: their alpha kept, not made solid
-const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body-club-stitched.webp', 'sprites/scars/body-club-2-healed.webp']);
+const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body-club-stitched.webp', 'sprites/scars/body-club-2-closing.webp', 'sprites/scars/body-club-2-healed.webp']);
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
@@ -396,7 +397,7 @@ const FILL = {
   'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
   'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
   'sprites/scars/body-horns-2-healed.webp': 0.49, 'sprites/scars/body-horns-surgical.webp': 0.49,
-  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55, 'sprites/scars/body-club-2-healed.webp': 0.65,
+  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55, 'sprites/scars/body-club-2-closing.webp': 0.65, 'sprites/scars/body-club-2-healed.webp': 0.68,
 };
 const metresOf = (who, style, src, level) => {
   const m = WOUND_SIZE[who] || (SIZED.has(style) ? WOUND_SIZE[style] : 0);
@@ -419,15 +420,16 @@ export const SCAR_LOOKS = Object.keys(SCARS.style);
 export function scarMark(style, level, tint = 0, stitched = false, skin = null, closing = false, part = null, seed = null, who = null) {
   const t = Math.round(tint * 20) / 20;
   // (a deep one drawn as the open wound it was has its healed look apart, for the scar it leaves)
-  // (a deep one: the open wound while it gapes, its healed look as it closes and once closed)
+  // (a deep one: the open wound while it gapes, its healed look as it closes and once closed; or a
+  // closing look of its own while it closes, if it has one)
   const art = { ...(SCAR_ART[style] || {}) };
   for (const [k, list] of Object.entries(VARIANTS[style] || VARIANTS[ALIAS[style]] || {})) art[k] = variantOf(list, seed, part);
-  const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
+  const src = (stitched && (!tint || closing) && art.surgical) || (stitched && tint && art.stitched) || (level === 2 && tint && closing && art.closing) || (level === 2 && (!tint || closing) && art.healed) || art[level] || art[1] || art[2];
   // (deep: one of the deep pictures, placed where the deep look is, if it has a place of its own)
-  const deep = !!src && (src === art[2] || src === art.healed || src === art.stitched || src === art.surgical);
+  const deep = !!src && (src === art[2] || src === art.healed || src === art.closing || src === art.stitched || src === art.surgical);
   // (rim: a deep wound healed on its own, dark at its edges and pale in its middle)
   const metres = src ? metresOf(who, style, src, level) : 0;
-  return src ? { key: src, src: asset(src), scale: sizeOf(src, seed, part), ...(metres ? { metres } : {}), tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(SOFT_EDGE.has(src) ? { soft: true } : {}), ...(src === art.healed && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
+  return src ? { key: src, src: asset(src), scale: sizeOf(src, seed, part), ...(metres ? { metres } : {}), tint: t, deep, ...(STAYS.has(style) ? { stay: true } : {}), ...(THREADS[src] ? { thread: THREADS[src] } : {}), ...(SOFT_EDGE.has(src) ? { soft: true } : {}), ...((src === art.healed || src === art.closing) && !OWN_COLOUR.has(style) ? { rim: true } : {}), ...(src === art.surgical && !t && !OWN_COLOUR.has(style) ? { pale: true } : {}), ...(OWN_COLOUR.has(style) && !t ? { own: true } : {}), ...(skin ? { skin } : {}) }
     : { key: 'line' + level, src: lineScar(level), scale: 1.2, level: t || skin ? 0 : level, tint: t, ...(skin ? { skin } : {}) };
 }
 // the skin's colour where a part's scar goes: picked there in tools/anchors.html, or on another part of
