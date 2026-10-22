@@ -4,7 +4,8 @@
 # Each sheet also carries how the drawing moves: a grid of points over the body, each followed from
 # frame to frame (the patch of skin around it looked for near where it was), so whatever sits on the
 # skin, a scar or a piece of equipment, moves with it.
-# Run after adding or changing an animated sprite: python3 scripts/sheets.py (needs Pillow, numpy)
+# Run after adding or changing an animated sprite: python3 scripts/sheets.py (needs Pillow, numpy), then
+# python3 scripts/guess-scars.py for where its scars go until placed by hand
 import base64, glob, json, os, struct
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view

@@ -2,6 +2,7 @@
 import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS, MASS } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
 import { SHEETS } from './sheets.js';
+import { SCAR_GUESS } from './scar-guess.js';
 import { scarStyle } from './journey.js';
 import { seededRand } from './economy.js';
 
@@ -459,10 +460,18 @@ export function scarPlaces(type, sex, part, stage = 'adult') {
   const keys = Object.keys(ownScars(type, sex, stage)).filter(k => k === part || k.startsWith(part + '~'));
   return keys.length ? keys.sort((a, b) => (+a.split('~')[1] || 1) - (+b.split('~')[1] || 1)) : [part];
 }
+// the drawing a dinosaur is shown with at a stage (its sprite's path), as dressedArt picks it
+const drawingOf = (type, sex, stage) => {
+  const url = (stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null) || (SPRITES[type] && SPRITES[type][sex]);
+  return url ? url.slice(ROOT.length) : null;
+};
 export function scarAnchor(type, sex, part, stage = 'adult') {
   const own = ownScar(type, sex, part, stage);
   if (own) return own;
   part = part.split('~')[0];
+  // (not set yet: where its outline says the part is, scripts/guess-scars.py)
+  const guessed = (SCAR_GUESS[drawingOf(type, sex, stage)] || {})[part];
+  if (guessed) return guessed;
   const at = slot => anchorFor(type, sex, slot);
   const body = at('body'), back = at('back') || body;
   const head = at('head');

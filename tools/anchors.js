@@ -480,6 +480,16 @@ $('addScar').addEventListener('click', () => {
   save(); render();
   $('msg').textContent = `${label($('slot').value)} added: drag it where it goes.`;
 });
+// every part not placed yet, where its outline says it is (scripts/guess-scars.py), to be nudged
+$('addGuessed').addEventListener('click', () => {
+  const added = SCARS.parts.filter(pt => !keysOn(pt).length).filter(pt => {
+    const a = withScars(() => scarAnchor($('type').value, $('sex').value, pt, $('stage').value));
+    if (a) scarsOf()[pt] = { x: a.x, y: a.y, w: Math.round(a.w * 1000) / 1000, r: a.r || 0 };
+    return !!a;
+  });
+  save(); render();
+  $('msg').textContent = added.length ? `Added where guessed: ${added.map(pt => PARTS[pt]).join(', ')}. Drag any that are off.` : 'Every part is placed already.';
+});
 // one more on the same part, a little off the one chosen (they are all drawn together)
 $('anotherScar').addEventListener('click', () => {
   const key = $('slot').value, pt = baseOf(key), a = scarsOf()[key];
