@@ -386,7 +386,7 @@ const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
 // and their healed scar is the skin's own colour, not paled nor dulled: only its relief shows it
-const OWN_COLOUR = new Set(['horns', 'spikes', 'butt']);
+const OWN_COLOUR = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
 // A wound the size of what gave it, whoever it is on (so the same on a Velociraptor and a Tyrannosaurus,
 // the drawing's own height in metres telling how big): metres across, by the giver (or its kind, as the
 // anchors tool shows it); a graze drawn out longer, slid along (GRAZE). Each picture's wound filling
