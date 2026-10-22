@@ -211,6 +211,7 @@ const SPRITES = Object.fromEntries(['proto', 'hypa'].map(type =>
 SPRITES.dilo = { f: asset('sprites/dilo-f.webp'), m: asset('sprites/dilo-f.webp') };
 SPRITES.rex = { f: asset('sprites/rex.webp'), m: asset('sprites/rex.webp') };
 SPRITES.raptor = { f: asset('sprites/raptor-f.webp'), m: asset('sprites/raptor-f.webp') };
+SPRITES.psitta = { f: asset('sprites/psitta-f.webp'), m: asset('sprites/psitta-f.webp') };
 // how tall a profile baby is drawn against the others (its long tail makes it twice as wide)
 const BABY_SCALE = { dilo: 0.8, rex: 0.8, raptor: 0.8 };
 
