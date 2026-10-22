@@ -589,7 +589,10 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
-  const size = look ? 1 : !own ? (BABY_SCALE[type] || 1)
+  // (a young one of a kind whose height is known drawn in proportion to it too, as small as it is beside
+  // its parents; the others at their own sizes)
+  const tall = stage !== 'adult' && !look && heightOf(type, sex, stage);
+  const size = look ? 1 : tall ? STAGES[2].scale * tall / HEIGHT_REF / st.scale : !own ? (BABY_SCALE[type] || 1)
     : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
   const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
   const sheet = src && SHEETS[src.slice(ROOT.length)];
