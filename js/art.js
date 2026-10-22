@@ -928,7 +928,7 @@ const linesCache = {};
 // width): a scar that reaches it stops there
 const featherKey = f => (f && f.length ? f.length + ':' + Math.round(f.reduce((t, [x, y, r], i) => t + (x * 1e3 + y * 7e3 + r * 13e3) * (i + 1), 0)) : '');
 function linesOf(s, place, mark, feathers = null) {
-  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale, featherKey(feathers), place.from ? place.from.x + ',' + place.from.y : ''].join('|');
+  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, place.seam ? 1 : 0, mark.scale, featherKey(feathers), place.from ? place.from.x + ',' + place.from.y : ''].join('|');
   if (linesCache[key]) return linesCache[key];
   const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return null;
@@ -997,6 +997,9 @@ function linesOf(s, place, mark, feathers = null) {
       for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (wallLine[y * M + x]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
         const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < M && yy < M) wall[yy * M + xx] = 1;
       }
+      // (on the head, the lines that part it are the mouth's: a scar runs on across the lips, the line
+      // between them kept, as the rim is, and each side of it moves with its own jaw: seams)
+      const walls = place.seam ? new Uint8Array(M * M) : wall;
       // (the part is the one where it was placed, not where it fell on this dinosaur: a scar moved off
       // the near leg keeps to it, never onto the far one behind; the nearest open skin to that point)
       let ox = M / 2, oy = M / 2;
@@ -1014,7 +1017,7 @@ function linesOf(s, place, mark, feathers = null) {
         const todo = [seed]; keep[seed] = 1;
         while (todo.length) {
           const i = todo.pop(), x = i % M, y = (i - x) / M;
-          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && open[j] && !wall[j]) { keep[j] = 1; todo.push(j); }
+          for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && open[j] && !walls[j]) { keep[j] = 1; todo.push(j); }
         }
         // (only what it sees from its middle: where a part runs into the body with no line between, a
         // thigh into the hip, it would go round the open end and come back behind the part's outline)
@@ -1024,7 +1027,7 @@ function linesOf(s, place, mark, feathers = null) {
           const x = i % M, y = (i - x) / M, n = Math.ceil(Math.hypot(x - sx, y - sy) * 2);
           for (let t = 1; t < n; t++) {
             const j = Math.round(sy + (y - sy) * t / n) * M + Math.round(sx + (x - sx) * t / n);
-            if (wall[j]) { keep[i] = 0; break; }
+            if (walls[j]) { keep[i] = 0; break; }
           }
         }
         // (and back out to the outline it stopped at, so it meets the line)
@@ -1040,6 +1043,32 @@ function linesOf(s, place, mark, feathers = null) {
           for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && !out[j]) { out[j] = 1; edge.push(j); }
         }
         for (let i = 0; i < M * M; i++) if (!out[i] && px[i * 4 + 3] > 200) keep[i] = 1;
+        if (place.seam) {
+          for (let i = 0; i < M * M; i++) if (wallLine[i] && keep[i]) line[i] = 1;
+          // (its pieces on either side of the mouth: their own pixels, and every other pixel the
+          // nearest piece's, so laid apart they cover it all between them)
+          const lab = new Int16Array(M * M).fill(-1), sizes = [];
+          for (let i0 = 0; i0 < M * M; i0++) {
+            if (!keep[i0] || wall[i0] || lab[i0] >= 0) continue;
+            const n = sizes.length, todo = [i0]; lab[i0] = n; let count = 0;
+            while (todo.length) {
+              const i = todo.pop(), x = i % M, y = (i - x) / M; count++;
+              for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && keep[j] && !wall[j] && lab[j] < 0) { lab[j] = n; todo.push(j); }
+            }
+            sizes.push(count);
+          }
+          const big = sizes.map(n => n >= 0.02 * M * M);
+          for (let i = 0; i < M * M; i++) if (lab[i] >= 0 && !big[lab[i]]) lab[i] = -1;
+          if (big.filter(Boolean).length > 1) {
+            const own = lab.slice(), all = lab.slice(), todo = [];
+            for (let i = 0; i < M * M; i++) if (all[i] >= 0) todo.push(i);
+            for (let h = 0; h < todo.length; h++) {
+              const i = todo[h], x = i % M, y = (i - x) / M;
+              for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && all[j] < 0) { all[j] = all[i]; todo.push(j); }
+            }
+            c.seams = { own, all, ids: big.map((b, n) => b ? n : -1).filter(n => n >= 0), M, size };
+          }
+        }
       }
     }
     // (how far each pixel is from a line, in the mask's pixels: a two-pass chamfer)
@@ -1186,7 +1215,7 @@ function onSkin(cv, place, mark, k) {
   const first = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!first.complete || !first.naturalWidth) return null;
   const eye = cv.eye;
-  const key = [place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.key, mark.tint, mark.skin, mark.rim ? 1 : 0, k, s.sheet, eye ? [eye.x, eye.y, eye.r].join(',') : ''].join('|');
+  const key = [place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, place.seam ? 1 : 0, mark.key, mark.tint, mark.skin, mark.rim ? 1 : 0, k, s.sheet, eye ? [eye.x, eye.y, eye.r].join(',') : ''].join('|');
   const kept = cv.made || (cv.made = new Map());
   if (kept.has(key)) return kept.get(key);
   const size = place.w * s.w * mark.scale, side = size * 1.42, x = place.x * s.w - side / 2, y = place.y * s.h - side / 2;
@@ -1288,6 +1317,45 @@ function onSkin(cv, place, mark, k) {
     g.beginPath(); g.ellipse((ex - x) * k, (ey - y) * k, er * k * 1.08, er * eyeFlat(eye) * k * 1.08, (eye.a || 0) * Math.PI / 180, 0, Math.PI * 2); g.fill(); g.restore();
   }
   const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s, cv.feathers) };
+  // (a scar across the mouth in pieces, one for each side of it, each laid as its own jaw moves)
+  const seams = lines && lines.seams;
+  if (seams) {
+    const { own, all, ids, M } = seams, turn = (place.r || 0) * Math.PI / 180, cos = Math.cos(turn), sin = Math.sin(turn), by = M / size;
+    const cx = place.x * s.w, cy = place.y * s.h;
+    const toMask = (sx, sy) => { const dx = sx - cx, dy = sy - cy; return [M / 2 + (dx * cos + dy * sin) * by, M / 2 + (-dx * sin + dy * cos) * by]; };
+    const fromMask = (mx, my) => { const u = (mx - M / 2) / by, v = (my - M / 2) / by; return [cx + u * cos - v * sin, cy + u * sin + v * cos]; };
+    made.parts = ids.map(id => {
+      const m = document.createElement('canvas'); m.width = M; m.height = M;
+      const mg = m.getContext('2d'), md = mg.createImageData(M, M);
+      for (let i = 0; i < M * M; i++) md.data[i * 4 + 3] = all[i] === id ? 255 : 0;
+      mg.putImageData(md, 0, 0);
+      const part = document.createElement('canvas'); part.width = P; part.height = P;
+      const pg = part.getContext('2d');
+      pg.drawImage(piece, 0, 0);
+      pg.globalCompositeOperation = 'destination-in';
+      pg.translate(P / 2, P / 2); pg.rotate(turn); pg.imageSmoothingEnabled = false;
+      pg.drawImage(m, -size * k / 2, -size * k / 2, size * k, size * k);
+      // (where a point of the mesh is: on its own side, itself; past the mouth, the nearest of its own)
+      const near = new Map();
+      const at = (sx, sy) => {
+        const key = sx + ',' + sy;
+        if (near.has(key)) return near.get(key);
+        let [mx, my] = toMask(sx, sy);
+        mx = Math.max(0, Math.min(M - 1, Math.round(mx))); my = Math.max(0, Math.min(M - 1, Math.round(my)));
+        let best = own[my * M + mx] === id ? [sx, sy] : null;
+        for (let r = 1; !best && r < M; r++) {
+          let d = Infinity;
+          for (let yy = Math.max(0, my - r); yy <= Math.min(M - 1, my + r); yy++) for (let xx = Math.max(0, mx - r); xx <= Math.min(M - 1, mx + r); xx++) {
+            if ((Math.abs(yy - my) !== r && Math.abs(xx - mx) !== r) || own[yy * M + xx] !== id) continue;
+            const e = (xx - mx) ** 2 + (yy - my) ** 2; if (e < d) { d = e; best = fromMask(xx, yy); }
+          }
+        }
+        near.set(key, best || [sx, sy]);
+        return near.get(key);
+      };
+      return { canvas: part, x, y, side, at };
+    });
+  }
   if (kept.size > 40) kept.clear();
   kept.set(key, made);
   return made;
@@ -1346,8 +1414,8 @@ function haloPiece(first, place, mark, k, size, s, feathers = null) {
 // mesh of triangles, each corner moved as the skin there (disp, in sheet pixels); in one go where it all
 // moved alike. The triangles are a hair larger, so no seam shows between them.
 const MESH = 6;
-function laySkin(ctx, piece, disp, k) {
-  const { canvas: img, x, y, side } = piece, n = MESH, at = [];
+function laySkin(ctx, piece, disp, k, n = MESH) {
+  const { canvas: img, x, y, side } = piece, at = [];
   let lo = Infinity, hi = -Infinity;
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
     const sx = x + side * i / n, sy = y + side * j / n, [dx, dy] = disp(sx, sy);
@@ -1429,6 +1497,8 @@ export function drawFrame(cv, frame) {
     if (side && cv.side && side !== cv.side) continue;
     const blinds = eyed && cv.eye;
     let place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
+    // (the head's scars run across the mouth: SEAMS)
+    if (!blinds && key.split('~')[0] === 'head') place = { ...place, seam: true };
     // (a wound the size of what gave it: its metres in this drawing's pixels, WOUND_SIZE; never past the
     // part it is on, at most its place's width (WOUND_CAP): a blow bigger than a small one's thigh still
     // leaves it a leg)
@@ -1456,6 +1526,7 @@ export function drawFrame(cv, frame) {
     // (and none while the eye is shut)
     const track = blinds && eyeTrack(s, cv.eye), shut = track && Number.isNaN(track[frame * 3]);
     if (blinds && !shut && (!track || !blindEye(ctx, cv.eye, s, () => [track[frame * 3], track[frame * 3 + 1]], track[frame * 3 + 2]))) cv.dirty = true;
+    if (piece && piece.parts) { for (const part of piece.parts) laySkin(ctx, part, (x, y) => disp(...part.at(x, y)), k, MESH * 2); continue; }
     if (piece) { laySkin(ctx, piece, disp, k); continue; }
     const size = a.w * s.w * mark.scale;
     ctx.save();
