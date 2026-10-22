@@ -408,6 +408,7 @@ const metresOf = (who, style, src, level, young) => {
   return m ? m * (young ? YOUNG_WOUND : 1) * (level === 1 ? GRAZE : 1) / (FILL[src] || 0.6) : 0;
 };
 const SIZED = new Set(['horns', 'spikes', 'club', 'stomp']);
+const WOUND_CAP = 1.5;
 // pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
 // and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
 const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.25, 0.6] };
@@ -1388,9 +1389,11 @@ export function drawFrame(cv, frame) {
     if (side && cv.side && side !== cv.side) continue;
     const blinds = eyed && cv.eye;
     let place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
-    // (a wound the size of what gave it: its metres in this drawing's pixels, WOUND_SIZE)
+    // (a wound the size of what gave it: its metres in this drawing's pixels, WOUND_SIZE; never past the
+    // part it is on, at most WOUND_CAP its place's width: a blow bigger than a small one's thigh still
+    // leaves it a leg)
     const mpp = mark.metres && metresPerPx(cv.home || s, cv.metres);
-    if (mpp) place = { ...place, w: mark.metres / mpp / (cv.home || s).w };
+    if (mpp) place = { ...place, w: Math.min(mark.metres / mpp / (cv.home || s).w, placed.w * WOUND_CAP) };
     if (!markReady(mark) || !reliefOf(mark)) { cv.dirty = true; continue; }
     const piece = onSkin(cv, place, mark, k);
     if (mark.skin && !piece) cv.dirty = true;
