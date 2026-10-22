@@ -391,8 +391,10 @@ const OWN_COLOUR = new Set(['horns', 'spikes', 'butt']);
 // the drawing's own height in metres telling how big): metres across, by the giver (or its kind, as the
 // anchors tool shows it); a graze drawn out longer, slid along (GRAZE). Each picture's wound filling
 // FILL of it.
-// (a club splits the skin over a span its own size; a giant's foot over far more)
-const WOUND_SIZE = { trike: 0.3, stego: 0.18, horns: 0.3, spikes: 0.18, ankylo: 0.35, scelido: 0.2, club: 0.35, argent: 1, stomp: 1 }, GRAZE = 1.5;
+// (a hard blunt blow splits the skin over what struck it: an Ankylosaurus' tail club, some 60 cm across
+// at its widest, over half a metre; a Scelidosaurus' tail, no club, its scutes over a hand's span; an
+// Argentinosaurus' foot, near a metre across, over a metre)
+const WOUND_SIZE = { trike: 0.3, stego: 0.18, horns: 0.3, spikes: 0.18, ankylo: 0.5, scelido: 0.15, club: 0.5, argent: 1, stomp: 1 }, GRAZE = 1.5;
 const FILL = {
   'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
   'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
