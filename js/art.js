@@ -984,6 +984,17 @@ function linesOf(s, place, mark) {
           const i = todo.pop(), x = i % M, y = (i - x) / M;
           for (const j of [x > 0 ? i - 1 : -1, x < M - 1 ? i + 1 : -1, y > 0 ? i - M : -1, y < M - 1 ? i + M : -1]) if (j >= 0 && !keep[j] && open[j] && !wall[j]) { keep[j] = 1; todo.push(j); }
         }
+        // (only what it sees from its middle: where a part runs into the body with no line between, a
+        // thigh into the hip, it would go round the open end and come back behind the part's outline)
+        const sx = seed % M, sy = (seed - sx) / M;
+        for (let i = 0; i < M * M; i++) {
+          if (!keep[i]) continue;
+          const x = i % M, y = (i - x) / M, n = Math.ceil(Math.hypot(x - sx, y - sy) * 2);
+          for (let t = 1; t < n; t++) {
+            const j = Math.round(sy + (y - sy) * t / n) * M + Math.round(sx + (x - sx) * t / n);
+            if (wall[j]) { keep[i] = 0; break; }
+          }
+        }
         // (and back out to the outline it stopped at, so it meets the line)
         const grown = keep.slice();
         for (let i = 0; i < M * M; i++) if (keep[i]) for (const j of [i - 1, i + 1, i - M, i + M]) if (j >= 0 && j < M * M && open[j]) grown[j] = 1;
