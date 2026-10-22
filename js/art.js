@@ -408,7 +408,7 @@ const metresOf = (who, style, src, level, young) => {
   return m ? m * (young ? YOUNG_WOUND : 1) * (level === 1 ? GRAZE : 1) / (FILL[src] || 0.6) : 0;
 };
 const SIZED = new Set(['horns', 'spikes', 'club', 'stomp']);
-const WOUND_CAP = 1.5;
+const WOUND_CAP = 1;
 // pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
 // and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
 const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.25, 0.6] };
@@ -600,7 +600,7 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
-  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.metres = heightOf(type, sex, stage); }
+  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = ownScars(type, sex, stage).feathers || null; base.metres = heightOf(type, sex, stage); }
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;
@@ -913,8 +913,12 @@ const LINE_GAP = 0.96, LINE_SOFT = 0.8, LINE_WALL = 0.13, LINE_RIM = 6;
 // little colour it has: an outline is near black, the dark lines of a coloured crest's pattern are not
 const INK = 0.13, INK_HUE = 45;
 const linesCache = {};
-function linesOf(s, place, mark) {
-  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale].join('|');
+// Feathers over the skin, as painted in the anchors tool (SCAR_ANCHORS[type][stage][sex].feathers: circles
+// [x, y, r] on the drawing's first frame, r a share of its width): a scar is never drawn on them, the
+// feathers lie over it
+const featherKey = f => (f && f.length ? f.length + ':' + Math.round(f.reduce((t, [x, y, r], i) => t + (x * 1e3 + y * 7e3 + r * 13e3) * (i + 1), 0)) : '');
+function linesOf(s, place, mark, feathers = null) {
+  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale, featherKey(feathers)].join('|');
   if (linesCache[key]) return linesCache[key];
   const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return null;
@@ -1032,6 +1036,18 @@ function linesOf(s, place, mark) {
       const i = y * M + x;
       if (!far[i]) continue;
       far[i] = Math.min(far[i], x < M - 1 ? far[i + 1] + 1 : BIG, y < M - 1 ? far[i + M] + 1 : BIG, x < M - 1 && y < M - 1 ? far[i + M + 1] + 1.414 : BIG, y < M - 1 && x ? far[i + M - 1] + 1.414 : BIG);
+    }
+    // (and nothing on the feathers: off where a painted circle covers it, a pixel soft at its edge)
+    if (feathers && feathers.length) {
+      const turn = -(place.r || 0) * Math.PI / 180, cos = Math.cos(turn), sin = Math.sin(turn), by = M / size;
+      for (const [fx, fy, fr] of feathers) {
+        const dx = (fx - place.x) * s.w * by, dy = (fy - place.y) * s.h * by, R = fr * s.w * by;
+        const cx = M / 2 + dx * cos - dy * sin, cy = M / 2 + dx * sin + dy * cos;
+        if (cx + R < 0 || cy + R < 0 || cx - R > M || cy - R > M) continue;
+        for (let y = Math.max(0, Math.floor(cy - R - 1)); y < Math.min(M, Math.ceil(cy + R + 1)); y++) for (let x = Math.max(0, Math.floor(cx - R - 1)); x < Math.min(M, Math.ceil(cx + R + 1)); x++) {
+          if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= R) keep[y * M + x] = 0;
+        }
+      }
     }
     // (the gap and its soft end, from the sprite's pixels to the mask's)
     const gap = LINE_GAP * per, soft = Math.max(0.5, LINE_SOFT * per);
@@ -1207,7 +1223,7 @@ function onSkin(cv, place, mark, k) {
   };
   lay(relief, 'multiply');
   lay(relief, 'destination-in');
-  const lines = linesOf(s, place, mark);
+  const lines = linesOf(s, place, mark, cv.feathers);
   if (lines) lay(lines, 'destination-in');
   const middle = mark.rim && middleOf(mark);
   // (the middle the skin under it paled, its own colour kept: MIDDLE.pale of the way to white, and
@@ -1390,7 +1406,7 @@ export function drawFrame(cv, frame) {
     const blinds = eyed && cv.eye;
     let place = blinds ? onEye(placed, cv.eye) : spread(placed, main, cv.seed, key, cv.home || s);
     // (a wound the size of what gave it: its metres in this drawing's pixels, WOUND_SIZE; never past the
-    // part it is on, at most WOUND_CAP its place's width: a blow bigger than a small one's thigh still
+    // part it is on, at most its place's width (WOUND_CAP): a blow bigger than a small one's thigh still
     // leaves it a leg)
     const mpp = mark.metres && metresPerPx(cv.home || s, cv.metres);
     if (mpp) place = { ...place, w: Math.min(mark.metres / mpp / (cv.home || s).w, placed.w * WOUND_CAP) };
