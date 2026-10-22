@@ -117,3 +117,16 @@ test('how grave a horn wound is goes by how far it reaches into the body', async
   // a young one, smaller, takes it worse
   assert.ok(severity({ ...grown('rex'), fed: 0 }, 'trike') > severity(grown('rex'), 'trike'));
 });
+
+test('a wound remembers a young giver, kept with the save, and its scar is the smaller', async () => {
+  const { migrate, freshState } = await import('../js/state.js');
+  const { scarMark } = await import('../js/art.js');
+  const s = freshState();
+  s.hatched.push({ id: 'a', type: 'rex', sex: 'm', name: 'King', at: T, gen: 1, scars: { legs: 3 }, scarBy: { legs: 'ankylo', young: ['legs', 'nonsense'] },
+    wound: { parts: ['legs'], by: 'ankylo', young: true, open: 1, at: T, until: T + 3600000 } });
+  const b = migrate(JSON.parse(JSON.stringify(s))).hatched.find(x => x.id === 'a');
+  assert.deepEqual(b.scarBy, { legs: 'ankylo', young: ['legs'] });
+  assert.equal(woundsOf(world(), b, T).young, true);
+  const grown = scarMark('club', 2, 0, false, null, false, 'legs', 'a', 'ankylo').metres, young = scarMark('club', 2, 0, false, null, false, 'legs', 'a', 'ankylo', true).metres;
+  assert.ok(Math.abs(young / grown - Math.cbrt(0.5)) < 1e-9);
+});

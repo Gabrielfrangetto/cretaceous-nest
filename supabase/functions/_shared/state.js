@@ -139,7 +139,7 @@ function cleanWound(w) {
   if (!w || typeof w !== 'object' || !Array.isArray(w.parts)) return undefined;
   const parts = SCARS.parts.filter(pt => w.parts.includes(pt));
   if (!parts.length) return undefined;
-  const out = { parts, ...(typeof w.by === 'string' ? { by: w.by.slice(0, 24) } : {}), ...(w.stitched === true ? { stitched: true } : {}), ...(Array.isArray(w.deep) && w.deep.some(pt => parts.includes(pt)) ? { deep: parts.filter(pt => w.deep.includes(pt)) } : {}) };
+  const out = { parts, ...(typeof w.by === 'string' ? { by: w.by.slice(0, 24) } : {}), ...(w.stitched === true ? { stitched: true } : {}), ...(w.young === true ? { young: true } : {}), ...(Array.isArray(w.deep) && w.deep.some(pt => parts.includes(pt)) ? { deep: parts.filter(pt => w.deep.includes(pt)) } : {}) };
   if (Number(w.until) > 0) Object.assign(out, { open: Math.max(0, Math.min(1, Number(w.open) || 0)), at: Number(w.at) || 0, until: Number(w.until) });
   return out;
 }
@@ -167,7 +167,7 @@ function sanitize(s) {
     ...(Number(b.injuredUntil) > 0 ? { injuredUntil: Number(b.injuredUntil), critical: b.critical === true || undefined, hospital: b.hospital === true || undefined } : { injuredUntil: undefined, critical: undefined, hospital: undefined }),
     // the health lost in fights on each part of its body (SCARS), and who gave the worst of it
     scars: b.scars && typeof b.scars === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => Number(b.scars[pt]) > 0).map(pt => [pt, Math.min(99, Number(b.scars[pt]))])) : undefined,
-    scarBy: b.scarBy && typeof b.scarBy === 'object' ? Object.fromEntries(SCARS.parts.filter(pt => typeof b.scarBy[pt] === 'string').map(pt => [pt, b.scarBy[pt].slice(0, 24)])) : undefined,
+    scarBy: b.scarBy && typeof b.scarBy === 'object' ? { ...Object.fromEntries(SCARS.parts.filter(pt => typeof b.scarBy[pt] === 'string').map(pt => [pt, b.scarBy[pt].slice(0, 24)])), ...(Array.isArray(b.scarBy.young) && b.scarBy.young.some(pt => SCARS.parts.includes(pt)) ? { young: SCARS.parts.filter(pt => b.scarBy.young.includes(pt)) } : {}) } : undefined,
     // its open wounds (WOUNDS): the parts, who gave them, and once home how open, from when, until when
     wound: cleanWound(b.wound),
     // the parts whose last wound was sewn up in the hospital: their scars are its neat ones

@@ -1310,7 +1310,7 @@ export function scarStyle(entry) {
   if (sp.build === 'sauropod') return 'stomp';
   return 'butt';
 }
-function scar(ctx, ev, id, lost, lame, entry) {
+function scar(ctx, ev, id, lost, lame, entry, young = false) {
   const b = explorerOf(ctx.s, id);
   if (!b || (lost <= 0 && !lame)) return null;
   const rand = seededRand(`scar:${W(ctx.s).seed}:${ctx.p.leg ? ctx.p.leg.n : 0}:${ev.idx}:${id}`);
@@ -1336,10 +1336,15 @@ function scar(ctx, ev, id, lost, lame, entry) {
   b.scars = b.scars || {};
   for (const [part, n] of Object.entries(got)) b.scars[part] = Math.round(((b.scars[part] || 0) + n) * 1000) / 1000;
   // (each part it struck carries its mark: who gave the scars there last)
-  if (who && Object.keys(got).length) b.scarBy = { ...(b.scarBy || {}), ...Object.fromEntries(Object.keys(got).map(pt => [pt, who])) };
+  // (and whether a young one gave them, juvenile, not grown: its scars the smaller)
+  if (who && Object.keys(got).length) {
+    const was = (b.scarBy && b.scarBy.young) || [], youngNow = SCARS.parts.filter(pt => got[pt] ? young : was.includes(pt));
+    const { young: _, ...by } = b.scarBy || {};
+    b.scarBy = { ...by, ...Object.fromEntries(Object.keys(got).map(pt => [pt, who])), ...(youngNow.length ? { young: youngNow } : {}) };
+  }
   if (b.sewn) { b.sewn = b.sewn.filter(pt => !got[pt]); if (!b.sewn.length) delete b.sewn; }
   const parts = SCARS.parts.filter(pt => got[pt] || open.includes(pt));
-  if (parts.length) b.wound = { parts, ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}) };
+  if (parts.length) b.wound = { parts, ...(deep.length ? { deep } : {}), ...(who || (b.wound && b.wound.by) ? { by: who || b.wound.by } : {}), ...((who ? young : b.wound && b.wound.young) ? { young: true } : {}) };
   // (and each wound leaves its scar however little it took: a deep one a deep scar)
   for (const pt of Object.keys(got)) b.scars[pt] = Math.max(b.scars[pt], deep.includes(pt) ? SCARS.deep : SCARS.marked);
   return gored.length ? { part: gored[0], sev } : null;
@@ -1363,7 +1368,7 @@ export function woundsOf(s, b, now) {
   if (!w.until) open = p && !hasLanded(p, now) ? (isDown(p, id) ? 1 : 1 - healthOf(p, id)) : injuredLeft(b, now) > 0 ? 1 : 0;
   else open = w.until > w.at ? w.open * Math.max(0, Math.min(1, (w.until - now) / (w.until - w.at))) : 0;
   open = Math.round(open * 100) / 100;
-  return open > 0 ? { parts: Object.fromEntries(w.parts.map(pt => [pt, open])), by: w.by || null, deep: w.deep || [], ...(w.stitched ? { stitched: true } : {}) } : null;
+  return open > 0 ? { parts: Object.fromEntries(w.parts.map(pt => [pt, open])), by: w.by || null, deep: w.deep || [], ...(w.stitched ? { stitched: true } : {}), ...(w.young ? { young: true } : {}) } : null;
 }
 // how scarred each part is: 0 none, 1 marked, 2 deep
 export const scarLevels = b => Object.fromEntries(SCARS.parts.map(pt => {
@@ -1394,7 +1399,7 @@ function fight(ctx, ev, rand, how = {}) {
     const left = Math.max(0, result.hp[i][j] / result.teamHps[i][j]);
     const lame = result.lamed.some(([a, b]) => a === i && b === j);
     // (the scars it will carry, if it lives)
-    const gored = id !== PLAYER_ID ? scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry) : null;
+    const gored = id !== PLAYER_ID ? scar(ctx, ev, id, opts.hp[i][j] - left, lame, as.entry, !!(foe.members[0] && foe.members[0].young)) : null;
     // (gored deep in the flank or the neck: it may die of it there and then, more the less tough it is
     // and the more hurt it was; if not it is down, for the hospital or death: GORE)
     if (gored) {
