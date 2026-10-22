@@ -397,7 +397,7 @@ const FILL = {
   'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
   'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
   'sprites/scars/body-horns-2-healed.webp': 0.49, 'sprites/scars/body-horns-surgical.webp': 0.49,
-  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55, 'sprites/scars/body-club-2-closing.webp': 0.65, 'sprites/scars/body-club-2-healed.webp': 0.68,
+  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55, 'sprites/scars/body-club-2-closing.webp': 0.65, 'sprites/scars/body-club-2-healed.webp': 0.55,
 };
 const metresOf = (who, style, src, level) => {
   const m = WOUND_SIZE[who] || (SIZED.has(style) ? WOUND_SIZE[style] : 0);
