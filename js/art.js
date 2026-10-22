@@ -363,6 +363,7 @@ const VARIANTS = {
   club: {
     2: ['sprites/scars/body-club-2.webp'],
     stitched: ['sprites/scars/body-club-stitched.webp'],
+    healed: ['sprites/scars/body-club-2-healed.webp'],
   },
   horns: {
     1: ['sprites/scars/body-horns-1.webp', 'sprites/scars/neck-horns-1.webp', 'sprites/scars/legs-horns-1.webp'],
@@ -379,7 +380,7 @@ const THREADS = {
   'sprites/scars/body-club-stitched.webp': 'sprites/scars/body-club-stitched-thread.webp',
 };
 // pictures whose edge fades out into the skin, unevenly, as drawn: their alpha kept, not made solid
-const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body-club-stitched.webp']);
+const SOFT_EDGE = new Set(['sprites/scars/body-club-2.webp', 'sprites/scars/body-club-stitched.webp', 'sprites/scars/body-club-2-healed.webp']);
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
 const STAYS = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
@@ -395,7 +396,7 @@ const FILL = {
   'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
   'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
   'sprites/scars/body-horns-2-healed.webp': 0.49, 'sprites/scars/body-horns-surgical.webp': 0.49,
-  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55,
+  'sprites/scars/body-club-2.webp': 0.6, 'sprites/scars/body-club-stitched.webp': 0.55, 'sprites/scars/body-club-2-healed.webp': 0.65,
 };
 const metresOf = (who, style, src, level) => {
   const m = WOUND_SIZE[who] || (SIZED.has(style) ? WOUND_SIZE[style] : 0);
