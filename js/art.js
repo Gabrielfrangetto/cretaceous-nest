@@ -216,7 +216,7 @@ const BABY_SCALE = { dilo: 0.8, rex: 0.8 };
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // (A new or changed animated .webp needs its sheet made: python3 scripts/sheets.py)
 // Adults without one are drawn with their baby sprite, scaled up.
-export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') } };
+export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: asset('sprites/adult/rex-f.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') } };
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
 // step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
 // frames and their time, so the walker moves exactly as fast as its feet carry it
@@ -228,7 +228,7 @@ export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || n
 // head, in metres; HEIGHT_REF metres drawn at the usual size), so a Tyrannosaurus towers over a
 // Velociraptor as it did. Animated sprites (.webp) play their idle on their own. (A Velociraptor male
 // a little smaller than the female, as in hawks.)
-const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7 } };
+const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7, f: 3.7 } };
 // how tall an animal stands at its stage, in metres (a young one as its weight allows: MASS.stage), or
 // 0 when not known
 export const heightOf = (type, sex, stage = 'adult') => {
