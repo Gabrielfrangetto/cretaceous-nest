@@ -360,6 +360,9 @@ const VARIANTS = {
     surgical: ['sprites/scars/body-claw-surgical.webp'],
     healed: ['sprites/scars/body-claw-2-healed.webp', 'sprites/scars/neck-claw-2-healed.webp', 'sprites/scars/legs-claw-2-healed.webp'],
   },
+  club: {
+    2: ['sprites/scars/body-club-2.webp'],
+  },
   horns: {
     1: ['sprites/scars/body-horns-1.webp', 'sprites/scars/neck-horns-1.webp', 'sprites/scars/legs-horns-1.webp'],
     2: ['sprites/scars/body-horns-2.webp'],
@@ -375,24 +378,26 @@ const THREADS = {
 };
 // blows that go straight in (a horn's, a head's): their wound keeps to the part of the body it is on,
 // cut at the drawing's lines, never spilling over a fold onto the next part
-const STAYS = new Set(['horns', 'spikes', 'butt']);
+const STAYS = new Set(['horns', 'spikes', 'butt', 'club', 'stomp']);
 // and their healed scar is the skin's own colour, not paled nor dulled: only its relief shows it
 const OWN_COLOUR = new Set(['horns', 'spikes', 'butt']);
 // A wound the size of what gave it, whoever it is on (so the same on a Velociraptor and a Tyrannosaurus,
 // the drawing's own height in metres telling how big): metres across, by the giver (or its kind, as the
 // anchors tool shows it); a graze drawn out longer, slid along (GRAZE). Each picture's wound filling
 // FILL of it.
-const WOUND_SIZE = { trike: 0.3, stego: 0.18, horns: 0.3, spikes: 0.18 }, GRAZE = 1.5;
+// (a club splits the skin over a span its own size; a giant's foot over far more)
+const WOUND_SIZE = { trike: 0.3, stego: 0.18, horns: 0.3, spikes: 0.18, ankylo: 0.35, scelido: 0.2, club: 0.35, argent: 1, stomp: 1 }, GRAZE = 1.5;
 const FILL = {
   'sprites/scars/body-horns-1.webp': 0.88, 'sprites/scars/neck-horns-1.webp': 0.9, 'sprites/scars/legs-horns-1.webp': 0.91,
   'sprites/scars/body-horns-2.webp': 0.59, 'sprites/scars/body-horns-stitched.webp': 0.5,
   'sprites/scars/body-horns-2-healed.webp': 0.49, 'sprites/scars/body-horns-surgical.webp': 0.49,
+  'sprites/scars/body-club-2.webp': 0.6,
 };
 const metresOf = (who, style, src, level) => {
   const m = WOUND_SIZE[who] || (SIZED.has(style) ? WOUND_SIZE[style] : 0);
   return m ? m * (level === 1 ? GRAZE : 1) / (FILL[src] || 0.6) : 0;
 };
-const SIZED = new Set(['horns', 'spikes']);
+const SIZED = new Set(['horns', 'spikes', 'club', 'stomp']);
 // pictures drawn at a size of their own for each dinosaur, between lo and hi of their place's (by its id
 // and the part, always the same for it): a sewn-up horn wound's ridge, from a small one to a long one
 const SIZES = { 'sprites/scars/body-horns-surgical.webp': [0.25, 0.6] };
@@ -401,7 +406,7 @@ const sizeOf = (src, seed, part) => {
   return r ? r[0] + (r[1] - r[0]) * (seed == null ? 1 : seededRand(`size:${seed}:${part}`)()) : 1;
 };
 // (kinds drawn with another's pictures: a Stegosaurus' spike wound as a horn's)
-const ALIAS = { spikes: 'horns' };
+const ALIAS = { spikes: 'horns', stomp: 'club' };
 const variantOf = (list, seed, part) => list[seed == null ? 0 : Math.floor(seededRand(`look:${seed}:${part}`)() * list.length)];
 export const SCAR_LOOKS = Object.keys(SCARS.style);
 // what a scar looks like: its picture, and how wide it is drawn against its place's width
