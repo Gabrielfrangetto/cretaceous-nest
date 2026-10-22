@@ -562,7 +562,8 @@ export function spread(place, main, seed, key, s) {
     if (fell.size > 500) fell.clear();
     fell.set(at, o);
   }
-  return { ...place, x: place.x + o.dx, y: place.y + o.dy, r: (place.r || 0) + o.dr, w: place.w * (1 + o.ds) };
+  // (from: where it was placed, so it keeps to the part there, wherever it falls)
+  return { ...place, x: place.x + o.dx, y: place.y + o.dy, r: (place.r || 0) + o.dr, w: place.w * (1 + o.ds), from: place.from || { x: place.x, y: place.y } };
 }
 // Where a scar is at one frame of an animated sprite: its place may carry keys, f: { frame: [x, y, r] },
 // and between two keys it moves in a straight line (the place itself is frame 0's key)
@@ -927,7 +928,7 @@ const linesCache = {};
 // width): a scar that reaches it stops there
 const featherKey = f => (f && f.length ? f.length + ':' + Math.round(f.reduce((t, [x, y, r], i) => t + (x * 1e3 + y * 7e3 + r * 13e3) * (i + 1), 0)) : '');
 function linesOf(s, place, mark, feathers = null) {
-  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale, featherKey(feathers)].join('|');
+  const key = [s.sheet, place.x, place.y, place.w, place.r || 0, place.stay ? 1 : 0, mark.scale, featherKey(feathers), place.from ? place.from.x + ',' + place.from.y : ''].join('|');
   if (linesCache[key]) return linesCache[key];
   const img = imageOf(sheetImages, s.sheet, asset(s.sheet));
   if (!img.complete || !img.naturalWidth) return null;
@@ -996,9 +997,17 @@ function linesOf(s, place, mark, feathers = null) {
       for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (wallLine[y * M + x]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
         const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < M && yy < M) wall[yy * M + xx] = 1;
       }
+      // (the part is the one where it was placed, not where it fell on this dinosaur: a scar moved off
+      // the near leg keeps to it, never onto the far one behind; the nearest open skin to that point)
+      let ox = M / 2, oy = M / 2;
+      if (place.from) {
+        const turn = -(place.r || 0) * Math.PI / 180, by = M / size, fx = (place.from.x - place.x) * s.w * by, fy = (place.from.y - place.y) * s.h * by;
+        ox = Math.round(Math.max(0, Math.min(M - 1, M / 2 + fx * Math.cos(turn) - fy * Math.sin(turn))));
+        oy = Math.round(Math.max(0, Math.min(M - 1, M / 2 + fx * Math.sin(turn) + fy * Math.cos(turn))));
+      }
       let seed = -1;
-      for (let r = 0; r < M / 4 && seed < 0; r++) for (let dy = -r; dy <= r && seed < 0; dy++) for (let dx = -r; dx <= r && seed < 0; dx++) {
-        const i = (M / 2 + dy) * M + M / 2 + dx; if (open[i] && !wall[i]) seed = i;
+      for (let r = 0; r < M / 2 && seed < 0; r++) for (let dy = -r; dy <= r && seed < 0; dy++) for (let dx = -r; dx <= r && seed < 0; dx++) {
+        const x = ox + dx, y = oy + dy, i = y * M + x; if (x >= 0 && y >= 0 && x < M && y < M && open[i] && !wall[i]) seed = i;
       }
       keep = new Uint8Array(M * M);
       if (seed >= 0) {

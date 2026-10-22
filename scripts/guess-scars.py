@@ -29,7 +29,7 @@ def guess(a):
         rs = [r for r in cols[x] if r[1] - r[0] >= least * bh]
         return rs[0] if rs else None
     span = range(int(x0 + 0.3 * bw), int(x0 + 0.75 * bw))
-    mid = [x for x in span if top(x) and top(x)[1] < y1 - 0.12 * bh] or [x for x in span if top(x)]
+    mid = [x for x in span if top(x) and top(x)[1] < y1 - 0.3 * bh] or [x for x in span if top(x)]
     tx = max(mid, key=lambda x: top(x)[1] - top(x)[0])
     t0, t1 = top(tx)
     ty, thick = (t0 + t1) / 2, t1 - t0
@@ -65,8 +65,8 @@ def guess(a):
     place = lambda x, y, w, r=0: {'x': round(x / W, 3), 'y': round(y / H, 3), 'w': round(w / W, 3), 'r': int(round(r))}
     return {
         'head': place(hx, hyc, 0.55 * head_h),
-        'neck': place(nx, (nr[0] + nr[1]) / 2, 0.5 * (nr[1] - nr[0])),
-        'body': place(tx, ty, 0.5 * thick),
+        'neck': place(nx, nr[0] + min(0.5 * (nr[1] - nr[0]), 0.5 * head_h), min(0.5 * (nr[1] - nr[0]), 0.6 * head_h)),
+        'body': place(tx, ty - 0.15 * thick, 0.45 * thick),
         'legs': place(lx, ly, leg_w),
         'tail': place(kx, (kr[0] + kr[1]) / 2, 1.2 * (kr[1] - kr[0]), slope),
     }
