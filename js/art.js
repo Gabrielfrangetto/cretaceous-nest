@@ -204,14 +204,15 @@ const asset = path => new URL('../' + path, import.meta.url).href;
 // an event's picture (images/events/<key>.webp or .png, 16:9): the addresses to try, in order
 export const eventArtUrls = keys => keys.flatMap(k => ['webp', 'png'].map(ext => asset(`images/events/${k}.${ext}`)));
 // (a baby looks the same whatever its sex: the older drawings use the female's for both)
-const SPRITES = Object.fromEntries(['proto', 'hypa', 'raptor'].map(type =>
+const SPRITES = Object.fromEntries(['proto', 'hypa'].map(type =>
   [type, { m: asset(`sprites/${type}-f.png`), f: asset(`sprites/${type}-f.png`) }]));
 // babies redrawn in profile (animated .webp: their idle plays on their own); a baby looks the same
 // whatever its sex, so one drawing serves both
 SPRITES.dilo = { f: asset('sprites/dilo-f.webp'), m: asset('sprites/dilo-f.webp') };
 SPRITES.rex = { f: asset('sprites/rex.webp'), m: asset('sprites/rex.webp') };
+SPRITES.raptor = { f: asset('sprites/raptor-f.webp'), m: asset('sprites/raptor-f.webp') };
 // how tall a profile baby is drawn against the others (its long tail makes it twice as wide)
-const BABY_SCALE = { dilo: 0.8, rex: 0.8 };
+const BABY_SCALE = { dilo: 0.8, rex: 0.8, raptor: 0.8 };
 
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // (A new or changed animated .webp needs its sheet made: python3 scripts/sheets.py)
