@@ -1166,7 +1166,10 @@ function middleOf(mark) {
   return (middles[mark.key] = c);
 }
 function onSkin(cv, place, mark, k) {
-  if (mark.stay && !place.stay) place = { ...place, stay: true };
+  // (every scar keeps to the part of the body it is on: it covers the lines within it, feathers, folds,
+  // scales, but never crosses one that parts it from another part, an arm before the flank, a leg
+  // against the belly, nor the drawing's rim)
+  if (!place.stay) place = { ...place, stay: true };
   const s = cv.home || cv.sheet, relief = reliefOf(mark);
   if (!relief || !mark.skin) return null;
   const crimson = mark.tint ? tintOf({ key: mark.key, src: mark.src, tint: 1 }) : null;
@@ -1275,7 +1278,7 @@ function onSkin(cv, place, mark, k) {
     g.save(); g.globalCompositeOperation = 'destination-out';
     g.beginPath(); g.ellipse((ex - x) * k, (ey - y) * k, er * k * 1.08, er * eyeFlat(eye) * k * 1.08, (eye.a || 0) * Math.PI / 180, 0, Math.PI * 2); g.fill(); g.restore();
   }
-  const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s) };
+  const made = { canvas: piece, x, y, side, halo: haloPiece(first, place, mark, k, size, s, cv.feathers) };
   if (kept.size > 40) kept.clear();
   kept.set(key, made);
   return made;
@@ -1306,7 +1309,7 @@ function haloOf(mark) {
   } catch (e) { return null; }
   return (halos[mark.key] = c);
 }
-function haloPiece(first, place, mark, k, size, s) {
+function haloPiece(first, place, mark, k, size, s, feathers = null) {
   const t = mark.tint || 0, glow = Math.min(1, Math.max(0, (t - HALO.from) / (1 - HALO.from)));
   const img = glow > 0 && haloOf(mark);
   if (!img) return null;
@@ -1325,6 +1328,9 @@ function haloPiece(first, place, mark, k, size, s) {
   };
   lay('multiply');
   lay('destination-in');
+  // (on the part the wound is on only, as the wound itself: not over an arm before it)
+  const part = linesOf(s, { ...place, r: 0, w: side / (s.w * mark.scale) }, mark, feathers);
+  if (part) { g.globalCompositeOperation = 'destination-in'; g.drawImage(part, 0, 0, P, P); }
   return { canvas: h, x, y, side, alpha: glow * HALO.strength };
 }
 // A piece made on the first frame, laid on a later one bent as the skin under it has moved: cut into a
