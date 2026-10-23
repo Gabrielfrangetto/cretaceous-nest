@@ -19,6 +19,7 @@ ap.add_argument('--contrast', type=float, default=1.2)
 ap.add_argument('--size', type=int, default=512, help='pixels across one source tile')
 ap.add_argument('--blend', type=float, default=0.08, help='how wide the blend at the edges is, a share of the tile')
 ap.add_argument('--seed', type=int, default=7)
+ap.add_argument('--each', action='store_true', help='move each picture to the colour from its own average')
 ap.add_argument('--thick', type=float, default=1.6, help='above 1, more of the ground the densest')
 a = ap.parse_args()
 MIX = 3
@@ -59,7 +60,8 @@ want = np.float32([int(target[i:i + 2], 16) for i in (1, 3, 5)])
 mean = tiles[0].reshape(-1, 3).mean(0)
 # (by scaling each channel rather than shifting it, so a clearing's brown ground stays brown beside the
 # green treetops instead of turning olive like them)
-tiles = [np.clip(want + (t * (want / mean) - want) * a.contrast, 0, 255) for t in tiles]
+# (--each: each from its own average, for pictures painted in different light that should all match)
+tiles = [np.clip(want + (t * (want / (t.reshape(-1, 3).mean(0) if a.each else mean)) - want) * a.contrast, 0, 255) for t in tiles]
 
 if len(tiles) == 1:
     out = tiles[0]

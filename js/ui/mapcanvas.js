@@ -169,7 +169,7 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // parts of one forest, seen at the same slant as the ground; from afar it is drawn in its colour, which
 // is the picture's average.
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
-const TEXTURED = ['forest'];
+const TEXTURED = ['meadow', 'forest'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 512;   // how far across the map a pixel of a picture reaches (map units)
