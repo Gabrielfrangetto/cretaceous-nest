@@ -101,13 +101,13 @@ const lights = new Map();
 // flat colour, nor a picture of its ground seen repeating: smooth noise over the map, from -1 to 1
 const PATCH = 0.07, PATCH_SPAN = SIZE * SQ3 * 5;
 const cornerRand = (i, j, k) => { let v = Math.imul(i * 73856093 ^ j * 19349663 ^ k * 83492791, 0x9e3779b1); v ^= v >>> 15; v = Math.imul(v, 0x85ebca6b); v ^= v >>> 13; return (v >>> 0) / 4294967296; };
-function patchOf(h) {
+function patchOf(h, salt = 0) {
   const [x, y] = flatCenter(h);
   let sum = 0, amp = 1, norm = 0;
   for (let o = 0; o < 2; o++, amp /= 2) {
     const fx = x / PATCH_SPAN * 2 ** o, fy = y / PATCH_SPAN * 2 ** o, i = Math.floor(fx), j = Math.floor(fy);
     const u = (fx - i) ** 2 * (3 - 2 * (fx - i)), v = (fy - j) ** 2 * (3 - 2 * (fy - j));
-    const c = (a, b) => cornerRand(i + a, j + b, o);
+    const c = (a, b) => cornerRand(i + a, j + b, o + salt * 13);
     sum += amp * (c(0, 0) * (1 - u) * (1 - v) + c(1, 0) * u * (1 - v) + c(0, 1) * (1 - u) * v + c(1, 1) * u * v);
     norm += amp;
   }
@@ -173,7 +173,22 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 const TEXTURED = ['meadow', 'swamp', 'forest'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
-const TEXTURE_SPAN = SIZE * SQ3 * 4.8;   // how far across the map one picture reaches (map units), whatever its size
+const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel of a picture reaches (map units)
+// Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
+// cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
+// stretches, with a little of each hex's own; each set at a place of its own in the picture
+const VARIANTS = { forest: 5, meadow: 3, swamp: 3 };
+const densities = new Map();
+function densityOf(seed, h, biome) {
+  const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
+  if (densities.has(id)) return densities.get(id);
+  const v = Math.max(0, Math.min(0.999, 0.5 + patchOf(h, 7) * 0.9 + (cornerRand(h[0], h[1], 61) - 0.5) * 0.45));
+  // (the densest the most: about half the forest thick)
+  const d = Math.floor(v ** 1.6 * n);
+  if (densities.size > 120000) densities.clear();
+  densities.set(id, d);
+  return d;
+}
 const textures = new Map(), patterns = new WeakMap();
 let texturesLoaded = () => {};
 // fn: called when a picture has come, to draw the map again
@@ -191,17 +206,23 @@ const picture = name => {
 // the picture of a biome's edge (scripts/edge.py), once it has come
 const EDGED = new Set(['forest', 'swamp']);
 const edgeOf = biome => { if (!EDGED.has(biome)) return null; const img = picture(`${biome}-edge`); return img.complete && img.naturalWidth ? img : null; };
-function textureOf(ctx, biome) {
+// the pattern of one of a biome's pictures (top: its treetops alone), once it has come; all of a
+// biome's are asked for together, and none is used until they all have come
+function textureOf(ctx, biome, i, top = false) {
   if (rank(biome) < 0) return null;
-  const img = picture(biome);
+  const names = Array.from({ length: VARIANTS[biome] }, (_, k) => [`${biome}-${k}`, `${biome}-${k}-top`]).flat();
+  const imgs = names.map(picture);
   if (EDGED.has(biome)) picture(`${biome}-edge`);
-  if (!img.complete || !img.naturalWidth) return null;
+  if (imgs.some(img => !img.complete || !img.naturalWidth)) return null;
+  const name = `${biome}-${i}${top ? '-top' : ''}`;
   let mine = patterns.get(ctx);
   if (!mine) patterns.set(ctx, mine = new Map());
-  if (!mine.has(biome)) mine.set(biome, { pattern: ctx.createPattern(img, 'repeat'), k: TEXTURE_SPAN / img.naturalWidth });
-  return mine.get(biome);
+  if (!mine.has(name)) mine.set(name, { pattern: ctx.createPattern(picture(name), 'repeat'), k: TEXTURE_PX, span: picture(name).naturalWidth * TEXTURE_PX });
+  return mine.get(name);
 }
-const hasTexture = biome => rank(biome) >= 0 && textures.get(biome)?.naturalWidth > 0;
+const hasTexture = biome => rank(biome) >= 0 && textures.get(`${biome}-0`)?.naturalWidth > 0;
+// a picture's place in a hex: where in the picture the hex's middle falls, its own
+const placeIn = (tex, h) => new DOMMatrix([tex.k, 0, 0, tex.k * TILT, -cornerRand(h[0], h[1], 71) * tex.span, -cornerRand(h[0], h[1], 72) * tex.span * TILT]);
 // A textured hex's outline, around 0,0: where it meets land of another kind its ground runs a little
 // over the edge, raggedly, as a forest's edge does; along its own kind and the water the edge is the
 // hex's. Each hex's own, the same every time
@@ -331,8 +352,9 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   const textured = [];
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
-    const tex = !isWaterCell(cell) && !cell.lava && textureOf(ctx, groundName(cell));
-    if (tex) { textured.push({ h, x, y, cell, tex }); continue; }
+    const biome = groundName(cell), dense = rank(biome) >= 0 ? densityOf(seed, h, biome) : 0;
+    const tex = !isWaterCell(cell) && !cell.lava && textureOf(ctx, biome, dense);
+    if (tex) { textured.push({ h, x, y, cell, tex, dense }); continue; }
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth);
@@ -345,10 +367,29 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     const edge = edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell);
     ctx.save();
     ctx.translate(x, y);
-    // (the picture anchored to the map, not the hex)
-    tex.pattern.setTransform(new DOMMatrix([tex.k, 0, 0, tex.k * TILT, -x, -y]));
+    tex.pattern.setTransform(placeIn(tex, h));
     ctx.fillStyle = tex.pattern;
     ctx.fill(edge);
+    ctx.restore();
+  }
+  // a hex denser than a neighbour of its kind lays its treetops a little over the edge into it, the
+  // densest last, so where thick meets open the edge is trees standing over the open ground
+  const over = hexPath(1.3);
+  for (const { h, x, y, cell, dense } of [...textured].sort((a, b) => b.dense - a.dense)) {
+    const biome = groundName(cell);
+    // (only into those neighbours: never over water or other land)
+    const into = HEX_DIRS.filter(([dq, dr]) => { const n = [h[0] + dq, h[1] + dr], c = (inMap(n) || inWilds(n)) && cellAt(seed, n); return c && groundName(c) === biome && !isWaterCell(c) && densityOf(seed, n, biome) > dense; });
+    const top = into.length && textureOf(ctx, biome, dense, true);
+    if (!top) continue;
+    const room = new Path2D();
+    room.addPath(shape);
+    for (const d of into) { const [nx, ny] = center(d); room.addPath(shape, new DOMMatrix().translate(nx, ny)); }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.clip(room);
+    top.pattern.setTransform(placeIn(top, h));
+    ctx.fillStyle = top.pattern;
+    ctx.fill(over);
     ctx.restore();
   }
   // (the light over each, lightening or darkening the painting; blended across it at every zoom, as

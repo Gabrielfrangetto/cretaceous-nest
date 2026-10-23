@@ -20,6 +20,7 @@ ap.add_argument('--size', type=int, default=352, help='pixels across one source 
 ap.add_argument('--quality', type=int, default=78)
 ap.add_argument('--blend', type=float, default=0.08, help='how wide the blend at the edges is, a share of the tile')
 ap.add_argument('--seed', type=int, default=7)
+ap.add_argument('--variants', action='store_true', help='each picture saved on its own, for the map to give each hex one')
 ap.add_argument('--each', action='store_true', help='move each picture to the colour from its own average')
 ap.add_argument('--thick', type=float, default=1.6, help='above 1, more of the ground the densest')
 a = ap.parse_args()
@@ -47,7 +48,7 @@ def tile_of(path, size):
 
 # (the opener ones drawn half as large again, so their clearings are bigger and repeat less often)
 OPEN = 1.5
-tiles = [tile_of(p, a.size if i == 0 else round(a.size * OPEN)) for i, p in enumerate(a.src)]
+tiles = [tile_of(p, a.size if i == 0 or a.variants else round(a.size * OPEN)) for i, p in enumerate(a.src)]
 
 # its colours moved to the biome's: the first's average becomes it, its light and shade a little stronger
 if a.color:
@@ -64,6 +65,20 @@ mean = tiles[0].reshape(-1, 3).mean(0)
 # (--each: each from its own average, for pictures painted in different light that should all match)
 tiles = [np.clip(want + (t * (want / (t.reshape(-1, 3).mean(0) if a.each else mean)) - want) * a.contrast, 0, 255) for t in tiles]
 
+if a.variants:
+    # Each picture on its own, for the map to give each hex one of them, whole (images/terrain/<biome>-<i>.webp,
+    # densest first), and its treetops alone (…-<i>-top.webp): a hex denser than its neighbour lays them a
+    # little over the edge into it, whole ones, so a thick hex's edge is trees standing over the open one
+    from scipy import ndimage
+    for i, t in enumerate(tiles):
+        Image.fromarray(t.clip(0, 255).astype(np.uint8)).save(f'images/terrain/{a.biome}-{i}.webp', 'WEBP', quality=a.quality, method=6)
+        green = t[..., 1] - (t[..., 0] + t[..., 2]) / 2
+        tall = ndimage.gaussian_filter((green - green.mean()) / (green.std() + 1e-6), 2, mode='wrap')
+        crowns = ndimage.binary_opening(tall > -0.15, iterations=2)
+        top = ndimage.gaussian_filter(crowns.astype(np.float32), 0.8, mode='wrap')
+        Image.fromarray(np.dstack([t.clip(0, 255), top * 255]).astype(np.uint8)).save(f'images/terrain/{a.biome}-{i}-top.webp', 'WEBP', quality=a.quality, method=6)
+    print(f'images/terrain/{a.biome}-0..{len(tiles) - 1}.webp (+ -top): {len(tiles)} pictures of {a.size}×{a.size}, average {target}')
+    raise SystemExit
 if len(tiles) == 1:
     # (laid as many times across as a blend's tile is wide, so it is drawn at the same size)
     out = np.tile(tiles[0], (MIX, MIX, 1))
