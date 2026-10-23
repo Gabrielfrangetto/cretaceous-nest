@@ -19,11 +19,12 @@ ap.add_argument('--contrast', type=float, default=1.2)
 ap.add_argument('--size', type=int, default=512, help='pixels across one source tile')
 ap.add_argument('--blend', type=float, default=0.08, help='how wide the blend at the edges is, a share of the tile')
 ap.add_argument('--seed', type=int, default=7)
+ap.add_argument('--thick', type=float, default=1.6, help='above 1, more of the ground the densest')
 a = ap.parse_args()
 MIX = 3
 
 
-def tile_of(path):
+def tile_of(path, size):
     img = np.asarray(Image.open(path).convert('RGB')).astype(np.float32)
     h, w = img.shape[:2]
     lum = img @ np.float32([0.299, 0.587, 0.114])
@@ -39,10 +40,12 @@ def tile_of(path):
     k = np.minimum.outer(ramp(h), ramp(w))[..., None]
     k = k * k * (3 - 2 * k)
     out = img * k + moved * (1 - k)
-    return np.asarray(Image.fromarray(out.clip(0, 255).astype(np.uint8)).resize((a.size, a.size), Image.LANCZOS)).astype(np.float32)
+    return np.asarray(Image.fromarray(out.clip(0, 255).astype(np.uint8)).resize((size, size), Image.LANCZOS)).astype(np.float32)
 
 
-tiles = [tile_of(p) for p in a.src]
+# (the opener ones drawn half as large again, so their clearings are bigger and repeat less often)
+OPEN = 1.5
+tiles = [tile_of(p, a.size if i == 0 else round(a.size * OPEN)) for i, p in enumerate(a.src)]
 
 # its colours moved to the biome's: the first's average becomes it, its light and shade a little stronger
 if a.color:
@@ -54,7 +57,9 @@ else:
     target = m.group(1)
 want = np.float32([int(target[i:i + 2], 16) for i in (1, 3, 5)])
 mean = tiles[0].reshape(-1, 3).mean(0)
-tiles = [np.clip(want + (t - mean) * a.contrast, 0, 255) for t in tiles]
+# (by scaling each channel rather than shifting it, so a clearing's brown ground stays brown beside the
+# green treetops instead of turning olive like them)
+tiles = [np.clip(want + (t * (want / mean) - want) * a.contrast, 0, 255) for t in tiles]
 
 if len(tiles) == 1:
     out = tiles[0]
@@ -65,14 +70,17 @@ else:
     y, x = np.mgrid[0:n, 0:n] / n * 2 * np.pi
     v = sum(amp * np.sin(fx * x + fy * y + rng.uniform(0, 2 * np.pi))
             for amp, fx, fy in [(1, 1, 2), (1, 2, -1), (0.7, 3, 1), (0.6, -1, 3), (0.4, 4, -3), (0.35, -3, -4)])
-    v = (v - v.min()) / (v.max() - v.min())
-    # (each source has its band of the noise, blended smoothly into the next)
-    pos = v * (len(tiles) - 1)
+    # (as many places of each density: the noise's values spread evenly from 0 to 1, then each source
+    # has its band of them, blended into the next over a narrow margin, so thick and open stand apart)
+    v = np.argsort(np.argsort(v.ravel())).reshape(v.shape) / (v.size - 1)
+    # (the densest the most of them: about half the ground thick, a quarter with a few clearings, the rest open)
+    pos = v ** a.thick * (len(tiles) - 1)
     out = np.zeros((n, n, 3), np.float32)
     weight = np.zeros((n, n, 1), np.float32)
     for i, t in enumerate(tiles):
-        wgt = np.clip(1 - np.abs(pos - i) * 1.6, 0, 1)[..., None] ** 1.5
-        out += np.tile(t, (MIX, MIX, 1)) * wgt
+        wgt = np.clip(1.6 - np.abs(pos - i) * 2.2, 0, 1)[..., None] ** 1.5
+        k = n // t.shape[0]
+        out += np.tile(t, (k, k, 1)) * wgt
         weight += wgt
     out /= np.maximum(weight, 1e-6)
 
