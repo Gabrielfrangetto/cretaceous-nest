@@ -3,8 +3,8 @@
 // once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
-import { SIZE, SQ3, center, fillOf, glyphOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
-import { railsOf } from '../map.js';
+import { SIZE, SQ3, center, fillOf, glyphOf, reliefOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
+import { railsOf, upAt } from '../map.js';
 
 // ---------- SVG snippets as canvas paths ----------
 const attr = (s, name) => { const m = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(s); return m ? m[1] : null; };
@@ -42,6 +42,32 @@ export function paint(ctx, svg, x, y, alpha = 1) {
   ctx.restore();
 }
 
+// A hill, mountain or volcano (hexdraw.js reliefOf) drawn as a picture made once for its shape, at the
+// sharpness the zoom needs (in half steps of doubling), the last SPRITE_KEEP kept; close up, where few
+// hexes show, drawn as shapes
+const sprites = new Map(), SPRITE_KEEP = 600;
+function drawRelief(ctx, r, x, y, alpha) {
+  const a = Math.hypot(ctx.getTransform().a, ctx.getTransform().b);
+  if (a > 1.45) { paint(ctx, r.svg, x + r.dx, y + r.dy, alpha); return; }
+  const sharp = 2 ** (Math.ceil(Math.log2(Math.max(a, 0.05)) * 2) / 2), id = `${r.key}|${sharp}`, [x0, y0, x1, y1] = r.box;
+  let pic = sprites.get(id);
+  if (pic) { sprites.delete(id); sprites.set(id, pic); }
+  else {
+    // (an ImageBitmap where there is one: a picture made to be drawn again and again)
+    const w = Math.max(1, Math.ceil((x1 - x0) * sharp)), h = Math.max(1, Math.ceil((y1 - y0) * sharp));
+    const off = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
+    const p = off.getContext('2d');
+    p.scale(sharp, sharp);
+    paint(p, r.svg, -x0, -y0);
+    pic = { img: off.transferToImageBitmap ? off.transferToImageBitmap() : off, w: w / sharp, h: h / sharp };
+    sprites.set(id, pic);
+    if (sprites.size > SPRITE_KEEP) { const old = sprites.keys().next().value; sprites.get(old).img.close?.(); sprites.delete(old); }
+  }
+  if (alpha !== 1) ctx.globalAlpha = alpha;
+  ctx.drawImage(pic.img, x + r.dx + x0, y + r.dy + y0, pic.w, pic.h);
+  if (alpha !== 1) ctx.globalAlpha = 1;
+}
+
 // a hex's outline around 0,0 (k: its size)
 const hexPaths = new Map();
 export function hexPath(k = 0.96) {
@@ -55,6 +81,61 @@ export function hexPath(k = 0.96) {
     hexPaths.set(k, p);
   }
   return hexPaths.get(k);
+}
+
+// ---------- relief ----------
+// The ground is lit from the north-west. Each corner of a hex is shared by three hexes, whose heights
+// (map.js upAt) make a little slope there, lit or in shade by how it faces the light; a hex is filled
+// with its colour lit across it as its corners are (the closest straight blend between them), so slopes
+// and ranges stand out and the light runs on smoothly from one hex into the next.
+const RELIEF = 300;   // how high the highest peak stands, in map units (a hex is SIZE × 2 tall)
+const LIGHT = (() => { const v = [-1, -1.25, 1.5], n = Math.hypot(...v); return v.map(x => x / n); })();
+const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].map(d => ({ d, at: center(d) }));
+// (the two neighbours that share each corner, corner i lying at 60i - 30 degrees)
+const CORNER = [[1, 0], [0, 5], [5, 4], [4, 3], [3, 2], [2, 1]];
+const RIM = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE]; });
+const lights = new Map();
+// how lit a hex is (0: as flat ground, + in the sun, - in shade): m in its middle, changing by (gx, gy)
+// a map unit across it
+function lightOf(seed, h) {
+  const id = `${seed}|${h[0]},${h[1]}`;
+  let l = lights.get(id);
+  if (l) return l;
+  const z0 = upAt(seed, h) * RELIEF;
+  // (beyond the map's edge, and under water, which lies flat at its shore, the ground carries on as it is)
+  const zs = STEPS.map(({ d }) => { const n = [h[0] + d[0], h[1] + d[1]], c = (inMap(n) || inWilds(n)) && cellAt(seed, n); return c && !isWaterCell(c) ? upAt(seed, n) * RELIEF : z0; });
+  let m = 0, gx = 0, gy = 0;
+  CORNER.forEach(([a, b], i) => {
+    const [ax, ay] = STEPS[a].at, [bx, by] = STEPS[b].at, az = zs[a] - z0, bz = zs[b] - z0;
+    let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+    if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    const s = (nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / Math.hypot(nx, ny, nz) - LIGHT[2];
+    m += s / 6; gx += s * RIM[i][0] / (3 * SIZE * SIZE); gy += s * RIM[i][1] / (3 * SIZE * SIZE);
+  });
+  l = { m, gx, gy };
+  if (lights.size > 120000) lights.clear();
+  lights.set(id, l);
+  return l;
+}
+const rgbs = new Map();
+const rgbOf = hex => rgbs.get(hex) || rgbs.set(hex, [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))).get(hex);
+const SUN = [255, 247, 224], SHADE = [24, 32, 46];
+// a colour lit (s > 0, towards warm white) or in shade (s < 0, towards a cool dark)
+const litColor = (rgb, s) => {
+  const t = s > 0 ? Math.min(0.45, s * 1.3) : Math.min(0.55, -s * 1.5), to = s > 0 ? SUN : SHADE;
+  return `rgb(${Math.round(rgb[0] + (to[0] - rgb[0]) * t)},${Math.round(rgb[1] + (to[1] - rgb[1]) * t)},${Math.round(rgb[2] + (to[2] - rgb[2]) * t)})`;
+};
+// the fill of a hex drawn around 0,0: its colour, lit as its ground lies (water lies flat); blended
+// across it (smooth) close up, where few hexes show, one colour each from further away
+function groundFill(ctx, seed, h, cell, smooth) {
+  const color = fillOf(cell);
+  if (isWaterCell(cell)) return color;
+  const l = lightOf(seed, h), { m, gx, gy } = l, g = Math.hypot(gx, gy), rgb = rgbOf(color);
+  if (!smooth || g * SIZE < 0.01) return l.solid || (l.solid = litColor(rgb, m));
+  const ux = gx / g * SIZE, uy = gy / g * SIZE, fill = ctx.createLinearGradient(-ux, -uy, ux, uy);
+  fill.addColorStop(0, litColor(rgb, m - g * SIZE));
+  fill.addColorStop(1, litColor(rgb, m + g * SIZE));
+  return fill;
 }
 
 // the colours of the page's theme, for what the canvas draws
@@ -84,7 +165,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     const w = SIZE * SQ3, h = SIZE * 1.5;
     for (const hx of hexes) {
       const [x, y] = center(hx), cell = cellAt(seed, hx);
-      ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : fillOf(cell);
+      ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : groundFill(ctx, seed, hx, cell, false);
       ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5);
       if (!isWaterCell(cell) && !known(hexKey(...hx))) { ctx.fillStyle = dim; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
     }
@@ -93,11 +174,12 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     drawRails(ctx, seed, hexes);
     return;
   }
+  const smooth = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b) >= 44;
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = fillOf(cell);
+    ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth);
     ctx.fill(shape);
     if (!isWaterCell(cell) && !known(hexKey(...h))) { ctx.fillStyle = dim; ctx.fill(shape); }
     if (detail === 'full') ctx.stroke(shape);
@@ -105,10 +187,13 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   }
   drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
   drawRails(ctx, seed, hexes);
-  for (const h of hexes) {
-    const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h);
-    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell) : '';
-    if (art) paint(ctx, art, x, y, !isWaterCell(cell) && !known(key) ? 0.7 : 1);
+  // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
+  for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
+    const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
+    const relief = detail === 'full' && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
+    if (relief) { drawRelief(ctx, relief, x, y, alpha); continue; }
+    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell, h) : '';
+    if (art) paint(ctx, art, x, y, alpha);
   }
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar

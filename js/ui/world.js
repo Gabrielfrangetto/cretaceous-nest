@@ -9,7 +9,7 @@ import {
 } from '../world.js';
 import { packOf } from '../packs.js';
 import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, routePath, freshWater, standingUnits, flightBill, flightMins, stopOf } from '../journey.js';
-import { isStation } from '../map.js';
+import { isStation, upAt } from '../map.js';
 import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
@@ -27,11 +27,12 @@ import { cleanTeams } from '../teams.js';
 
 // a sample map for the landing page: every hex up to `seen` steps revealed, one more ring of fog
 export function sampleMapSVG(seed, seen = 3) {
-  const cells = ALL_HEXES.filter(h => hexDist(h) <= seen + 1).map(h => {
+  // (north to south, so a mountain stands in front of the hexes behind it)
+  const cells = ALL_HEXES.filter(h => hexDist(h) <= seen + 1).sort((a, b) => a[1] - b[1] || a[0] - b[0]).map(h => {
     const c = center(h), d = hexDist(h), cell = cellAt(seed, h);
     const fog = d > seen;
     return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
-      <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : riverSVG(seed, h) + glyphOf(cell)}</g>`;
+      <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : riverSVG(seed, h) + glyphOf(cell, h, upAt(seed, h))}</g>`;
   }).join('');
   const r = SIZE * SQ3 * (seen + 1.6);
   return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;

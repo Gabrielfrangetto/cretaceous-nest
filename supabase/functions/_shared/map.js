@@ -386,10 +386,15 @@ export function worldMap(seed) {
     cells[i] = { biome: biome[i], terrain: TERRAINS[terrain[i]], ...(lava[i] && biome[i] === 'volcano' ? { lava: true } : {}), river: !!river[i], ...(river[i] ? { flow: flow[i], down: down[i], ...(outlet[i] >= 0 ? { from: outlet[i] } : {}) } : {}), lat: lat[i], heat: Math.round(heat[i] * 100) / 100, wet: Math.round(wet[i] * 100) / 100, near: near[i],
       ...(cityOf.has(i) ? { city: CITY_NAMES[cityOf.get(i) % CITY_NAMES.length] } : {}) };
   }
-  const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })), wilds: null };
+  let top = sea;
+  for (let i = 0; i < N; i++) if (!water(terrain[i])) top = Math.max(top, height[i]);
+  const up = Float32Array.from({ length: N }, (_, i) => upOf(height[i], terrain[i], sea, hill, mountain, top));
+  const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })), up, wilds: null, wildsUp: null };
   // the uncharted north, made only when it is drawn
   let wilds = null;
-  Object.defineProperty(out, 'wilds', { get: () => wilds || (wilds = wildsOf(seed, { heightAt, sea, hill, mountain, terrain })) });
+  const north = () => wilds || (wilds = wildsOf(seed, { heightAt, sea, hill, mountain, top, terrain }));
+  Object.defineProperty(out, 'wilds', { get: () => north().cells });
+  Object.defineProperty(out, 'wildsUp', { get: () => north().up });
   if (cache.size > 4) cache.clear();
   cache.set(seed, out);
   return out;
@@ -398,7 +403,7 @@ export function worldMap(seed) {
 // edges (or the map's sea) is sea and the rest lakes, and many more lakes on the cold flat ground (the
 // lake country scraped out by old ice); its climate carries on to the north: Boreal Forest, then Tundra
 // where it is coldest, prairie where it is dry. [cell by wildsIndex]
-function wildsOf(seed, { heightAt, sea, hill, mountain, terrain: mapTerrain }) {
+function wildsOf(seed, { heightAt, sea, hill, mountain, top, terrain: mapTerrain }) {
   const S = MAP.scale, t = new Uint8Array(NW), up = new Float64Array(NW), hx = WILDS_HEXES;
   const nb = (i, k) => { const [q, r] = hx[i], [dq, dr] = DIRS[k]; return wildsIndex([q + dq, r + dr]); };
   for (let i = 0; i < NW; i++) {
@@ -431,9 +436,23 @@ function wildsOf(seed, { heightAt, sea, hill, mountain, terrain: mapTerrain }) {
       : heat < CLIMATE.wilds.tundra ? 'tundra' : heat < CLIMATE.wilds.taiga ? 'taiga' : wet < 0.3 ? 'meadow' : 'forest';
     cells[i] = { biome, terrain, river: false, lat: Math.round(a * 10) / 10, wilds: true };
   }
-  return cells;
+  return { cells, up: Float32Array.from({ length: NW }, (_, i) => cells[i].biome ? upOf(heightAt(hx[i]), t[i], sea, hill, mountain, top) : 0) };
 }
 export const wildsAt = (seed, h) => { const i = wildsIndex(h); return i < 0 ? null : worldMap(seed).wilds[i]; };
+// How high a hex stands, for drawing its relief: 0 at the sea, 1 the map's highest peak; water is 0. It is
+// the height the land was made from, kept within its terrain's band (flat ground below the hills, hills
+// below the mountains), so the relief drawn agrees with the terrain.
+export const upAt = (seed, h) => {
+  let i = indexOf(h);
+  if (i >= 0) return worldMap(seed).up[i];
+  i = wildsIndex(h);
+  return i < 0 ? 0 : worldMap(seed).wildsUp[i];
+};
+function upOf(v, t, sea, hill, mountain, top) {
+  if (t === OCEAN || t === LAKE) return 0;
+  const at = x => Math.max(0, (x - sea) / (top - sea)), u = Math.min(1, at(v)), uh = at(hill), um = at(mountain);
+  return t === FLAT ? Math.min(u, uh) : t === HILL ? Math.min(Math.max(u, uh), um) : Math.max(u, um);
+}
 export const cellAt = (seed, h) => { const i = indexOf(h); return i < 0 ? null : worldMap(seed).cells[i]; };
 export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.terrain === 'ocean' || c.terrain === 'lake'; };
 // the other colonists' settlements: [{ h, key, name }]

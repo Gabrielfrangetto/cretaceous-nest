@@ -30,16 +30,118 @@ const GLYPH = {
   tundra: '<ellipse cx="4" cy="2" rx="7" ry="3" fill="#f2f4f2"/><path d="M-11 8 l2 -5 l2 5 M-6 8 l2 -4 l2 4 M8 9 l1.5 -4 l1.5 4" stroke="#7d8060" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
   volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
 };
-// terrain drawn over the biome: hills, mountains, a volcano's peak, a river; water has its own colour
-const TERRAIN = {
-  hill: '<path d="M-13 9 q6 -10 12 0 q5 -8 12 0" fill="none" stroke="#5b4a32" stroke-width="2" opacity=".7"/>',
-  mountain: '<path d="M-14 10 L-5 -9 L1 2 L5 -4 L14 10Z" fill="#6e6458"/><path d="M-5 -9 L-2 -3 L-7 -3Z" fill="#f2efe6"/>',
-  volcano: '<path d="M-14 10 L-4 -8 L4 -8 L14 10Z" fill="#4a3028"/><path d="M-4 -8 L-1 -13 L2 -9 L4 -12 L4 -8Z" fill="#e2643a"/>',
-};
 export const WATER = { ocean: '#3b6e9e', lake: '#5b95c8' };
 // (a lava flow: dark rock, cooled)
-export const fillOf = c => WATER[c.terrain] || (c.lava ? '#5e463e' : (BIOMES[c.biome] || WILDS_BIOMES[c.biome]).color);
-export const glyphOf = c => WATER[c.terrain] ? '' : c.lava ? LAVA : (TERRAIN[c.terrain] || GLYPH[c.biome]);
+// (a mountain's ground is bare rock, with a little of its land's colour)
+export const fillOf = c => WATER[c.terrain] || (c.lava ? '#5e463e' : c.terrain === 'mountain' ? MOUNTAIN_GROUND(c.biome) : (BIOMES[c.biome] || WILDS_BIOMES[c.biome]).color);
+const rockGround = new Map();
+const MOUNTAIN_GROUND = biome => rockGround.get(biome) || rockGround.set(biome, mix((BIOMES[biome] || WILDS_BIOMES[biome]).color, '#9a9184', 0.6)).get(biome);
+const mix = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
+// a hex's little drawing; hills, mountains and volcanoes stand up out of it (h: the hex, whose own
+// shape they get; up: how high it stands, map.js upAt, for how big they are)
+export const glyphOf = (c, h = [0, 0], up) => {
+  const r = reliefOf(c, h, up);
+  return r ? `<g transform="translate(${f1(r.dx)} ${f1(r.dy)})">${r.svg}</g>` : WATER[c.terrain] ? '' : c.lava ? LAVA : GLYPH[c.biome];
+};
+// ---------- hills, mountains and volcanoes ----------
+// Drawn standing up out of their hex, lit from the north-west like the ground (mapcanvas.js): the lit
+// face to the left, the shaded one to the right, a shadow cast to the south-east; a mountain reaches up
+// past its hex's top, over the hex behind it (so they are drawn north to south). Each hex gets one of a
+// few shapes, always the same.
+const rgbOf = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+// a colour lighter (k > 0, towards white) or darker (k < 0)
+export const tone = (hex, k) => '#' + rgbOf(hex).map(v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)).toString(16).padStart(2, '0')).join('');
+// a number from 0 to 1 of the hex's own, the same every time (k: which one)
+const rand = (h, k) => wobble(h[0], h[1], k) + 0.5;
+const f1 = v => +v.toFixed(1);
+const SHADOW = (cx, cy, rx) => `<ellipse cx="${f1(cx)}" cy="${f1(cy)}" rx="${f1(rx)}" ry="${f1(rx * 0.22)}" fill="#1b2216" opacity=".16"/>`;
+const ROCK = { lit: '#b5aa99', mid: '#8b7f70', dark: '#5d544a', line: '#3a322a' };
+// a peak from l to r along the ground at b, its top at (px, py), snow on its top (0: none, up to 1: down
+// to a third of its height)
+function peak(l, r, px, py, b, snow, rock = ROCK) {
+  const ht = b - py, lx = px - (px - l) * 0.18, ly = py + ht * 0.55;
+  let out = `<path d="M${f1(l)} ${f1(b)} L${f1(px)} ${f1(py)} L${f1(r)} ${f1(b)}Z" fill="${rock.mid}"/>`
+    + `<path d="M${f1(l)} ${f1(b)} L${f1(px)} ${f1(py)} L${f1(lx)} ${f1(ly)} L${f1(l + (px - l) * 0.5)} ${f1(b)}Z" fill="${rock.lit}"/>`
+    + `<path d="M${f1(px)} ${f1(py)} L${f1(r)} ${f1(b)} L${f1(px + (r - px) * 0.3)} ${f1(b)} L${f1(px + (r - px) * 0.12)} ${f1(py + ht * 0.6)}Z" fill="${rock.dark}"/>`;
+  if (snow > 0) {
+    const d = ht * 0.33 * snow, sl = px - (px - l) * d / ht, sr = px + (r - px) * d / ht;
+    out += `<path d="M${f1(px)} ${f1(py)} L${f1(sl)} ${f1(py + d)} L${f1(sl + (px - sl) * 0.4)} ${f1(py + d * 0.75)} L${f1(px - 0.5)} ${f1(py + d * 1.05)} L${f1(px + (sr - px) * 0.45)} ${f1(py + d * 0.78)} L${f1(sr)} ${f1(py + d)}Z" fill="#f6f4ee"/>`
+      + `<path d="M${f1(px)} ${f1(py)} L${f1(px + (sr - px) * 0.45)} ${f1(py + d * 0.78)} L${f1(sr)} ${f1(py + d)}Z" fill="#d2d7de"/>`;
+  }
+  return out + `<path d="M${f1(l)} ${f1(b)} L${f1(px)} ${f1(py)} L${f1(r)} ${f1(b)}" fill="none" stroke="${rock.line}" stroke-width="1.4"/>`
+    + `<path d="M${f1(px)} ${f1(py)} L${f1(px + (r - px) * 0.12)} ${f1(py + ht * 0.6)} L${f1(px + (r - px) * 0.3)} ${f1(b)}" fill="none" stroke="${rock.line}" stroke-width=".9" opacity=".4"/>`;
+}
+// a rounded hill from l to r along the ground at b, its top at height t, in the ground's colour
+function mound(l, r, t, b, color) {
+  const cx = (l + r) / 2, ctl = 2 * t - b, w = r - l, ht = b - t;
+  return `<path d="M${f1(l)} ${f1(b)} Q${f1(cx)} ${f1(ctl)} ${f1(r)} ${f1(b)}Z" fill="${tone(color, -0.08)}"/>`
+    + `<path d="M${f1(l)} ${f1(b)} Q${f1(l + w * 0.28)} ${f1(t - ht * 0.05)} ${f1(cx)} ${f1(t)} Q${f1(cx - w * 0.18)} ${f1(t + ht * 0.45)} ${f1(l + w * 0.3)} ${f1(b)}Z" fill="${tone(color, 0.2)}"/>`
+    + `<path d="M${f1(cx)} ${f1(t)} Q${f1(r - w * 0.18)} ${f1(t + ht * 0.05)} ${f1(r)} ${f1(b)} L${f1(cx + w * 0.15)} ${f1(b)} Q${f1(cx + w * 0.22)} ${f1(t + ht * 0.45)} ${f1(cx)} ${f1(t)}Z" fill="${tone(color, -0.3)}"/>`
+    + `<path d="M${f1(l)} ${f1(b)} Q${f1(cx)} ${f1(ctl)} ${f1(r)} ${f1(b)}" fill="none" stroke="${tone(color, -0.6)}" stroke-width="1.2"/>`;
+}
+// a tree on a wooded hill
+const TREES = {
+  forest: (x, y) => `<path d="M${f1(x - 3.5)} ${f1(y)} L${f1(x)} ${f1(y - 10)} L${f1(x + 3.5)} ${f1(y)}Z" fill="#2f5a2c"/><path d="M${f1(x)} ${f1(y - 10)} L${f1(x + 3.5)} ${f1(y)} L${f1(x + 1)} ${f1(y)}Z" fill="#244a22"/>`,
+  taiga: (x, y) => `<path d="M${f1(x - 3)} ${f1(y)} L${f1(x)} ${f1(y - 11)} L${f1(x + 3)} ${f1(y)}Z" fill="#2c4a38"/><path d="M${f1(x)} ${f1(y - 11)} L${f1(x + 3)} ${f1(y)} L${f1(x + 1)} ${f1(y)}Z" fill="#203a2c"/>`,
+  subtropical: (x, y) => `<path d="M${f1(x)} ${f1(y)} L${f1(x)} ${f1(y - 5)}" stroke="#5a4028" stroke-width="1.5"/><circle cx="${f1(x)}" cy="${f1(y - 8)}" r="4.2" fill="#2c6a3c"/><circle cx="${f1(x + 1.5)}" cy="${f1(y - 7)}" r="2.8" fill="#245a33"/>`,
+};
+const groundOf = c => (BIOMES[c.biome] || WILDS_BIOMES[c.biome] || { color: '#9a9070' }).color;
+// (where in its band a hex's height lies: 0 at the band's foot, 1 at its top; map.js upAt)
+const BANDS = { hill: [0.47, 0.63], mountain: [0.63, 1], volcano: [0.63, 0.9] };
+const within = (c, up) => { const [a, b] = BANDS[c.terrain]; return up === undefined ? 0.5 : Math.max(0, Math.min(1, (up - a) / (b - a))); };
+// Each is one of a few shapes (VARIANTS of each, at a few sizes and snow cover), set a little off its
+// hex's middle (dx, dy): drawn once each and kept as a picture (mapcanvas.js), so a range of hundreds of
+// mountains draws quickly, while no two neighbours look alike. { key: which shape, svg around 0,0,
+// box: [x0, y0, x1, y1] it fits in, dx, dy }
+const VARIANTS = 16;
+const SHAPES = {
+  // one to three mounds, bigger the higher the hill stands
+  hill(c, v, k) {
+    const g = groundOf(c), tree = TREES[c.biome], at = [v, 7], n = 1 + Math.floor(rand(at, 21) * 2.4);
+    const mounds = Array.from({ length: n }, (_, i) => {
+      const w = (n === 1 ? 40 : n === 2 ? 30 : 24) * k * (0.85 + rand(at, 30 + i) * 0.3), x = n === 1 ? 0 : (i / (n - 1) - 0.5) * (n === 2 ? 22 : 34) * k;
+      const y = 12 - (n === 3 && i === 1 ? 3 : 0) + rand(at, 40 + i) * 2, ht = w * (0.32 + rand(at, 50 + i) * 0.14);
+      return { l: x - w / 2, r: x + w / 2, t: y - ht, b: y };
+    }).sort((a, b) => a.b - b.b);
+    const box = [Math.min(...mounds.map(m => m.l)) - 2, Math.min(...mounds.map(m => m.t)) - (tree ? 12 : 2), Math.max(...mounds.map(m => m.r), 6 + 22 * k) + 2, 19];
+    return { box, svg: SHADOW(6, 13, 22 * k) + mounds.map(m => mound(m.l, m.r, m.t, m.b, g) + (tree && rand(at, 60 + mounds.indexOf(m)) < 0.8 ? tree((m.l + m.r) / 2 + 2, m.t + 3) : '')).join('') };
+  },
+  // a cluster of peaks, more and bigger the higher it stands, overlapping the hexes around it so a range
+  // reads as one massif; snow where it is cold
+  mountain(c, v, k, t, snow) {
+    const at = [v, 11], n = 1 + (rand(at, 35) < 0.35 + 0.5 * t ? 1 : 0) + (rand(at, 36) < 0.6 * t ? 1 : 0);
+    const peaks = Array.from({ length: n }, (_, i) => {
+      const main = i === 0, kk = k * (main ? 1 : 0.55 + rand(at, 70 + i) * 0.3);
+      const x = (rand(at, 24 + i * 10) - 0.5) * (main ? 6 : 40), b = (main ? 14 : 8) + (rand(at, 25 + i * 10) - 0.5) * 8;
+      const w = 30 * kk * (0.85 + rand(at, 26 + i * 10) * 0.3), ht = 50 * kk * (0.8 + rand(at, 27 + i * 10) * 0.35);
+      return { x, b, w, ht, px: x + (rand(at, 28 + i * 10) - 0.5) * w * 0.55, main };
+    }).sort((a, b) => a.b - b.b);
+    const m = peaks.find(p => p.main);
+    const box = [Math.min(...peaks.map(p => p.x - p.w)) - 2, Math.min(...peaks.map(p => p.b - p.ht)) - 2, Math.max(...peaks.map(p => p.x + p.w), m.x + 9 + m.w * 1.25) + 2, m.b + 1 + m.w * 0.3];
+    return { box, svg: SHADOW(m.x + 9, m.b + 1, m.w * 1.25) + peaks.map(p => peak(p.x - p.w, p.x + p.w, p.px, p.b - p.ht, p.b, snow * (p.main ? 1 : 0.7))).join('') };
+  },
+  volcano(c, v, k) {
+    const rock = { lit: '#7a5a4c', mid: '#5a4036', dark: '#3c2a24', line: '#26190f' };
+    const s = x => f1(x * k), side = v % 2 ? 1 : -1;
+    const smoke = [[3, -37, 5, 0.55], [9, -44, 6.5, 0.45], [16, -52, 8, 0.32]].map(([x, y, r, o]) => `<circle cx="${s(x * side)}" cy="${s(y)}" r="${s(r)}" fill="#a39d94" opacity="${o}"/>`).join('');
+    return { box: [-31 * k, -61 * k, 39 * k, 21], svg: SHADOW(8, 14, 30 * k) + smoke
+      + `<path d="M${s(-29)} 14 L${s(-7)} ${s(-27)} L${s(7)} ${s(-27)} L${s(29)} 14Z" fill="${rock.mid}"/><path d="M${s(-29)} 14 L${s(-7)} ${s(-27)} L${s(-6)} ${s(-4)} L${s(-14)} 14Z" fill="${rock.lit}"/><path d="M${s(7)} ${s(-27)} L${s(29)} 14 L${s(10)} 14 L${s(3)} ${s(-6)}Z" fill="${rock.dark}"/>`
+      + `<path d="M${s(-1)} ${s(-26)} Q${s(2)} ${s(-14)} ${s(-2)} ${s(-2)} Q${s(4)} ${s(-12)} ${s(4)} ${s(-26)}Z" fill="#e2643a" opacity=".85"/>`
+      + `<path d="M${s(-7)} ${s(-27)} Q0 ${s(-22)} ${s(7)} ${s(-27)} Q0 ${s(-31)} ${s(-7)} ${s(-27)}Z" fill="#f08a3e"/><path d="M${s(-29)} 14 L${s(-7)} ${s(-27)} L${s(7)} ${s(-27)} L${s(29)} 14" fill="none" stroke="${rock.line}" stroke-width="1.5"/>` };
+  },
+};
+const reliefs = new Map();
+// a hex's hill, mountain or volcano (h: the hex; up: how high it stands, map.js upAt), or null
+export function reliefOf(c, h, up) {
+  if (!SHAPES[c.terrain] || WATER[c.terrain] || c.lava) return null;
+  const t = within(c, up), size = Math.round(t * 3), v = Math.floor(rand(h, 1) * VARIANTS) % (c.terrain === 'volcano' ? 2 : VARIANTS);
+  const k = c.terrain === 'hill' ? 0.8 + 0.35 * size / 3 : c.terrain === 'mountain' ? 0.75 + 0.5 * size / 3 : 0.85 + 0.35 * size / 3;
+  const snow = c.terrain !== 'mountain' ? 0 : c.heat !== undefined ? Math.round(Math.max(0, Math.min(1, (0.2 + 0.35 * t - c.heat) * 4)) * 2) / 2 : c.biome === 'tundra' || c.biome === 'taiga' ? 1 : 0;
+  const key = `${c.terrain}|${c.terrain === 'mountain' ? '' : c.biome}|${v}|${size}|${snow}`;
+  let shape = reliefs.get(key);
+  if (!shape) reliefs.set(key, shape = { key, ...SHAPES[c.terrain](c, v, k, size / 3, snow) });
+  return { ...shape, dx: (rand(h, 2) - 0.5) * (c.terrain === 'mountain' ? 12 : 10), dy: (rand(h, 3) - 0.5) * 6 };
+}
 // cooled lava, cracked, still glowing in the cracks
 const LAVA = '<path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3 M-8 8 L-3 5 L2 8 M3 -6 L7 -3 L12 -5" stroke="#e2643a" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3" stroke="#f6c04a" stroke-width=".6" fill="none"/>';
 const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
