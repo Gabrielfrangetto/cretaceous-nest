@@ -6,7 +6,7 @@ import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
-import { dressedArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
+import { dressedArt, sleepArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
 import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime } from '../sun.js';
 import { powerText } from './stats.js';
@@ -147,6 +147,7 @@ function syncWalkers() {
         art.style.transform = have.art.style.transform; have.faced = null;
         have.art.replaceWith(art);
         have.art = art;
+        setSleepArt(have, b);
         have.gearKey = key;
         have.gait = gaitOf(b, art); have.walking = false;
         if (have.gait) have.speed = have.gait.speed;
@@ -160,7 +161,9 @@ function syncWalkers() {
     bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + '<span>Needs a capsule</span>';
     const art = dressedArt(b.type, 4, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id, b.blind);
     const name = document.createElement('span'); name.className = 'nm'; name.textContent = nameTag(b);
-    el.append(bubble, art, name);
+    // (its awake and its sleeping drawing on the same spot, one fading into the other: .pose)
+    const pose = document.createElement('span'); pose.className = 'pose'; pose.append(art);
+    el.append(bubble, pose, name);
     const depth = Math.random();
     el.style.bottom = Math.round(12 + depth * 60) + 'px';
     el.style.zIndex = String(200 - Math.round(depth * 100));
@@ -171,6 +174,7 @@ function syncWalkers() {
       gait: gaitOf(b, art), walking: false,
     };
     if (w.gait) w.speed = w.gait.speed;
+    setSleepArt(w, b);
     el.addEventListener('click', () => feed(w));
     scene.appendChild(el);
     walkers.set(b.id, w);
@@ -179,6 +183,15 @@ function syncWalkers() {
   const empty = document.getElementById('sceneEmpty');
   empty.hidden = walkers.size > 0;
   empty.textContent = S.hatched.length ? 'Everyone is out exploring. Check the World tab.' : 'No babies yet. Hatch an egg in the Incubator tab.';
+}
+
+// its sleeping drawing, when its kind has one at its stage (SLEEP_SPRITES): asleep, it fades into it
+function setSleepArt(w, b) {
+  const img = sleepArt(b.type, 4, sexOf(b), stageOf(b).id, b.outfit);
+  if (w.sleepImg) w.sleepImg.remove();
+  w.sleepImg = img;
+  if (img) { w.art.after(img); w.faced = null; }
+  w.el.classList.toggle('can-sleep', !!img);
 }
 
 // the sanctuary's bills, paid when the player chooses (every coin that comes in goes to them meanwhile)
@@ -295,7 +308,7 @@ function step(t) {
     let lift = moving && !w.gait ? Math.abs(Math.sin(w.t)) * 3 : 0;
     if (w.hop > 0) { w.hop -= dt; lift += Math.sin(Math.PI * (1 - Math.max(0, w.hop) / 0.45)) * 16; }
     w.el.style.transform = `translate(${w.x.toFixed(1)}px, ${(-lift).toFixed(1)}px)`;
-    if (w.dir !== w.faced) { w.faced = w.dir; face(w.art, w.dir); }
+    if (w.dir !== w.faced) { w.faced = w.dir; face(w.art, w.dir); if (w.sleepImg) face(w.sleepImg, w.dir); }
   }
   raf = requestAnimationFrame(step);
 }

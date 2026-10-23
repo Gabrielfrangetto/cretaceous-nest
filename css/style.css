@@ -736,8 +736,14 @@ body.guide-room { padding-bottom: 70vh; }
 .sky .sun { z-index: 4; width: 34px; height: 34px; border-radius: 50%; left: var(--sun-x, 50%); top: var(--sun-y, 20%); translate: -50% -50%; opacity: var(--sun-o, 1);
   background: radial-gradient(#fff8d2, #ffd45e 60%, #f4ae3a); box-shadow: 0 0 26px #ffd25e99; }
 .sky .moon { z-index: 4; width: 26px; height: 26px; left: var(--moon-x, 50%); top: var(--moon-y, 20%); translate: -50% -50%; opacity: var(--moon-o, 0); filter: drop-shadow(0 0 8px #f4efd866); }
-.scene .decor, .walker .dino-art, .walker > img, .walker > canvas { filter: brightness(calc(1 - .55 * var(--dark, 0))) saturate(calc(1 - .35 * var(--dark, 0))); }
+.scene .decor, .walker .dino-art, .walker .pose > img, .walker .pose > canvas { filter: brightness(calc(1 - .55 * var(--dark, 0))) saturate(calc(1 - .35 * var(--dark, 0))); }
 .sky-time { position: absolute; top: 10px; right: 12px; z-index: 300; margin: 0; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--panel) 80%, transparent); }
+.walker .pose { display: grid; }
+.walker .pose > * { grid-area: 1 / 1; align-self: end; justify-self: center; transition: opacity .9s ease; }
+.walker .sleep-art { opacity: 0; }
+.walker.asleep.can-sleep .sleep-art { opacity: 1; }
+.walker.asleep.can-sleep .pose > :not(.sleep-art) { opacity: 0; }
+.walker.asleep.can-sleep::after { top: 30%; }
 .walker.asleep::after { content: "z z"; position: absolute; top: -4px; right: -6px; font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #eef2ff; text-shadow: 0 1px 2px #0008; animation: dozing 2.4s ease-in-out infinite; }
 @keyframes dozing { 0%, 100% { opacity: .35; translate: 0 2px; } 50% { opacity: 1; translate: 3px -4px; } }
 @media (prefers-reduced-motion: reduce) { .walker.asleep::after { animation: none; } }

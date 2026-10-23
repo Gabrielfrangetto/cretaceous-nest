@@ -593,15 +593,34 @@ const scarLevel = n => (n >= SCARS.deep ? 2 : n >= SCARS.marked ? 1 : 0);
 // they close (or, sewn up in the hospital, the stitches all along); once closed, the scar it has there
 // sewn: the parts whose last wound was sewn up in the hospital, so their scars are its neat ones
 // seed: the dinosaur's own (its id), so its scars fall where they fall on it alone (SPREAD)
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null, blind = null) {
-  const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
+// how big a dinosaur's drawing is drawn against px: the stage's scale times its own size
+function artSize(type, sex, stage, look) {
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
   const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
   // (a young one of a kind whose height is known drawn in proportion to it too, as small as it is beside
   // its parents; the others at their own sizes)
   const tall = stage !== 'adult' && !look && heightOf(type, sex, stage);
-  const size = look ? 1 : tall ? STAGES[2].scale * tall / HEIGHT_REF / st.scale : !own ? (BABY_SCALE[type] || 1)
-    : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1);
+  // (a grown one with no drawing of its own yet, its baby's in its place: as tall as it stands, if known)
+  return st.scale * (look ? 1 : tall ? STAGES[2].scale * tall / HEIGHT_REF / st.scale
+    : !own ? (stage === 'adult' && (ADULT_HEIGHT[type] || {})[sex] ? adultScale(type, sex) : (BABY_SCALE[type] || 1))
+    : stage === 'adult' ? adultScale(type, sex) : ((JUVENILE_SCALE[type] || {})[sex] || 1));
+}
+// Asleep: a drawing of its own, lying curled up as small theropods slept (Mei long), drawn on a frame as tall
+// as its awake one and at the same scale, so one fades into the other where it stands; by species, stage
+// and sex, as drawn so far
+export const SLEEP_SPRITES = { coelo: { adult: { m: asset('sprites/adult/coelo-m-sleep.webp') } } };
+export function sleepArt(type, px, sex, stage, outfit = null) {
+  const src = !outfit && ((SLEEP_SPRITES[type] || {})[stage] || {})[sex];
+  if (!src) return null;
+  const img = babyArt(type, px * artSize(type, sex, stage, null), sex, false, src);
+  img.classList.add('sleep-art');
+  return img;
+}
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null, blind = null) {
+  const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
+  const st = STAGES.find(x => x.id === stage) || STAGES[0];
+  const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
+  const size = artSize(type, sex, stage, look) / st.scale;
   const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
   const sheet = src && SHEETS[src.slice(ROOT.length)];
   const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
