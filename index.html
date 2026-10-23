@@ -18,82 +18,103 @@ addEventListener('error', e => {
 addEventListener('load', () => setTimeout(() => sessionStorage.removeItem('nest-reloaded'), 10000));
 </script>
 <!-- assets:start -->
-<link rel="stylesheet" href="./css/style.css?v=c044fe4cf5">
-<script type="importmap">{ "imports": { "./js/actions.js": "./js/actions.js?v=64dcea9537", "./js/alarm.js": "./js/alarm.js?v=b19eb6fe5c", "./js/art.js": "./js/art.js?v=0538f83fe7", "./js/clock.js": "./js/clock.js?v=98108f9b2e", "./js/cloud-config.js": "./js/cloud-config.js?v=28e7772b10", "./js/cloud.js": "./js/cloud.js?v=60da263318", "./js/combat.js": "./js/combat.js?v=b541f39113", "./js/config.js": "./js/config.js?v=2871a76a17", "./js/economy.js": "./js/economy.js?v=1e0b359c22", "./js/game-server.js": "./js/game-server.js?v=b3f270680e", "./js/gear-art.js": "./js/gear-art.js?v=bc05d10529", "./js/journey.js": "./js/journey.js?v=a245a8a5b2", "./js/main.js": "./js/main.js?v=143fa79bc5", "./js/map.js": "./js/map.js?v=b1444bbaea", "./js/packs.js": "./js/packs.js?v=4168625cd2", "./js/reminder.js": "./js/reminder.js?v=51a9cff03b", "./js/scar-guess.js": "./js/scar-guess.js?v=08a9385c75", "./js/sheets.js": "./js/sheets.js?v=033cdfdd8c", "./js/state.js": "./js/state.js?v=49a32b708b", "./js/sun.js": "./js/sun.js?v=7ee42ae21a", "./js/sync.js": "./js/sync.js?v=91c094f19d", "./js/teams.js": "./js/teams.js?v=8588948ee6", "./js/ui/account.js": "./js/ui/account.js?v=f0937bffca", "./js/ui/baby-info.js": "./js/ui/baby-info.js?v=f2a0fc2cdb", "./js/ui/breeding.js": "./js/ui/breeding.js?v=57ea23cf7e", "./js/ui/fight.js": "./js/ui/fight.js?v=2c017b3e0c", "./js/ui/forge.js": "./js/ui/forge.js?v=957efcb060", "./js/ui/gate.js": "./js/ui/gate.js?v=37490a8cd1", "./js/ui/guide.js": "./js/ui/guide.js?v=ce8bb67718", "./js/ui/header.js": "./js/ui/header.js?v=28904c3f19", "./js/ui/hexdraw.js": "./js/ui/hexdraw.js?v=a5400d4ae6", "./js/ui/incubator.js": "./js/ui/incubator.js?v=58e78f0451", "./js/ui/inventory.js": "./js/ui/inventory.js?v=c00e3eb52f", "./js/ui/journey.js": "./js/ui/journey.js?v=3ad4b9a365", "./js/ui/landing.js": "./js/ui/landing.js?v=ad4418d817", "./js/ui/mapcanvas.js": "./js/ui/mapcanvas.js?v=ad44fe8948", "./js/ui/nest.js": "./js/ui/nest.js?v=cf608df73e", "./js/ui/packs.js": "./js/ui/packs.js?v=b58c488a31", "./js/ui/player.js": "./js/ui/player.js?v=698de3ae4c", "./js/ui/rewards.js": "./js/ui/rewards.js?v=85c3eabb3f", "./js/ui/shop.js": "./js/ui/shop.js?v=97faf7bd8b", "./js/ui/stats.js": "./js/ui/stats.js?v=2d7890d599", "./js/ui/tabs.js": "./js/ui/tabs.js?v=e5fb239ad5", "./js/ui/team.js": "./js/ui/team.js?v=23e16a4df3", "./js/ui/water.js": "./js/ui/water.js?v=725f4b1e60", "./js/ui/words.js": "./js/ui/words.js?v=73dbb15832", "./js/ui/world.js": "./js/ui/world.js?v=a2d804edbf", "./js/util.js": "./js/util.js?v=2bb58f0477", "./js/world.js": "./js/world.js?v=0a139d308a", "./tools/anchors.js": "./tools/anchors.js?v=14f32bc86a" } }</script>
+<link rel="stylesheet" href="./css/style.css?v=a98cf90760">
+<script type="importmap">{ "imports": { "./js/actions.js": "./js/actions.js?v=64dcea9537", "./js/alarm.js": "./js/alarm.js?v=b19eb6fe5c", "./js/art.js": "./js/art.js?v=0538f83fe7", "./js/clock.js": "./js/clock.js?v=98108f9b2e", "./js/cloud-config.js": "./js/cloud-config.js?v=28e7772b10", "./js/cloud.js": "./js/cloud.js?v=60da263318", "./js/combat.js": "./js/combat.js?v=b541f39113", "./js/config.js": "./js/config.js?v=2871a76a17", "./js/economy.js": "./js/economy.js?v=1e0b359c22", "./js/game-server.js": "./js/game-server.js?v=b3f270680e", "./js/gear-art.js": "./js/gear-art.js?v=bc05d10529", "./js/journey.js": "./js/journey.js?v=a245a8a5b2", "./js/main.js": "./js/main.js?v=143fa79bc5", "./js/map.js": "./js/map.js?v=b1444bbaea", "./js/packs.js": "./js/packs.js?v=4168625cd2", "./js/reminder.js": "./js/reminder.js?v=51a9cff03b", "./js/scar-guess.js": "./js/scar-guess.js?v=08a9385c75", "./js/sheets.js": "./js/sheets.js?v=033cdfdd8c", "./js/state.js": "./js/state.js?v=49a32b708b", "./js/sun.js": "./js/sun.js?v=7ee42ae21a", "./js/sync.js": "./js/sync.js?v=91c094f19d", "./js/teams.js": "./js/teams.js?v=8588948ee6", "./js/ui/account.js": "./js/ui/account.js?v=f0937bffca", "./js/ui/baby-info.js": "./js/ui/baby-info.js?v=f2a0fc2cdb", "./js/ui/breeding.js": "./js/ui/breeding.js?v=57ea23cf7e", "./js/ui/fight.js": "./js/ui/fight.js?v=2c017b3e0c", "./js/ui/forge.js": "./js/ui/forge.js?v=957efcb060", "./js/ui/gate.js": "./js/ui/gate.js?v=37490a8cd1", "./js/ui/guide.js": "./js/ui/guide.js?v=ce8bb67718", "./js/ui/header.js": "./js/ui/header.js?v=28904c3f19", "./js/ui/hexdraw.js": "./js/ui/hexdraw.js?v=a5400d4ae6", "./js/ui/incubator.js": "./js/ui/incubator.js?v=58e78f0451", "./js/ui/inventory.js": "./js/ui/inventory.js?v=c00e3eb52f", "./js/ui/journey.js": "./js/ui/journey.js?v=3ad4b9a365", "./js/ui/landing.js": "./js/ui/landing.js?v=21d67b8f6d", "./js/ui/mapcanvas.js": "./js/ui/mapcanvas.js?v=ad44fe8948", "./js/ui/nest.js": "./js/ui/nest.js?v=cf608df73e", "./js/ui/packs.js": "./js/ui/packs.js?v=b58c488a31", "./js/ui/player.js": "./js/ui/player.js?v=698de3ae4c", "./js/ui/rewards.js": "./js/ui/rewards.js?v=85c3eabb3f", "./js/ui/shop.js": "./js/ui/shop.js?v=97faf7bd8b", "./js/ui/stats.js": "./js/ui/stats.js?v=2d7890d599", "./js/ui/tabs.js": "./js/ui/tabs.js?v=e5fb239ad5", "./js/ui/team.js": "./js/ui/team.js?v=23e16a4df3", "./js/ui/water.js": "./js/ui/water.js?v=725f4b1e60", "./js/ui/words.js": "./js/ui/words.js?v=73dbb15832", "./js/ui/world.js": "./js/ui/world.js?v=a2d804edbf", "./js/util.js": "./js/util.js?v=2bb58f0477", "./js/world.js": "./js/world.js?v=0a139d308a", "./tools/anchors.js": "./tools/anchors.js?v=14f32bc86a" } }</script>
 <script type="module" src="./js/main.js?v=143fa79bc5"></script>
 <!-- assets:end -->
 </head>
 <body>
 <div class="landing" id="landing" hidden>
   <header class="land-nav">
-    <a class="land-logo" href="#top">Cretaceous Nest</a>
+    <a class="land-logo" href="#top"><span class="land-logo-egg" data-art="logo"></span>Cretaceous Nest</a>
     <nav aria-label="Sections">
       <a href="#hatch">Hatch</a><a href="#raise">Raise</a><a href="#explore">Explore</a><a href="#fight">Fight</a><a href="#breed">Breed</a>
     </nav>
     <button class="btn small" type="button" data-play>Play</button>
   </header>
 
-  <section class="land-sec hero" id="top">
-    <div class="land-text reveal">
-      <p class="eyebrow">A free dinosaur game in your browser</p>
-      <h1>Cretaceous Nest</h1>
-      <p class="land-lead">Hatch dinosaurs, raise them from tiny babies to towering adults, and lead them into the wild land around your nest.</p>
-      <div class="row"><button class="btn" type="button" data-play>Play free</button><a class="ghost land-more" href="#hatch">See how it works</a></div>
+  <section class="land-hero straight" id="top">
+    <div class="land-scene" data-art="scene" aria-hidden="true"></div>
+    <div class="land-hero-in">
+      <div class="land-text reveal">
+        <p class="land-pill">A free dinosaur game in your browser</p>
+        <h1>Cretaceous Nest</h1>
+        <p class="land-lead">Hatch dinosaurs, raise them from tiny babies to towering adults, and lead them into the wild land around your nest.</p>
+        <div class="row land-cta"><button class="btn big" type="button" data-play>Play free</button><a class="land-more" href="#hatch">See how it works <span aria-hidden="true">↓</span></a></div>
+        <ul class="land-stats" data-art="stats"></ul>
+      </div>
+      <div class="land-hero-art reveal" data-art="hero"></div>
     </div>
-    <div class="land-art reveal" data-art="hero"></div>
   </section>
+
+  <nav class="land-steps" aria-label="How it works">
+    <ol>
+      <li class="reveal up"><a href="#hatch"><span class="step-ico" data-ico="egg"></span><b>Hatch</b><small>pick a starter</small></a></li>
+      <li class="reveal up"><a href="#raise"><span class="step-ico" data-ico="grow"></span><b>Raise</b><small>watch it grow</small></a></li>
+      <li class="reveal up"><a href="#explore"><span class="step-ico" data-ico="map"></span><b>Explore</b><small>lift the fog</small></a></li>
+      <li class="reveal up"><a href="#fight"><span class="step-ico" data-ico="claw"></span><b>Fight</b><small>and forge gear</small></a></li>
+      <li class="reveal up"><a href="#breed"><span class="step-ico" data-ico="heart"></span><b>Breed</b><small>the next legend</small></a></li>
+    </ol>
+  </nav>
 
   <section class="land-sec" id="hatch">
     <div class="land-text reveal">
-      <p class="eyebrow">1 · Hatch</p>
+      <p class="eyebrow"><span class="step-no">01</span> Hatch</p>
       <h2>Your first dinosaur is waiting</h2>
       <p>Pick one of four starter babies, two meat eaters and two plant eaters. Every egg after that is found out in the world or laid by your own dinosaurs, and every one hides different genes.</p>
+      <ul class="land-facts"><li>Four starters to choose from</li><li>New eggs found in the wild or laid in your nest</li><li>No two eggs carry the same genes</li></ul>
     </div>
     <div class="land-art reveal" data-art="hatch"></div>
   </section>
 
   <section class="land-sec" id="raise">
     <div class="land-text reveal">
-      <p class="eyebrow">2 · Raise</p>
+      <p class="eyebrow"><span class="step-no">02</span> Raise</p>
       <h2>Raise them and watch them grow</h2>
       <p>The sanctuary's keepers feed everyone; you give the young their growth capsules, on their own clock, even while the page is closed. A small dinosaur grows up in days, a Tyrannosaurus in about a month, and every one ages a year for each of ours.</p>
+      <ul class="land-facts"><li>Grows on its own clock, even with the page closed</li><li>Days for a small dinosaur, about a month for a T. rex</li></ul>
     </div>
     <div class="land-art reveal" data-art="raise"></div>
   </section>
 
   <section class="land-sec" id="explore">
     <div class="land-text reveal">
-      <p class="eyebrow">3 · Explore</p>
+      <p class="eyebrow"><span class="step-no">03</span> Explore</p>
       <h2>Lift the fog, one hex at a time</h2>
       <p>One great continent of fern meadows, forests, swamps, river valleys, coasts, deserts and volcanoes, shared by every nest. Explore it yourself or send your dinosaurs, and bring home what they find.</p>
+      <ul class="land-facts"><li>One continent, shared by every nest</li><li>Go yourself or send your dinosaurs</li></ul>
     </div>
     <div class="land-art reveal" data-art="explore"></div>
   </section>
 
   <section class="land-sec" id="fight">
     <div class="land-text reveal">
-      <p class="eyebrow">4 · Fight and forge</p>
+      <p class="eyebrow"><span class="step-no">04</span> Fight and forge</p>
       <h2>Beat the wild, forge your gear</h2>
       <p>Raptors stalk the forests and old tyrants guard the volcano. Win to bring home bones, feathers, obsidian and rare eggs, then forge weapons and armor no shop sells.</p>
+      <ul class="land-facts"><li>Bones, feathers, obsidian and rare eggs to win</li><li>Weapons and armor no shop sells</li></ul>
     </div>
     <div class="land-art reveal" data-art="fight"></div>
   </section>
 
   <section class="land-sec" id="breed">
     <div class="land-text reveal">
-      <p class="eyebrow">5 · Breed</p>
+      <p class="eyebrow"><span class="step-no">05</span> Breed</p>
       <h2>Breed the next legend</h2>
       <p>Pair an adult male and female of the same species. Their egg inherits their genes, a little better or worse, so every generation can be stronger than the last.</p>
+      <ul class="land-facts"><li>An adult pair of the same species</li><li>Every generation can be stronger than the last</li></ul>
     </div>
     <div class="land-art reveal" data-art="breed"></div>
   </section>
 
-  <section class="land-sec land-final">
+  <section class="land-final">
+    <div class="land-night" data-art="night" aria-hidden="true"></div>
     <div class="land-text reveal">
       <h2>Your nest is waiting</h2>
       <p>Free to play, never pay-to-win. A free account keeps your nest safe so you can play on any device.</p>
-      <div class="row"><button class="btn" type="button" data-play>Start playing</button></div>
+      <div class="row"><button class="btn big" type="button" data-play>Start playing</button></div>
     </div>
+    <div class="land-final-art reveal" data-art="sleep"></div>
   </section>
 
   <footer class="site-footer"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></footer>
