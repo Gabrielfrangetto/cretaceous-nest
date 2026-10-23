@@ -95,12 +95,19 @@ else:
         green = big[..., 1] - (big[..., 0] + big[..., 2]) / 2
         tall = ndimage.gaussian_filter((green - green.mean()) / (green.std() + 1e-6), 2, mode='wrap')
         crowns = np.clip((tall + 0.15) * 3, 0, 1)
-        # (whole in the middle of its patch, its crowns only towards the rim, and nothing past it)
-        core = np.clip((wgt - 0.55) * 4, 0, 1)
+        # (whole in the middle of its patch, its crowns only towards the rim, and nothing past it; the
+        # middle's own edge follows its treetops: its ground near the edge is left out, so the edge is the
+        # outline of trees, never a soft line across the ground)
+        inside = wgt > 0.75
+        depth = ndimage.distance_transform_edt(inside)
+        core = inside & ((depth > 14) | (crowns > 0.5))
         rim = np.clip(wgt * 4, 0, 1)
-        m = np.maximum(core, rim * crowns)
-        m = ndimage.gaussian_filter(m, 0.8, mode='wrap')[..., None]
-        out = big * m + out * (1 - m)
+        m = np.maximum(core.astype(np.float32), rim * crowns)
+        m = ndimage.gaussian_filter(m, 0.7, mode='wrap')
+        # the trees' shadow cast on the ground below them, towards the bottom right (light from the top-left)
+        shade = np.roll(ndimage.gaussian_filter(m, 4, mode='wrap'), (5, 5), (0, 1)) * (1 - m) * 0.45
+        out = out * (1 - shade[..., None])
+        out = big * m[..., None] + out * (1 - m[..., None])
 
 pic = Image.fromarray(out.clip(0, 255).astype(np.uint8))
 path = f'images/terrain/{a.biome}.webp'
