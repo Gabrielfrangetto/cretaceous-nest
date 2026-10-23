@@ -78,14 +78,24 @@ else:
     v = np.argsort(np.argsort(v.ravel())).reshape(v.shape) / (v.size - 1)
     # (the densest the most of them: about half the ground thick, a quarter with a few clearings, the rest open)
     pos = v ** a.thick * (len(tiles) - 1)
-    out = np.zeros((n, n, 3), np.float32)
-    weight = np.zeros((n, n, 1), np.float32)
+    # Where two meet, each pixel is taken from one of them rather than both faded together (which shows one
+    # painting see-through over the other, ground over treetops): the one with the more weight there, a
+    # treetop or a plant standing higher than bare ground (how much greener than it is red and blue), so
+    # trees of either stand whole on the other's ground; the choice made over a pixel or two, for no jaggies
+    from scipy import ndimage
+    layers, scores = [], []
     for i, t in enumerate(tiles):
-        wgt = np.clip(1.6 - np.abs(pos - i) * 2.2, 0, 1)[..., None] ** 1.5
         k = n // t.shape[0]
-        out += np.tile(t, (k, k, 1)) * wgt
-        weight += wgt
-    out /= np.maximum(weight, 1e-6)
+        big = np.tile(t, (k, k, 1))
+        wgt = np.clip(1.5 - np.abs(pos - i) * 1.1, 0, 1)
+        green = big[..., 1] - (big[..., 0] + big[..., 2]) / 2
+        tall = ndimage.gaussian_filter((green - green.mean()) / (green.std() + 1e-6), 3, mode='wrap')
+        layers.append(big)
+        scores.append(np.where(wgt > 0, wgt * 1.6 + 0.9 * tall, -1e9))
+    scores = np.stack(scores)
+    pick = np.exp((scores - scores.max(0)) / 0.08)
+    pick /= pick.sum(0)
+    out = sum(l * p[..., None] for l, p in zip(layers, pick))
 
 pic = Image.fromarray(out.clip(0, 255).astype(np.uint8))
 path = f'images/terrain/{a.biome}.webp'
