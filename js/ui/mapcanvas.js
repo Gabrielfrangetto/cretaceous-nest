@@ -169,7 +169,7 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // parts of one forest, seen at the same slant as the ground; from afar it is drawn in its colour, which
 // is the picture's average.
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
-const TEXTURED = ['meadow', 'forest'];
+const TEXTURED = ['meadow', 'swamp', 'forest'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 512;   // how far across the map a pixel of a picture reaches (map units)
@@ -188,7 +188,7 @@ const picture = name => {
   return img;
 };
 // the picture of a biome's edge (scripts/edge.py), once it has come
-const EDGED = new Set(['forest']);
+const EDGED = new Set(['forest', 'swamp']);
 const edgeOf = biome => { if (!EDGED.has(biome)) return null; const img = picture(`${biome}-edge`); return img.complete && img.naturalWidth ? img : null; };
 function textureOf(ctx, biome) {
   if (rank(biome) < 0) return null;
