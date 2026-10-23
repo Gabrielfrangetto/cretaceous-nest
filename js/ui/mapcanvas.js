@@ -97,6 +97,22 @@ const CORNER = [[1, 0], [0, 5], [5, 4], [4, 3], [3, 2], [2, 1]];
 const RIM = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; });
 const RIM_X = RIM.reduce((t, [x]) => t + x * x, 0), RIM_Y = RIM.reduce((t, [, y]) => t + y * y, 0);
 const lights = new Map();
+// Broad patches of lighter and darker ground, a few hexes across, so a stretch of one biome is never one
+// flat colour, nor a picture of its ground seen repeating: smooth noise over the map, from -1 to 1
+const PATCH = 0.07, PATCH_SPAN = SIZE * SQ3 * 5;
+const cornerRand = (i, j, k) => { let v = Math.imul(i * 73856093 ^ j * 19349663 ^ k * 83492791, 0x9e3779b1); v ^= v >>> 15; v = Math.imul(v, 0x85ebca6b); v ^= v >>> 13; return (v >>> 0) / 4294967296; };
+function patchOf(h) {
+  const [x, y] = flatCenter(h);
+  let sum = 0, amp = 1, norm = 0;
+  for (let o = 0; o < 2; o++, amp /= 2) {
+    const fx = x / PATCH_SPAN * 2 ** o, fy = y / PATCH_SPAN * 2 ** o, i = Math.floor(fx), j = Math.floor(fy);
+    const u = (fx - i) ** 2 * (3 - 2 * (fx - i)), v = (fy - j) ** 2 * (3 - 2 * (fy - j));
+    const c = (a, b) => cornerRand(i + a, j + b, o);
+    sum += amp * (c(0, 0) * (1 - u) * (1 - v) + c(1, 0) * u * (1 - v) + c(0, 1) * (1 - u) * v + c(1, 1) * u * v);
+    norm += amp;
+  }
+  return sum / norm * 2 - 1;
+}
 // how lit a hex is (0: as flat ground, + in the sun, - in shade): m in its middle, changing by (gx, gy)
 // a map unit across it as it shows
 function lightOf(seed, h) {
@@ -114,6 +130,7 @@ function lightOf(seed, h) {
     const s = (nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / Math.hypot(nx, ny, nz) - LIGHT[2];
     m += s / 6; gx += s * RIM[i][0] / RIM_X; gy += s * RIM[i][1] / RIM_Y;
   });
+  m += PATCH * patchOf(h);
   l = { m, gx, gy };
   if (lights.size > 120000) lights.clear();
   lights.set(id, l);
@@ -123,21 +140,126 @@ const rgbs = new Map();
 const rgbOf = hex => rgbs.get(hex) || rgbs.set(hex, [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))).get(hex);
 const SUN = [255, 247, 224], SHADE = [24, 32, 46];
 // a colour lit (s > 0, towards warm white) or in shade (s < 0, towards a cool dark)
+const lightTo = s => [s > 0 ? Math.min(0.45, s * 1.3) : Math.min(0.55, -s * 1.5), s > 0 ? SUN : SHADE];
 const litColor = (rgb, s) => {
-  const t = s > 0 ? Math.min(0.45, s * 1.3) : Math.min(0.55, -s * 1.5), to = s > 0 ? SUN : SHADE;
+  const [t, to] = lightTo(s);
   return `rgb(${Math.round(rgb[0] + (to[0] - rgb[0]) * t)},${Math.round(rgb[1] + (to[1] - rgb[1]) * t)},${Math.round(rgb[2] + (to[2] - rgb[2]) * t)})`;
 };
+// the same light laid over a picture of the ground: the sun's or the shade's colour, see-through
+// (softer: a picture has its own light and shade)
+const lightOver = s => { const [t, to] = lightTo(s); return `rgba(${to[0]},${to[1]},${to[2]},${(t * 0.6).toFixed(3)})`; };
 // the fill of a hex drawn around 0,0: its colour, lit as its ground lies (water lies flat); blended
-// across it (smooth) close up, where few hexes show, one colour each from further away
-function groundFill(ctx, seed, h, cell, smooth) {
+// across it (smooth) close up, where few hexes show, one colour each from further away. over: only the
+// light, to lay over a picture of its ground
+function groundFill(ctx, seed, h, cell, smooth, over = false) {
   const color = fillOf(cell);
   if (isWaterCell(cell)) return color;
   const l = lightOf(seed, h), { m, gx, gy } = l, g = Math.hypot(gx, gy), rgb = rgbOf(color);
-  if (!smooth || g * SIZE < 0.01) return l.solid || (l.solid = litColor(rgb, m));
+  const paint = s => (over ? lightOver(s) : litColor(rgb, s));
+  if (!smooth || g * SIZE < 0.01) return over ? (l.over || (l.over = lightOver(m))) : l.solid || (l.solid = litColor(rgb, m));
   const ux = gx / g * SIZE, uy = gy / g * SIZE, fill = ctx.createLinearGradient(-ux, -uy, ux, uy);
-  fill.addColorStop(0, litColor(rgb, m - g * SIZE));
-  fill.addColorStop(1, litColor(rgb, m + g * SIZE));
+  fill.addColorStop(0, paint(m - g * SIZE));
+  fill.addColorStop(1, paint(m + g * SIZE));
   return fill;
+}
+
+// ---------- pictures of the ground ----------
+// A biome with a picture of its ground (images/terrain/<biome>.webp, made by scripts/texture.py) is
+// filled with it close up, laid over the whole map rather than hex by hex, so neighbours show different
+// parts of one forest, seen at the same slant as the ground; from afar it is drawn in its colour, which
+// is the picture's average.
+// (in order: where two meet, the later one's ground runs over the edge into the other's)
+const TEXTURED = ['meadow', 'swamp', 'forest'];
+const rank = biome => TEXTURED.indexOf(biome);
+const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
+const TEXTURE_SPAN = SIZE * SQ3 * 4.8;   // how far across the map one picture reaches (map units), whatever its size
+const textures = new Map(), patterns = new WeakMap();
+let texturesLoaded = () => {};
+// fn: called when a picture has come, to draw the map again
+export function onTexture(fn) { texturesLoaded = fn; }
+const picture = name => {
+  let img = textures.get(name);
+  if (!img) {
+    img = new Image();
+    img.onload = () => { tiles.clear(); texturesLoaded(); };
+    img.src = new URL(`../../images/terrain/${name}.webp`, import.meta.url).href;
+    textures.set(name, img);
+  }
+  return img;
+};
+// the picture of a biome's edge (scripts/edge.py), once it has come
+const EDGED = new Set(['forest', 'swamp']);
+const edgeOf = biome => { if (!EDGED.has(biome)) return null; const img = picture(`${biome}-edge`); return img.complete && img.naturalWidth ? img : null; };
+function textureOf(ctx, biome) {
+  if (rank(biome) < 0) return null;
+  const img = picture(biome);
+  if (EDGED.has(biome)) picture(`${biome}-edge`);
+  if (!img.complete || !img.naturalWidth) return null;
+  let mine = patterns.get(ctx);
+  if (!mine) patterns.set(ctx, mine = new Map());
+  if (!mine.has(biome)) mine.set(biome, { pattern: ctx.createPattern(img, 'repeat'), k: TEXTURE_SPAN / img.naturalWidth });
+  return mine.get(biome);
+}
+const hasTexture = biome => rank(biome) >= 0 && textures.get(biome)?.naturalWidth > 0;
+// A textured hex's outline, around 0,0: where it meets land of another kind its ground runs a little
+// over the edge, raggedly, as a forest's edge does; along its own kind and the water the edge is the
+// hex's. Each hex's own, the same every time
+const RAG = SIZE * 0.3;
+const HEX_DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+// (the neighbour across side i, which faces 60i degrees, between corners i and i + 1)
+const ACROSS = [0, 5, 4, 3, 2, 1];
+const ragged = new Map();
+// the sides where a hex meets land of a kind below its own (whose ground its own runs over)
+function openSides(seed, h, cell) {
+  const mine = rank(groundName(cell));
+  return Array.from({ length: 6 }, (_, i) => {
+    const [dq, dr] = HEX_DIRS[ACROSS[i]], n = [h[0] + dq, h[1] + dr], c = (inMap(n) || inWilds(n)) && cellAt(seed, n);
+    return !!c && !isWaterCell(c) && rank(groundName(c)) < mine;
+  });
+}
+// The picture of a biome's edge laid along each such side: dense inside the hex, thinning out over
+// the edge into the land beyond, a part of the strip of the hex's own (lit with the hex, after)
+const EDGE_DENSE = 0.7;   // how far down the strip it is dense (where the side runs)
+const EDGE_LONG = SIZE * 1.35;   // how long along the side
+function drawEdges(ctx, seed, h, x, y, cell, img) {
+  const out = openSides(seed, h, cell), win = img.naturalWidth * 0.12, tall = EDGE_LONG * img.naturalHeight / win;
+  ctx.save();
+  ctx.translate(x, y);
+  for (let i = 0; i < 6; i++) {
+    if (!out[i]) continue;
+    const a = Math.PI / 3 * i, sx = cornerRand(h[0], h[1], 40 + i) * (img.naturalWidth - win);
+    ctx.save();
+    ctx.translate(Math.cos(a) * SIZE * 0.866, Math.sin(a) * SIZE * 0.866 * TILT);
+    ctx.scale(1, TILT);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.drawImage(img, sx, 0, win, img.naturalHeight, -EDGE_LONG / 2, -tall * EDGE_DENSE, EDGE_LONG, tall);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function raggedPath(seed, h, cell) {
+  const id = `${seed}|${h[0]},${h[1]}`;
+  if (ragged.has(id)) return ragged.get(id);
+  const out = openSides(seed, h, cell);
+  const r = k => cornerRand(h[0], h[1], k), at = i => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE * 1.01, Math.sin(a) * SIZE * 1.01]; };
+  const corner = i => (out[(i + 5) % 6] && out[i % 6] ? RAG * (0.3 + 0.7 * r(100 + i)) : 0);
+  const p = new Path2D();
+  for (let i = 0; i < 6; i++) {
+    const [ax, ay] = at(i), [bx, by] = at(i + 1), c0 = corner(i), c1 = corner((i + 1) % 6);
+    const nx = Math.cos(Math.PI / 3 * i), ny = Math.sin(Math.PI / 3 * i), steps = out[i] ? 8 : 1;
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps, f1 = r(10 + i), f2 = r(20 + i) * 6.28, f3 = r(30 + i) * 6.28;
+      const bulge = out[i] ? Math.max(0, 0.5 * Math.sin(Math.PI * t) * (0.5 + f1) + 0.28 * Math.sin(2 * Math.PI * t + f2) + 0.18 * Math.sin(3 * Math.PI * t + f3)) : 0;
+      const d = (k === 0 ? c0 : RAG * bulge + c0 * (1 - t) + c1 * t), cx = ax + (bx - ax) * t, cy = ay + (by - ay) * t;
+      // (a corner moves out from the middle, a side out across itself)
+      const [ox, oy] = k === 0 ? [ax / SIZE, ay / SIZE] : [nx, ny];
+      p[i || k ? 'lineTo' : 'moveTo'](cx + ox * d, (cy + oy * d) * TILT);
+    }
+  }
+  p.closePath();
+  if (ragged.size > 60000) ragged.clear();
+  ragged.set(id, p);
+  return p;
 }
 
 // the colours of the page's theme, for what the canvas draws
@@ -177,13 +299,47 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     return;
   }
   const smooth = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b) >= 44;
+  // the ground: first each hex in its colour, lit as it lies; then those with a picture of their ground,
+  // running a little over their edge into the land around (their light over it too); then over all of
+  // them, the unexplored dimmed and the line between hexes
+  const textured = [];
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
+    const tex = !isWaterCell(cell) && !cell.lava && textureOf(ctx, groundName(cell));
+    if (tex) { textured.push({ h, x, y, cell, tex }); continue; }
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth);
     ctx.fill(shape);
-    if (!isWaterCell(cell) && !known(hexKey(...h))) { ctx.fillStyle = dim; ctx.fill(shape); }
+    ctx.restore();
+  }
+  textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
+  for (const { h, x, y, cell, tex } of textured) {
+    // (with a picture of its edge, the hex as it is, the edge laid over after; without, a ragged edge)
+    const edge = edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell);
+    ctx.save();
+    ctx.translate(x, y);
+    // (the picture anchored to the map, not the hex)
+    tex.pattern.setTransform(new DOMMatrix([tex.k, 0, 0, tex.k * TILT, -x, -y]));
+    ctx.fillStyle = tex.pattern;
+    ctx.fill(edge);
+    ctx.restore();
+  }
+  for (const { h, x, y, cell } of textured) { const img = edgeOf(groundName(cell)); if (img) drawEdges(ctx, seed, h, x, y, cell, img); }
+  // (the light over each, its edge's trees within it too)
+  for (const { h, x, y, cell } of textured) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth, true);
+    ctx.fill(edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell));
+    ctx.restore();
+  }
+  for (const h of hexes) {
+    const [x, y] = center(h), cell = cellAt(seed, h), unknown = !isWaterCell(cell) && !known(hexKey(...h));
+    if (!unknown && detail !== 'full') continue;
+    ctx.save();
+    ctx.translate(x, y);
+    if (unknown) { ctx.fillStyle = dim; ctx.fill(shape); }
     if (detail === 'full') ctx.stroke(shape);
     ctx.restore();
   }
@@ -194,7 +350,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
     const relief = detail === 'full' && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
     if (relief) { drawRelief(ctx, relief, x, y, alpha); continue; }
-    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' ? glyphOf(cell, h) : '';
+    // (ground with a picture of its own needs no little drawing)
+    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
     if (art) paint(ctx, art, x, y, alpha);
   }
 }
