@@ -21,7 +21,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
 
@@ -165,6 +165,8 @@ function keepInside(v, canvas) {
 // one close up or the continent's picture from afar; then lairs, the hex picked, the one under the
 // pointer or the keyboard, and where each party is
 let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null, warmed = '';
+// (and again when a picture of the ground has come)
+onTexture(() => drawMap());
 function drawMap() {
   if (!mapCanvas || frame) return;
   frame = requestAnimationFrame(() => { frame = 0; paintMap(); });
