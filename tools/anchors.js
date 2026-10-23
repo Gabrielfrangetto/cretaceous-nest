@@ -98,7 +98,9 @@ function renderScars() {
   const look = Object.fromEntries(placed.map(pt => [pt, $('look').value]));
   const sewn = shown[0] === 's', open = scar ? 0 : +shown.slice(1);
   const wounds = open && placed.length ? { parts: Object.fromEntries(placed.map(pt => [pt, open])), by: $('look').value, deep: shown[0] === 'm' ? [] : placed, ...(sewn ? { stitched: true } : {}) } : null;
-  art = withScars(() => dressedArt(type, 10, sex, null, null, stage, all, look, wounds, shown === 'h' ? placed : null, seed, $('eyeBlind').checked ? 'left' : null));
+  // (asleep, stage adult-sleep: its sleeping drawing, the scars placed on that)
+  const [st, pose] = stage.split('-');
+  art = withScars(() => dressedArt(type, 10, sex, null, null, st, all, look, wounds, shown === 'h' ? placed : null, seed, $('eyeBlind').checked ? 'left' : null, pose || null));
   // (with none, the plain drawing: boxed the same, to be clicked the same)
   if (!art.classList.contains('dino-art')) { const box = document.createElement('span'); box.className = 'dino-art'; art.classList.add('dino-base'); box.appendChild(art); art = box; }
   const base = art.querySelector('.dino-base');
@@ -132,6 +134,7 @@ function renderScars() {
     drawFeathers();
   } else featherSvg = null;
   $('stay').disabled = !on; $('stay').checked = !!(on && scarsOf()[$('slot').value].stay);
+  $('flipField').hidden = !stage.includes('-'); $('flip').disabled = !on; $('flip').checked = !!(on && scarsOf()[$('slot').value].flip);
   const sp = (on && scarsOf()[$('slot').value].spread) || SPREAD;
   for (const [id, v, t] of [['spreadD', sp.d, (sp.d * 100).toFixed(1) + '%'], ['spreadR', sp.r, '±' + sp.r + '°'], ['spreadS', sp.s, '±' + Math.round(sp.s * 100) + '%']]) { $(id).value = v; $(id).disabled = !on; $(id + 'No').textContent = t; }
   // (the ring it falls within, round the place as shown)
@@ -452,6 +455,13 @@ $('stay').addEventListener('change', e => {
   const own = scarsOf()[$('slot').value];
   if (!own) return;
   for (const p of [own, own.deep].filter(Boolean)) { if (e.target.checked) p.stay = true; else delete p.stay; }
+  save(); render();
+});
+// a part that shows its other side on this drawing (asleep, a head turned back), both its looks
+$('flip').addEventListener('change', e => {
+  const own = scarsOf()[$('slot').value];
+  if (!own) return;
+  for (const p of [own, own.deep].filter(Boolean)) { if (e.target.checked) p.flip = true; else delete p.flip; }
   save(); render();
 });
 // how far a scar wanders on each dinosaur, both its looks

@@ -187,7 +187,7 @@ function syncWalkers() {
 
 // its sleeping drawing, when its kind has one at its stage (SLEEP_SPRITES): asleep, it fades into it
 function setSleepArt(w, b) {
-  const img = sleepArt(b.type, 4, sexOf(b), stageOf(b).id, b.outfit);
+  const img = sleepArt(b.type, 4, sexOf(b), stageOf(b).id, b.outfit, b.scars, b.scarBy, woundsOf(S, b, gameNow()), b.sewn, b.id);
   if (w.sleepImg) w.sleepImg.remove();
   w.sleepImg = img;
   if (img) { w.art.after(img); w.faced = null; }

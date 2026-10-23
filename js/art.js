@@ -465,6 +465,8 @@ export function scarPlaces(type, sex, part, stage = 'adult') {
 }
 // the drawing a dinosaur is shown with at a stage (its sprite's path), as dressedArt picks it
 const drawingOf = (type, sex, stage) => {
+  const [base, pose] = stage.split('-');
+  if (pose) { const src = ((SLEEP_SPRITES[type] || {})[base] || {})[sex]; return src ? src.slice(ROOT.length) : null; }
   const url = (stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null) || (SPRITES[type] && SPRITES[type][sex]);
   return url ? url.slice(ROOT.length) : null;
 };
@@ -477,6 +479,8 @@ export const noScarOf = (type, sex, stage) => {
 export function scarAnchor(type, sex, part, stage = 'adult') {
   const own = ownScar(type, sex, part, stage);
   if (own) return own;
+  // (in another pose, asleep: a part not placed on it is out of sight, no scar shown there)
+  if (stage.includes('-')) return null;
   part = part.split('~')[0];
   // (not set yet: where its outline says the part is, scripts/guess-scars.py)
   const guessed = (SCAR_GUESS[drawingOf(type, sex, stage)] || {})[part];
@@ -521,6 +525,9 @@ export function scarPlace(type, sex, part, stage, mark) {
 }
 // Which side of a dinosaur each scar is on, its own way (by its id and the scar's key): the sprites face
 // right, showing the left side; turned to face left, its right side shows, and the scars on it
+// the side a scar is on, as this drawing shows it: its own, or, on a part placed with flip (a head turned
+// back over the shoulder), the other
+const shownSide = (side, a) => (side && a && a.flip ? (side === 'left' ? 'right' : 'left') : side);
 export const sideOf = (seed, key) => (seed == null ? null : seededRand(`side:${seed}:${key}`)() < 0.5 ? 'left' : 'right');
 // a dinosaur's picture turned to face one way (dir 1 right, -1 left): mirrored, with the scars of the side
 // that shows
@@ -609,18 +616,23 @@ function artSize(type, sex, stage, look) {
 // as its awake one and at the same scale, so one fades into the other where it stands; by species, stage
 // and sex, as drawn so far
 export const SLEEP_SPRITES = { coelo: { adult: { m: asset('sprites/adult/coelo-m-sleep.webp') } } };
-export function sleepArt(type, px, sex, stage, outfit = null) {
-  const src = !outfit && ((SLEEP_SPRITES[type] || {})[stage] || {})[sex];
-  if (!src) return null;
-  const img = babyArt(type, px * artSize(type, sex, stage, null), sex, false, src);
-  img.classList.add('sleep-art');
-  return img;
+// (its scars on it too, where placed on this drawing in the anchors tool, stage 'adult-sleep': a part
+// placed with flip shows its other side here, as a head turned back over the shoulder does; a part not
+// placed is out of sight)
+export function sleepArt(type, px, sex, stage, outfit = null, scars = null, scarBy = null, wounds = null, sewn = null, seed = null) {
+  if (outfit || !((SLEEP_SPRITES[type] || {})[stage] || {})[sex]) return null;
+  const art = dressedArt(type, px, sex, null, null, stage, scars, scarBy, wounds, sewn, seed, null, 'sleep');
+  art.classList.add('sleep-art');
+  return art;
 }
-export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null, blind = null) {
+// pose: 'sleep' for its sleeping drawing (SLEEP_SPRITES), its scars where placed on that (stage-sleep)
+export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, stage = 'baby', scars = null, scarBy = null, wounds = null, sewn = null, seed = null, blind = null, pose = null) {
   const look = outfit && OUTFITS[outfit] && OUTFITS[outfit].species === type ? OUTFITS[outfit] : null;
   const st = STAGES.find(x => x.id === stage) || STAGES[0];
-  const own = stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
+  const own = pose ? ((SLEEP_SPRITES[type] || {})[stage] || {})[sex] : stage === 'adult' ? adultSpriteUrl(type, sex) : stage === 'juvenile' ? juvenileSpriteUrl(type, sex) : null;
   const size = artSize(type, sex, stage, look) / st.scale;
+  const metresAt = stage;
+  if (pose) stage = stage + '-' + pose;
   const src = look ? asset(look.sprites[sex]) : own || (SPRITES[type] && SPRITES[type][sex]);
   const sheet = src && SHEETS[src.slice(ROOT.length)];
   const open = pt => (wounds && wounds.parts && wounds.parts[pt]) || 0;
@@ -639,9 +651,9 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
   const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
-    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : sideOf(seed, part), part === tookEye]).filter(([a]) => a), src, seed)
+    ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : shownSide(sideOf(seed, part), scarAnchor(type, sex, part, stage)), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
-  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = noScarOf(type, sex, stage); base.metres = heightOf(type, sex, stage); }
+  if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = noScarOf(type, sex, stage); base.metres = heightOf(type, sex, metresAt); }
   // an outfit is a complete drawing, so accessories are only drawn on the baby's own sprite
   const worn = look ? [] : Object.entries(equip || {}).filter(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id]);
   if (!worn.length && !scarred.length) return base;

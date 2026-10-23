@@ -84,4 +84,18 @@ export const BEHIND = new Set(['back']);
 // Where scars go on each sprite, set in tools/anchors.html: SCAR_ANCHORS[type][stage][sex][part] =
 // { x, y, w, r } (as ANCHORS), on an animated sprite with f: { frame: [x, y, r] }, its keys, as it moves
 // with the body (x, y, r being frame 0's). A part not set here goes where the equipment's anchors put it.
-export const SCAR_ANCHORS = {};
+// On a sleeping drawing (stage 'adult-sleep'), flip: the part shows its other side there (a head turned
+// back over the shoulder), and a part not set is out of sight: no scar shows on it.
+export const SCAR_ANCHORS = {
+  "coelo": {
+    "adult-sleep": {
+      "m": {
+        "head": { "x": 0.64, "y": 0.52, "w": 0.046, "r": -30, "flip": true },
+        "neck": { "x": 0.93, "y": 0.6, "w": 0.05, "r": 80 },
+        "body": { "x": 0.68, "y": 0.63, "w": 0.114, "r": 0 },
+        "legs": { "x": 0.38, "y": 0.6, "w": 0.101, "r": 0 },
+        "tail": { "x": 0.1, "y": 0.68, "w": 0.048, "r": 55 }
+      }
+    }
+  }
+};
