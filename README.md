@@ -70,6 +70,7 @@ scripts/version.js  stamps asset addresses with content hashes (run before commi
 scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
 scripts/cutout.py   the same on any system (Python + Pillow); any plain background colour
 scripts/redraw.py   puts a new drawing (a white/black background pair) in place of an animated sprite's
+scripts/idle.py     makes a standing sprite's breathing idle anew from its drawing (--edge also cleans a light rim)
 js/gear-art.js      where equipment sits on each sprite (anchors) and its pictures
 tools/anchors.html  visual editor for those anchors (open it from the local server or the site)
 tests/              node:test suites
