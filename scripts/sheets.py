@@ -4,7 +4,8 @@
 # Each sheet also carries how the drawing moves: a grid of points over the body, each followed from
 # frame to frame (the patch of skin around it looked for near where it was), so whatever sits on the
 # skin, a scar or a piece of equipment, moves with it.
-# Run after adding or changing an animated sprite: python3 scripts/sheets.py (needs Pillow, numpy), then
+# Run after adding or changing an animated sprite: python3 scripts/sheets.py (needs Pillow, numpy; only the
+# changed ones are done again, --all for every one), then
 # python3 scripts/guess-scars.py for where its scars go until placed by hand
 import base64, glob, json, os, struct
 import numpy as np
@@ -102,9 +103,21 @@ def durations(path):
         i += 8 + size + (size & 1)
     return out
 
+# (only the sprites changed since their sheet was made are done again, the others kept as they were; --all
+# does every one)
+import sys
+old = {}
+if '--all' not in sys.argv and os.path.exists('js/sheets.js'):
+    src = open('js/sheets.js').read()
+    old = json.loads(src[src.index('{'):src.rindex('}') + 1])
 sheets = {}
 for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
     if path.startswith('sprites/sheets/') or path.startswith('sprites/gear/') or path.startswith('sprites/hires/'):
+        continue
+    out = 'sprites/sheets/' + path[len('sprites/'):]
+    deps = [path, 'sprites/hires/' + path[len('sprites/'):], 'scripts/motion/' + path[len('sprites/'):-len('.webp')] + '.json', path.replace('-walk.webp', '.webp')]
+    if path in old and os.path.exists(out) and os.path.getmtime(out) >= max(os.path.getmtime(d) for d in deps if os.path.exists(d)):
+        sheets[path] = old[path]
         continue
     im = Image.open(path)
     n = getattr(im, 'n_frames', 1)
@@ -120,7 +133,6 @@ for path in sorted(glob.glob('sprites/**/*.webp', recursive=True)):
         fr = im.convert('RGBA')
         frames.append(np.asarray(fr).astype(np.float32))
         sheet.paste(fr, ((k % COLS) * w, (k // COLS) * h))
-    out = 'sprites/sheets/' + path[len('sprites/'):]
     os.makedirs(os.path.dirname(out), exist_ok=True)
     sheet.save(out, 'WEBP', quality=88, method=6)
     walk = path.endswith('-walk.webp')
