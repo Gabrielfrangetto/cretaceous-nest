@@ -204,7 +204,7 @@ const asset = path => new URL('../' + path, import.meta.url).href;
 // an event's picture (images/events/<key>.webp or .png, 16:9): the addresses to try, in order
 export const eventArtUrls = keys => keys.flatMap(k => ['webp', 'png'].map(ext => asset(`images/events/${k}.${ext}`)));
 // (a baby looks the same whatever its sex: the older drawings use the female's for both)
-const SPRITES = Object.fromEntries(['proto', 'hypa'].map(type =>
+const SPRITES = Object.fromEntries(['hypa'].map(type =>
   [type, { m: asset(`sprites/${type}-f.png`), f: asset(`sprites/${type}-f.png`) }]));
 // babies redrawn in profile (animated .webp: their idle plays on their own); a baby looks the same
 // whatever its sex, so one drawing serves both
@@ -213,6 +213,7 @@ SPRITES.rex = { f: asset('sprites/rex.webp'), m: asset('sprites/rex.webp') };
 SPRITES.raptor = { f: asset('sprites/raptor-f.webp'), m: asset('sprites/raptor-f.webp') };
 SPRITES.psitta = { f: asset('sprites/psitta-f.webp'), m: asset('sprites/psitta-f.webp') };
 SPRITES.coelo = { f: asset('sprites/coelo-f.webp'), m: asset('sprites/coelo-f.webp') };
+SPRITES.proto = { f: asset('sprites/proto-f.webp'), m: asset('sprites/proto-f.webp') };
 // how tall a profile baby is drawn against the others (its long tail makes it twice as wide)
 const BABY_SCALE = { dilo: 0.8, rex: 0.8, raptor: 0.8 };
 
@@ -231,7 +232,7 @@ export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || n
 // head, in metres; HEIGHT_REF metres drawn at the usual size), so a Tyrannosaurus towers over a
 // Velociraptor as it did. Animated sprites (.webp) play their idle on their own. (A Velociraptor male
 // a little smaller than the female, as in hawks.)
-const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7, f: 3.85 }, psitta: { m: 0.65, f: 0.68 }, coelo: { m: 1, f: 1.04 } };
+const ADULT_HEIGHT = { raptor: { m: 0.62, f: 0.66 }, dilo: { m: 1.8 }, rex: { m: 3.7, f: 3.85 }, psitta: { m: 0.65, f: 0.68 }, coelo: { m: 1, f: 1.04 }, proto: { m: 0.8, f: 0.82 } };
 // how tall an animal stands at its stage, in metres (a young one as its weight allows: MASS.stage), or
 // 0 when not known
 export const heightOf = (type, sex, stage = 'adult') => {
