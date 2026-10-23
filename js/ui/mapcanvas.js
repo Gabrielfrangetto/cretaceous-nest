@@ -3,7 +3,7 @@
 // once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
-import { SIZE, SQ3, center, fillOf, glyphOf, reliefOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
+import { SIZE, SQ3, TILT, center, flatCenter, fillOf, glyphOf, reliefOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
 import { railsOf, upAt } from '../map.js';
 
 // ---------- SVG snippets as canvas paths ----------
@@ -75,7 +75,7 @@ export function hexPath(k = 0.96) {
     const p = new Path2D();
     for (let i = 0; i < 6; i++) {
       const a = Math.PI / 180 * (60 * i - 30);
-      p[i ? 'lineTo' : 'moveTo'](SIZE * k * Math.cos(a), SIZE * k * Math.sin(a));
+      p[i ? 'lineTo' : 'moveTo'](SIZE * k * Math.cos(a), SIZE * k * Math.sin(a) * TILT);
     }
     p.closePath();
     hexPaths.set(k, p);
@@ -90,13 +90,15 @@ export function hexPath(k = 0.96) {
 // and ranges stand out and the light runs on smoothly from one hex into the next.
 const RELIEF = 300;   // how high the highest peak stands, in map units (a hex is SIZE × 2 tall)
 const LIGHT = (() => { const v = [-1, -1.25, 1.5], n = Math.hypot(...v); return v.map(x => x / n); })();
-const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].map(d => ({ d, at: center(d) }));
+const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].map(d => ({ d, at: flatCenter(d) }));
 // (the two neighbours that share each corner, corner i lying at 60i - 30 degrees)
 const CORNER = [[1, 0], [0, 5], [5, 4], [4, 3], [3, 2], [2, 1]];
-const RIM = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE]; });
+// (the corners as they show, the ground seen at a slant)
+const RIM = Array.from({ length: 6 }, (_, i) => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; });
+const RIM_X = RIM.reduce((t, [x]) => t + x * x, 0), RIM_Y = RIM.reduce((t, [, y]) => t + y * y, 0);
 const lights = new Map();
 // how lit a hex is (0: as flat ground, + in the sun, - in shade): m in its middle, changing by (gx, gy)
-// a map unit across it
+// a map unit across it as it shows
 function lightOf(seed, h) {
   const id = `${seed}|${h[0]},${h[1]}`;
   let l = lights.get(id);
@@ -110,7 +112,7 @@ function lightOf(seed, h) {
     let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
     if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
     const s = (nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / Math.hypot(nx, ny, nz) - LIGHT[2];
-    m += s / 6; gx += s * RIM[i][0] / (3 * SIZE * SIZE); gy += s * RIM[i][1] / (3 * SIZE * SIZE);
+    m += s / 6; gx += s * RIM[i][0] / RIM_X; gy += s * RIM[i][1] / RIM_Y;
   });
   l = { m, gx, gy };
   if (lights.size > 120000) lights.clear();
@@ -162,7 +164,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   ctx.lineWidth = 1;
   ctx.strokeStyle = edge;
   if (detail === 'dots') {
-    const w = SIZE * SQ3, h = SIZE * 1.5;
+    const w = SIZE * SQ3, h = SIZE * 1.5 * TILT;
     for (const hx of hexes) {
       const [x, y] = center(hx), cell = cellAt(seed, hx);
       ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : groundFill(ctx, seed, hx, cell, false);
@@ -314,8 +316,9 @@ export function warmTiles(seed, known, sig, edge) {
   for (let ty = 0; ty * span < b.h; ty++) for (let tx = 0; tx * span < b.w; tx++) if (!tileOf(seed, known, sig, edge, k, tx, ty)) makeTile(seed, known, sig, edge, k, tx, ty);
 }
 
-// the hex under a point of the map (map units), as [q, r]
+// the hex under a point of the map (map units, as the map shows), as [q, r]
 export function hexAt(x, y) {
+  y /= TILT;
   const q = (SQ3 / 3 * x - y / 3) / SIZE, r = (2 / 3 * y) / SIZE, s = -q - r;
   let rq = Math.round(q), rr = Math.round(r);
   const rs = Math.round(s);
@@ -340,7 +343,7 @@ export function fit(canvas, view) {
 }
 // the hexes whose centre falls inside a box of the map (with a hex's margin), row by row
 export function hexesIn(x0, y0, x1, y1) {
-  const out = [], rowH = SIZE * 1.5, colW = SIZE * SQ3;
+  const out = [], rowH = SIZE * 1.5 * TILT, colW = SIZE * SQ3;
   const r0 = Math.floor((y0 - SIZE * 2) / rowH), r1 = Math.ceil((y1 + SIZE * 2) / rowH);
   for (let r = r0; r <= r1; r++) {
     const q0 = Math.floor((x0 - SIZE * 2) / colW - r / 2), q1 = Math.ceil((x1 + SIZE * 2) / colW - r / 2);

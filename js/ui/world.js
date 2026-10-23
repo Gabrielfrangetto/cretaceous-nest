@@ -20,7 +20,7 @@ import { now } from '../clock.js';
 import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
-import { SIZE, SQ3, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
+import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
 import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
@@ -34,8 +34,9 @@ export function sampleMapSVG(seed, seen = 3) {
     return `<g class="hex ${fog ? 'fog' : 'seen'}" transform="translate(${c[0].toFixed(1)} ${c[1].toFixed(1)})">
       <polygon points="${corners([0, 0], 1.01)}" ${fog ? '' : `style="fill:${fillOf(cell)}"`}/>${d === 0 ? NEST : fog ? '<text class="q" y="5">?</text>' : riverSVG(seed, h) + glyphOf(cell, h, upAt(seed, h))}</g>`;
   }).join('');
-  const r = SIZE * SQ3 * (seen + 1.6);
-  return `<svg class="world-map" viewBox="${-r} ${-r * 0.92} ${r * 2} ${r * 1.84}" aria-hidden="true">${cells}</svg>`;
+  // (the ground seen at a slant, TILT as deep; room above for the mountains of its top row)
+  const r = SIZE * SQ3 * (seen + 1.6), top = r * 0.92 * TILT + SIZE * 1.4;
+  return `<svg class="world-map" viewBox="${-r} ${(-top).toFixed(1)} ${r * 2} ${(top + r * 0.92 * TILT).toFixed(1)}" aria-hidden="true">${cells}</svg>`;
 }
 
 const PROBLEMS = {
@@ -151,7 +152,7 @@ function hexLabel(key) {
 function keepInside(v, canvas) {
   // (the map's edge without the half hexes the staggered rows leave; at the top the map's first row
   // shows whole, and past it only the edge of the uncharted north, which no one explores)
-  const m = mapBounds(), b = { x: m.x + SIZE * SQ3, y: m.y, w: m.w - SIZE * SQ3 * 2, h: m.h - SIZE };
+  const m = mapBounds(), b = { x: m.x + SIZE * SQ3, y: m.y, w: m.w - SIZE * SQ3 * 2, h: m.h - SIZE * TILT };
   const r = canvas.getBoundingClientRect();
   const aspect = r.width > 0 && r.height > 0 ? r.height / r.width : v.h / v.w;
   const w = Math.max(VIEW_MIN, Math.min(v.w, b.w, b.h / aspect)), h = w * aspect;
@@ -176,7 +177,7 @@ let shade = null;
 function nightPicture(t) {
   const minute = Math.floor(t / 60000), b = mapBounds();
   if (shade && shade.minute === minute) return shade;
-  const w = Math.ceil(b.w / (SIZE * SQ3 * BAND)), h = Math.ceil(b.h / (SIZE * 1.5 * BAND));
+  const w = Math.ceil(b.w / (SIZE * SQ3 * BAND)), h = Math.ceil(b.h / (SIZE * 1.5 * TILT * BAND));
   const c = shade ? shade.canvas : document.createElement('canvas');
   c.width = w; c.height = h;
   const g = c.getContext('2d'), img = g.createImageData(w, h);

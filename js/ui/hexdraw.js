@@ -4,10 +4,16 @@ import { cellAt } from '../world.js';
 
 export const SIZE = 30;                 // hex radius in map units
 export const SQ3 = Math.sqrt(3);
-export const center = ([q, r]) => [SIZE * SQ3 * (q + r / 2), SIZE * 1.5 * r];
+// The map is seen from the south at a slant, as strategy games show theirs: the ground shows shorter
+// north to south than it is (TILT of its depth), while what stands on it (hills, mountains, trees, the
+// nest) stands up as drawn. center: where a hex's middle shows on the map; flatCenter: where it truly
+// lies, for the slope of the ground
+export const TILT = 0.75;
+export const flatCenter = ([q, r]) => [SIZE * SQ3 * (q + r / 2), SIZE * 1.5 * r];
+export const center = ([q, r]) => [SIZE * SQ3 * (q + r / 2), SIZE * 1.5 * r * TILT];
 export const corners = ([x, y], k = 1) => Array.from({ length: 6 }, (_, i) => {
   const a = Math.PI / 180 * (60 * i - 30);
-  return `${(x + SIZE * k * Math.cos(a)).toFixed(1)},${(y + SIZE * k * Math.sin(a)).toFixed(1)}`;
+  return `${(x + SIZE * k * Math.cos(a)).toFixed(1)},${(y + SIZE * k * Math.sin(a) * TILT).toFixed(1)}`;
 }).join(' ');
 
 // a small drawing for each biome, centred on 0,0
@@ -135,12 +141,12 @@ const reliefs = new Map();
 export function reliefOf(c, h, up) {
   if (!SHAPES[c.terrain] || WATER[c.terrain] || c.lava) return null;
   const t = within(c, up), size = Math.round(t * 3), v = Math.floor(rand(h, 1) * VARIANTS) % (c.terrain === 'volcano' ? 2 : VARIANTS);
-  const k = c.terrain === 'hill' ? 0.8 + 0.35 * size / 3 : c.terrain === 'mountain' ? 0.75 + 0.5 * size / 3 : 0.85 + 0.35 * size / 3;
+  const k = c.terrain === 'hill' ? 0.8 + 0.35 * size / 3 : c.terrain === 'mountain' ? 0.68 + 0.45 * size / 3 : 0.85 + 0.35 * size / 3;
   const snow = c.terrain !== 'mountain' ? 0 : c.heat !== undefined ? Math.round(Math.max(0, Math.min(1, (0.2 + 0.35 * t - c.heat) * 4)) * 2) / 2 : c.biome === 'tundra' || c.biome === 'taiga' ? 1 : 0;
   const key = `${c.terrain}|${c.terrain === 'mountain' ? '' : c.biome}|${v}|${size}|${snow}`;
   let shape = reliefs.get(key);
   if (!shape) reliefs.set(key, shape = { key, ...SHAPES[c.terrain](c, v, k, size / 3, snow) });
-  return { ...shape, dx: (rand(h, 2) - 0.5) * (c.terrain === 'mountain' ? 12 : 10), dy: (rand(h, 3) - 0.5) * 6 };
+  return { ...shape, dx: (rand(h, 2) - 0.5) * (c.terrain === 'mountain' ? 12 : 10), dy: (rand(h, 3) - 0.5) * 6 * TILT };
 }
 // cooled lava, cracked, still glowing in the cracks
 const LAVA = '<path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3 M-8 8 L-3 5 L2 8 M3 -6 L7 -3 L12 -5" stroke="#e2643a" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3" stroke="#f6c04a" stroke-width=".6" fill="none"/>';
