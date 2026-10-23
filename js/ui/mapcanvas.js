@@ -146,7 +146,8 @@ const litColor = (rgb, s) => {
   return `rgb(${Math.round(rgb[0] + (to[0] - rgb[0]) * t)},${Math.round(rgb[1] + (to[1] - rgb[1]) * t)},${Math.round(rgb[2] + (to[2] - rgb[2]) * t)})`;
 };
 // the same light laid over a picture of the ground: the sun's or the shade's colour, see-through
-const lightOver = s => { const [t, to] = lightTo(s); return `rgba(${to[0]},${to[1]},${to[2]},${t.toFixed(3)})`; };
+// (softer: a picture has its own light and shade)
+const lightOver = s => { const [t, to] = lightTo(s); return `rgba(${to[0]},${to[1]},${to[2]},${(t * 0.6).toFixed(3)})`; };
 // the fill of a hex drawn around 0,0: its colour, lit as its ground lies (water lies flat); blended
 // across it (smooth) close up, where few hexes show, one colour each from further away. over: only the
 // light, to lay over a picture of its ground
@@ -171,20 +172,28 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 const TEXTURED = ['forest'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
-const TEXTURE_SPAN = SIZE * SQ3 * 3.2;   // how far across the map one picture reaches (map units)
+const TEXTURE_SPAN = SIZE * SQ3 * 1.6;   // how far across the map one picture reaches (map units)
 const textures = new Map(), patterns = new WeakMap();
 let texturesLoaded = () => {};
 // fn: called when a picture has come, to draw the map again
 export function onTexture(fn) { texturesLoaded = fn; }
-function textureOf(ctx, biome) {
-  if (rank(biome) < 0) return null;
-  let img = textures.get(biome);
+const picture = name => {
+  let img = textures.get(name);
   if (!img) {
     img = new Image();
     img.onload = () => { tiles.clear(); texturesLoaded(); };
-    img.src = new URL(`../../images/terrain/${biome}.webp`, import.meta.url).href;
-    textures.set(biome, img);
+    img.src = new URL(`../../images/terrain/${name}.webp`, import.meta.url).href;
+    textures.set(name, img);
   }
+  return img;
+};
+// the picture of a biome's edge (scripts/edge.py), once it has come
+const EDGED = new Set(['forest']);
+const edgeOf = biome => { if (!EDGED.has(biome)) return null; const img = picture(`${biome}-edge`); return img.complete && img.naturalWidth ? img : null; };
+function textureOf(ctx, biome) {
+  if (rank(biome) < 0) return null;
+  const img = picture(biome);
+  if (EDGED.has(biome)) picture(`${biome}-edge`);
   if (!img.complete || !img.naturalWidth) return null;
   let mine = patterns.get(ctx);
   if (!mine) patterns.set(ctx, mine = new Map());
@@ -200,14 +209,38 @@ const HEX_DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 // (the neighbour across side i, which faces 60i degrees, between corners i and i + 1)
 const ACROSS = [0, 5, 4, 3, 2, 1];
 const ragged = new Map();
-function raggedPath(seed, h, cell) {
-  const id = `${seed}|${h[0]},${h[1]}`;
-  if (ragged.has(id)) return ragged.get(id);
+// the sides where a hex meets land of a kind below its own (whose ground its own runs over)
+function openSides(seed, h, cell) {
   const mine = rank(groundName(cell));
-  const out = Array.from({ length: 6 }, (_, i) => {
+  return Array.from({ length: 6 }, (_, i) => {
     const [dq, dr] = HEX_DIRS[ACROSS[i]], n = [h[0] + dq, h[1] + dr], c = (inMap(n) || inWilds(n)) && cellAt(seed, n);
     return !!c && !isWaterCell(c) && rank(groundName(c)) < mine;
   });
+}
+// The picture of a biome's edge laid along each such side: dense inside the hex, thinning out over
+// the edge into the land beyond, a part of the strip of the hex's own (lit with the hex, after)
+const EDGE_DENSE = 0.7;   // how far down the strip it is dense (where the side runs)
+const EDGE_LONG = SIZE * 1.35;   // how long along the side
+function drawEdges(ctx, seed, h, x, y, cell, img) {
+  const out = openSides(seed, h, cell), win = img.naturalWidth * 0.12, tall = EDGE_LONG * img.naturalHeight / win;
+  ctx.save();
+  ctx.translate(x, y);
+  for (let i = 0; i < 6; i++) {
+    if (!out[i]) continue;
+    const a = Math.PI / 3 * i, sx = cornerRand(h[0], h[1], 40 + i) * (img.naturalWidth - win);
+    ctx.save();
+    ctx.translate(Math.cos(a) * SIZE * 0.866, Math.sin(a) * SIZE * 0.866 * TILT);
+    ctx.scale(1, TILT);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.drawImage(img, sx, 0, win, img.naturalHeight, -EDGE_LONG / 2, -tall * EDGE_DENSE, EDGE_LONG, tall);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function raggedPath(seed, h, cell) {
+  const id = `${seed}|${h[0]},${h[1]}`;
+  if (ragged.has(id)) return ragged.get(id);
+  const out = openSides(seed, h, cell);
   const r = k => cornerRand(h[0], h[1], k), at = i => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE * 1.01, Math.sin(a) * SIZE * 1.01]; };
   const corner = i => (out[(i + 5) % 6] && out[i % 6] ? RAG * (0.3 + 0.7 * r(100 + i)) : 0);
   const p = new Path2D();
@@ -282,15 +315,23 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   }
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex } of textured) {
-    const edge = raggedPath(seed, h, cell);
+    // (with a picture of its edge, the hex as it is, the edge laid over after; without, a ragged edge)
+    const edge = edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell);
     ctx.save();
     ctx.translate(x, y);
     // (the picture anchored to the map, not the hex)
     tex.pattern.setTransform(new DOMMatrix([tex.k, 0, 0, tex.k * TILT, -x, -y]));
     ctx.fillStyle = tex.pattern;
     ctx.fill(edge);
+    ctx.restore();
+  }
+  for (const { h, x, y, cell } of textured) { const img = edgeOf(groundName(cell)); if (img) drawEdges(ctx, seed, h, x, y, cell, img); }
+  // (the light over each, its edge's trees within it too)
+  for (const { h, x, y, cell } of textured) {
+    ctx.save();
+    ctx.translate(x, y);
     ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth, true);
-    ctx.fill(edge);
+    ctx.fill(edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell));
     ctx.restore();
   }
   for (const h of hexes) {
