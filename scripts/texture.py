@@ -79,24 +79,28 @@ else:
     v = np.argsort(np.argsort(v.ravel())).reshape(v.shape) / (v.size - 1)
     # (the densest the most of them: about half the ground thick, a quarter with a few clearings, the rest open)
     pos = v ** a.thick * (len(tiles) - 1)
-    # Where two meet, each pixel is taken from one of them rather than both faded together (which shows one
-    # painting see-through over the other, ground over treetops): the one with the more weight there, a
-    # treetop or a plant standing higher than bare ground (how much greener than it is red and blue), so
-    # trees of either stand whole on the other's ground; the choice made over a pixel or two, for no jaggies
+    # In layers, the most open at the bottom and the densest on top: each denser picture is laid over the
+    # ones below where its patch is, whole in its middle, and at its patch's rim only its treetops (or
+    # plants), whole ones, standing over the ground of the opener ground below; so a thick forest's edge
+    # is trees over a clearing, never a clearing's ground over trees
     from scipy import ndimage
-    layers, scores = [], []
-    for i, t in enumerate(tiles):
-        k = n // t.shape[0]
-        big = np.tile(t, (k, k, 1))
-        wgt = np.clip(1.5 - np.abs(pos - i) * 1.1, 0, 1)
+    out = None
+    for i in reversed(range(len(tiles))):
+        k = n // tiles[i].shape[0]
+        big = np.tile(tiles[i], (k, k, 1))
+        if out is None:
+            out = big
+            continue
+        wgt = np.clip(1.5 - np.abs(pos - i) * 1.1, 0, 1) * (pos <= i + 0.9)
         green = big[..., 1] - (big[..., 0] + big[..., 2]) / 2
-        tall = ndimage.gaussian_filter((green - green.mean()) / (green.std() + 1e-6), 3, mode='wrap')
-        layers.append(big)
-        scores.append(np.where(wgt > 0, wgt * 1.6 + 0.9 * tall, -1e9))
-    scores = np.stack(scores)
-    pick = np.exp((scores - scores.max(0)) / 0.08)
-    pick /= pick.sum(0)
-    out = sum(l * p[..., None] for l, p in zip(layers, pick))
+        tall = ndimage.gaussian_filter((green - green.mean()) / (green.std() + 1e-6), 2, mode='wrap')
+        crowns = np.clip((tall + 0.15) * 3, 0, 1)
+        # (whole in the middle of its patch, its crowns only towards the rim, and nothing past it)
+        core = np.clip((wgt - 0.55) * 4, 0, 1)
+        rim = np.clip(wgt * 4, 0, 1)
+        m = np.maximum(core, rim * crowns)
+        m = ndimage.gaussian_filter(m, 0.8, mode='wrap')[..., None]
+        out = big * m + out * (1 - m)
 
 pic = Image.fromarray(out.clip(0, 255).astype(np.uint8))
 path = f'images/terrain/{a.biome}.webp'
