@@ -16,7 +16,8 @@ ap.add_argument('biome')
 ap.add_argument('src', nargs='+')
 ap.add_argument('--color')
 ap.add_argument('--contrast', type=float, default=1.2)
-ap.add_argument('--size', type=int, default=512, help='pixels across one source tile')
+ap.add_argument('--size', type=int, default=352, help='pixels across one source tile')
+ap.add_argument('--quality', type=int, default=78)
 ap.add_argument('--blend', type=float, default=0.08, help='how wide the blend at the edges is, a share of the tile')
 ap.add_argument('--seed', type=int, default=7)
 ap.add_argument('--each', action='store_true', help='move each picture to the colour from its own average')
@@ -88,5 +89,5 @@ else:
 
 pic = Image.fromarray(out.clip(0, 255).astype(np.uint8))
 path = f'images/terrain/{a.biome}.webp'
-pic.save(path, 'WEBP', quality=86, method=6)
+pic.save(path, 'WEBP', quality=a.quality, method=6)
 print(f'{path}: {pic.width}×{pic.height} from {len(tiles)} picture(s), average {target} (the first was #{"".join(f"{int(v):02x}" for v in mean)})')

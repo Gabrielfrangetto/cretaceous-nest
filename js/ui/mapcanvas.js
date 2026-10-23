@@ -172,7 +172,7 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 const TEXTURED = ['meadow', 'swamp', 'forest'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
-const TEXTURE_PX = SIZE * SQ3 * 1.6 / 512;   // how far across the map a pixel of a picture reaches (map units)
+const TEXTURE_SPAN = SIZE * SQ3 * 4.8;   // how far across the map one picture reaches (map units), whatever its size
 const textures = new Map(), patterns = new WeakMap();
 let texturesLoaded = () => {};
 // fn: called when a picture has come, to draw the map again
@@ -197,7 +197,7 @@ function textureOf(ctx, biome) {
   if (!img.complete || !img.naturalWidth) return null;
   let mine = patterns.get(ctx);
   if (!mine) patterns.set(ctx, mine = new Map());
-  if (!mine.has(biome)) mine.set(biome, { pattern: ctx.createPattern(img, 'repeat'), k: TEXTURE_PX });
+  if (!mine.has(biome)) mine.set(biome, { pattern: ctx.createPattern(img, 'repeat'), k: TEXTURE_SPAN / img.naturalWidth });
   return mine.get(biome);
 }
 const hasTexture = biome => rank(biome) >= 0 && textures.get(biome)?.naturalWidth > 0;
