@@ -69,6 +69,7 @@ scripts/serve.js    local static server
 scripts/version.js  stamps asset addresses with content hashes (run before committing)
 scripts/cutout.ps1  turns a generated image into a sprite (Windows PowerShell)
 scripts/cutout.py   the same on any system (Python + Pillow); any plain background colour
+scripts/redraw.py   puts a new drawing (a white/black background pair) in place of an animated sprite's
 js/gear-art.js      where equipment sits on each sprite (anchors) and its pictures
 tools/anchors.html  visual editor for those anchors (open it from the local server or the site)
 tests/              node:test suites
@@ -89,6 +90,13 @@ On Linux or macOS, or for a dark grey or green background, use the Python versio
 
 ```
 python scripts/cutout.py image.png sprites/rex-f.png [--flip]
+```
+
+To redraw an animated sprite, from the same image on pure white and on pure black (docs/ART.md):
+
+```
+python3 scripts/redraw.py white.jpg black.jpg juvenile/raptor-m
+python3 scripts/sheets.py
 ```
 
 Adult sprites go in `sprites/adult/` with the same names (`rex-m.png`); the game does not use them yet.
