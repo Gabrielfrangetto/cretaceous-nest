@@ -2,6 +2,50 @@
 // guessed from its outline, until set in tools/anchors.html: { part: { x, y, w, r } }, and noScar: its
 // horn, beak and claws, where no scar goes (circles [x, y, r], as painted in the tool)
 export const SCAR_GUESS = {
+ "sprites/adult/coelo-m.webp": {
+  "head": {
+   "x": 0.898,
+   "y": 0.101,
+   "w": 0.04,
+   "r": 0
+  },
+  "neck": {
+   "x": 0.797,
+   "y": 0.11,
+   "w": 0.044,
+   "r": 0
+  },
+  "body": {
+   "x": 0.562,
+   "y": 0.436,
+   "w": 0.099,
+   "r": 0
+  },
+  "legs": {
+   "x": 0.5,
+   "y": 0.586,
+   "w": 0.088,
+   "r": 0
+  },
+  "tail": {
+   "x": 0.22,
+   "y": 0.361,
+   "w": 0.042,
+   "r": 12
+  },
+  "noScar": [
+   [
+    0.455,
+    0.9479,
+    0.0064
+   ],
+   [
+    0.4629,
+    0.9479,
+    0.0064
+   ]
+  ]
+ },
  "sprites/adult/dilo-m.webp": {
   "head": {
    "x": 0.897,

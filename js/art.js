@@ -219,7 +219,7 @@ const BABY_SCALE = { dilo: 0.8, rex: 0.8, raptor: 0.8 };
 // adult sprites drawn so far, by species and sex (sprites/adult/); equipment is fitted to these.
 // (A new or changed animated .webp needs its sheet made: python3 scripts/sheets.py)
 // Adults without one are drawn with their baby sprite, scaled up.
-export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: asset('sprites/adult/rex-f.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') }, psitta: { m: asset('sprites/adult/psitta-m.webp'), f: asset('sprites/adult/psitta-f.webp') } };
+export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: asset('sprites/adult/rex-f.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') }, psitta: { m: asset('sprites/adult/psitta-m.webp'), f: asset('sprites/adult/psitta-f.webp') }, coelo: { m: asset('sprites/adult/coelo-m.webp') } };
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
 // step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
 // frames and their time, so the walker moves exactly as fast as its feet carry it
