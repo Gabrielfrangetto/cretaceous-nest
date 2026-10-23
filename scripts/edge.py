@@ -14,8 +14,8 @@ ap.add_argument('white')
 ap.add_argument('black')
 ap.add_argument('biome')
 ap.add_argument('--color')
-ap.add_argument('--contrast', type=float, default=1.2)
-ap.add_argument('--width', type=int, default=800)
+ap.add_argument('--contrast', type=float, default=1.0)
+ap.add_argument('--width', type=int, default=1600)
 a = ap.parse_args()
 
 W = np.asarray(Image.open(a.white).convert('RGB')).astype(np.float32)
@@ -29,7 +29,8 @@ dense_rows = (alpha > 0.5).mean(1) >= 0.92
 mean = rgb[dense_rows].reshape(-1, 3)[alpha[dense_rows].reshape(-1) > 0.5].mean(0)
 target = a.color or re.search(rf"\b{a.biome}:\s*\{{[^}}]*?color: '(#[0-9a-fA-F]{{6}})'", open('js/config.js').read()).group(1)
 want = np.float32([int(target[i:i + 2], 16) for i in (1, 3, 5)])
-rgb = np.clip(want + (rgb - mean) * a.contrast, 0, 255)
+# (scaled, as texture.py does, so the strip's dense part is the same colour as the ground's picture's densest)
+rgb = np.clip(want + (rgb * (want / mean) - want) * a.contrast, 0, 255)
 
 # cut to the rows with trees, and say where it is dense (where the hex's side goes)
 rows = np.where((alpha > 0.5).mean(1) > 0.01)[0]

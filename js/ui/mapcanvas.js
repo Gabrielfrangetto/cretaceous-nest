@@ -147,7 +147,8 @@ const litColor = (rgb, s) => {
 };
 // the same light laid over a picture of the ground: the sun's or the shade's colour, see-through
 // (softer: a picture has its own light and shade)
-const lightOver = s => { const [t, to] = lightTo(s); return `rgba(${to[0]},${to[1]},${to[2]},${(t * 0.6).toFixed(3)})`; };
+// (a grey laid with soft-light: lighter or darker without washing the painting out; see groundFill)
+const lightOver = s => { const v = Math.round(Math.max(40, Math.min(215, 128 + s * 260))); return `rgb(${v},${v},${v})`; };
 // the fill of a hex drawn around 0,0: its colour, lit as its ground lies (water lies flat); blended
 // across it (smooth) close up, where few hexes show, one colour each from further away. over: only the
 // light, to lay over a picture of its ground
@@ -220,19 +221,44 @@ function openSides(seed, h, cell) {
 // The picture of a biome's edge laid along each such side: dense inside the hex, thinning out over
 // the edge into the land beyond, a part of the strip of the hex's own (lit with the hex, after)
 const EDGE_DENSE = 0.7;   // how far down the strip it is dense (where the side runs)
-const EDGE_LONG = SIZE * 1.35;   // how long along the side
+const EDGE_LONG = SIZE * 1.6;   // how long along the side: past its corners, into the next side's piece
+// The pieces of a strip laid along sides (EDGE_PIECES of them, each made once): each fades out at both
+// ends, so no tree is cut straight across where two pieces meet or one ends, and a little way into the
+// hex, where its own ground's picture takes over (EDGE_IN of the strip below the side)
+const EDGE_IN = 0.25;
+const EDGE_PIECES = 8, EDGE_WIN = 0.12, pieces = new Map();
+function edgePiece(img, k) {
+  const id = `${img.src}|${k}`;
+  if (pieces.has(id)) return pieces.get(id);
+  const w = Math.round(img.naturalWidth * EDGE_WIN), h = Math.round(img.naturalHeight * (EDGE_DENSE + EDGE_IN)), sx = Math.round(k / EDGE_PIECES * (img.naturalWidth - w));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.drawImage(img, sx, 0, w, h, 0, 0, w, h);
+  g.globalCompositeOperation = 'destination-in';
+  const fade = g.createLinearGradient(0, 0, w, 0);
+  fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(0.22, '#000'); fade.addColorStop(0.78, '#000'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = fade;
+  g.fillRect(0, 0, w, h);
+  const down = g.createLinearGradient(0, h * EDGE_DENSE / (EDGE_DENSE + EDGE_IN), 0, h);
+  down.addColorStop(0, '#000'); down.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = down;
+  g.fillRect(0, 0, w, h);
+  pieces.set(id, c);
+  return c;
+}
 function drawEdges(ctx, seed, h, x, y, cell, img) {
-  const out = openSides(seed, h, cell), win = img.naturalWidth * 0.12, tall = EDGE_LONG * img.naturalHeight / win;
+  const out = openSides(seed, h, cell), tall = EDGE_LONG * img.naturalHeight / (img.naturalWidth * EDGE_WIN);
   ctx.save();
   ctx.translate(x, y);
   for (let i = 0; i < 6; i++) {
     if (!out[i]) continue;
-    const a = Math.PI / 3 * i, sx = cornerRand(h[0], h[1], 40 + i) * (img.naturalWidth - win);
+    const a = Math.PI / 3 * i, piece = edgePiece(img, Math.floor(cornerRand(h[0], h[1], 40 + i) * EDGE_PIECES));
     ctx.save();
     ctx.translate(Math.cos(a) * SIZE * 0.866, Math.sin(a) * SIZE * 0.866 * TILT);
     ctx.scale(1, TILT);
     ctx.rotate(a + Math.PI / 2);
-    ctx.drawImage(img, sx, 0, win, img.naturalHeight, -EDGE_LONG / 2, -tall * EDGE_DENSE, EDGE_LONG, tall);
+    ctx.drawImage(piece, -EDGE_LONG / 2, -tall * EDGE_DENSE, EDGE_LONG, tall * (EDGE_DENSE + EDGE_IN));
     ctx.restore();
   }
   ctx.restore();
@@ -325,15 +351,18 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.fill(edge);
     ctx.restore();
   }
-  for (const { h, x, y, cell } of textured) { const img = edgeOf(groundName(cell)); if (img) drawEdges(ctx, seed, h, x, y, cell, img); }
-  // (the light over each, its edge's trees within it too)
+  // (the light over each, lightening or darkening the painting; blended across it at every zoom, as
+  // steps of light from hex to hex would show on a painting)
   for (const { h, x, y, cell } of textured) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth, true);
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.fillStyle = groundFill(ctx, seed, h, cell, true, true);
     ctx.fill(edgeOf(groundName(cell)) ? shape : raggedPath(seed, h, cell));
     ctx.restore();
   }
+  // then the edges, over the land around (painted with their own light)
+  for (const { h, x, y, cell } of textured) { const img = edgeOf(groundName(cell)); if (img) drawEdges(ctx, seed, h, x, y, cell, img); }
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), unknown = !isWaterCell(cell) && !known(hexKey(...h));
     if (!unknown && detail !== 'full') continue;
