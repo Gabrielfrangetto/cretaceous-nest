@@ -65,7 +65,8 @@ mean = tiles[0].reshape(-1, 3).mean(0)
 tiles = [np.clip(want + (t * (want / (t.reshape(-1, 3).mean(0) if a.each else mean)) - want) * a.contrast, 0, 255) for t in tiles]
 
 if len(tiles) == 1:
-    out = tiles[0]
+    # (laid as many times across as a blend's tile is wide, so it is drawn at the same size)
+    out = np.tile(tiles[0], (MIX, MIX, 1))
 else:
     # broad patches: smooth noise that repeats with the tile, from 0 (densest) to 1 (most open)
     n = a.size * MIX
