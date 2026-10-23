@@ -101,8 +101,12 @@ else:
         inside = wgt > 0.75
         depth = ndimage.distance_transform_edt(inside)
         core = inside & ((depth > 14) | (crowns > 0.5))
-        rim = np.clip(wgt * 4, 0, 1)
-        m = np.maximum(core.astype(np.float32), rim * crowns)
+        # (each treetop all in or all out, never see-through: the treetops are the pieces of the picture
+        # standing above its ground; one is laid if most of it lies within the patch)
+        pieces, count = ndimage.label(crowns > 0.5)
+        share = ndimage.mean((wgt > 0.02).astype(np.float32), pieces, np.arange(1, count + 1))
+        whole = np.concatenate([[False], share > 0.5])[pieces]
+        m = np.maximum(core, whole).astype(np.float32)
         m = ndimage.gaussian_filter(m, 0.7, mode='wrap')
         # the trees' shadow cast on the ground below them, towards the bottom right (light from the top-left)
         shade = np.roll(ndimage.gaussian_filter(m, 4, mode='wrap'), (5, 5), (0, 1)) * (1 - m) * 0.45
