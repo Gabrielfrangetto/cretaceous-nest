@@ -549,6 +549,19 @@ export function railCurve(path) {
   curves.set(id, pts);
   return pts;
 }
+// A ride's way (hex keys, from its first station) along the track as drawn: each stretch between two
+// stations on its line's curve, one point a hex
+export function railPoints(seed, keys) {
+  const stations = new Set(railsOf(seed).stations), out = [];
+  let start = 0;
+  for (let i = 1; i < keys.length; i++) {
+    if (!stations.has(keys[i]) && i < keys.length - 1) continue;
+    const pts = railCurve(keys.slice(start, i + 1));
+    out.push(...(start ? pts.slice(1) : pts));
+    start = i;
+  }
+  return out.length ? out : keys.map(k => center(k.split(',').map(Number)));
+}
 // whether a line runs under a mountain at its hex
 export const inTunnel = (seed, k) => { const c = cellAt(seed, k.split(',').map(Number)); return !!c && c.terrain === 'mountain'; };
 // (the box a few hexes' middles lie in: [x0, y0, x1, y1])

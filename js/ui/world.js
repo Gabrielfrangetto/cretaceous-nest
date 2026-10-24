@@ -22,7 +22,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, railCurve, inTunnel } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, railCurve, railPoints, inTunnel } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
 
@@ -385,7 +385,7 @@ function paintMap() {
   // each party's way: walked so far (solid), still ahead (dashed), to where it is by now
   for (const e of w.expeditions) {
     if (!e.leg) continue;
-    const g = progressOf(S, e, t), pts = [e.leg.from, ...e.leg.path].map(k => center(parseKey(k)));
+    const g = progressOf(S, e, t), keys = [e.leg.from, ...e.leg.path], pts = e.leg.train ? railPoints(w.seed, keys) : keys.map(k => center(parseKey(k)));
     const k = g.i + 1, [ax, ay] = pts[k], [bx, by] = pts[Math.min(k + 1, pts.length - 1)];
     const here = [ax + (bx - ax) * g.f, ay + (by - ay) * g.f];
     const line = (list, dash, color, width) => {
