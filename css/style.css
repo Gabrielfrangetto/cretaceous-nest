@@ -1107,3 +1107,34 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .ahead summary { cursor: pointer; font-weight: 700; }
 .ahead-list { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 12px; }
 .ahead-list label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+
+/* the maglev's boarding window: two steps side by side, the second slid in; the train's cars with their
+   compartments, and the platform below with who may board */
+.maglev-dialog { width: min(760px, calc(100vw - 24px)); overflow-x: hidden; }
+.maglev-slide { display: grid; grid-template-columns: 100% 100%; transition: transform .35s ease; }
+.maglev-slide.on { transform: translateX(-100%); }
+.maglev-pane { display: grid; gap: 12px; align-content: start; min-width: 0; padding: 0 2px; }
+.maglev-slide:not(.on) .maglev-pane:last-child, .maglev-slide.on .maglev-pane:first-child { visibility: hidden; height: 0; overflow: hidden; }
+.maglev-train { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.maglev-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.maglev-stops { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; counter-reset: stop; }
+.maglev-stops li { display: flex; align-items: center; gap: 6px; }
+.maglev-stops li + li::before { content: '→'; color: var(--muted); }
+.maglev-cars { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 2px 10px; align-items: stretch; }
+.maglev-engine { flex: 0 0 54px; border-radius: 26px 8px 8px 26px; background: linear-gradient(#e8edf2, #b9c2cc); border: 2px solid #2b3138; }
+.maglev-car { flex: 0 0 auto; display: grid; gap: 4px; padding: 6px; border: 2px solid #2b3138; border-radius: 10px; background: #dfe5ea; }
+.maglev-car-name { font-size: .72em; color: #3b4047; text-align: center; }
+.maglev-places { display: flex; gap: 4px; }
+.maglev-place { width: 74px; min-height: 86px; border: 2px dashed #8b949e; border-radius: 8px; background: rgba(255, 255, 255, .55); display: grid; place-items: center; }
+.maglev-car.pen .maglev-place { width: 110px; }
+.maglev-car.flat .maglev-place { width: 150px; }
+.maglev-place.fits { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, white); }
+.maglev-place.full { border-style: solid; border-color: #2b3138; }
+.maglev-tray { display: flex; flex-wrap: wrap; gap: 8px; min-height: 96px; padding: 8px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.maglev-token { display: grid; justify-items: center; gap: 2px; padding: 4px; border-radius: 8px; cursor: grab; touch-action: none; user-select: none; }
+.maglev-token.held { outline: 3px solid var(--accent); }
+.maglev-token.off { opacity: .4; cursor: not-allowed; }
+.maglev-art { height: 64px; display: grid; place-items: end center; overflow: hidden; }
+.maglev-art > * { max-height: 64px; width: auto; }
+.maglev-name { font-size: .75em; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maglev-ghost { position: fixed; z-index: 1000; pointer-events: none; opacity: .9; }

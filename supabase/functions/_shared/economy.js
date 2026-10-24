@@ -10,7 +10,7 @@ import {
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
-import { startExpedition, orderParty, joinParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
+import { startExpedition, orderParty, joinParty, alightParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 import { setTeamSlot, renameTeam } from './teams.js';
 
@@ -713,6 +713,8 @@ const fail = reason => ({ ok: false, reason });
 const slotIndex = (s, i) => Number.isInteger(i) && i >= 0 && i < s.invSize;
 const MAX_TAPS_PER_REQUEST = 600;
 
+// a maglev train as an action names it: { ri, way, j } (journey.js trainsFrom), or null
+const cleanRide = r => (r && typeof r === 'object' && Number.isInteger(r.ri) && Number.isInteger(r.j) && (r.way === 'cw' || r.way === 'ccw') ? { ri: r.ri, way: r.way, j: r.j } : null);
 export const ACTIONS = {
   // { eggId } puts an egg from the tray in the incubator; eggs come from expeditions and breeding only
   startEgg(s, { eggId }, now) {
@@ -777,16 +779,21 @@ export const ACTIONS = {
   },
   // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
   // departAt: the train or rocket chosen (its departure), refused once its doors have closed
-  explore(s, { team, babyId, hex, train, rocket, via, departAt }, now) {
-    return startExpedition(s, team || babyId, hex, now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null);
+  // ride: one chosen maglev train ({ ri, way, j }, from trainsFrom), stayed on to hex
+  explore(s, { team, babyId, hex, train, rocket, via, departAt, ride }, now) {
+    return startExpedition(s, team || babyId, hex, now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null, cleanRide(ride));
   },
   // a party out is called home: from where it waits, or from where it is by now on its way out
   recall(s, { id }, now) {
     return recallParty(s, String(id), now);
   },
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
-  order(s, { id, hex, train, rocket, via, departAt }, now) {
-    return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null);
+  order(s, { id, hex, train, rocket, via, departAt, ride }, now) {
+    return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null, cleanRide(ride));
+  },
+  // a party waiting on the platform gives up its ride, until the doors close
+  alight(s, { id }, now) {
+    return alightParty(s, String(id), now);
   },
   join(s, { id, into }, now) {
     return joinParty(s, String(id), String(into), now);

@@ -13,6 +13,7 @@ import { isStation, upAt } from '../map.js';
 import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
+import { openMaglev, initMaglev } from './maglev.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
@@ -726,7 +727,9 @@ function sideHTML(t) {
   // you are out with a team: it goes on from where it is, no need to come home first
   const mine = S.world.expeditions.find(e => e.members.includes(PLAYER_ID));
   if (mine) return goOnHTML(mine, h, d, t) + (city ? aheadHTML(t) : '');
-  if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>`;
+  if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>
+    <p class="hint">The maglev stops here: you and any of your dinosaurs at home can take it to a city.</p>
+    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev</button></div>`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
   // the team: the player, with one of the teams set up in the Team tab (dinosaurs never set out without you)
@@ -759,7 +762,7 @@ function sideHTML(t) {
     ${units.length ? routeHTML(units, selected, true) : ''}
     ${team.length ? suppliesHTML(members, selected) : ''}
     ${teamFieldHTML(rows)}
-    <div class="row"><button class="btn" type="button" id="sendTrain" ${trip && !trip.reason ? `data-depart="${trip.departAt}"` : ''} ${problem || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Take the maglev</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
+    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev from your nest</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
     ${fly && fly.reason && PROBLEMS[fly.reason] ? `<p class="hint">No rocket for this team: ${esc(PROBLEMS[fly.reason])}</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
@@ -792,7 +795,7 @@ function aheadHTML(t) {
   return `<details class="ahead"${ahead.length ? ' open' : ''}><summary>Send dinosaurs ahead, without you</summary>
     <p class="hint">They ride on their own and wait here in the city's stables, fed and watered, until you come for them or send them on.</p>
     <ul class="ahead-list">${home.map(b => `<li><label><input type="checkbox" data-ahead="${esc(b.id)}"${ahead.includes(b.id) ? ' checked' : ''}> ${esc(b.name)} <span class="hint">${esc(SPECIES[b.type].species)} · ${esc(stageOf(b).id)}</span></label></li>`).join('')}</ul>
-    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadTrain" ${trip && !trip.reason ? `data-depart="${trip.departAt}"` : ''} ${why || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>By maglev <span class="hint">(${trip && !trip.reason ? `${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins` : '—'})</span></button><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
+    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
     ${why && PROBLEMS[why] ? `<p class="hint warn-text">${esc(PROBLEMS[why])}</p>` : ''}
   </details>`;
 }
@@ -866,14 +869,13 @@ function trainButtons(p) {
   const button = to => {
     if (to === p.at) return '';
     const trip = trainTrip(S, p.members, p.at, to, t), fly = rocketTrip(S, p.members, p.at, to, t);
-    const maglev = trip.reason ? '' : `<button class="ghost" type="button" data-train="${esc(p.id)}" data-hex="${esc(to)}" data-depart="${trip.departAt}" ${S.coins >= trip.fare ? '' : 'disabled'}>Maglev to ${esc(stationName(to))} <span class="hint">(${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins)</span></button>`;
     const rocket = fly.reason ? '' : `<button class="ghost" type="button" data-rocket="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= fly.fare ? '' : 'disabled'}>Rocket to ${esc(stationName(to))} <span class="hint">(${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins)</span></button>`;
-    return maglev + rocket;
+    return rocket;
   };
   const other = selected && selected !== p.at && selected !== '0,0' && isStation(S.world.seed, selected) ? button(selected) : '';
   // (others of yours waiting at the same station can join this party)
   const join = S.world.expeditions.filter(q => q !== p && !q.leg && !q.camp && q.at === p.at).map(q => `<button class="ghost" type="button" data-join="${esc(q.id)}" data-into="${esc(p.id)}">Join ${esc(listNames(q.team.map(unitName)))} to this team</button>`).join('');
-  return button('0,0') + other + join;
+  return `<button class="ghost" type="button" data-maglev="${esc(p.at)}" data-party="${esc(p.id)}">Take the maglev</button>` + button('0,0') + other + join;
 }
 // when the next train or rocket leaves
 // (a train's doors close MAGLEV.board seconds before it leaves)
@@ -938,7 +940,7 @@ function tripsHTML(t) {
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
-        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
+        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${fmt(leg.arriveAt - t)}</span>${leg.train && t < leg.startedAt - MAGLEV.board * 1000 ? `<button class="ghost" type="button" data-alight="${esc(p.id)}">Get off <span class="hint">(until the doors close)</span></button>` : ''}${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -992,7 +994,7 @@ function render() {
     ahead = c.checked ? [...ahead, c.dataset.ahead] : ahead.filter(id => id !== c.dataset.ahead);
     render();
   }));
-  for (const [id, rocket] of [['aheadTrain', false], ['aheadRocket', true]]) {
+  for (const [id, rocket] of [['aheadRocket', true]]) {
     const btn = document.getElementById(id);
     if (btn) btn.addEventListener('click', () => {
       const names = ahead.map(i => byId(i).name), r = act('explore', { team: ahead.map(i => ({ kind: 'dino', id: i })), hex: selected, ...(rocket ? { rocket: true } : { train: true, departAt: +btn.dataset.depart }) });
@@ -1001,13 +1003,6 @@ function render() {
       render();
     });
   }
-  const train = document.getElementById('sendTrain');
-  if (train) train.addEventListener('click', () => {
-    const names = team.map(unitName), r = act('explore', { team, hex: selected, train: true, departAt: +train.dataset.depart });
-    message = r.ok ? `${esc(listNames(names))} boarded the maglev for ${esc(stationName(selected))}.` : esc(PROBLEMS[r.reason] || 'The team could not board.');
-    if (r.ok) team = [];
-    render();
-  });
   // tracing a route: started from the hex picked (a new team) or for a party waiting out there
   // planning the way: started from the hex picked (a new team) or for a party waiting out there
   const go = document.getElementById('traceGo');
@@ -1125,6 +1120,22 @@ function updateBadge() {
 }
 
 export function initWorld() {
+  initMaglev();
+  // taking the maglev from a station: the boarding window; getting off before the doors close
+  document.addEventListener('click', e => {
+    const b = e.target.closest('#panelWorld [data-maglev]');
+    if (b) {
+      const party = b.dataset.party ? S.world.expeditions.find(x => x.id === b.dataset.party) : null;
+      openMaglev(b.dataset.maglev, party, msg => { if (msg) message = msg; render(); });
+      return;
+    }
+    const off = e.target.closest('#panelWorld [data-alight]');
+    if (off) {
+      const r = act('alight', { id: off.dataset.alight });
+      message = r.ok ? (r.home ? 'You got off: everyone is back in the nest, the fare refunded.' : 'You got off: the team waits in the station again, the fare refunded.') : 'Too late: the doors have closed.';
+      render();
+    }
+  });
   subscribe(() => { if (currentTab() === 'world') render(); updateBadge(); });
   onTabChange(tab => {
     clearInterval(tick); tick = null;

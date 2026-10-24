@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { applyAction } from '../js/economy.js';
 import { freshState } from '../js/state.js';
 import { newWorld, citiesOf } from '../js/world.js';
-import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, timetableOf, trainMins, cleanParties, restLeft, rideAt, progressOf } from '../js/journey.js';
+import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, timetableOf, trainMins, cleanParties, restLeft, rideAt, progressOf, trainsFrom, rideTrip } from '../js/journey.js';
 import { railsOf } from '../js/map.js';
 import { CAPSULES, MAGLEV, ROCKET, PLAYER_ID } from '../js/config.js';
 
@@ -162,4 +162,33 @@ test('everyone rides the same train: its doors close 10 s before it leaves; a pa
     assert.ok(Math.abs(g.f - train.f) < 1e-6 || here === train.path[train.i] || here === train.path[train.i + 1] || train.standing, `apart at ${t}`);
     assert.equal(train.path[train.i + (train.f > 0.5 ? 1 : 0)], g.f > 0.5 ? p.leg.path[g.i + 1] : here);
   }
+});
+
+test('boarding one chosen train to a station on its way; getting off until its doors close', () => {
+  const s = game(dino('ad', 30), dino('b2', 30));
+  const trains = trainsFrom(s, '0,0', T0);
+  assert.ok(trains.length >= 2 && trains.every(t => t.departAt >= T0 + MAGLEV.board * 1000 && t.stops.length >= 2));
+  const tr = trains[0], to = tr.stops[1].at, coins = s.coins;
+  // (its stops in order, each later than the one before)
+  for (let i = 1; i < tr.stops.length; i++) assert.ok(tr.stops[i].arriveAt > tr.stops[i - 1].arriveAt);
+  const ride = { ri: tr.ri, way: tr.way, j: tr.j };
+  const trip = rideTrip(s, ['ad'], '0,0', ride, to, T0);
+  assert.equal(trip.arriveAt, tr.stops[1].arriveAt);
+  const r = applyAction(s, 'explore', { team: dinos('ad'), hex: to, train: true, ride }, T0);
+  assert.equal(r.ok, true, r.reason);
+  const p = partyOf(s, r.expedition.id);
+  assert.deepEqual(p.leg.ride, ride);
+  assert.equal(p.leg.arriveAt, tr.stops[1].arriveAt);
+  // (aboard the very train chosen, stop after stop)
+  const mid = Math.round((tr.departAt + tr.stops[0].arriveAt) / 2), here = rideAt(s, p.leg, mid);
+  assert.ok(here.train && here.train.endsWith(String(((tr.j % timetableOf(42)[tr.ri].trains) + timetableOf(42)[tr.ri].trains) % timetableOf(42)[tr.ri].trains)));
+  // (a saved game keeps the train)
+  assert.deepEqual(cleanParties(s, s.world)[0].leg.ride, ride);
+  // getting off: until the doors close, the fare back and everyone home
+  assert.equal(applyAction(s, 'alight', { id: p.id }, tr.departAt - MAGLEV.board * 1000 + 1).reason, 'doors-closed');
+  assert.equal(applyAction(s, 'alight', { id: p.id }, tr.departAt - MAGLEV.board * 1000 - 1).ok, true);
+  assert.equal(s.coins, coins);
+  assert.equal(s.world.expeditions.length, 0);
+  // (a train whose doors have closed can't be boarded)
+  assert.equal(applyAction(s, 'explore', { team: dinos('b2'), hex: to, train: true, ride }, tr.departAt - 5000).reason, 'train-gone');
 });

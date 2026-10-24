@@ -205,14 +205,56 @@ function ridesOf(seed, route, now) {
   rideCache.set(id, out);
   return out;
 }
+// The trains a party at a station can board now: the next of each way through it whose doors are still
+// open, each with the stations it calls at after this one, in order, round its ring once. [{ ri, way,
+// j, departAt, stops: [{ at: station key, arriveAt }] }], the soonest first
+export function trainsFrom(s, from, now) {
+  const seed = W(s).seed, out = [];
+  for (const [ri, ring] of timetableOf(seed).entries()) for (const [way, w] of Object.entries(ring.ways)) {
+    const m = w.stops.indexOf(from), n = w.stops.length;
+    if (m < 0) continue;
+    const t = nextTrain(seed, from, w.stops[(m + 1) % n], now);
+    if (!t || t.ri !== ri || t.way !== way) {
+      // (another ring's train runs that stretch sooner: this way's own next one, then)
+      const j0 = Math.floor((now / 60000 - w.offset - w.leave[m]) / MAGLEV.every);
+      let pick = null;
+      for (let j = j0 - 1; j <= j0 + 2 && !pick; j++) { const d = Math.round(visitOf(seed, ri, ring, w, j, m).dep * 60000); if (d >= now + MAGLEV.board * 1000) pick = { j, departAt: d }; }
+      out.push(trainStops(seed, ri, ring, way, w, pick.j, m, pick.departAt));
+    } else out.push(trainStops(seed, ri, ring, way, w, t.j, m, t.departAt));
+  }
+  return out.sort((a, b) => a.departAt - b.departAt);
+}
+function trainStops(seed, ri, ring, way, w, j, m, departAt) {
+  const n = w.stops.length, stops = [];
+  for (let k = 1; k < n; k++) stops.push({ at: w.stops[(m + k) % n], arriveAt: Math.round(arrivalOf(seed, ri, ring, w, j + Math.floor((m + k) / n) * ring.trains, (m + k) % n) * 60000) });
+  return { ri, way, j, departAt, stops };
+}
+// A ride on one chosen train ({ ri, way, j }) from its stop at a station to a later one, staying aboard:
+// { fare, departAt, arriveAt, path, rides } | { reason }; refused once its doors have closed (now given)
+export function rideTrip(s, members, from, train, to, now = null) {
+  const seed = W(s).seed, tt = timetableOf(seed), ring = train && tt[train.ri], w = ring && ring.ways[train.way];
+  if (!w || !Number.isInteger(train.j)) return { reason: 'no-line' };
+  const n = w.stops.length, m = w.stops.indexOf(from), k = (w.stops.indexOf(to) - m + n) % n;
+  if (m < 0 || w.stops.indexOf(to) < 0 || !k) return { reason: m < 0 ? 'no-station' : 'there' };
+  const rides = [], path = [];
+  for (let q = 0; q < k; q++) {
+    const at = (m + q) % n, j = train.j + Math.floor((m + q) / n) * ring.trains;
+    const { dep } = visitOf(seed, train.ri, ring, w, j, at), arr = arrivalOf(seed, train.ri, ring, w, j, at + 1);
+    rides.push({ departAt: Math.round(dep * 60000), arriveAt: Math.round(arr * 60000), ri: train.ri, way: train.way, j, m: at, off: path.length, hexes: w.lines[at].length - 1 });
+    path.push(...w.lines[at].slice(1));
+  }
+  if (now != null && rides[0].departAt < now + MAGLEV.board * 1000) return { reason: 'train-gone' };
+  return { fare: trainFare(s, members, path.length), departAt: rides[0].departAt, arriveAt: rides[rides.length - 1].arriveAt, mins: Math.round((rides[rides.length - 1].arriveAt - rides[0].departAt) / 60000), path, rides, stops: [from, ...rides.map((r, i) => w.stops[(m + i + 1) % n])] };
+}
 // Where a party riding the maglev is at a time: { at: station key } waiting on a platform (before its
 // train leaves, or changing trains), or { train: id (as trainsAt names it), i, f } aboard, i and f along
 // its leg's path as progressOf gives them; null when the leg is no ride
 export function rideAt(s, leg, now) {
   if (!leg || !leg.train) return null;
-  const seed = W(s).seed, route = trainRoute(seed, leg.from, leg.to);
+  const seed = W(s).seed, chosen = leg.ride && rideTrip(s, [], leg.from, leg.ride, leg.to);
+  const route = chosen && !chosen.reason ? chosen : trainRoute(seed, leg.from, leg.to);
   if (!route) return null;
-  const { rides } = ridesOf(seed, route, leg.boardedAt ?? leg.startedAt), ring = timetableOf(seed);
+  const { rides } = chosen && !chosen.reason ? chosen : ridesOf(seed, route, leg.boardedAt ?? leg.startedAt), ring = timetableOf(seed);
   for (const [n, r] of rides.entries()) {
     if (now < r.departAt) return { at: route.stops[n], i: r.off - 1, f: 0 };
     if (now >= r.arriveAt && n < rides.length - 1) continue;
@@ -245,8 +287,8 @@ export function rocketTrip(s, members, from, to, now = 0) {
   return { fare: Math.round(ROCKET.base + ROCKET.perTonne * kg / 1000), mins, departAt: nextDeparture(now, ROCKET.every), kg };
 }
 // the party boards at its station (the fare paid): the maglev (by its lines) or a rocket (straight there)
-function startRide(s, p, to, at, rocket = false, want = null) {
-  const w = W(s), trip = rocket ? rocketTrip(s, p.members, p.at, to, at) : trainTrip(s, p.members, p.at, to, at);
+function startRide(s, p, to, at, rocket = false, want = null, ride = null) {
+  const w = W(s), trip = rocket ? rocketTrip(s, p.members, p.at, to, at) : ride ? rideTrip(s, p.members, p.at, ride, to, at) : trainTrip(s, p.members, p.at, to, at);
   if (trip.reason) return { ok: false, reason: trip.reason };
   // (the train chosen has closed its doors: the next is another one, to choose again)
   if (want != null && trip.departAt !== want) return { ok: false, reason: 'train-gone', departAt: trip.departAt };
@@ -254,7 +296,7 @@ function startRide(s, p, to, at, rocket = false, want = null) {
   s.coins -= trip.fare;
   w.trips += 1;
   // (it waits at the station until it leaves: startedAt is the departure)
-  p.leg = { n: w.trips, from: p.at, to, path: rocket ? [to] : trip.route.path, step: 0, boardedAt: at, startedAt: trip.departAt, arriveAt: trip.arriveAt || trip.departAt + trip.mins * 60000, ...(rocket ? { rocket: true } : { train: true }) };
+  p.leg = { n: w.trips, from: p.at, to, path: rocket ? [to] : ride ? trip.path : trip.route.path, step: 0, boardedAt: at, startedAt: trip.departAt, arriveAt: trip.arriveAt || trip.departAt + trip.mins * 60000, fare: trip.fare, ...(rocket ? { rocket: true } : { train: true }), ...(ride ? { ride: { ri: ride.ri, way: ride.way, j: ride.j } } : {}) };
   Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
   return { ok: true, expedition: p, fare: trip.fare, departAt: trip.departAt };
 }
@@ -288,21 +330,21 @@ export function trainsAt(s, now) {
 
 // a new party sets out from the nest to a hex (on foot), or to a city's station by maglev or rocket
 // (then it may be dinosaurs alone, sent ahead without the player)
-export function startExpedition(s, team, key, now, train = false, via = [], rocket = false, want = null) {
+export function startExpedition(s, team, key, now, train = false, via = [], rocket = false, want = null, ride = null) {
   via = train || rocket ? [] : cleanVia(s, via);
   const problem = exploreProblem(s, team, key, now, train ? 'maglev' : rocket ? 'rocket' : null);
   if (problem) return { ok: false, reason: problem };
   const w = W(s);
   const units = teamFrom(s, team), members = units.flatMap(u => u.members);
   if (train || rocket) {
-    const trip = rocket ? rocketTrip(s, members, HOME, key, now) : trainTrip(s, members, HOME, key, now);
+    const trip = rocket ? rocketTrip(s, members, HOME, key, now) : ride ? rideTrip(s, members, HOME, ride, key, now) : trainTrip(s, members, HOME, key, now);
     if (trip.reason) return { ok: false, reason: trip.reason };
     if (want != null && trip.departAt !== want) return { ok: false, reason: 'train-gone', departAt: trip.departAt };
     if (s.coins < trip.fare) return { ok: false, reason: 'coins' };
   }
   const p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
   for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
-  if (train || rocket) startRide(s, p, key, now, rocket, want);
+  if (train || rocket) startRide(s, p, key, now, rocket, want, ride);
   else startLeg(s, p, key, now, via);
   w.expeditions.push(p);
   return { ok: true, expedition: p };
@@ -357,12 +399,12 @@ function timeAt(s, leg, i) {
 
 // a party waiting at a hex is sent on: to another hex, or home (HOME); from a station, by train to
 // another (train)
-export function orderParty(s, id, to, now, train = false, via = [], rocket = false, want = null) {
+export function orderParty(s, id, to, now, train = false, via = [], rocket = false, want = null, ride = null) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
   if (p.leg) return { ok: false, reason: 'on-the-way' };
   if (p.camp) return { ok: false, reason: 'camping' };
-  if (train || rocket) return to === p.at ? { ok: false, reason: 'there' } : startRide(s, p, to, now, rocket, want);
+  if (train || rocket) return to === p.at ? { ok: false, reason: 'there' } : startRide(s, p, to, now, rocket, want, ride);
   // (on foot only with the player, and never with a baby)
   if (isFreight(p)) return { ok: false, reason: 'no-player' };
   if (p.members.some(m => m !== PLAYER_ID && stageOf(explorerOf(s, m) || {}).id === 'baby')) return { ok: false, reason: 'too-young' };
@@ -448,6 +490,25 @@ export function breakCamp(s, id, now) {
 
 // Calling a party back: one waiting somewhere sets out for home; one on its way out stops where it is
 // by now and turns for home (what it met before then is still told). Not one already heading home.
+// A party waiting on the platform gives up its ride, up to the moment the doors close (MAGLEV.board
+// seconds before it leaves): the fare back; from the nest the team breaks up at home, its supplies back
+// in the stores; from a city it waits there again
+export function alightParty(s, id, now) {
+  const p = partyOf(s, id);
+  if (!p) return { ok: false, reason: 'no-expedition' };
+  const leg = p.leg;
+  if (!leg || !leg.train) return { ok: false, reason: 'no-ride' };
+  if (now > leg.startedAt - MAGLEV.board * 1000) return { ok: false, reason: 'doors-closed' };
+  s.coins += leg.fare || 0;
+  if (leg.from === HOME) {
+    for (const [item, n] of Object.entries(p.supplies || {})) if (ITEMS[item] && n) addItem(s, item, n);
+    W(s).expeditions = W(s).expeditions.filter(x => x !== p);
+    return { ok: true, home: true };
+  }
+  p.leg = null;
+  Object.assign(p, { hex: p.at, returnAt: now });
+  return { ok: true, expedition: p };
+}
 export function recallParty(s, id, now) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
@@ -1852,7 +1913,9 @@ export function cleanParties(s, w) {
       const from = String(L.from), to = String(L.to);
       if (!land(from) || !land(to) || from === to || from !== at) continue;
       const air = L.air === true && to === HOME;
-      const train = !air && L.train === true && trainRoute(w.seed, from, to);
+      const ride = !air && L.train === true && L.ride && typeof L.ride === 'object' ? { ri: int(L.ride.ri), way: L.ride.way === 'ccw' ? 'ccw' : 'cw', j: int(L.ride.j) } : null;
+      const chosen = ride && rideTrip(s, [], from, ride, to);
+      const train = !air && L.train === true && (chosen && !chosen.reason ? { path: chosen.path, hexes: chosen.path.length } : trainRoute(w.seed, from, to));
       const rocket = !air && !train && L.rocket === true && isStation(w.seed, from) && isStation(w.seed, to);
       const via = train || air || rocket ? [] : cleanVia(s, L.via);
       const path = air ? airPath(from) : train ? train.path : rocket ? [to] : routePath(w.seed, from, to, via);
@@ -1862,7 +1925,7 @@ export function cleanParties(s, w) {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
         arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : rocket ? ROCKET.mins[0] : legMins(s, members, from, to, via)) * 60000),
         ...(air ? { air: true } : {}),
-        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
+        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(train && chosen && !chosen.reason ? { ride } : {}), ...((train || rocket) && Number.isFinite(L.fare) ? { fare: Math.max(0, int(L.fare)) } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
         // (standing where a decision waits for the player, since then)
         ...(e.pending && Number.isFinite(L.pausedAt) ? { pausedAt: num(L.pausedAt) } : {}),
       };

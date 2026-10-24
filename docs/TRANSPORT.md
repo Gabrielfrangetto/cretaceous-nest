@@ -27,7 +27,19 @@ inside it (the map shows that train in the party's colour, the party's marker ov
 where the same train goes on and changes where its way leaves it. A train's doors close
 `MAGLEV.board` (10) seconds before it leaves, the same for every player: everyone who boards before
 then rides the same train; a choice made for a train whose doors have closed is refused
-('train-gone'), and the World tab puts the dinosaurs being picked back and offers the next one. Trains slow into each station and
+('train-gone'), and the World tab puts the dinosaurs being picked back and offers the next one.
+
+**Boarding (`ui/maglev.js`).** At a station (the nest, or a city where a party waits), "Take the
+maglev" opens a window in two steps. First the next train of each way that can still be boarded, each
+with the stations it calls at in order (`journey.js trainsFrom`): a tap on one is where to get off,
+staying on that train (`rideTrip`; the leg keeps the train as `ride: { ri, way, j }`). Then the window
+slides to the train's cars: a coach with seats (the player), stall cars (tiny to medium dinosaurs), a
+pen car (large and huge), a flatcar (colossal); each one going is dragged from the platform (or tapped,
+then its place tapped) into a compartment that fits, the fare counted as they go. From the nest any of
+those at home may go; a party in a city boards whole. Done boards them: they only wait on the
+platform for the train. Until its doors close they may get off again (the `alight` action: the fare
+back, home or back to the city's stables); the window closes by itself once the doors of its train
+have closed. Compartments are each player's own for now (not shared between players on one train). Trains slow into each station and
 speed away. A ride is a wait of up to 10 min, then the quickest way, changing rings where needed.
 Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.
