@@ -3,6 +3,9 @@
 # is in it (…-plants.json: [x, y, w, h] each, in its pixels), for the map to stand them up in its hexes.
 # Each piece is one tree, or a clump of them touching; specks are left out.
 # Usage: python3 scripts/plants.py white.jpg black.jpg forest [--big 72]   (needs Pillow, numpy, scipy)
+# When the generator gave a black sheet that doesn't match the white one, pass - for black: the plants
+# are cut from the white sheet alone (good for plants with a dark outline): the white reaching in from
+# the edges is the background, faded out over a pixel or two at the plants' rims.
 import argparse, json
 import numpy as np
 from PIL import Image
@@ -16,11 +19,24 @@ ap.add_argument('--big', type=int, default=72, help='how many pixels across the 
 a = ap.parse_args()
 
 W = np.asarray(Image.open(a.white).convert('RGB')).astype(np.float32)
-B = np.asarray(Image.open(a.black).convert('RGB')).astype(np.float32)
-alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
-alpha[alpha < 0.05] = 0
-alpha[alpha > 0.95] = 1
-rgb = np.where(alpha[..., None] > 0.97, W, B / np.maximum(alpha[..., None], 1e-3))
+if a.black == '-':
+    # (the background: near-white reaching in from the sheet's edges)
+    pale = W.min(2) > 225
+    lab, _ = ndimage.label(pale)
+    edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    back = np.isin(lab, list(edge))
+    # (at a plant's rim, how far from white each pixel is: its share of plant)
+    rim = back & ndimage.binary_dilation(~back, iterations=2)
+    alpha = np.where(back, 0.0, 1.0)
+    alpha[rim] = np.clip((255 - W[rim].min(1)) / 60, 0, 1)
+    a_ = np.maximum(alpha[..., None], 1e-3)
+    rgb = np.where(alpha[..., None] > 0.97, W, (W - 255 * (1 - alpha[..., None])) / a_)
+else:
+    B = np.asarray(Image.open(a.black).convert('RGB')).astype(np.float32)
+    alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
+    alpha[alpha < 0.05] = 0
+    alpha[alpha > 0.95] = 1
+    rgb = np.where(alpha[..., None] > 0.97, W, B / np.maximum(alpha[..., None], 1e-3))
 pic = np.dstack([np.clip(rgb, 0, 255), alpha * 255])
 
 pieces, n = ndimage.label(ndimage.binary_closing(alpha > 0.4, iterations=2))
