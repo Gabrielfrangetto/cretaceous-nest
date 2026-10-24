@@ -32,7 +32,8 @@ if a.black == '-':
     a_ = np.maximum(alpha[..., None], 1e-3)
     rgb = np.where(alpha[..., None] > 0.97, W, (W - 255 * (1 - alpha[..., None])) / a_)
 else:
-    B = np.asarray(Image.open(a.black).convert('RGB')).astype(np.float32)
+    # (a black sheet made smaller than the white is stretched to it: the same picture, the same framing)
+    B = np.asarray(Image.open(a.black).convert('RGB').resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32)
     alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
     alpha[alpha < 0.05] = 0
     alpha[alpha > 0.95] = 1
