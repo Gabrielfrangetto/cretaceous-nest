@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, ROCKET, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
+import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, ROCKET, MAGLEV, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, countItem } from '../economy.js';
 import {
@@ -210,12 +210,17 @@ function shadeNight(ctx, f, x1, y1, t) {
 
 // The maglev's trains, on a canvas of their own over the map, drawn every frame where the timetable
 // puts them that moment, so they glide (the map under them is drawn only when it changes); once the
-// map is close enough to see them
-let trainCanvas = null;
+// map is close enough to see them. Drawn again only as often as a train moves a third of a pixel on
+// screen (often close up, seldom from afar), or when the map has moved
+let trainCanvas = null, trainsDrawn = { at: 0, fit: null };
 function paintTrains() {
   requestAnimationFrame(paintTrains);
   const c = trainCanvas, f = lastFit;
   if (!c || !c.isConnected || !f || document.hidden || currentTab() !== 'world') return;
+  // (a train runs a hex in about MAGLEV.minsPerHex minutes)
+  const pxPerMs = SIZE * SQ3 * f.scale / (MAGLEV.minsPerHex * 60000), t = performance.now();
+  if (trainsDrawn.fit === f && t - trainsDrawn.at < Math.min(1000, 0.33 / pxPerMs)) return;
+  trainsDrawn = { at: t, fit: f };
   // (laid exactly over the map, wherever the page puts it)
   const m = mapCanvas, place = `${m.offsetLeft}px|${m.offsetTop}px|${f.width}px|${f.height}px`;
   if (c.dataset.place !== place) { c.dataset.place = place; [c.style.left, c.style.top, c.style.width, c.style.height] = place.split('|'); }
@@ -1086,6 +1091,7 @@ export function initWorld() {
   setInterval(updateBadge, 1000);
   // (the night moves over the map)
   // (often enough for the trains to glide along their lines)
-  setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, 2000);
+  // (the night moving over the map: the trains move on their own canvas)
+  setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, 30000);
   updateBadge();
 }

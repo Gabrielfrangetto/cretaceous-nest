@@ -361,7 +361,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     }
     // from very far only the great rivers show
     drawRivers(ctx, seed, hexes, 8);
-    drawRails(ctx, seed);
+    drawRails(ctx, seed, areaOf(hexes));
     return;
   }
   const smooth = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b) >= 44;
@@ -442,7 +442,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.restore();
   }
   drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
-  drawRails(ctx, seed);
+  drawRails(ctx, seed, areaOf(hexes));
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
@@ -503,35 +503,44 @@ export function railCurve(path) {
 }
 // whether a line runs under a mountain at its hex
 export const inTunnel = (seed, k) => { const c = cellAt(seed, k.split(',').map(Number)); return !!c && c.terrain === 'mountain'; };
-function drawRails(ctx, seed) {
-  const { lines } = railsOf(seed), hair = 1 / Math.max(1e-6, ctx.getTransform().a);
+// (the box a few hexes' middles lie in: [x0, y0, x1, y1])
+const areaOf = hexes => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const h of hexes) { const [x, y] = center(h); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; };
+// (each line's track and tunnels as paths, made once, with the box each lies in)
+const railShapes = new Map();
+function railShapesOf(seed) {
+  if (railShapes.has(seed)) return railShapes.get(seed);
+  const out = railsOf(seed).lines.map(l => {
+    const pts = railCurve(l.path), open = new Path2D(), tunnel = new Path2D();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 1; i < pts.length; i++) {
+      const under = inTunnel(seed, l.path[i - 1]) && inTunnel(seed, l.path[i]), p = under ? tunnel : open;
+      p.moveTo(...pts[i - 1]);
+      p.lineTo(...pts[i]);
+    }
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    return { open, tunnel, box: [x0, y0, x1, y1] };
+  });
+  if (railShapes.size > 4) railShapes.clear();
+  railShapes.set(seed, out);
+  return out;
+}
+function drawRails(ctx, seed, area = null) {
+  const hair = 1 / Math.max(1e-6, ctx.getTransform().a), pad = SIZE * 2;
+  const shown = railShapesOf(seed).filter(({ box: [x0, y0, x1, y1] }) => !area || (x1 >= area[0] - pad && x0 <= area[2] + pad && y1 >= area[1] - pad && y0 <= area[3] + pad));
+  if (!shown.length) return;
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const [color, width, px] of RAIL) {
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(width, hair * px);
-    ctx.beginPath();
-    for (const l of lines) {
-      const pts = railCurve(l.path);
-      for (let i = 1; i < pts.length; i++) {
-        if (inTunnel(seed, l.path[i - 1]) && inTunnel(seed, l.path[i])) continue;
-        ctx.moveTo(...pts[i - 1]);
-        ctx.lineTo(...pts[i]);
-      }
-    }
-    ctx.stroke();
+    for (const r of shown) ctx.stroke(r.open);
   }
   // (the tunnels)
   ctx.strokeStyle = 'rgba(40, 44, 50, 0.45)';
   ctx.lineWidth = Math.max(2, hair * 1);
   ctx.setLineDash([Math.max(4, hair * 3), Math.max(4, hair * 3)]);
-  ctx.beginPath();
-  for (const l of lines) {
-    const pts = railCurve(l.path);
-    for (let i = 1; i < pts.length; i++) if (inTunnel(seed, l.path[i - 1]) && inTunnel(seed, l.path[i])) { ctx.moveTo(...pts[i - 1]); ctx.lineTo(...pts[i]); }
-  }
-  ctx.stroke();
+  for (const r of shown) ctx.stroke(r.tunnel);
   ctx.restore();
 }
 const isWaterCell = c => c.terrain === 'ocean' || c.terrain === 'lake';
@@ -550,7 +559,9 @@ export function mapBounds() {
 // ---------- the view from afar, in tiles ----------
 // The map is cut into square tiles drawn at a few sharpnesses (LEVELS, pixels a map unit), each drawn
 // once and kept (the last TILE_KEEP), for the zoom that needs it: the sharpness just above the screen's.
-// A tile not drawn yet is drawn in the next frames (a few a frame), the blurrier one standing in.
+// A tile not drawn yet is drawn in the next frames (as many as fit in a few milliseconds a frame, so
+// zooming never stalls), the blurrier one standing in; and once the view is all drawn, the tiles one
+// sharper and one blurrier for it are drawn ahead while the browser is idle, ready for the next zoom.
 const TILE = 256, LEVELS = [0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 160;
 const tiles = new Map();
 const detailAt = k => (SIZE * k >= 9 ? 'full' : SIZE * k >= 3 ? 'plain' : 'dots');
@@ -581,10 +592,11 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
   const x1 = f.x0 + f.width / f.scale, y1 = f.y0 + f.height / f.scale;
   const tx0 = Math.max(0, Math.floor((f.x0 - b.x) / span)), tx1 = Math.min(Math.ceil(b.w / span) - 1, Math.floor((x1 - b.x) / span));
   const ty0 = Math.max(0, Math.floor((f.y0 - b.y) / span)), ty1 = Math.min(Math.ceil(b.h / span) - 1, Math.floor((y1 - b.y) / span));
-  let budget = 6, missing = false;
+  const until = performance.now() + TILE_MS;
+  let missing = false, made = 0;
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
     let tile = tileOf(seed, known, sig, edge, k, tx, ty);
-    if (!tile && budget > 0) { tile = makeTile(seed, known, sig, edge, k, tx, ty); budget--; }
+    if (!tile && (!made || performance.now() < until)) { tile = makeTile(seed, known, sig, edge, k, tx, ty); made++; }
     const x = b.x + tx * span, y = b.y + ty * span;
     if (tile) { ctx.drawImage(tile, x, y, span, span); continue; }
     missing = true;
@@ -598,7 +610,36 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
       break;
     }
   }
+  if (!missing) drawAhead(seed, known, sig, edge, f, k);
   return missing;
+}
+// (how long a frame may spend drawing tiles)
+const TILE_MS = 8;
+// the tiles the next zoom in or out would need, drawn while the browser is idle, a few at a time
+let ahead = null;
+function drawAhead(seed, known, sig, edge, f, k) {
+  const b = mapBounds(), x1 = f.x0 + f.width / f.scale, y1 = f.y0 + f.height / f.scale, cx = (f.x0 + x1) / 2, cy = (f.y0 + y1) / 2;
+  const id = `${seed}|${sig}|${k}|${Math.round(f.x0)}|${Math.round(f.y0)}|${Math.round(x1)}`;
+  if (ahead && ahead.id === id) return;
+  const todo = [];
+  for (const l of LEVELS.filter(l => l === k * 2 || l === k / 2)) {
+    // (the sharper level for the middle of the view, where a zoom in lands; the blurrier for twice the view)
+    const half = l > k ? 0.5 : 2, span = TILE / l;
+    const ax = cx - (x1 - f.x0) / 2 * half, bx = cx + (x1 - f.x0) / 2 * half, ay = cy - (y1 - f.y0) / 2 * half, by = cy + (y1 - f.y0) / 2 * half;
+    for (let ty = Math.max(0, Math.floor((ay - b.y) / span)); ty <= Math.min(Math.ceil(b.h / span) - 1, Math.floor((by - b.y) / span)); ty++)
+      for (let tx = Math.max(0, Math.floor((ax - b.x) / span)); tx <= Math.min(Math.ceil(b.w / span) - 1, Math.floor((bx - b.x) / span)); tx++) todo.push([l, tx, ty]);
+  }
+  const job = ahead = { id };
+  const idle = globalThis.requestIdleCallback || (fn => setTimeout(() => fn({ timeRemaining: () => TILE_MS }), 50));
+  const step = deadline => {
+    if (ahead !== job) return;
+    while (todo.length && deadline.timeRemaining() > 2) {
+      const [l, tx, ty] = todo.shift();
+      if (!tileOf(seed, known, sig, edge, l, tx, ty)) makeTile(seed, known, sig, edge, l, tx, ty);
+    }
+    if (todo.length) idle(step);
+  };
+  idle(step);
 }
 // draws the blurriest tiles of the whole map ahead of time, so the first look from afar is ready
 export function warmTiles(seed, known, sig, edge) {
