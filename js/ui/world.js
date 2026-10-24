@@ -14,8 +14,8 @@ import { skyAt, sunTimes, placeOf, worldTime, WORLD_DAY } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { openMaglev, initMaglev } from './maglev.js';
-import { openDrive, initDrive, garageHTML, parkedHTML, DRIVE_PROBLEMS } from './drive.js';
-import { vehiclesOf, driverOf, vehicleOf } from '../vehicles.js';
+import { openDrive, openScience, initDrive, garageHTML, parkedHTML, scienceHTML, scienceBackHTML, DRIVE_PROBLEMS } from './drive.js';
+import { vehiclesOf, driverOf, vehicleOf, scienceAt } from '../vehicles.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
@@ -269,6 +269,19 @@ function paintTrains() {
     ctx.stroke();
     ctx.restore();
   }
+  // (the science teams' trucks: out, studying where they went, back)
+  const along = (keys, f) => {
+    const x = Math.min(keys.length - 1, Math.max(0, f * (keys.length - 1))), i = Math.min(keys.length - 2, Math.floor(x));
+    if (keys.length < 2) { const [px0, py0] = center(parseKey(keys[0])); return [px0, py0, 0]; }
+    const [ax, ay] = center(parseKey(keys[i])), [bx, by] = center(parseKey(keys[i + 1]));
+    return [ax + (bx - ax) * (x - i), ay + (by - ay) * (x - i), Math.atan2(by - ay, bx - ax)];
+  };
+  if (seen) for (const tr of scienceAt(seed, at)) {
+    const [x, y, a] = at < tr.arriveAt ? along([tr.station, ...tr.out.path], (at - tr.departAt) / (tr.arriveAt - tr.departAt))
+      : at < tr.backAt ? (([px0, py0]) => [px0 + SIZE * 0.4, py0 - SIZE * 0.3, 0])(center(parseKey(tr.to)))
+      : along([tr.to, ...tr.back.path], (at - tr.backAt) / (tr.homeAt - tr.backAt));
+    vehicleIcon(ctx, x, y, a, Math.max(SIZE * 0.26, px(4.5)), 'science');
+  }
   // (the player's vehicles: parked at their hex, or driving along the way with the team)
   for (const v of vehiclesOf(S, at)) {
     const e = driverOf(S, v, at);
@@ -289,8 +302,8 @@ function vehicleIcon(ctx, x, y, a, r, kind) {
   ctx.rotate(a);
   ctx.lineWidth = r * 0.18;
   ctx.strokeStyle = '#2b2416';
-  ctx.fillStyle = '#e0a43a';
-  if (kind === 'hauler') { ctx.beginPath(); ctx.roundRect(-r * 2.4, -r * 0.62, r * 1.7, r * 1.24, r * 0.2); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle = kind === 'science' ? '#eef3f1' : '#e0a43a';
+  if (kind === 'hauler' || kind === 'science') { ctx.beginPath(); ctx.roundRect(-r * 2.4, -r * 0.62, r * 1.7, r * 1.24, r * 0.2); ctx.fill(); ctx.stroke(); }
   ctx.beginPath();
   ctx.roundRect(-r * 0.6, -r * 0.65, r * 1.7, r * 1.3, r * 0.35);
   ctx.fill();
@@ -299,6 +312,8 @@ function vehicleIcon(ctx, x, y, a, r, kind) {
   ctx.beginPath();
   ctx.roundRect(r * 0.45, -r * 0.48, r * 0.45, r * 0.96, r * 0.15);
   ctx.fill();
+  // (the science teams': a green stripe along the trailer)
+  if (kind === 'science') { ctx.fillStyle = '#3f9c6e'; ctx.fillRect(-r * 2.3, -r * 0.15, r * 1.5, r * 0.3); }
   ctx.restore();
 }
 
@@ -768,7 +783,7 @@ function sideHTML(t) {
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>
     <p class="hint">The maglev stops here: you and any of your dinosaurs at home can take it to a city.</p>
     <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev</button></div>
-    ${parkedHTML('0,0', t)}${garageHTML('0,0', t)}`;
+    ${scienceHTML('0,0', t)}${parkedHTML('0,0', t)}${garageHTML('0,0', t)}`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
   // the team: the player, with one of the teams set up in the Team tab (dinosaurs never set out without you)
@@ -846,7 +861,7 @@ function goOnHTML(p, h, d, t) {
   const here = selected === p.at;
   const where = esc(placeName(cellAt(S.world.seed, parseKey(p.at))));
   if (p.leg) return `<h3>${title}</h3><p class="hint">Your team is on its way ${p.leg.to === '0,0' ? 'home' : `to the ${esc(placeName(cellAt(S.world.seed, parseKey(p.leg.to))))}`}. Once it gets there, it can go on to any hex from where it is.</p>`;
-  if (here) return `<h3>${title}</h3><p class="hint">Your team is here, waiting for your orders.</p>${parkedHTML(p.at, t)}${garageHTML(p.at, t)}`;
+  if (here) return `<h3>${title}</h3><p class="hint">Your team is here, waiting for your orders.</p>${scienceBackHTML(p.at, p, t)}${scienceHTML(p.at, t)}${parkedHTML(p.at, t)}${garageHTML(p.at, t)}`;
   if (p.camp) return `<h3>${title}</h3><p class="hint">Your team is in camp in the ${where}. Break camp to go on.</p>`;
   if (!canReach(S, selected)) return `<h3>${title}</h3><p class="hint">${PROBLEMS.unreachable}</p>`;
   const units = teamUnits(S, standingUnits(S, p)), path = routePath(S.world.seed, p.at, selected, []);
@@ -1163,11 +1178,20 @@ export function initWorld() {
   initDrive();
   // vehicles: renting or buying one at a station, and choosing where to drive one
   document.addEventListener('click', e => {
-    const get = e.target.closest('#panelWorld [data-rent], #panelWorld [data-buy]');
+    const get = e.target.closest('#panelWorld [data-buy]');
     if (get) {
-      const kind = get.dataset.rent || get.dataset.buy, r = act('vehicle', { kind, ...(get.dataset.rent ? { days: +get.dataset.days } : {}) });
-      message = r.ok ? `The ${esc(VEHICLES[kind].name)} is yours${get.dataset.rent ? ` for ${plural(+get.dataset.days, 'day', 'days')}` : ''}: it waits here.` : esc(PROBLEMS[r.reason] || 'Not possible here.');
+      const kind = get.dataset.buy, r = act('vehicle', { kind });
+      message = r.ok ? `The ${esc(VEHICLES[kind].name)} is yours: it waits here.` : esc(PROBLEMS[r.reason] || 'Not possible here.');
       render();
+      return;
+    }
+    // a ride with a science team: from a station (the nest, or a city where your team waits), or back
+    const sci = e.target.closest('#panelWorld [data-science]');
+    if (sci) {
+      const station = sci.dataset.science, back = 'back' in sci.dataset;
+      const party = sci.dataset.party ? S.world.expeditions.find(x => x.id === sci.dataset.party)
+        : station === '0,0' ? null : S.world.expeditions.find(x => x.members.includes(PLAYER_ID) && !x.leg && x.at === station) || null;
+      openScience({ station, k: +sci.dataset.k, back }, party, msg => { message = msg; render(); });
       return;
     }
     const drive = e.target.closest('#panelWorld [data-drive]');

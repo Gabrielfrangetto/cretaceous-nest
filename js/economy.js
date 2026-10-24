@@ -11,7 +11,7 @@ import {
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
 import { getVehicle } from './vehicles.js';
-import { startExpedition, startDrive, orderParty, joinParty, alightParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
+import { startExpedition, startDrive, startScience, orderParty, joinParty, alightParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 import { setTeamSlot, renameTeam } from './teams.js';
 
@@ -793,9 +793,13 @@ export const ACTIONS = {
   order(s, { id, hex, train, rocket, via, departAt, ride }, now) {
     return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null, cleanRide(ride));
   },
-  // a land vehicle at the station the player stands at: bought, or rented for days of the world
-  vehicle(s, { kind, days }, now) {
-    return getVehicle(s, String(kind), now, days == null ? null : Number(days));
+  // a land vehicle bought at the station the player stands at
+  vehicle(s, { kind }, now) {
+    return getVehicle(s, String(kind), now);
+  },
+  // a ride with a science team: the k-th to set out from a station, out, or back from where it studies
+  science(s, { station, k, back, team, id }, now) {
+    return startScience(s, { station: String(station), k: Number(k), back: back === true, team, party: id == null ? null : String(id) }, now);
   },
   // driving a vehicle to a hex: from the nest with a team (team), or with the party waiting where it is
   // parked (id)

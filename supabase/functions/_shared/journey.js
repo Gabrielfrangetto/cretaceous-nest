@@ -15,13 +15,13 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, worldMins, VEHICLES, DRIVE, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, worldMins, VEHICLES, DRIVE, SCIENCE, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet, stageOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround, railsOf } from './map.js';
 import { skyAt, placeOf } from './sun.js';
-import { drivePath, driveMins, vehicleOf, vehiclesOf, driverOf, chargeOf, fitProblem } from './vehicles.js';
+import { drivePath, driveMins, vehicleOf, vehiclesOf, driverOf, chargeOf, fitProblem, scienceTrip } from './vehicles.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
@@ -464,7 +464,7 @@ export function breakCamp(s, id, now) {
   p.camp = null;
   const told = { kind: 'camp', hex: p.at, idx: 0, biome, early, water: false, fed: [], meat: 0 };
   // (a vehicle parked there charges a little, from its solar panels, over the night)
-  if (!early) for (const v of vehiclesOf(s, now)) if (v.at === p.at) v.charge = Math.min(VEHICLES[v.kind].range, chargeOf(s, v) + VEHICLES[v.kind].range * DRIVE.camp);
+  if (!early) for (const v of vehiclesOf(s)) if (v.at === p.at) v.charge = Math.min(VEHICLES[v.kind].range, chargeOf(s, v) + VEHICLES[v.kind].range * DRIVE.camp);
   if (!early) {
     const fresh = freshWater(w.seed, h) || neighbors(h).some(n => freshWater(w.seed, n));
     told.water = fresh;
@@ -499,8 +499,7 @@ export function breakCamp(s, id, now) {
 // { ok, expedition } | { ok: false, reason }
 export function startDrive(s, { vehicle, to, team, party }, now) {
   const w = W(s), v = vehicleOf(s, vehicle);
-  vehiclesOf(s, now);
-  if (!v || !vehiclesOf(s, now).includes(v)) return { ok: false, reason: 'no-vehicle' };
+  if (!v) return { ok: false, reason: 'no-vehicle' };
   if (driverOf(s, v, now)) return { ok: false, reason: 'driving' };
   const from = v.at;
   let p = party ? partyOf(s, party) : null;
@@ -518,13 +517,10 @@ export function startDrive(s, { vehicle, to, team, party }, now) {
   if (!route) return { ok: false, reason: 'no-way' };
   if (route.charge > chargeOf(s, v)) return { ok: false, reason: 'battery' };
   const arriveAt = now + Math.round(driveMins(route.hours) * 60000);
-  if (v.until && arriveAt > v.until) return { ok: false, reason: 'rental-ends' };
   if (!p) {
     const problem = exploreProblem(s, team, String(to) === HOME ? '1,0' : String(to), now, 'drive');
     if (problem) return { ok: false, reason: problem };
-    p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
-    for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
-    w.expeditions.push(p);
+    p = newParty(s, units, members);
   }
   w.trips += 1;
   v.charge = chargeOf(s, v) - route.charge;
@@ -533,6 +529,43 @@ export function startDrive(s, { vehicle, to, team, party }, now) {
   Object.assign(p, { hex: String(to), trip: w.trips, startedAt: now, returnAt: arriveAt });
   return { ok: true, expedition: p, mins: driveMins(route.hours) };
 }
+// a new party setting out from the nest, its supplies packed from the stores
+function newParty(s, units, members) {
+  const w = W(s), p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
+  for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
+  w.expeditions.push(p);
+  return p;
+}
+// A ride with a science team (vehicles.js scienceTrip): the k-th to set out from a station, out to where
+// it studies, or back from there (back); free, the player along, with whoever fits its compartments: from
+// the nest a team (team), elsewhere the party waiting where it sets out (party, all of it). It waits for
+// the truck to leave, rides (nothing happening on the way) and gets out there.
+export function startScience(s, { station, k, back = false, team, party }, now) {
+  const w = W(s), trip = Number.isInteger(k) && isStation(w.seed, station) && scienceTrip(w.seed, station, k);
+  if (!trip) return { ok: false, reason: 'no-trip' };
+  const from = back ? trip.to : station, to = back ? station : trip.to, departAt = back ? trip.backAt : trip.departAt;
+  if (departAt < now + MAGLEV.board * 1000) return { ok: false, reason: 'train-gone' };
+  let p = party ? partyOf(s, party) : null;
+  if (party && (!p || p.camp || p.leg)) return { ok: false, reason: 'on-the-way' };
+  if (p && p.at !== from) return { ok: false, reason: 'not-there' };
+  if (!p && from !== HOME) return { ok: false, reason: 'not-there' };
+  const units = p ? p.team : teamFrom(s, team);
+  if (!units || !units.length || units.includes(null)) return { ok: false, reason: 'no-team' };
+  const members = units.flatMap(u => u.members);
+  if (!members.includes(PLAYER_ID)) return { ok: false, reason: 'no-player' };
+  const room = fitProblem(s, SCIENCE.cars, members);
+  if (room) return { ok: false, reason: room };
+  if (!p) {
+    const problem = exploreProblem(s, team, to, now, 'drive');
+    if (problem) return { ok: false, reason: problem };
+    p = newParty(s, units, members);
+  }
+  w.trips += 1;
+  const arriveAt = back ? trip.homeAt : trip.arriveAt;
+  p.leg = { n: w.trips, from, to, path: (back ? trip.back : trip.out).path, step: 0, boardedAt: now, startedAt: departAt, arriveAt, drive: 'science', sci: { station, k, ...(back ? { back: true } : {}) } };
+  Object.assign(p, { hex: to, trip: w.trips, startedAt: now, returnAt: arriveAt });
+  return { ok: true, expedition: p, departAt, arriveAt };
+}
 // A party waiting on the platform gives up its ride, up to the moment the doors close (MAGLEV.board
 // seconds before it leaves): the fare back; from the nest the team breaks up at home, its supplies back
 // in the stores; from a city it waits there again
@@ -540,7 +573,7 @@ export function alightParty(s, id, now) {
   const p = partyOf(s, id);
   if (!p) return { ok: false, reason: 'no-expedition' };
   const leg = p.leg;
-  if (!leg || !leg.train) return { ok: false, reason: 'no-ride' };
+  if (!leg || !(leg.train || leg.sci)) return { ok: false, reason: 'no-ride' };
   if (now > leg.startedAt - MAGLEV.board * 1000) return { ok: false, reason: 'doors-closed' };
   s.coins += leg.fare || 0;
   if (leg.from === HOME) {
@@ -918,7 +951,7 @@ function arrive(ctx) {
   // driven there: the vehicle parked, the team gets out (nothing found on the way); at a city its people
   // give the team food and water
   if (leg.drive) {
-    story.push({ kind: 'drive', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, vehicle: (vehicleOf(s, leg.drive) || {}).kind || null });
+    story.push({ kind: 'drive', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, vehicle: leg.sci ? 'science' : (vehicleOf(s, leg.drive) || {}).kind || null });
     reveal(s, [leg.to]);
     if (leg.to === HOME) { comeHome(ctx); return; }
     if (cityAt(w.seed, parseKey(leg.to))) refresh(p);
@@ -1971,7 +2004,9 @@ export function cleanParties(s, w) {
       const ride = !air && L.train === true && L.ride && typeof L.ride === 'object' ? { ri: int(L.ride.ri), way: L.ride.way === 'ccw' ? 'ccw' : 'cw', j: int(L.ride.j) } : null;
       const chosen = ride && rideTrip(s, [], from, ride, to);
       const train = !air && L.train === true && (chosen && !chosen.reason ? { path: chosen.path, hexes: chosen.path.length } : trainRoute(w.seed, from, to));
-      const drive = !air && !train && typeof L.drive === 'string' && (w.vehicles || []).some(v => v.id === L.drive) && drivePath(w.seed, from, to);
+      const sci = !air && !train && L.drive === 'science' && L.sci && typeof L.sci === 'object' && isStation(w.seed, String(L.sci.station)) && scienceTrip(w.seed, String(L.sci.station), int(L.sci.k));
+      const sciOk = sci && (L.sci.back === true ? sci.to === from && to === sci.station : from === sci.station && to === sci.to);
+      const drive = !air && !train && (sciOk ? { path: (L.sci.back === true ? sci.back : sci.out).path, hours: (L.sci.back === true ? sci.back : sci.out).hours } : typeof L.drive === 'string' && (w.vehicles || []).some(v => v.id === L.drive) && drivePath(w.seed, from, to));
       const rocket = !air && !train && L.rocket === true && isStation(w.seed, from) && isStation(w.seed, to);
       const via = train || air || rocket || drive ? [] : cleanVia(s, L.via);
       const path = air ? airPath(from) : train ? train.path : rocket ? [to] : drive ? drive.path : routePath(w.seed, from, to, via);
@@ -1981,7 +2016,7 @@ export function cleanParties(s, w) {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
         arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : rocket ? ROCKET.mins[0] : drive ? driveMins(drive.hours) : legMins(s, members, from, to, via)) * 60000),
         ...(air ? { air: true } : {}),
-        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(drive ? { drive: L.drive } : {}), ...(train && chosen && !chosen.reason ? { ride } : {}), ...((train || rocket) && Number.isFinite(L.fare) ? { fare: Math.max(0, int(L.fare)) } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
+        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(drive ? { drive: L.drive } : {}), ...(drive && sciOk ? { sci: { station: sci.station, k: sci.k, ...(L.sci.back === true ? { back: true } : {}) } } : {}), ...(train && chosen && !chosen.reason ? { ride } : {}), ...((train || rocket) && Number.isFinite(L.fare) ? { fare: Math.max(0, int(L.fare)) } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
         // (standing where a decision waits for the player, since then)
         ...(e.pending && Number.isFinite(L.pausedAt) ? { pausedAt: num(L.pausedAt) } : {}),
       };

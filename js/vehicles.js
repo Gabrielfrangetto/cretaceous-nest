@@ -1,10 +1,10 @@
-// Land vehicles (docs/VEHICLES.md): bought or rented at a station, parked on a hex, driven from one hex
-// to another by the player with whoever fits aboard. A vehicle: { id, kind, at: hex key where it is
-// parked (or will be, once there), charge: hexes of open land left in its battery, owned: true, or
-// until: when its rental ends }. Driving itself is a party's leg (journey.js startDrive).
-import { VEHICLES, DRIVE, COMPARTMENTS, PLAYER_ID, PLAYER_SIZE, worldMins } from './config.js';
-import { cellAt, isStation } from './map.js';
-import { parseKey, hexKey, hexDist, neighbors, bodyOf, expeditionOf } from './world.js';
+// Land vehicles (docs/VEHICLES.md): bought at a station, parked on a hex, driven from one hex to another
+// by the player with whoever fits aboard. A vehicle: { id, kind, at: hex key where it is parked (or will
+// be, once there), charge: hexes of open land left in its battery, owned: true }. Driving itself is a
+// party's leg (journey.js startDrive). And the science teams' trucks, on their timetable (SCIENCE).
+import { VEHICLES, DRIVE, COMPARTMENTS, SCIENCE, MAGLEV, PLAYER_ID, PLAYER_SIZE, worldMins } from './config.js';
+import { cellAt, isStation, railsOf } from './map.js';
+import { parseKey, hexKey, hexDist, neighbors, bodyOf, expeditionOf, isWater } from './world.js';
 
 const W = s => s.world;
 // a hex a vehicle can't enter, or what a hex takes to drive into: { hours (of the world), charge }
@@ -59,12 +59,8 @@ export function drivePath(seed, from, to) {
 // rest after each whole day of it
 export const driveMins = hours => worldMins(hours + Math.floor(hours / DRIVE.day) * (24 - DRIVE.day));
 
-// the player's vehicles, rentals that have run out let go
-export function vehiclesOf(s, now) {
-  const w = W(s);
-  w.vehicles = (w.vehicles || []).filter(v => v.owned || (now != null && v.until > now) || (now == null));
-  return w.vehicles;
-}
+// the player's vehicles
+export const vehiclesOf = s => (W(s).vehicles = W(s).vehicles || []);
 export const vehicleOf = (s, id) => (W(s).vehicles || []).find(v => v.id === id) || null;
 // the party driving a vehicle now, if any
 export const driverOf = (s, v, now) => W(s).expeditions.find(e => e.leg && e.leg.drive === v.id && now < e.leg.arriveAt) || null;
@@ -77,27 +73,74 @@ export function playerAt(s, now) {
 // its battery, full again at a station
 export const chargeOf = (s, v) => (isStation(W(s).seed, v.at) ? VEHICLES[v.kind].range : v.charge);
 
-// Renting or buying a vehicle at the station the player stands at: it waits there
-export function getVehicle(s, kind, now, days = null) {
+// Buying a vehicle at the station the player stands at: it waits there
+export function getVehicle(s, kind, now) {
   const spec = VEHICLES[kind], at = playerAt(s, now);
   if (!spec) return { ok: false, reason: 'no-vehicle' };
   if (!at || !isStation(W(s).seed, at)) return { ok: false, reason: 'no-station' };
-  const rent = days != null;
-  if (rent && !DRIVE.days.includes(days)) return { ok: false, reason: 'days' };
-  const cost = rent ? spec.rent * days : spec.price;
-  if (s.coins < cost) return { ok: false, reason: 'coins' };
-  s.coins -= cost;
-  const list = vehiclesOf(s, now), n = list.reduce((m, v) => Math.max(m, Number(String(v.id).slice(1)) || 0), 0) + 1;
-  const v = { id: `v${n}`, kind, at, charge: spec.range, ...(rent ? { until: now + worldMins(days * 24) * 60000 } : { owned: true }) };
+  if (s.coins < spec.price) return { ok: false, reason: 'coins' };
+  s.coins -= spec.price;
+  const list = vehiclesOf(s), n = list.reduce((m, v) => Math.max(m, Number(String(v.id).slice(1)) || 0), 0) + 1;
+  const v = { id: `v${n}`, kind, at, charge: spec.range, owned: true };
   list.push(v);
-  return { ok: true, vehicle: v, cost };
+  return { ok: true, vehicle: v, cost: spec.price };
 }
+
+// ---------- the science teams ----------
+// Where a station's teams may go: the hexes near to radius hexes off that a truck can reach and come
+// back from, by a way not much longer than the distance. [{ to, out, back }] (drivePath's)
+const targets = new Map();
+export function scienceTargets(seed, station) {
+  const id = `${seed}|${station}`;
+  if (targets.has(id)) return targets.get(id);
+  const [q0, r0] = parseKey(station), out = [];
+  for (let dq = -SCIENCE.radius; dq <= SCIENCE.radius; dq++) for (let dr = -SCIENCE.radius; dr <= SCIENCE.radius; dr++) {
+    const d = hexDist([dq, dr]);
+    if (d < SCIENCE.near || d > SCIENCE.radius) continue;
+    const k = hexKey(q0 + dq, r0 + dr);
+    if (isWater(seed, parseKey(k)) || isStation(seed, k)) continue;
+    const go = drivePath(seed, station, k), back = go && drivePath(seed, k, station);
+    if (go && back && go.path.length <= d * 2) out.push({ to: k, out: go, back });
+  }
+  targets.set(id, out);
+  return out;
+}
+const hash = str => { let h = 2166136261; for (const c of str) { h = Math.imul(h ^ c.charCodeAt(0), 16777619); h ^= h >>> 13; } return (h >>> 0) / 4294967296; };
+// a station's timetable: its teams set out every SCIENCE.every minutes, from a time of their own
+const phaseOf = (seed, station) => hash(`sci:${seed}:${station}`) * SCIENCE.every;
+// The k-th team to set out from a station: { station, k, to, out, back, departAt, arriveAt (there),
+// backAt (sets out back), homeAt (back at the station) } (real instants), or null where none can go
+export function scienceTrip(seed, station, k) {
+  const list = scienceTargets(seed, station);
+  if (!list.length) return null;
+  const t = list[Math.floor(hash(`sci:${seed}:${station}:${k}`) * list.length)];
+  const departAt = Math.round((phaseOf(seed, station) + k * SCIENCE.every) * 60000);
+  const arriveAt = departAt + Math.round(driveMins(t.out.hours) * 60000), backAt = arriveAt + Math.round(SCIENCE.stay * 60000);
+  return { station, k, to: t.to, out: t.out, back: t.back, departAt, arriveAt, backAt, homeAt: backAt + Math.round(driveMins(t.back.hours) * 60000) };
+}
+const doorsOpen = (at, now) => at >= now + MAGLEV.board * 1000;
+// the next teams setting out from a station whose doors are still open
+export function scienceFrom(seed, station, now, count = 3) {
+  const k0 = Math.ceil((now / 60000 - phaseOf(seed, station)) / SCIENCE.every) - 1, out = [];
+  for (let k = k0; out.length < count && k < k0 + count + 2; k++) { const t = scienceTrip(seed, station, k); if (t && doorsOpen(t.departAt, now)) out.push(t); }
+  return out;
+}
+// the teams at work or on their way now (for the map), and those studying a hex (to ride back with)
+export function scienceAt(seed, now) {
+  const out = [], span = (SCIENCE.stay + 2 * driveMins(SCIENCE.radius * 2 * DRIVE.hours.rough)) * 60000;
+  for (const station of railsOf(seed).stations) {
+    const p = phaseOf(seed, station), k1 = Math.floor((now / 60000 - p) / SCIENCE.every), k0 = Math.floor(((now - span) / 60000 - p) / SCIENCE.every);
+    for (let k = k0; k <= k1; k++) { const t = scienceTrip(seed, station, k); if (t && t.departAt <= now && now < t.homeAt) out.push(t); }
+  }
+  return out;
+}
+export const scienceBackFrom = (seed, hex, now) => scienceAt(seed, now).filter(t => t.to === hex && doorsOpen(t.backAt, now));
 
 // whether a team fits a vehicle's compartments (the player in a seat, each dinosaur in one that takes
 // its size), or why not
 export function fitProblem(s, kind, members) {
   const free = {};
-  for (const car of VEHICLES[kind].cars) free[car.kind] = (free[car.kind] || 0) + car.places;
+  for (const car of (Array.isArray(kind) ? kind : VEHICLES[kind].cars)) free[car.kind] = (free[car.kind] || 0) + car.places;
   // (the biggest first, each in the snuggest compartment that takes it)
   const sizeOf = id => (id === PLAYER_ID ? 'player' : bodyOf(s, id).size || PLAYER_SIZE);
   const order = ['player', 'colossal', 'huge', 'large', 'medium', 'small', 'tiny'];
@@ -112,8 +155,8 @@ export function fitProblem(s, kind, members) {
 
 // the vehicles as saved, checked
 export function cleanVehicles(list, land) {
-  return (Array.isArray(list) ? list : []).filter(v => v && VEHICLES[v.kind] && typeof v.at === 'string' && land(v.at)).map(v => ({
-    id: String(v.id), kind: v.kind, at: v.at, charge: Math.max(0, Math.min(VEHICLES[v.kind].range, Number(v.charge) || 0)),
-    ...(v.owned === true ? { owned: true } : { until: Number(v.until) || 0 }),
+  // (rentals, from before the science teams, are gone)
+  return (Array.isArray(list) ? list : []).filter(v => v && VEHICLES[v.kind] && v.owned === true && typeof v.at === 'string' && land(v.at)).map(v => ({
+    id: String(v.id), kind: v.kind, at: v.at, charge: Math.max(0, Math.min(VEHICLES[v.kind].range, Number(v.charge) || 0)), owned: true,
   })).filter((v, i, all) => all.findIndex(x => x.id === v.id) === i);
 }
