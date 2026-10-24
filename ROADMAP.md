@@ -101,6 +101,7 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [ ] Map textures per biome (a few variants each, turned and tinted per hex, soft edges between biomes), then painted art for mountains, hills and volcanoes cut out like the sprites
 - [ ] Walls where the ground drops (cliffs, the coast), shown on a hex's south edge now that the map is seen at a slant
 - [ ] Later, a true 3D map (WebGL, three.js): the same heights as a terrain mesh (hex columns or one smooth surface), mountains, trees and the nest as simple models or upright pictures, a perspective camera that turns; picking by ray, the map in chunks for phones, the journey map and the landing page's map with it. A working example of a real patch was made to compare (Oct 2026); the 2.5D map stays until then
+- [ ] Transport (docs/TRANSPORT.md): the maglev on a timetable at 1,000 km/h for anyone, suborbital rockets for those who can fly, dinosaurs travelling without the player, stables in every city
 - [ ] Step 4: outposts that shorten trips and produce resources, bosses, seasonal events
 - [ ] Step 5: walkable areas inside special hexes
 - [x] 20 species in six rarities (Starter, Common, Uncommon, Rare, Epic, Legendary) with base stats by rarity; eggs by biome, rarity and distance (legendaries only in lairs)
