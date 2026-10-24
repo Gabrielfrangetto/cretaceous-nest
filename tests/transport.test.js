@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { applyAction } from '../js/economy.js';
 import { freshState } from '../js/state.js';
 import { newWorld, citiesOf } from '../js/world.js';
-import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, cleanParties, restLeft } from '../js/journey.js';
+import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, timetableOf, trainMins, cleanParties, restLeft } from '../js/journey.js';
 import { railsOf } from '../js/map.js';
 import { CAPSULES, MAGLEV, ROCKET, PLAYER_ID } from '../js/config.js';
 
@@ -22,27 +22,39 @@ function game(...babies) {
 const dinos = (...ids) => ids.map(id => ({ kind: 'dino', id }));
 const cities = () => citiesOf(42).map(c => c.key);
 
-test('departures every so many minutes, the same for everyone; one train a line, never two standing at a station', () => {
+test('departures every so many minutes, the same for everyone; trains keep their way, never two the same way standing at a station', () => {
   assert.equal(nextDeparture(T0, 5) % (5 * 60000), 0);
   assert.ok(nextDeparture(T0, 5) >= T0 && nextDeparture(T0, 5) - T0 < 5 * 60000);
   assert.equal(nextDeparture(nextDeparture(T0, 5), 5), nextDeparture(T0, 5));
   assert.equal((nextDeparture(T0, 20, 3) - 3 * 60000) % (20 * 60000), 0);
   const s = game();
-  const lines = railsOf(42).lines, trains = trainsAt(s, T0);
-  assert.equal(trains.length, lines.length);
-  for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1);
-  // all through the cycle, at most one train standing at any station
-  for (let sec = 0; sec < MAGLEV.cycle * 60; sec += 5) {
-    const standing = trainsAt(s, T0 + sec * 1000).filter(t => t.standing).map(t => t.at);
+  const trains = trainsAt(s, T0);
+  for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1 && ['east', 'west'].includes(t.dir));
+  // as many each way
+  assert.equal(trains.filter(t => t.dir === 'east').length, trains.filter(t => t.dir === 'west').length);
+  // every line is run by a service
+  const services = timetableOf(42);
+  assert.equal(services.reduce((n, sv) => n + sv.parts.length, 0), railsOf(42).lines.length);
+  // all through the cycle: each train keeps its way, and at no station do two going the same way stand at once
+  let before = trains;
+  for (let sec = 5; sec < MAGLEV.every * 60; sec += 5) {
+    const now = trainsAt(s, T0 + sec * 1000);
+    const standing = now.filter(t => t.standing).map(t => t.at + t.dir);
     assert.equal(new Set(standing).size, standing.length, `two trains standing at once, ${sec} s in`);
+    for (const t of now) {
+      const was = before.filter(b => b.line === t.line && b.dir === t.dir).map(b => b.i + b.f), x = t.i + t.f;
+      // (some train of its service just behind it, the way it goes, or it has just set out from the end)
+      assert.ok(was.some(w => t.dir === 'east' ? w <= x + 1e-9 && x - w < 1 : w >= x - 1e-9 && w - x < 1) || x < 1e-9 || x > t.path.length - 1 - 1e-9 || t.standing, `${t.dir} train went back`);
+    }
+    before = now;
   }
   // (the same at the same time; on later)
   assert.deepEqual(trainsAt(s, T0), trains);
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
   // a ride leaves within a cycle and takes at least a run
   const [a] = cities(), trip = trainTrip(s, ['x'], '0,0', a, T0);
-  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.cycle * 60000);
-  assert.ok(trip.mins >= MAGLEV.cycle / 2 - MAGLEV.stand);
+  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
+  assert.ok(trip.mins >= trainMins(trip.route.hexes));
 });
 
 test('dinosaurs sent ahead alone by maglev, a baby too; they wait in the city and take no expedition slot', () => {

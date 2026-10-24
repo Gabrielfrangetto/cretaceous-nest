@@ -93,33 +93,77 @@ function startLeg(s, p, to, at, via = []) {
 const seatsOf = (s, members) => members.reduce((t, id) => t + (TRAIN.seats[id === PLAYER_ID ? PLAYER_SIZE : bodyOf(s, id).size] || 1), 0);
 export const trainFare = (s, members, hexes) => Math.round(TRAIN.fare.base + TRAIN.fare.perHex * hexes * seatsOf(s, members));
 // the shortest a ride of so many hexes can take aboard (a saved ride is never shorter)
-export const trainMins = hexes => Math.max(1, Math.floor(hexes / 100 * (MAGLEV.cycle / 2 - MAGLEV.stand)));
+export const trainMins = hexes => Math.max(1, Math.floor(MAGLEV.minsPerHex * hexes));
 // the next departure from a station at or after a time, every so many minutes (phase: minutes past
 // each start of the cycle)
-export const nextDeparture = (at, every, phase = 0) => { const e = every * 60000, p = phase * 60000; return Math.ceil((at - p) / e) * e + p; };
-// The maglev's timetable: each line's one train, its offset in the cycle (minutes) so that at every
-// station the trains standing there take turns. The train stands at the line's end a from its offset
-// for MAGLEV.stand, runs to b, stands there from offset + cycle / 2, and runs back.
+export const nextDeparture = (at, every, phase = 0) => { const e = every * 60000, p = Math.round(phase * 60000); return Math.ceil((at - p) / e) * e + p; };
+// The maglev's services: the lines chained into routes across the network, each laid west to east, so
+// a train runs on through the stations on its way, keeping its direction. On each, a train sets out
+// eastbound from its west end, and another westbound from its east end, every MAGLEV.every minutes;
+// each stands MAGLEV.stand minutes at every station on its way and leaves the line at its far end.
+// Each service's two timetables are set apart in the cycle so that at no station do two trains going
+// the same way stand at once.
+const xOf = k => { const [q, r] = parseKey(k); return Math.sqrt(3) * (q + r / 2); };
+const yOf = k => 1.5 * parseKey(k)[1];
 const timetables = new Map();
 export function timetableOf(seed) {
   if (timetables.has(seed)) return timetables.get(seed);
-  const { lines } = railsOf(seed), C = MAGLEV.cycle, half = C / 2, taken = new Map();
-  const busy = (k, m) => (taken.get(k) || []).some(t => ((m - t) % C + C) % C < MAGLEV.stand || ((t - m) % C + C) % C < MAGLEV.stand);
-  const out = lines.map(l => {
-    let o = 0;
-    while (o < C && (busy(l.a, o) || busy(l.b, (o + half) % C))) o++;
-    for (const [k, m] of [[l.a, o % C], [l.b, (o + half) % C]]) { if (!taken.has(k)) taken.set(k, []); taken.get(k).push(m); }
-    return { ...l, offset: o % C, run: half - MAGLEV.stand };
+  const E = MAGLEV.every, stand = MAGLEV.stand, v = MAGLEV.minsPerHex;
+  // each line west to east
+  const lines = railsOf(seed).lines.map(l => xOf(l.a) <= xOf(l.b) ? { a: l.a, b: l.b, path: l.path } : { a: l.b, b: l.a, path: [...l.path].reverse() });
+  // at each station, a line coming in from the west goes on into the line going out east that turns least
+  const heading = (from, to) => Math.atan2(yOf(to) - yOf(from), xOf(to) - xOf(from));
+  const next = new Map(), prev = new Map();
+  const pairs = [];
+  for (const [i, l] of lines.entries()) for (const [j, m] of lines.entries()) {
+    if (l.b !== m.a) continue;
+    const turn = Math.abs(((heading(m.a, m.b) - heading(l.a, l.b)) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+    if (turn < Math.PI / 2) pairs.push({ i, j, turn });
+  }
+  for (const { i, j } of pairs.sort((x, y) => x.turn - y.turn)) if (!next.has(i) && !prev.has(j)) { next.set(i, j); prev.set(j, i); }
+  const services = [];
+  for (const [i] of lines.entries()) {
+    if (prev.has(i)) continue;
+    const parts = [];
+    for (let k = i; k != null; k = next.get(k)) parts.push(lines[k]);
+    services.push(parts);
+  }
+  // each service's stations, the hexes between, and (minutes from setting out) when a train leaves each
+  const legsOf = parts => {
+    const stops = [parts[0].a, ...parts.map(l => l.b)], leave = [stand];
+    for (const l of parts) leave.push(leave[leave.length - 1] + v * (l.path.length - 1) + stand);
+    return { stops, leave };
+  };
+  const taken = { east: new Map(), west: new Map() };
+  const gap = (a, b) => { const d = ((a - b) % E + E) % E; return Math.min(d, E - d); };
+  const out = services.map(parts => {
+    const path = [parts[0].a];
+    for (const l of parts) path.push(...l.path.slice(1));
+    const east = legsOf(parts), back = [...parts].reverse().map(l => ({ a: l.b, b: l.a, path: [...l.path].reverse() })), west = legsOf(back);
+    const dirs = {};
+    for (const [dir, legs] of [['east', east], ['west', west]]) {
+      // (standing at each station from leave - stand to leave, minutes past its offset)
+      const busy = o => legs.stops.some((k, n) => (taken[dir].get(k) || []).some(t => gap(o + legs.leave[n], t) < stand + 0.25));
+      let o = 0;
+      while (o < E && busy(o)) o += 0.25;
+      o %= E;
+      legs.stops.forEach((k, n) => { if (!taken[dir].has(k)) taken[dir].set(k, []); taken[dir].get(k).push(o + legs.leave[n]); });
+      dirs[dir] = { ...legs, offset: o };
+    }
+    return { parts, path, hexes: path.length - 1, east: dirs.east, west: dirs.west };
   });
   timetables.set(seed, out);
   return out;
 }
 // the next train from one station to the next on a line, at or after a time: { departAt, arriveAt }
 function nextTrain(seed, from, to, at) {
-  const l = timetableOf(seed).find(x => (x.a === from && x.b === to) || (x.b === from && x.a === to));
-  const phase = l.offset + MAGLEV.stand + (l.a === from ? 0 : MAGLEV.cycle / 2);
-  const departAt = nextDeparture(at, MAGLEV.cycle, phase % MAGLEV.cycle);
-  return { departAt, arriveAt: departAt + l.run * 60000 };
+  for (const sv of timetableOf(seed)) for (const dir of ['east', 'west']) {
+    const d = sv[dir], n = d.stops.findIndex((k, i) => k === from && d.stops[i + 1] === to);
+    if (n < 0) continue;
+    const departAt = nextDeparture(at, MAGLEV.every, (d.offset + d.leave[n]) % MAGLEV.every);
+    return { departAt, arriveAt: departAt + Math.round((d.leave[n + 1] - MAGLEV.stand - d.leave[n]) * 60000) };
+  }
+  return null;
 }
 // a ride from one station to another, or why not: { route, fare, mins, departAt, arriveAt } | { reason };
 // changing trains on the way, each the next of its line
@@ -171,21 +215,29 @@ function startRide(s, p, to, at, rocket = false) {
 // how long one of the team still rests after a flight
 export const restLeft = (b, now) => Math.max(0, (b && b.restUntil || 0) - now);
 
-// Where every maglev train is now (for the map): one a line, shuttling end to end on the timetable.
-// [{ line, path, i, f, standing }]: the hex index along the line's path it last passed, how far on to
-// the next, and whether it stands at a station
+// Where every maglev train is now (for the map): [{ line, path, i, f, standing, at, dir }], line being
+// the service, path its hexes west to east; the hex index along it the train last passed, how far on to
+// the next; whether it stands at a station (at), and which way it goes ('east' or 'west')
 export function trainsAt(s, now) {
-  const C = MAGLEV.cycle, half = C / 2, mins = now / 60000;
-  return timetableOf(W(s).seed).map((l, li) => {
-    const n = l.path.length - 1, t = ((mins - l.offset) % C + C) % C;
-    let x, standing = false;
-    if (t < MAGLEV.stand) { x = 0; standing = true; }
-    else if (t < half) x = (t - MAGLEV.stand) / l.run;
-    else if (t < half + MAGLEV.stand) { x = 1; standing = true; }
-    else x = 1 - (t - half - MAGLEV.stand) / l.run;
-    const at = x * n, i = Math.min(n - 1, Math.floor(at));
-    return { line: li, path: l.path, i, f: at - i, standing, at: standing ? (x ? l.b : l.a) : null };
-  });
+  const E = MAGLEV.every, mins = now / 60000, out = [];
+  for (const [li, sv] of timetableOf(W(s).seed).entries()) for (const dir of ['east', 'west']) {
+    const d = sv[dir], n = d.stops.length, end = d.leave[n - 1];
+    // (every train of this timetable now on its way: set out k cycles ago)
+    const since = ((mins - d.offset) % E + E) % E;
+    for (let t = since; t < end; t += E) {
+      // where along its stops it is: standing at stop m (from leave[m] - stand), or between m and m + 1
+      let m = 0;
+      while (m < n - 1 && t >= d.leave[m]) m++;
+      let hex, standing = false, at = null;
+      const offs = [0];
+      for (const l of (dir === 'east' ? sv.parts : [...sv.parts].reverse())) offs.push(offs[offs.length - 1] + l.path.length - 1);
+      if (t >= d.leave[m] - MAGLEV.stand) { hex = offs[m]; standing = true; at = d.stops[m]; }
+      else { const from = d.leave[m - 1], to = d.leave[m] - MAGLEV.stand; hex = offs[m - 1] + (offs[m] - offs[m - 1]) * (t - from) / (to - from); }
+      const x = dir === 'east' ? hex : sv.hexes - hex, i = Math.min(sv.hexes - 1, Math.floor(x));
+      out.push({ line: li, path: sv.path, i, f: x - i, standing, at, dir });
+    }
+  }
+  return out;
 }
 
 // a new party sets out from the nest to a hex (on foot), or to a city's station by maglev or rocket

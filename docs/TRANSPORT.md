@@ -8,12 +8,15 @@ ahead"; `tests/transport.test.js`.
 
 **Speeds as built.** The game's clock runs fast: a flat hex walked in half a real minute is half a day
 of the world. 1,000 km/h on that clock would be instant, and 1.3 real minutes a hex would be slower
-than walking, so the speeds are set by how they feel against walking. The maglev: one train a line
-(14 on the network), shuttling end to end on a 20 min round trip, standing 1 min at each end and
-running its line in 9 min whatever its length (5 to 14 s a hex, two to six times quicker than on foot);
-each line's train is timed in the cycle (`journey.js timetableOf`) so that no station ever has two
-trains standing at once. So a train leaves each station on each line every 20 min, and a ride is a
-wait of up to 20 min, then 9 min a line (more when changing). Rockets 1 to 3 min, a launch every
+than walking, so the speeds are set by how they feel against walking. The maglev: the 13 lines are
+chained into 5 services that run across the network west to east (`journey.js timetableOf`: at each
+station a line from the west goes on into the line east that turns least). Each train keeps its way:
+on every service one sets out eastbound from the west end and one westbound from the east end every
+10 min, runs at 6 s a hex (about five times quicker than on foot), stands 1 min at every station and
+leaves the line at its far end; about 20 trains are out at once, half each way. Each service's two
+timetables are set in the cycle so that at no station do two trains going the same way stand at once
+(one eastbound and one westbound may). A ride is a wait of up to 10 min, then the ride (changing
+trains where its route leaves the service). Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.
 
 ## Why
