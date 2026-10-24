@@ -464,7 +464,6 @@ export const MAGLEV = { every: worldMins(4), stand: worldMins(5 / 60), minsPerHe
 // those who fly need `rest` minutes on landing (6 hours of the world) before they can set out again.
 export const ROCKET = { every: worldMins(1), mins: [worldMins(0.5), worldMins(1)], far: 100, base: 20, perTonne: 15, load: 20000, rest: worldMins(6) };
 export const LONG_NECK = ['argent'];
-export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
 export const TEAM_PRESETS = 5;               // teams that can be set up ahead in the Team tab
