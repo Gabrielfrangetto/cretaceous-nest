@@ -436,18 +436,17 @@ export const CLIMATE = { cooling: 0.75, base: 0.65, near: 25, fetch: 80, reach: 
   prairie: 0.4, northFall: 2.2, wilds: { tundra: 0.06, taiga: 0.3, lakes: 0.3, lakeNoise: 0.66 } };
 // the other colonists' settlements, named in the order they are placed
 export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater', 'Mossbank', 'Redcliff', 'Thornfield', 'Greywillow', 'Highfen', 'Duskmere', 'Saltmarsh', 'Ironroot'];
-// The colonists' maglev: stations at the nest and every city (map.js railsOf), each joined to its nearest
-// links. A ride takes board minutes plus perHex a hex of line, is safe (on elevated, fenced lines) and
-// feeds and waters everyone aboard; the fare is base coins plus perHex a hex for every place taken
+// The colonists' maglev: stations at the nest and every city (map.js railsOf), on one ring. A ride is
+// safe (on elevated, fenced lines) and feeds and waters everyone aboard; the fare is base coins plus perHex a hex for every place taken
 // (seats: a person one, a dinosaur by its size).
-export const TRAIN = { links: 2, fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
+export const TRAIN = { fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
 // The maglev on a timetable (docs/TRANSPORT.md). The game's clock runs fast (a flat hex walked in half a
 // real minute is half a day of the world), so the maglev is set by how it feels against walking. Worked
 // out from the clock alone: nothing is stored.
-// The maglev's services run through the stations, each train keeping its way, east or west: one sets
-// out each way on every service every `every` minutes, standing `stand` minutes at each station (never
-// two going the same way standing at a station at once), at `minsPerHex` (6 s a hex, about five
-// times quicker than on foot).
+// The maglev's line is one ring through every station (map.js railsOf); its trains run round it both
+// ways, keeping their way: each way, one passes each station about every `every` minutes, standing
+// `stand` minutes there (never two going the same way standing at a station at once), at `minsPerHex`
+// (6 s a hex, about five times quicker than on foot).
 export const MAGLEV = { every: 10, stand: 1, minsPerHex: 0.1 };
 // Suborbital rockets between any two stations: a launch from each every `every` minutes, the flight
 // `mins` from the nearest to the farthest (by hexes, up to `far`); the fare by the party's weight

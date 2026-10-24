@@ -34,7 +34,7 @@
 //
 // Everything is kept in arrays by a hex's index (its row and column), so a continent of tens of
 // thousands of hexes is made in a moment.
-import { MAP, TRAVEL, CITY_NAMES, CLIMATE, TRAIN } from './config.js';
+import { MAP, TRAVEL, CITY_NAMES, CLIMATE } from './config.js';
 
 const key = (q, r) => `${q},${r}`;
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -560,27 +560,74 @@ export function wayAround(seed, h, from, blocked) {
 export const routeCost = (seed, from, to) => { const i = indexOf(to); return i < 0 ? Infinity : routes(seed, from).best[i]; };
 
 // ---------- the colonists' maglev ----------
-// Stations at the nest and every city, joined by elevated lines over the land (the easiest way between
-// them, never over water): the shortest lines that join them all, and each station's nearest
-// TRAIN.links besides. { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }], at: Map(hex key
-// -> [the hex keys the line runs on to]) }
+// Stations at the nest and every city, joined in one ring: each station to the next round it, so every
+// train runs on from city to city and never ends its way at one (the shortest ring that never crosses
+// itself). Each line is laid as straight as it can go between its two stations, over land (never over
+// water). { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }] in ring order, each line's b
+// the next one's a, at: Map(hex key -> [the hex keys the line runs on to]) }
 const rails = new Map();
 const parse = k => k.split(',').map(Number);
+// the straightest way over land from one hex to another: each step costs one, and more the farther it
+// strays from the straight line between them. The hexes, from first to last; [] when there is none
+function railPath(seed, from, to) {
+  const { cells } = worldMap(seed), start = indexOf(from), end = indexOf(to);
+  const [ax, ay] = xy(from), [bx, by] = xy(to), len = Math.hypot(bx - ax, by - ay) || 1;
+  const off = h => { const [x, y] = xy(h); return Math.abs((x - ax) * (by - ay) - (y - ay) * (bx - ax)) / len / Math.sqrt(3); };
+  const best = new Map([[start, 0]]), prev = new Map(), open = [[dist([to[0] - from[0], to[1] - from[1]]), start]];
+  // (a binary heap of [cost, hex] by cost)
+  const push = e => { let k = open.push(e) - 1; while (k > 0) { const q = (k - 1) >> 1; if (open[q][0] <= open[k][0]) break; [open[q], open[k]] = [open[k], open[q]]; k = q; } };
+  const pop = () => {
+    const top = open[0], last = open.pop();
+    if (open.length) {
+      open[0] = last;
+      for (let k = 0; ;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === k) break; [open[m], open[k]] = [open[k], open[m]]; k = m; }
+    }
+    return top;
+  };
+  const done = new Set();
+  while (open.length) {
+    const [, i] = pop();
+    if (done.has(i)) continue;
+    done.add(i);
+    if (i === end) break;
+    for (let k = 0; k < 6; k++) {
+      const n = NB[i * 6 + k];
+      if (n < 0 || water(TERRAINS.indexOf(cells[n].terrain))) continue;
+      const h = hexOf(n), d = off(h), nc = best.get(i) + 1 + 0.2 * d * d;
+      if (!best.has(n) || nc < best.get(n)) { best.set(n, nc); prev.set(n, i); push([nc + dist([to[0] - h[0], to[1] - h[1]]), n]); }
+    }
+  }
+  if (!prev.has(end)) return [];
+  const path = [];
+  for (let i = end; i !== start; i = prev.get(i)) path.unshift(hexOf(i));
+  return [from, ...path];
+}
 export function railsOf(seed) {
   if (rails.has(seed)) return rails.get(seed);
-  const stations = [key(0, 0), ...citiesOf(seed).map(c => c.key)];
-  const pairs = [];
-  for (let i = 0; i < stations.length; i++) for (let j = i + 1; j < stations.length; j++) {
-    const c = routeCost(seed, parse(stations[i]), parse(stations[j]));
-    if (c < Infinity) pairs.push({ a: stations[i], b: stations[j], c });
+  const all = [key(0, 0), ...citiesOf(seed).map(c => c.key)];
+  const far = (a, b) => { const [p, q] = [parse(a), parse(b)]; return dist([p[0] - q[0], p[1] - q[1]]); };
+  // (only the stations the nest can reach over land)
+  const stations = all.filter(k => k === all[0] || railPath(seed, parse(all[0]), parse(k)).length);
+  // the ring: nearest first, then untangled (any two lines that cross swapped for two that don't)
+  const ring = [stations[0]], left = new Set(stations.slice(1));
+  while (left.size) {
+    let n = null;
+    for (const k of left) if (n === null || far(ring[ring.length - 1], k) < far(ring[ring.length - 1], n)) n = k;
+    ring.push(n);
+    left.delete(n);
   }
-  pairs.sort((x, y) => x.c - y.c);
-  // the shortest lines joining them all, then each one's nearest few
-  const group = new Map(stations.map(k => [k, k])), root = k => (group.get(k) === k ? k : root(group.get(k)));
-  const picked = new Set();
-  for (const e of pairs) { const ra = root(e.a), rb = root(e.b); if (ra !== rb) { group.set(ra, rb); picked.add(e); } }
-  for (const k of stations) pairs.filter(e => e.a === k || e.b === k).slice(0, TRAIN.links).forEach(e => picked.add(e));
-  const lines = [...picked].map(({ a, b }) => ({ a, b, path: [a, ...travelPath(seed, parse(b), parse(a)).map(h => key(...h))] }));
+  const len = r => r.reduce((t, k, i) => t + far(k, r[(i + 1) % r.length]), 0);
+  for (let better = true; better;) {
+    better = false;
+    for (let i = 1; i < ring.length - 1; i++) for (let j = i + 1; j < ring.length; j++) {
+      const r = [...ring.slice(0, i), ...ring.slice(i, j + 1).reverse(), ...ring.slice(j + 1)];
+      if (len(r) < len(ring) - 1e-9) { ring.splice(0, ring.length, ...r); better = true; }
+    }
+  }
+  const lines = ring.length < 2 ? [] : ring.slice(0, ring.length === 2 ? 1 : ring.length).map((a, i) => {
+    const b = ring[(i + 1) % ring.length];
+    return { a, b, path: railPath(seed, parse(a), parse(b)).map(h => key(...h)) };
+  });
   const at = new Map();
   const link = (x, y) => { if (!at.has(x)) at.set(x, []); if (!at.get(x).includes(y)) at.get(x).push(y); };
   for (const l of lines) for (let i = 1; i < l.path.length; i++) { link(l.path[i - 1], l.path[i]); link(l.path[i], l.path[i - 1]); }

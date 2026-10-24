@@ -22,29 +22,30 @@ function game(...babies) {
 const dinos = (...ids) => ids.map(id => ({ kind: 'dino', id }));
 const cities = () => citiesOf(42).map(c => c.key);
 
-test('departures every so many minutes, the same for everyone; trains keep their way, never two the same way standing at a station', () => {
+test('departures every so many minutes, the same for everyone; one ring through every city, trains keep their way, never two the same way standing at a station', () => {
   assert.equal(nextDeparture(T0, 5) % (5 * 60000), 0);
   assert.ok(nextDeparture(T0, 5) >= T0 && nextDeparture(T0, 5) - T0 < 5 * 60000);
   assert.equal(nextDeparture(nextDeparture(T0, 5), 5), nextDeparture(T0, 5));
   assert.equal((nextDeparture(T0, 20, 3) - 3 * 60000) % (20 * 60000), 0);
   const s = game();
-  const trains = trainsAt(s, T0);
-  for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1 && ['east', 'west'].includes(t.dir));
+  const trains = trainsAt(s, T0), tt = timetableOf(42);
+  for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1 && ['cw', 'ccw'].includes(t.way));
   // as many each way
-  assert.equal(trains.filter(t => t.dir === 'east').length, trains.filter(t => t.dir === 'west').length);
-  // every line is run by a service
-  const services = timetableOf(42);
-  assert.equal(services.reduce((n, sv) => n + sv.parts.length, 0), railsOf(42).lines.length);
-  // all through the cycle: each train keeps its way, and at no station do two going the same way stand at once
+  assert.equal(trains.filter(t => t.way === 'cw').length, trains.filter(t => t.way === 'ccw').length);
+  // the lines make one ring through every station: no line ends anywhere but at the next one's start
+  const { lines, stations } = railsOf(42);
+  assert.equal(lines.length, stations.length);
+  for (const [i, l] of lines.entries()) assert.equal(l.path[l.path.length - 1], lines[(i + 1) % lines.length].path[0]);
+  assert.deepEqual([...new Set(lines.map(l => l.a))].sort(), [...stations].sort());
+  // all through a round: each train keeps its way, and at no station do two going the same way stand at once
   let before = trains;
-  for (let sec = 5; sec < MAGLEV.every * 60; sec += 5) {
+  for (let sec = 5; sec < tt.round * 60; sec += 5) {
     const now = trainsAt(s, T0 + sec * 1000);
-    const standing = now.filter(t => t.standing).map(t => t.at + t.dir);
+    const standing = now.filter(t => t.standing).map(t => t.at + t.way);
     assert.equal(new Set(standing).size, standing.length, `two trains standing at once, ${sec} s in`);
     for (const t of now) {
-      const was = before.filter(b => b.line === t.line && b.dir === t.dir).map(b => b.i + b.f), x = t.i + t.f;
-      // (some train of its service just behind it, the way it goes, or it has just set out from the end)
-      assert.ok(was.some(w => t.dir === 'east' ? w <= x + 1e-9 && x - w < 1 : w >= x - 1e-9 && w - x < 1) || x < 1e-9 || x > t.path.length - 1 - 1e-9 || t.standing, `${t.dir} train went back`);
+      const was = before.find(b => b.id === t.id);
+      assert.ok(t.along >= was.along || was.along - t.along > tt.round - 1, `${t.id} went back`);
     }
     before = now;
   }
@@ -53,7 +54,7 @@ test('departures every so many minutes, the same for everyone; trains keep their
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
   // a ride leaves within a cycle and takes at least a run
   const [a] = cities(), trip = trainTrip(s, ['x'], '0,0', a, T0);
-  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
+  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < timetableOf(42).every * 60000);
   assert.ok(trip.mins >= trainMins(trip.route.hexes));
 });
 
