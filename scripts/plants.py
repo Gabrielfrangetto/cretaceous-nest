@@ -17,6 +17,8 @@ ap.add_argument('black')
 ap.add_argument('biome')
 ap.add_argument('--big', type=int, default=72, help='how many pixels across the median single plant is kept at')
 ap.add_argument('--skip', nargs='*', default=[], help='x,y points (white sheet pixels) of pieces to leave out')
+ap.add_argument('--only', nargs='*', default=[], help='x,y points of the only pieces to keep')
+ap.add_argument('--tint', help='a colour (#rrggbb) the pieces are moved to, by their average')
 ap.add_argument('--min', type=float, default=0.01, help='pieces smaller than this share of the biggest are left out (loose leaves)')
 a = ap.parse_args()
 
@@ -64,10 +66,18 @@ boxes = [b for b in ndimage.find_objects(pieces)]
 sizes = ndimage.sum(np.ones_like(alpha), pieces, range(1, n + 1))
 keep = [i for i in range(n) if sizes[i] > sizes.max() * a.min]
 # (the pieces asked to be left out: the ones at these points, or nearest them)
-for xy in a.skip:
+def at(xy):
     x, y = map(int, xy.split(','))
-    near = min(keep, key=lambda i: 0 if pieces[min(y, pieces.shape[0] - 1), min(x, pieces.shape[1] - 1)] == i + 1 else (boxes[i][0].start + boxes[i][0].stop) ** 2 / 4 - 0 + ((boxes[i][0].start + boxes[i][0].stop) / 2 - y) ** 2 + ((boxes[i][1].start + boxes[i][1].stop) / 2 - x) ** 2)
-    keep.remove(near)
+    return min(keep, key=lambda i: 0 if pieces[min(y, pieces.shape[0] - 1), min(x, pieces.shape[1] - 1)] == i + 1 else 1 + ((boxes[i][0].start + boxes[i][0].stop) / 2 - y) ** 2 + ((boxes[i][1].start + boxes[i][1].stop) / 2 - x) ** 2)
+if a.only:
+    keep = sorted({at(xy) for xy in a.only})
+for xy in a.skip:
+    keep.remove(at(xy))
+# (tinted: the paint of the pieces kept moved, channel by channel, so their average is the colour)
+if a.tint:
+    want = np.float32([int(a.tint[i:i + 2], 16) for i in (1, 3, 5)])
+    solid = np.isin(pieces, [i + 1 for i in keep]) & (alpha > 0.5)
+    pic[..., :3] = np.clip(pic[..., :3] * (want / np.maximum(pic[..., :3][solid].mean(0), 1)), 0, 255)
 # (the median single plant: pieces about as wide as tall, the smaller half of them by area)
 widths = sorted(max(boxes[i][0].stop - boxes[i][0].start, boxes[i][1].stop - boxes[i][1].start) for i in keep)
 scale = a.big / widths[len(widths) // 2]

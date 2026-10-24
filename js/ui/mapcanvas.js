@@ -223,8 +223,9 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-// (hills: the sheet of painted hills a biome's hills take, 'hills' unless said; 'none': shown by their light alone)
-const PLANTED = { desert: { floor: '#dcb77a', size: 15, counts: [5, 3, 1], hills: 'none' }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2], hills: 'scrub-hills' }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {}, 'scrub-hills': {} };
+// (hills: the sheet of painted hills a biome's hills take, 'hills' unless said ('none': shown by their light
+// alone); hillShare: of its hill hexes, how many have one (0.45 unless said); bareHills: nothing else on them)
+const PLANTED = { desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0], hills: 'desert-hills', hillShare: 1, bareHills: true }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2], hills: 'scrub-hills' }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {}, 'scrub-hills': {}, 'desert-hills': {} };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -447,8 +448,10 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
-      // (a painted hill in about half the hill hexes; the rest show theirs by their light)
-      const hills = cell.terrain === 'hill' && cornerRand(h[0], h[1], 84) < 0.45 && plantsOf(PLANTED[groundName(cell)].hills || 'hills');
+      // (a painted hill in about half the hill hexes, or as many as the biome says; the rest show theirs by
+      // their light)
+      const P = PLANTED[groundName(cell)];
+      const hills = cell.terrain === 'hill' && cornerRand(h[0], h[1], 84) < (P.hillShare ?? 0.45) && plantsOf(P.hills || 'hills');
       // (on a hill, only a few trees, so the hill shows)
       const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, PLANTED[groundName(cell)].counts.length - 2) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
@@ -458,7 +461,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
         ctx.drawImage(hl.canvas, -hl.w / 2, -hl.h / 2, hl.w, hl.h);
       }
       if (cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
-      ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
+      // (a bare hill, as a desert's dune, has nothing on it)
+      if (!(hills && P.bareHills)) ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
       ctx.restore();
       continue;
     }
