@@ -147,14 +147,33 @@ export function timetableOf(seed) {
 // the next train from one station to the next, at or after a time: { departAt, arriveAt }
 function nextTrain(seed, from, to, at) {
   let best = null;
-  for (const ring of timetableOf(seed)) for (const w of Object.values(ring.ways)) {
-    const n = w.stops.findIndex((k, i) => k === from && w.stops[(i + 1) % w.stops.length] === to);
-    if (n < 0) continue;
-    const departAt = nextDeparture(at, MAGLEV.every, (w.offset + w.leave[n]) % MAGLEV.every), arriveAt = departAt + Math.round(w.runs[n] * 60000);
-    if (!best || arriveAt < best.arriveAt) best = { departAt, arriveAt };
+  const mins = at / 60000;
+  for (const [ri, ring] of timetableOf(seed).entries()) for (const w of Object.values(ring.ways)) {
+    const n = w.stops.length, m = w.stops.findIndex((k, i) => k === from && w.stops[(i + 1) % n] === to);
+    if (m < 0) continue;
+    // (the trains due about then, the first to leave after it)
+    const j0 = Math.floor((mins - w.offset - w.leave[m]) / MAGLEV.every);
+    for (let j = j0 - 1; j <= j0 + 2; j++) {
+      const { dep } = visitOf(seed, ri, ring, w, j, m), arr = arrivalOf(seed, ri, ring, w, j, m + 1);
+      if (dep * 60000 >= at && (!best || dep * 60000 < best.departAt)) best = { departAt: Math.round(dep * 60000), arriveAt: Math.round(arr * 60000) };
+    }
   }
   return best;
 }
+// Each train keeps to the timetable only roughly, as trains do: it comes into each station up to
+// MAGLEV.late minutes early or late, and stands there a little more or less than MAGLEV.stand; the same
+// for everyone (from the train, the stop and the time alone). The train j of a way is the j-th to leave
+// its first stop; its visit to stop m: { arr, dep } in minutes
+const jitter = (...xs) => { let h = 2166136261; for (const x of xs) { h = Math.imul(h ^ (x | 0), 16777619); h ^= h >>> 13; } return ((h >>> 0) % 100000) / 100000; };
+function visitOf(seed, ri, ring, w, j, m) {
+  const wi = w === ring.ways.cw ? 0 : 1;
+  const due = w.offset + j * MAGLEV.every + w.leave[m] - MAGLEV.stand;
+  const arr = due + (jitter(seed, ri, wi, j, m, 1) * 2 - 1) * MAGLEV.late;
+  return { arr, dep: arr + MAGLEV.stand * (0.7 + 0.45 * jitter(seed, ri, wi, j, m, 2)) };
+}
+// when the train j of a way comes into its stop m (m may be the way's last stop's next: its first again,
+// as the train j + trains, the same train a round on)
+const arrivalOf = (seed, ri, ring, w, j, m) => (m >= w.stops.length ? visitOf(seed, ri, ring, w, j + ring.trains, 0) : visitOf(seed, ri, ring, w, j, m)).arr;
 // a ride from one station to another, or why not: { route, fare, mins, departAt, arriveAt } | { reason };
 // changing trains on the way, each the next of its line
 export function trainTrip(s, members, from, to, now = 0) {
@@ -211,16 +230,21 @@ export const restLeft = (b, now) => Math.max(0, (b && b.restUntil || 0) - now);
 // minutes since it last left its way's first stop
 const ease = u => u * u * (3 - 2 * u);
 export function trainsAt(s, now) {
-  const mins = now / 60000, out = [];
-  for (const [ri, ring] of timetableOf(W(s).seed).entries()) for (const [way, w] of Object.entries(ring.ways)) for (let k = 0; k < ring.trains; k++) {
-    // (the train k: at the way's first stop, ready to leave, k × every minutes past the offset each round)
-    const t = ((mins - w.offset - k * MAGLEV.every) % ring.round + ring.round) % ring.round, n = w.stops.length, id = `${ri}${way}${k}`;
-    let m = 0;
-    while (m < n - 1 && t >= w.leave[m + 1] - MAGLEV.stand) m++;
-    const path = w.lines[m];
-    if (t < w.leave[m]) { out.push({ id, way, path, i: 0, f: 0, standing: true, at: w.stops[m], to: w.stops[(m + 1) % n], along: t }); continue; }
-    const x = ease(Math.min(1, (t - w.leave[m]) / w.runs[m])) * (path.length - 1), i = Math.min(path.length - 2, Math.floor(x));
-    out.push({ id, way, path, i, f: x - i, standing: false, at: null, along: t });
+  const seed = W(s).seed, mins = now / 60000, out = [];
+  for (const [ri, ring] of timetableOf(seed).entries()) for (const [way, w] of Object.entries(ring.ways)) {
+    const n = w.stops.length, last = Math.floor((mins - w.offset) / MAGLEV.every) + 1;
+    // (each train on its round now: from coming into the first stop to coming into it again)
+    for (let j = last - ring.trains - 1; j <= last; j++) {
+      const start = arrivalOf(seed, ri, ring, w, j, 0);
+      if (mins < start || mins >= arrivalOf(seed, ri, ring, w, j, n)) continue;
+      let m = 0;
+      while (m < n - 1 && mins >= arrivalOf(seed, ri, ring, w, j, m + 1)) m++;
+      const { arr, dep } = visitOf(seed, ri, ring, w, j, m), id = `${ri}${way}${((j % ring.trains) + ring.trains) % ring.trains}`, path = w.lines[m];
+      if (mins < dep) { out.push({ id, way, path, i: 0, f: 0, standing: true, at: w.stops[m], to: w.stops[(m + 1) % n], along: mins - start }); continue; }
+      const next = arrivalOf(seed, ri, ring, w, j, m + 1);
+      const x = ease(Math.min(1, (mins - dep) / (next - dep))) * (path.length - 1), i = Math.min(path.length - 2, Math.floor(x));
+      out.push({ id, way, path, i, f: x - i, standing: false, at: null, along: mins - start });
+    }
   }
   return out;
 }

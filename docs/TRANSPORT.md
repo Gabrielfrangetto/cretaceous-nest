@@ -19,7 +19,9 @@ on a beat of 10 min (`journey.js timetableOf`): each line takes a whole number o
 station to leaving the next (its run, at about 6 s a hex, set to fit, and 1 min standing), and each ring
 a whole number of 10 min round; so each way comes into every station once every 10 min and the two ways
 5 min apart, at every station alike: a train every 5 min, steady. Where two rings meet the second
-ring's trains come in between the first's, a train every 2.5 min. Trains slow into each station and
+ring's trains come in between the first's, a train every 2.5 min. Trains keep to it only roughly, as real ones do
+(`MAGLEV.late`): each comes in up to 0.6 min early or late and stands 40 to 70 s, the same for every
+player, so the wait between trains is about 5 min (4 to 6), never quite the same. Trains slow into each station and
 speed away. A ride is a wait of up to 10 min, then the quickest way, changing rings where needed.
 Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.

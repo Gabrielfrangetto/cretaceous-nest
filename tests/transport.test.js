@@ -60,7 +60,10 @@ test('departures every so many minutes, the same for everyone; rings through eve
   }
   for (const [k, secs] of came) {
     const gaps = new Set(secs.slice(1).map((x, i) => x - secs[i])), meets = rings.filter(r => r.includes(k)).length;
-    assert.deepEqual([...gaps], [MAGLEV.every * 60 / 2 / meets], `uneven at ${k}`);
+    // (about that: each train early or late by up to MAGLEV.late)
+    const want = MAGLEV.every * 60 / 2 / meets;
+    for (const g of gaps) assert.ok(Math.abs(g - want) <= 2 * MAGLEV.late * 60 + 5, `uneven at ${k}: ${g} s`);
+    assert.ok(gaps.size > 1, `too regular at ${k}`);
   }
   // (the same at the same time; on later)
   assert.deepEqual(trainsAt(s, T0), trains);
