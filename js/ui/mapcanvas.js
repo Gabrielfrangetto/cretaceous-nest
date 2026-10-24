@@ -223,7 +223,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const PLANTED = { forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {} };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -234,7 +234,7 @@ function plantsOf(biome) {
   let set = plantSets.get(biome);
   if (!set) {
     set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
-    picture(`${biome}-floor`);
+    if (biome !== 'hills') { picture(`${biome}-floor`); plantsOf('hills'); }
     plantSets.set(biome, set);
     fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; tiles.clear(); texturesLoaded(); }).catch(() => {});
   }
@@ -279,6 +279,46 @@ function layoutOf(biome, set, level, k) {
     g.translate(t.x, t.y);
     if (t.flip) g.scale(-1, 1);
     g.drawImage(set.img, t.px, t.py, t.pw, t.ph, -t.pw * t.s / 2, -t.ph * t.s / 2, t.pw * t.s, t.ph * t.s);
+    g.restore();
+  }
+  const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
+  set.layouts.set(id, out);
+  return out;
+}
+// A hill hex in a biome with plants: one or two painted hills (scripts/plants.py, a sheet of them),
+// wholly inside the hex, bigger the higher it stands (size 0-2), with their shadows; its plants after
+function hillLayout(set, size, k) {
+  const id = `hill|${size}|${k}`;
+  if (set.layouts.has(id)) return set.layouts.get(id);
+  const rand = seq(size * 7919 + k * 104729 + 31), n = rand() < 0.35 ? 2 : 1;
+  const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
+  const placed = [];
+  for (let tries = 0; placed.length < n && tries < 2000; tries++) {
+    const [px, py, pw, ph] = set.pieces[Math.floor(rand() * set.pieces.length)];
+    const want = SIZE * (n === 1 ? 1.55 : 1.05) * (0.8 + 0.1 * size) * (0.92 + rand() * 0.16), s = want / pw;
+    const hw = pw * s / 2, hh = ph * s / 2;
+    const x = (rand() - 0.5) * SIZE * (n === 1 ? 0.25 : 0.7), y = (rand() - 0.5) * SIZE * 0.35 * TILT;
+    if ([[-hw, 0], [hw, 0], [0, -hh], [0, hh], [-hw * 0.7, hh * 0.7], [hw * 0.7, hh * 0.7], [-hw * 0.7, -hh * 0.7], [hw * 0.7, -hh * 0.7]].some(([dx, dy]) => inside(x + dx, y + dy) < 1)) continue;
+    if (placed.some(o => Math.abs(o.x - x) < (o.hw + hw) * 0.6 && Math.abs(o.y - y) < (o.hh + hh) * 0.6)) continue;
+    placed.push({ x, y, hw, hh, s, px, py, pw, ph, flip: rand() < 0.5 });
+  }
+  placed.sort((a, b) => a.y + a.hh - (b.y + b.hh));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.translate(w / 2, h / 2);
+  g.scale(LAYOUT_PX, LAYOUT_PX);
+  for (const t of placed) {
+    const cx = t.x + t.hw * 0.15, cy = t.y + t.hh * 0.75, sh = g.createRadialGradient(cx, cy, 0, cx, cy, t.hw);
+    sh.addColorStop(0, 'rgba(10,16,8,.35)'); sh.addColorStop(1, 'rgba(10,16,8,0)');
+    g.fillStyle = sh;
+    g.beginPath(); g.ellipse(cx, cy, Math.min(t.hw * 1.02, t.hw), t.hh * 0.45, 0, 0, Math.PI * 2); g.fill();
+  }
+  for (const t of placed) {
+    g.save();
+    g.translate(t.x, t.y);
+    if (t.flip) g.scale(-1, 1);
+    g.drawImage(set.img, t.px, t.py, t.pw, t.ph, -t.hw, -t.hh, t.hw * 2, t.hh * 2);
     g.restore();
   }
   const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
@@ -358,9 +398,15 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
-      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
+      const hills = cell.terrain === 'hill' && plantsOf('hills');
+      // (on a hill, only a few trees, so the hill shows)
+      const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, 3) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
       ctx.translate(x, y);
+      if (hills) {
+        const up = upAt(seed, h), size = up > 0.58 ? 2 : up > 0.52 ? 1 : 0, hl = hillLayout(hills, size, Math.floor(cornerRand(h[0], h[1], 83) * LAYOUTS));
+        ctx.drawImage(hl.canvas, -hl.w / 2, -hl.h / 2, hl.w, hl.h);
+      }
       if (cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
       ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
       ctx.restore();
