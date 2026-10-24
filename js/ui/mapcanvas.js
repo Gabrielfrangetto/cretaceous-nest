@@ -342,8 +342,15 @@ export const GRID = 'rgba(0, 0, 0, .07)';
 export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5"/><path d="M-13 9 L-8 -1 L-3 9Z" fill="#8a5a2b"/><path d="M-4 9 L2 -8 L8 9Z" fill="#a8743c"/><path d="M5 9 L9.5 1 L14 9Z" fill="#8a5a2b"/><path d="M2 -8 L2 -13 L6 -11.5 L2 -10" fill="#d2493f" stroke="#5b3a1e" stroke-width="1"/>';
 
 // Draws hexes with their colour, outline and little drawing; known(key) false: not yet explored, drawn
-// a little dimmer. edge: the faint line between hexes (GRID). detail: how much to draw, for how big a hex
-// looks: 'full' (line and drawing), 'plain' (colour only), 'dots' (squares of colour, from very far)
+// a little dimmer. edge: the faint line between hexes (GRID). detail: 'dots' (squares of colour, from
+// very far); otherwise what is drawn goes by how big a hex looks (LOD)
+// How much is drawn by how big a hex looks: each thing from this many pixels (a hex's radius on the
+// screen, the device's pixels) up; below 3 the map is squares of colour ('dots') whatever these say.
+// Below plants, a planted ground (forest, meadow…) is its colour alone; below texture, a painted ground
+// too. Set today so the map looks as it always has (plants and pictures down to 3 px: even that small
+// they give the forests their grain); raise one when new detail makes the map slow from afar. The
+// tiles are drawn at about 15, 7.5 and 3.75 px a hex, so a threshold between those moves a whole level.
+export const LOD = { texture: 3, plants: 3, relief: 9, glyphs: 9, grid: 9 };
 export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full') {
   // (a hair bigger than the hex, so neighbours meet with no gap between them)
   const shape = hexPath(1.01);
@@ -364,7 +371,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     drawRails(ctx, seed, areaOf(hexes));
     return;
   }
-  const smooth = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b) >= 44;
+  const px = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b), smooth = px >= 44;
   // the ground: first each hex in its colour, lit as it lies; then those with a picture of their ground,
   // each within its own hex (their light over it too); then over all of them, the unexplored dimmed and
   // the line between hexes
@@ -372,7 +379,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
     const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
-    const planted = !isWaterCell(cell) && !cell.lava && plantsOf(biome);
+    const planted = px >= LOD.plants && !isWaterCell(cell) && !cell.lava && plantsOf(biome);
     if (planted) {
       // (its floor: a picture laid over the whole map, not hex by hex, so it runs on from one hex into the
       // next; plain until it has come. The light is laid over it with its plants, below)
@@ -387,7 +394,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
       textured.push({ h, x, y, cell, planted, dense });
       continue;
     }
-    const tex = !isWaterCell(cell) && !cell.lava && textureOf(ctx, biome, dense);
+    const tex = px >= LOD.texture && !PLANTED[biome] && !isWaterCell(cell) && !cell.lava && textureOf(ctx, biome, dense);
     if (tex) { textured.push({ h, x, y, cell, tex, dense }); continue; }
     ctx.save();
     ctx.translate(x, y);
@@ -434,23 +441,23 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   }
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), unknown = !isWaterCell(cell) && !known(hexKey(...h));
-    if (!unknown && detail !== 'full') continue;
+    if (!unknown && px < LOD.grid) continue;
     ctx.save();
     ctx.translate(x, y);
     if (unknown) { ctx.fillStyle = dim; ctx.fill(shape); }
-    if (detail === 'full') ctx.stroke(shape);
+    if (px >= LOD.grid) ctx.stroke(shape);
     ctx.restore();
   }
-  drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
+  drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3);
   drawRails(ctx, seed, areaOf(hexes));
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
     // (a hill in a biome with a painted ground shows by its light alone: no drawn mound)
-    const relief = detail === 'full' && key !== '0,0' && !cell.city && !(cell.terrain === 'hill' && hasTexture(groundName(cell))) && reliefOf(cell, h, upAt(seed, h));
+    const relief = px >= LOD.relief && key !== '0,0' && !cell.city && !(cell.terrain === 'hill' && hasTexture(groundName(cell))) && reliefOf(cell, h, upAt(seed, h));
     if (relief) { drawRelief(ctx, relief, x, y, alpha); continue; }
     // (ground with a picture of its own needs no little drawing)
-    const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
+    const art = key === '0,0' ? NEST : cell.city ? CITY : px >= LOD.glyphs && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
     if (art) paint(ctx, art, x, y, alpha);
   }
 }
