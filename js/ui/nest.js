@@ -319,7 +319,7 @@ const sceneVisible = () => currentTab() === 'nest' && !document.hidden;
 
 export function initNest() {
   updateSky();
-  // (the world's day passes in 24 real minutes: the sky moves on every couple of seconds)
+  // (the world's day passes in a real hour: the sky moves on every couple of seconds)
   setInterval(updateSky, 2000);
   renderBabies();
   // the cards and walkers are rebuilt only while the tab is open; the hungry badge updates everywhere

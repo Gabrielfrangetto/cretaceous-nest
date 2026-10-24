@@ -1083,8 +1083,8 @@ test('what stops a journey happens as the team gets there; the way goes on unsee
     if (!stop || stop.idx >= leg.path.length - 3) continue;
     // not before it gets there
     assert.equal(applyAction(s, 'journey', { id: p.id }, stop.at - 1).reason, 'not-back');
-    // seen half an hour later: told up to the stop, where it shows, the way not pushed back
-    const late = stop.at + 30 * 60000;
+    // seen a few hexes' walk later: told up to the stop, where it shows, the way not pushed back
+    const late = stop.at + 4 * TRAVEL.mins * 60000;
     const step = applyAction(s, 'journey', { id: p.id }, late);
     if (!step.pending) continue;
     assert.equal(step.pending.idx, stop.idx);
