@@ -21,7 +21,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, minsLabel } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, railCurve, inTunnel } from './mapcanvas.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
 
@@ -243,7 +243,9 @@ function paintMap() {
     ctx.save();
     const r = Math.max(SIZE * 0.22, px(3));
     for (const tr of trainsAt(S, t)) {
-      const [ax, ay] = center(parseKey(tr.path[tr.i])), [bx, by] = center(parseKey(tr.path[tr.i + 1]));
+      // (along the line's smooth curve; under a mountain, in its tunnel, unseen)
+      if (inTunnel(w.seed, tr.path[tr.i]) && inTunnel(w.seed, tr.path[tr.i + 1])) continue;
+      const pts = railCurve(tr.path), [ax, ay] = pts[tr.i], [bx, by] = pts[tr.i + 1];
       const x = ax + (bx - ax) * tr.f, y = ay + (by - ay) * tr.f, a = Math.atan2(by - ay, bx - ax);
       ctx.save();
       ctx.translate(x, y);

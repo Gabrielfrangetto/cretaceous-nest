@@ -8,13 +8,19 @@ ahead"; `tests/transport.test.js`.
 
 **Speeds as built.** The game's clock runs fast: a flat hex walked in half a real minute is half a day
 of the world. 1,000 km/h on that clock would be instant, and 1.3 real minutes a hex would be slower
-than walking, so the speeds are set by how they feel against walking. The maglev: one ring through
-the nest and every city (`map.js railsOf`: the shortest ring that never crosses itself, 11 lines, each
-laid as straight as it can go over land), so no line ends at a city. Trains run round it both ways,
-each keeping its way (clockwise or not): 7 each way, one passing each station about every 10 min,
-at 6 s a hex (about five times quicker than on foot), standing 1 min at every station; the round is
-about 72 min. Two trains going the same way never stand at a station at once (one each way may). A
-ride is a wait of up to 10 min, then the ride the shorter way round. Rockets 1 to 3 min, a launch every
+than walking, so the speeds are set by how they feel against walking. The maglev (`map.js railsOf`):
+first one ring through the nest and every city (the cheapest to build that never crosses itself), then
+up to three straight links across it where two stations are at least 2.5 times as far apart round the
+ring as across (on this map, the nest to Highfen), each cutting its ring in two that share it; so no
+line ends at a city. Each line is laid as straight as it goes between its stations, over land, around
+mountains where it can (hills cost a little more, a mountain a lot: a tunnel, short, drawn dashed, the
+trains unseen in it), and drawn smooth. On every ring trains run round both ways, each keeping its way,
+one each way past every station every 10 min, standing 1 min (`journey.js timetableOf`); each ring's
+trains run at the speed that brings them round in a whole number of 10 min (about 6 s a hex), so all
+rings keep one beat, and they are set in it so that no two trains leaving a station onto the same line
+the same way, or coming in off the same line, stand there at once. Trains slow into each station and
+speed away. A ride is a wait of up to 10 min, then the quickest way, changing rings where needed.
+Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.
 
 ## Why

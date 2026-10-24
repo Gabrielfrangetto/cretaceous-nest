@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { collect } from './journey-helper.js';
-import { legMins, HOME, partyOf, stopOf, progressOf, airliftFare, careOf, hospitalHours, flightMins, trainMins, timetableOf } from '../js/journey.js';
+import { legMins, HOME, partyOf, stopOf, progressOf, airliftFare, careOf, hospitalHours, flightMins, trainMins } from '../js/journey.js';
 import assert from 'node:assert/strict';
 import { applyAction, countItem, feedBaby, breedProblem, bill, earn, addItem } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
@@ -551,7 +551,7 @@ test('the maglev: stations at the nest and every city, a ride for a fare, safe, 
   assert.equal(s.coins, 100);
   const p = partyOf(s, r.expedition.id);
   // (it waits at the station for the next train, then rides: much quicker than walking)
-  assert.ok(p.leg.train && p.leg.startedAt === trip.departAt && trip.departAt >= T0 && trip.departAt - T0 < timetableOf(42).every * 60000);
+  assert.ok(p.leg.train && p.leg.startedAt === trip.departAt && trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
   assert.equal(p.leg.arriveAt, trip.arriveAt);
   assert.ok(trip.mins < legMins(s, ['ad'], '0,0', city));
   assert.equal(applyAction(s, 'recall', { id: p.id }, T0 + 1000).reason, 'on-the-train');

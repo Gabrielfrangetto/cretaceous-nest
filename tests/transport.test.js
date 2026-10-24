@@ -22,7 +22,7 @@ function game(...babies) {
 const dinos = (...ids) => ids.map(id => ({ kind: 'dino', id }));
 const cities = () => citiesOf(42).map(c => c.key);
 
-test('departures every so many minutes, the same for everyone; one ring through every city, trains keep their way, never two the same way standing at a station', () => {
+test('departures every so many minutes, the same for everyone; rings through every city, trains keep their way, never two the same way standing at a station', () => {
   assert.equal(nextDeparture(T0, 5) % (5 * 60000), 0);
   assert.ok(nextDeparture(T0, 5) >= T0 && nextDeparture(T0, 5) - T0 < 5 * 60000);
   assert.equal(nextDeparture(nextDeparture(T0, 5), 5), nextDeparture(T0, 5));
@@ -32,20 +32,23 @@ test('departures every so many minutes, the same for everyone; one ring through 
   for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1 && ['cw', 'ccw'].includes(t.way));
   // as many each way
   assert.equal(trains.filter(t => t.way === 'cw').length, trains.filter(t => t.way === 'ccw').length);
-  // the lines make one ring through every station: no line ends anywhere but at the next one's start
-  const { lines, stations } = railsOf(42);
-  assert.equal(lines.length, stations.length);
-  for (const [i, l] of lines.entries()) assert.equal(l.path[l.path.length - 1], lines[(i + 1) % lines.length].path[0]);
-  assert.deepEqual([...new Set(lines.map(l => l.a))].sort(), [...stations].sort());
-  // all through a round: each train keeps its way, and at no station do two going the same way stand at once
+  // the lines make rings through every station: every station on one, every line on one, none ends at a station
+  const { lines, stations, rings } = railsOf(42);
+  assert.deepEqual([...new Set(rings.flat())].sort(), [...stations].sort());
+  for (const l of lines) assert.ok(rings.some(r => r.some((k, i) => [l.a, l.b].includes(k) && [l.a, l.b].includes(r[(i + 1) % r.length]))));
+  for (const k of stations) assert.ok(lines.filter(l => l.a === k || l.b === k).length >= 2, `a line ends at ${k}`);
+  // the nest and Highfen, near each other, have a line straight between them
+  assert.ok(lines.some(l => [l.a, l.b].includes('0,0') && [l.a, l.b].includes('-11,30')));
+  // all through a round: each train keeps its way, and at no station do two leaving onto the same line stand at once
   let before = trains;
-  for (let sec = 5; sec < tt.round * 60; sec += 5) {
+  const round = Math.max(...tt.map(r => r.round));
+  for (let sec = 5; sec < round * 60; sec += 5) {
     const now = trainsAt(s, T0 + sec * 1000);
-    const standing = now.filter(t => t.standing).map(t => t.at + t.way);
+    const standing = now.filter(t => t.standing).map(t => t.at + '>' + t.to);
     assert.equal(new Set(standing).size, standing.length, `two trains standing at once, ${sec} s in`);
     for (const t of now) {
       const was = before.find(b => b.id === t.id);
-      assert.ok(t.along >= was.along || was.along - t.along > tt.round - 1, `${t.id} went back`);
+      assert.ok(t.along >= was.along || was.along - t.along > MAGLEV.every, `${t.id} went back`);
     }
     before = now;
   }
@@ -54,7 +57,7 @@ test('departures every so many minutes, the same for everyone; one ring through 
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
   // a ride leaves within a cycle and takes at least a run
   const [a] = cities(), trip = trainTrip(s, ['x'], '0,0', a, T0);
-  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < timetableOf(42).every * 60000);
+  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
   assert.ok(trip.mins >= trainMins(trip.route.hexes));
 });
 

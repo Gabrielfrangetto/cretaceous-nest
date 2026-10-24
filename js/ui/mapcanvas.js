@@ -361,7 +361,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     }
     // from very far only the great rivers show
     drawRivers(ctx, seed, hexes, 8);
-    drawRails(ctx, seed, hexes);
+    drawRails(ctx, seed);
     return;
   }
   const smooth = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b) >= 44;
@@ -442,7 +442,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.restore();
   }
   drawRivers(ctx, seed, hexes, detail === 'full' ? 1 : 3);
-  drawRails(ctx, seed, hexes);
+  drawRails(ctx, seed);
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
@@ -476,28 +476,62 @@ function drawRivers(ctx, seed, hexes, minFlow) {
   }
   ctx.restore();
 }
-// The maglev's elevated lines: a dark guideway with a pale rail along it, curving through each hex from
-// the edge it comes in by to the one it leaves by (straight to the middle where it ends or branches);
-// never thinner on screen than a couple of pixels
+// The maglev's elevated lines: a dark guideway with a pale rail along it, drawn smooth along each line
+// (the hexes' middles eased into a gentle curve, the stations where they are), and through a mountain in
+// a tunnel: only a faint dashed line where it runs under it, the trains unseen there. Never thinner on
+// screen than a couple of pixels
 const RAIL = [['#3b4047', 6, 2.4], ['#dfe3e8', 1.8, 0.8]];
-function drawRails(ctx, seed, hexes) {
-  const at = railsOf(seed).at, hair = 1 / Math.max(1e-6, ctx.getTransform().a);
+const curves = new Map();
+// a line's hexes (keys, in order) as the points of its smooth curve, one a hex, in map units
+export function railCurve(path) {
+  const id = path[0] + '|' + path[path.length - 1] + '|' + path.length;
+  if (curves.has(id)) return curves.get(id);
+  let pts = path.map(k => center(k.split(',').map(Number)));
+  // (a few rounds of each point moved to the middle of its neighbours, the ends kept)
+  for (let round = 0; round < 3; round++) {
+    pts = pts.map((p, i) => {
+      const r = Math.min(3, i, pts.length - 1 - i);
+      if (!r) return p;
+      let x = 0, y = 0;
+      for (let d = -r; d <= r; d++) { x += pts[i + d][0]; y += pts[i + d][1]; }
+      return [x / (2 * r + 1), y / (2 * r + 1)];
+    });
+  }
+  if (curves.size > 200) curves.clear();
+  curves.set(id, pts);
+  return pts;
+}
+// whether a line runs under a mountain at its hex
+export const inTunnel = (seed, k) => { const c = cellAt(seed, k.split(',').map(Number)); return !!c && c.terrain === 'mountain'; };
+function drawRails(ctx, seed) {
+  const { lines } = railsOf(seed), hair = 1 / Math.max(1e-6, ctx.getTransform().a);
   ctx.save();
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   for (const [color, width, px] of RAIL) {
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(width, hair * px);
     ctx.beginPath();
-    for (const h of hexes) {
-      const next = at.get(hexKey(...h));
-      if (!next) continue;
-      const [x, y] = center(h);
-      const mids = next.map(k => { const [nx, ny] = center(k.split(',').map(Number)); return [(x + nx) / 2, (y + ny) / 2]; });
-      if (mids.length === 2) { ctx.moveTo(...mids[0]); ctx.quadraticCurveTo(x, y, ...mids[1]); continue; }
-      for (const m of mids) { ctx.moveTo(x, y); ctx.lineTo(...m); }
+    for (const l of lines) {
+      const pts = railCurve(l.path);
+      for (let i = 1; i < pts.length; i++) {
+        if (inTunnel(seed, l.path[i - 1]) && inTunnel(seed, l.path[i])) continue;
+        ctx.moveTo(...pts[i - 1]);
+        ctx.lineTo(...pts[i]);
+      }
     }
     ctx.stroke();
   }
+  // (the tunnels)
+  ctx.strokeStyle = 'rgba(40, 44, 50, 0.45)';
+  ctx.lineWidth = Math.max(2, hair * 1);
+  ctx.setLineDash([Math.max(4, hair * 3), Math.max(4, hair * 3)]);
+  ctx.beginPath();
+  for (const l of lines) {
+    const pts = railCurve(l.path);
+    for (let i = 1; i < pts.length; i++) if (inTunnel(seed, l.path[i - 1]) && inTunnel(seed, l.path[i])) { ctx.moveTo(...pts[i - 1]); ctx.lineTo(...pts[i]); }
+  }
+  ctx.stroke();
   ctx.restore();
 }
 const isWaterCell = c => c.terrain === 'ocean' || c.terrain === 'lake';

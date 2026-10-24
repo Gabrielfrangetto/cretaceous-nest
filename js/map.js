@@ -560,15 +560,19 @@ export function wayAround(seed, h, from, blocked) {
 export const routeCost = (seed, from, to) => { const i = indexOf(to); return i < 0 ? Infinity : routes(seed, from).best[i]; };
 
 // ---------- the colonists' maglev ----------
-// Stations at the nest and every city, joined in one ring: each station to the next round it, so every
-// train runs on from city to city and never ends its way at one (the shortest ring that never crosses
-// itself). Each line is laid as straight as it can go between its two stations, over land (never over
-// water). { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }] in ring order, each line's b
-// the next one's a, at: Map(hex key -> [the hex keys the line runs on to]) }
+// Stations at the nest and every city on rings of line, so every train runs on from city to city and
+// never ends its way at one: first one ring through them all (the shortest that never crosses itself),
+// then a few straight links across it where two stations near each other are far apart round it, each
+// cutting its ring in two that share it. Each line is laid as straight as it can go between its two
+// stations over land, around the mountains (never over water, mountains or volcanoes; around hills
+// where it costs little). { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }], rings: [[the
+// station keys round each ring, in order]], at: Map(hex key -> [the hex keys the line runs on to]) }
 const rails = new Map();
 const parse = k => k.split(',').map(Number);
-// the straightest way over land from one hex to another: each step costs one, and more the farther it
-// strays from the straight line between them. The hexes, from first to last; [] when there is none
+// (what a step onto each ground costs a line; Infinity: never)
+const RAIL_GROUND = { flat: 1, hill: 1.6, mountain: 30, volcano: Infinity, ocean: Infinity, lake: Infinity };
+// the straightest way over easy land from one hex to another: each step costs its ground, and more the
+// farther it strays from the straight line between them. The hexes, from first to last; [] when none
 function railPath(seed, from, to) {
   const { cells } = worldMap(seed), start = indexOf(from), end = indexOf(to);
   const [ax, ay] = xy(from), [bx, by] = xy(to), len = Math.hypot(bx - ax, by - ay) || 1;
@@ -592,22 +596,43 @@ function railPath(seed, from, to) {
     if (i === end) break;
     for (let k = 0; k < 6; k++) {
       const n = NB[i * 6 + k];
-      if (n < 0 || water(TERRAINS.indexOf(cells[n].terrain))) continue;
-      const h = hexOf(n), d = off(h), nc = best.get(i) + 1 + 0.2 * d * d;
+      // (a station is reached whatever its ground)
+      const ground = n === end ? 1 : RAIL_GROUND[cells[n]?.terrain] ?? 1;
+      if (n < 0 || ground === Infinity) continue;
+      const h = hexOf(n), d = off(h), nc = best.get(i) + ground + 0.04 * d * d;
       if (!best.has(n) || nc < best.get(n)) { best.set(n, nc); prev.set(n, i); push([nc + dist([to[0] - h[0], to[1] - h[1]]), n]); }
     }
   }
   if (!prev.has(end)) return [];
   const path = [];
   for (let i = end; i !== start; i = prev.get(i)) path.unshift(hexOf(i));
-  return [from, ...path];
+  path.unshift(from);
+  // (what it costs to build: its ground, hex by hex)
+  path.cost = path.reduce((t, h, i) => t + (i ? RAIL_GROUND[cells[indexOf(h)].terrain] ?? 1 : 0), 0);
+  return path;
 }
+// (two straight stretches between stations cross, not counting a shared end)
+const crosses = (a, b, c, d) => {
+  if (a === c || a === d || b === c || b === d) return false;
+  const [p, q, r, t] = [a, b, c, d].map(k => xy(parse(k)));
+  const side = (u, v, w) => Math.sign((v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0]));
+  return side(p, q, r) !== side(p, q, t) && side(r, t, p) !== side(r, t, q);
+};
+// a link across a ring only where the way round is at least this many times as far as straight across
+const LINK_DETOUR = 2.5, LINKS = 3;
 export function railsOf(seed) {
   if (rails.has(seed)) return rails.get(seed);
   const all = [key(0, 0), ...citiesOf(seed).map(c => c.key)];
-  const far = (a, b) => { const [p, q] = [parse(a), parse(b)]; return dist([p[0] - q[0], p[1] - q[1]]); };
-  // (only the stations the nest can reach over land)
-  const stations = all.filter(k => k === all[0] || railPath(seed, parse(all[0]), parse(k)).length);
+  // (the line each two stations would have, and what it costs to build: Infinity where none can be)
+  const paths = new Map(), lineOf = (a, b) => {
+    const id = a < b ? `${a}|${b}` : `${b}|${a}`;
+    if (!paths.has(id)) { const p = railPath(seed, parse(a), parse(b)).map(h => key(...h)); paths.set(id, { a, p, cost: p.length ? railPath(seed, parse(a), parse(b)).cost : Infinity }); }
+    const l = paths.get(id);
+    return l.a === a ? l.p : [...l.p].reverse();
+  };
+  const far = (a, b) => { lineOf(a, b); return paths.get(a < b ? `${a}|${b}` : `${b}|${a}`).cost; };
+  // (only the stations the nest can reach)
+  const stations = all.filter(k => k === all[0] || far(all[0], k) < Infinity);
   // the ring: nearest first, then untangled (any two lines that cross swapped for two that don't)
   const ring = [stations[0]], left = new Set(stations.slice(1));
   while (left.size) {
@@ -624,14 +649,39 @@ export function railsOf(seed) {
       if (len(r) < len(ring) - 1e-9) { ring.splice(0, ring.length, ...r); better = true; }
     }
   }
-  const lines = ring.length < 2 ? [] : ring.slice(0, ring.length === 2 ? 1 : ring.length).map((a, i) => {
-    const b = ring[(i + 1) % ring.length];
-    return { a, b, path: railPath(seed, parse(a), parse(b)).map(h => key(...h)) };
-  });
+  // the links across: each time, the one that saves the most, cutting its ring in two
+  const rings = ring.length > 2 ? [ring] : [];
+  const edges = () => { const e = []; for (const r of rings) r.forEach((k, i) => { const b = r[(i + 1) % r.length]; if (!e.some(([x, y]) => (x === k && y === b) || (x === b && y === k))) e.push([k, b]); }); return e; };
+  const around = (a, b) => {
+    // (the shortest way on the lines so far, straight stretch by stretch)
+    const d = new Map([[a, 0]]), todo = new Set(stations), es = edges();
+    while (todo.size) {
+      let u = null;
+      for (const k of todo) if (d.has(k) && (u === null || d.get(k) < d.get(u))) u = k;
+      if (u === null) break;
+      todo.delete(u);
+      for (const [x, y] of es) if (x === u || y === u) { const v = x === u ? y : x, nd = d.get(u) + far(x, y); if (!d.has(v) || nd < d.get(v)) d.set(v, nd); }
+    }
+    return d.get(b) ?? Infinity;
+  };
+  for (let n = 0; n < LINKS; n++) {
+    let pick = null;
+    for (const [ri, r] of rings.entries()) for (let i = 0; i < r.length; i++) for (let j = i + 2; j < r.length; j++) {
+      if (i === 0 && j === r.length - 1) continue;
+      const a = r[i], b = r[j], gain = around(a, b) / far(a, b);
+      if (gain < LINK_DETOUR || (pick && gain <= pick.gain)) continue;
+      if (edges().some(([x, y]) => crosses(a, b, x, y))) continue;
+      pick = { ri, i, j, gain };
+    }
+    if (!pick) break;
+    const r = rings[pick.ri];
+    rings.splice(pick.ri, 1, r.slice(pick.i, pick.j + 1), [...r.slice(pick.j), ...r.slice(0, pick.i + 1)]);
+  }
+  const lines = (rings.length ? edges() : stations.length === 2 ? [stations] : []).map(([a, b]) => ({ a, b, path: lineOf(a, b) }));
   const at = new Map();
   const link = (x, y) => { if (!at.has(x)) at.set(x, []); if (!at.get(x).includes(y)) at.get(x).push(y); };
   for (const l of lines) for (let i = 1; i < l.path.length; i++) { link(l.path[i - 1], l.path[i]); link(l.path[i], l.path[i - 1]); }
-  const out = { stations, lines, at };
+  const out = { stations, lines, rings, at };
   if (rails.size > 4) rails.clear();
   rails.set(seed, out);
   return out;
