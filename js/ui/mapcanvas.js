@@ -197,7 +197,7 @@ const picture = name => {
   let img = textures.get(name);
   if (!img) {
     img = new Image();
-    img.onload = () => { tiles.clear(); texturesLoaded(); };
+    img.onload = () => { retireTiles(); texturesLoaded(); };
     img.src = new URL(`../../images/terrain/${name}.webp`, import.meta.url).href;
     textures.set(name, img);
   }
@@ -236,7 +236,7 @@ function plantsOf(biome) {
     set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
     if (PLANTED[biome].counts) { picture(`${biome}-floor`); plantsOf(PLANTED[biome].hills || 'hills'); }
     plantSets.set(biome, set);
-    fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; tiles.clear(); texturesLoaded(); }).catch(() => {});
+    fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; retireTiles(); texturesLoaded(); }).catch(() => {});
   }
   return set.pieces && set.img.complete && set.img.naturalWidth ? set : null;
 }
@@ -612,12 +612,24 @@ export function mapBounds() {
 // sharper and one blurrier for it are drawn ahead while the browser is idle, ready for the next zoom.
 const TILE = 256, LEVELS = [0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 160;
 const tiles = new Map();
+// When a picture of the ground comes, every tile drawn before it is out of date; they are kept aside
+// (stale), still shown until their new ones are all drawn, so the map never blinks while it catches up
+let stale = new Map(), lastWarm = null;
+function retireTiles() {
+  for (const [id, c] of tiles) { stale.delete(id); stale.set(id, c); }
+  tiles.clear();
+  while (stale.size > TILE_KEEP * 2) stale.delete(stale.keys().next().value);
+  // (the whole map's blurriest tiles drawn again soon, to fall back on)
+  if (lastWarm) setTimeout(() => warmTiles(...lastWarm), 300);
+}
 const detailAt = k => (SIZE * k >= 9 ? 'full' : SIZE * k >= 3 ? 'plain' : 'dots');
 function tileOf(seed, known, sig, edge, k, tx, ty) {
   const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`;
   if (tiles.has(id)) { const c = tiles.get(id); tiles.delete(id); tiles.set(id, c); return c; }
   return null;
 }
+// a tile up to date, or else one out of date (to show while the new one is drawn)
+const anyTileOf = (seed, known, sig, edge, k, tx, ty) => tileOf(seed, known, sig, edge, k, tx, ty) || stale.get(`${seed}|${sig}|${edge}|${k}|${tx}|${ty}`) || null;
 function makeTile(seed, known, sig, edge, k, tx, ty) {
   const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`, b = mapBounds(), span = TILE / k;
   const ox = b.x + tx * span, oy = b.y + ty * span;
@@ -628,38 +640,64 @@ function makeTile(seed, known, sig, edge, k, tx, ty) {
   ctx.translate(-ox, -oy);
   drawHexes(ctx, seed, hexesIn(ox, oy, ox + span, oy + span), known, edge, detailAt(k), sig);
   tiles.set(id, canvas);
-  while (tiles.size > TILE_KEEP) tiles.delete(tiles.keys().next().value);
+  // (the oldest let go, but never the blurriest level's: the map whole, always there to fall back on)
+  for (const old of tiles.keys()) {
+    if (tiles.size <= TILE_KEEP) break;
+    if (old.split('|')[3] !== String(LEVELS.at(-1))) tiles.delete(old);
+  }
   return canvas;
 }
 // Draws the tiles covering the view (f: from fit); returns whether some are still to be drawn (then
 // ask for another frame). sig: what of the map is known (when it changes, the tiles are drawn anew).
 export function drawTiles(ctx, seed, f, known, sig, edge) {
   const b = mapBounds(), need = f.scale * f.dpr;
-  const k = [...LEVELS].reverse().find(l => l >= need) || LEVELS[0];
-  const span = TILE / k;
+  const want = [...LEVELS].reverse().find(l => l >= need) || LEVELS[0];
   const x1 = f.x0 + f.width / f.scale, y1 = f.y0 + f.height / f.scale;
-  const tx0 = Math.max(0, Math.floor((f.x0 - b.x) / span)), tx1 = Math.min(Math.ceil(b.w / span) - 1, Math.floor((x1 - b.x) / span));
-  const ty0 = Math.max(0, Math.floor((f.y0 - b.y) / span)), ty1 = Math.min(Math.ceil(b.h / span) - 1, Math.floor((y1 - b.y) / span));
-  const until = performance.now() + TILE_MS;
-  let missing = false, made = 0;
-  for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-    let tile = tileOf(seed, known, sig, edge, k, tx, ty);
-    if (!tile && (!made || performance.now() < until)) { tile = makeTile(seed, known, sig, edge, k, tx, ty); made++; }
-    const x = b.x + tx * span, y = b.y + ty * span;
-    if (tile) { ctx.drawImage(tile, x, y, span, span); continue; }
-    missing = true;
-    // a blurrier tile that covers this one, if there is one
-    for (const l of LEVELS.filter(l => l < k)) {
-      const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2);
-      const up = tileOf(seed, known, sig, edge, l, px, py);
-      if (!up) continue;
-      const fx = (x - b.x - px * s2) / s2 * TILE, fy = (y - b.y - py * s2) / s2 * TILE, fw = span / s2 * TILE;
-      ctx.drawImage(up, fx, fy, fw, fw, x, y, span, span);
-      break;
-    }
+  // (the tiles of a level covering the view)
+  const cover = k => {
+    const span = TILE / k, out = [];
+    const tx0 = Math.max(0, Math.floor((f.x0 - b.x) / span)), tx1 = Math.min(Math.ceil(b.w / span) - 1, Math.floor((x1 - b.x) / span));
+    const ty0 = Math.max(0, Math.floor((f.y0 - b.y) / span)), ty1 = Math.min(Math.ceil(b.h / span) - 1, Math.floor((y1 - b.y) / span));
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) out.push([tx, ty]);
+    return out;
+  };
+  // the level wanted, built a few milliseconds a frame out of sight; until it is all there, the
+  // nearest level that is (sharper first) is shown whole instead, so the map never shows itself
+  // being built
+  const until = performance.now() + TILE_MS, tiles = cover(want);
+  let made = 0;
+  for (const [tx, ty] of tiles) {
+    if (tileOf(seed, known, sig, edge, want, tx, ty)) continue;
+    if (made && performance.now() >= until) break;
+    makeTile(seed, known, sig, edge, want, tx, ty);
+    made++;
   }
-  if (!missing) drawAhead(seed, known, sig, edge, f, k);
-  return missing;
+  const ready = (k, get) => cover(k).every(([tx, ty]) => get(seed, known, sig, edge, k, tx, ty));
+  const order = [want, ...LEVELS.filter(l => l > want).sort((p, q) => p - q), ...LEVELS.filter(l => l < want).sort((p, q) => q - p)];
+  // (a level all up to date; else one all there, some of it out of date)
+  let k = order.find(l => ready(l, tileOf)), get = tileOf;
+  if (k == null) { k = order.find(l => ready(l, anyTileOf)); get = anyTileOf; }
+  if (k == null) {
+    // (nothing ready at all: the first look; drawn as far as it goes, a blurrier tile standing in)
+    const span = TILE / want;
+    for (const [tx, ty] of tiles) {
+      const x = b.x + tx * span, y = b.y + ty * span, t = tileOf(seed, known, sig, edge, want, tx, ty);
+      if (t) { ctx.drawImage(t, x, y, span, span); continue; }
+      for (const l of LEVELS.filter(l => l < want)) {
+        const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2), up = tileOf(seed, known, sig, edge, l, px, py);
+        if (!up) continue;
+        const fx = (x - b.x - px * s2) / s2 * TILE, fy = (y - b.y - py * s2) / s2 * TILE, fw = span / s2 * TILE;
+        ctx.drawImage(up, fx, fy, fw, fw, x, y, span, span);
+        break;
+      }
+    }
+    return true;
+  }
+  const span = TILE / k;
+  for (const [tx, ty] of cover(k)) ctx.drawImage(get(seed, known, sig, edge, k, tx, ty), b.x + tx * span, b.y + ty * span, span, span);
+  if (k !== want || get !== tileOf) return true;
+  drawAhead(seed, known, sig, edge, f, k);
+  return false;
 }
 // (how long a frame may spend drawing tiles)
 const TILE_MS = 8;
@@ -691,6 +729,7 @@ function drawAhead(seed, known, sig, edge, f, k) {
 }
 // draws the blurriest tiles of the whole map ahead of time, so the first look from afar is ready
 export function warmTiles(seed, known, sig, edge) {
+  lastWarm = [seed, known, sig, edge];
   const b = mapBounds(), k = LEVELS.at(-1), span = TILE / k;
   for (let ty = 0; ty * span < b.h; ty++) for (let tx = 0; tx * span < b.w; tx++) if (!tileOf(seed, known, sig, edge, k, tx, ty)) makeTile(seed, known, sig, edge, k, tx, ty);
 }

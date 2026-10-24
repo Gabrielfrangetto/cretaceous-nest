@@ -172,7 +172,7 @@ function keepInside(v, canvas) {
 // The map, drawn on the canvas once a frame at most (drawMap asks for it): the hexes in view, one by
 // one close up or the continent's picture from afar; then lairs, the hex picked, the one under the
 // pointer or the keyboard, and where each party is
-let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null, warmed = '';
+let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null, warmed = '', goal = null;
 // (and again when a picture of the ground has come)
 onTexture(() => drawMap());
 function drawMap() {
@@ -256,6 +256,12 @@ function paintMap() {
   if (!mapCanvas || !mapCanvas.isConnected) return;
   const w = S.world, t = now();
   if (!view) view = homeView();
+  // (a zoom gliding: the view a part of the way to where it is going, and on again next frame)
+  if (goal) {
+    const r = goal.w / view.w, gw = Math.abs(Math.log(r)) < 0.003 ? goal.w : view.w * Math.pow(r, 0.3), gh = view.h * gw / view.w;
+    view = { x: goal.cx - goal.fx * gw, y: goal.cy - goal.fy * gh, w: gw, h: gh };
+    if (gw === goal.w) goal = null; else drawMap();
+  }
   view = keepInside(view, mapCanvas);
   const f = lastFit = fit(mapCanvas, view);
   const { ctx, scale } = f;
@@ -417,7 +423,17 @@ function bindMap(box) {
   const canvas = mapCanvas = box.querySelector('#worldMap');
   if (!trainCanvas) requestAnimationFrame(paintTrains);
   trainCanvas = box.querySelector('#worldTrains');
+  // Zooming glides: each step sets where the zoom is going (goal: the width it ends at, and the point
+  // of the map that stays put under the pointer, where on the screen it is), and every frame the view
+  // goes a part of the way there
   const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
+    const from = goal ? goal.w : view.w, w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, from * k));
+    goal = { w, cx, cy, fx: (cx - view.x) / view.w, fy: (cy - view.y) / view.h };
+    drawMap();
+  };
+  // (a pinch follows the fingers at once)
+  const zoomNow = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
+    goal = null;
     const w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, view.w * k)), f = w / view.w;
     view = keepInside({ x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f }, canvas);
     drawMap();
@@ -459,7 +475,7 @@ function bindMap(box) {
     pts.set(e.pointerId, [e.clientX, e.clientY]);
     if (pts.size === 2 && pinch) {
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      if (d > 0) zoom(pinch.w / (view.w * d / pinch.d));
+      if (d > 0) zoomNow(pinch.w / (view.w * d / pinch.d));
       dragged = true;
       return;
     }
@@ -476,6 +492,7 @@ function bindMap(box) {
     }
     const k = 1 / (lastFit ? lastFit.scale : 1);
     const want = { ...view, x: start.view.x - dx * k, y: start.view.y - dy * k };
+    goal = null;
     view = keepInside(want, canvas);
     // (held at an edge: the drag starts over from here, so dragging back moves the map at once)
     if (view.x !== want.x || view.y !== want.y) start = { x: e.clientX, y: e.clientY, view: { ...view } };
@@ -517,7 +534,7 @@ function bindMap(box) {
       if (!inWorld(h)) return;
       focusKey = hexKey(...h);
       const [x, y] = center(h);
-      if (x < view.x || x > view.x + view.w || y < view.y || y > view.y + view.h) view = { ...view, x: x - view.w / 2, y: y - view.h / 2 };
+      if (x < view.x || x > view.x + view.w || y < view.y || y > view.y + view.h) { goal = null; view = { ...view, x: x - view.w / 2, y: y - view.h / 2 }; }
       say();
       drawMap();
     } else if ((e.key === 'Enter' || e.key === ' ') && focusKey) { e.preventDefault(); pick(focusKey); }
@@ -525,7 +542,7 @@ function bindMap(box) {
     else if (e.key === '-') zoom(1.3);
   });
   box.querySelectorAll('[data-zoom]').forEach(b => b.addEventListener('click', () => {
-    if (b.dataset.zoom === 'home') { view = homeView(); drawMap(); }
+    if (b.dataset.zoom === 'home') { goal = null; view = homeView(); drawMap(); }
     else zoom(b.dataset.zoom === 'in' ? 1 / 1.3 : 1.3);
   }));
   // the canvas follows the size it is shown at
@@ -1089,8 +1106,6 @@ export function initWorld() {
     }, 200);
   });
   setInterval(updateBadge, 1000);
-  // (the night moves over the map)
-  // (often enough for the trains to glide along their lines)
   // (the night moving over the map: the trains move on their own canvas)
   setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, 30000);
   updateBadge();
