@@ -5,7 +5,7 @@ import { cellAt } from '../world.js';
 export const SIZE = 30;                 // hex radius in map units
 export const SQ3 = Math.sqrt(3);
 // The map is seen from the south at a slant, as strategy games show theirs: the ground shows shorter
-// north to south than it is (TILT of its depth), while what stands on it (hills, mountains, trees, the
+// north to south than it is (TILT of its depth), while what stands on it (mountains, trees, the
 // nest) stands up as drawn. center: where a hex's middle shows on the map; flatCenter: where it truly
 // lies, for the slope of the ground
 export const TILT = 0.75;
@@ -43,13 +43,13 @@ export const fillOf = c => WATER[c.terrain] || (c.lava ? '#5e463e' : c.terrain =
 const rockGround = new Map();
 const MOUNTAIN_GROUND = biome => rockGround.get(biome) || rockGround.set(biome, mix((BIOMES[biome] || WILDS_BIOMES[biome]).color, '#9a9184', 0.6)).get(biome);
 const mix = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
-// a hex's little drawing; hills, mountains and volcanoes stand up out of it (h: the hex, whose own
+// a hex's little drawing; mountains and volcanoes stand up out of it (h: the hex, whose own
 // shape they get; up: how high it stands, map.js upAt, for how big they are)
 export const glyphOf = (c, h = [0, 0], up) => {
   const r = reliefOf(c, h, up);
   return r ? `<g transform="translate(${f1(r.dx)} ${f1(r.dy)})">${r.svg}</g>` : WATER[c.terrain] ? '' : c.lava ? LAVA : GLYPH[c.biome];
 };
-// ---------- hills, mountains and volcanoes ----------
+// ---------- mountains and volcanoes ----------
 // Drawn standing up out of their hex, lit from the north-west like the ground (mapcanvas.js): the lit
 // face to the left, the shaded one to the right, a shadow cast to the south-east; a mountain reaches up
 // past its hex's top, over the hex behind it (so they are drawn north to south). Each hex gets one of a
@@ -77,23 +77,8 @@ function peak(l, r, px, py, b, snow, rock = ROCK) {
   return out + `<path d="M${f1(l)} ${f1(b)} L${f1(px)} ${f1(py)} L${f1(r)} ${f1(b)}" fill="none" stroke="${rock.line}" stroke-width="1.4"/>`
     + `<path d="M${f1(px)} ${f1(py)} L${f1(px + (r - px) * 0.12)} ${f1(py + ht * 0.6)} L${f1(px + (r - px) * 0.3)} ${f1(b)}" fill="none" stroke="${rock.line}" stroke-width=".9" opacity=".4"/>`;
 }
-// a rounded hill from l to r along the ground at b, its top at height t, in the ground's colour
-function mound(l, r, t, b, color) {
-  const cx = (l + r) / 2, ctl = 2 * t - b, w = r - l, ht = b - t;
-  return `<path d="M${f1(l)} ${f1(b)} Q${f1(cx)} ${f1(ctl)} ${f1(r)} ${f1(b)}Z" fill="${tone(color, -0.08)}"/>`
-    + `<path d="M${f1(l)} ${f1(b)} Q${f1(l + w * 0.28)} ${f1(t - ht * 0.05)} ${f1(cx)} ${f1(t)} Q${f1(cx - w * 0.18)} ${f1(t + ht * 0.45)} ${f1(l + w * 0.3)} ${f1(b)}Z" fill="${tone(color, 0.2)}"/>`
-    + `<path d="M${f1(cx)} ${f1(t)} Q${f1(r - w * 0.18)} ${f1(t + ht * 0.05)} ${f1(r)} ${f1(b)} L${f1(cx + w * 0.15)} ${f1(b)} Q${f1(cx + w * 0.22)} ${f1(t + ht * 0.45)} ${f1(cx)} ${f1(t)}Z" fill="${tone(color, -0.3)}"/>`
-    + `<path d="M${f1(l)} ${f1(b)} Q${f1(cx)} ${f1(ctl)} ${f1(r)} ${f1(b)}" fill="none" stroke="${tone(color, -0.6)}" stroke-width="1.2"/>`;
-}
-// a tree on a wooded hill
-const TREES = {
-  forest: (x, y) => `<path d="M${f1(x - 3.5)} ${f1(y)} L${f1(x)} ${f1(y - 10)} L${f1(x + 3.5)} ${f1(y)}Z" fill="#2f5a2c"/><path d="M${f1(x)} ${f1(y - 10)} L${f1(x + 3.5)} ${f1(y)} L${f1(x + 1)} ${f1(y)}Z" fill="#244a22"/>`,
-  taiga: (x, y) => `<path d="M${f1(x - 3)} ${f1(y)} L${f1(x)} ${f1(y - 11)} L${f1(x + 3)} ${f1(y)}Z" fill="#2c4a38"/><path d="M${f1(x)} ${f1(y - 11)} L${f1(x + 3)} ${f1(y)} L${f1(x + 1)} ${f1(y)}Z" fill="#203a2c"/>`,
-  subtropical: (x, y) => `<path d="M${f1(x)} ${f1(y)} L${f1(x)} ${f1(y - 5)}" stroke="#5a4028" stroke-width="1.5"/><circle cx="${f1(x)}" cy="${f1(y - 8)}" r="4.2" fill="#2c6a3c"/><circle cx="${f1(x + 1.5)}" cy="${f1(y - 7)}" r="2.8" fill="#245a33"/>`,
-};
-const groundOf = c => (BIOMES[c.biome] || WILDS_BIOMES[c.biome] || { color: '#9a9070' }).color;
 // (where in its band a hex's height lies: 0 at the band's foot, 1 at its top; map.js upAt)
-const BANDS = { hill: [0.47, 0.63], mountain: [0.63, 1], volcano: [0.63, 0.9] };
+const BANDS = { mountain: [0.63, 1], volcano: [0.63, 0.9] };
 const within = (c, up) => { const [a, b] = BANDS[c.terrain]; return up === undefined ? 0.5 : Math.max(0, Math.min(1, (up - a) / (b - a))); };
 // Each is one of a few shapes (VARIANTS of each, at a few sizes and snow cover), set a little off its
 // hex's middle (dx, dy): drawn once each and kept as a picture (mapcanvas.js), so a range of hundreds of
@@ -101,17 +86,6 @@ const within = (c, up) => { const [a, b] = BANDS[c.terrain]; return up === undef
 // box: [x0, y0, x1, y1] it fits in, dx, dy }
 const VARIANTS = 16;
 const SHAPES = {
-  // one to three mounds, bigger the higher the hill stands
-  hill(c, v, k) {
-    const g = groundOf(c), tree = TREES[c.biome], at = [v, 7], n = 1 + Math.floor(rand(at, 21) * 2.4);
-    const mounds = Array.from({ length: n }, (_, i) => {
-      const w = (n === 1 ? 40 : n === 2 ? 30 : 24) * k * (0.85 + rand(at, 30 + i) * 0.3), x = n === 1 ? 0 : (i / (n - 1) - 0.5) * (n === 2 ? 22 : 34) * k;
-      const y = 12 - (n === 3 && i === 1 ? 3 : 0) + rand(at, 40 + i) * 2, ht = w * (0.32 + rand(at, 50 + i) * 0.14);
-      return { l: x - w / 2, r: x + w / 2, t: y - ht, b: y };
-    }).sort((a, b) => a.b - b.b);
-    const box = [Math.min(...mounds.map(m => m.l)) - 2, Math.min(...mounds.map(m => m.t)) - (tree ? 12 : 2), Math.max(...mounds.map(m => m.r), 6 + 22 * k) + 2, 19];
-    return { box, svg: SHADOW(6, 13, 22 * k) + mounds.map(m => mound(m.l, m.r, m.t, m.b, g) + (tree && rand(at, 60 + mounds.indexOf(m)) < 0.8 ? tree((m.l + m.r) / 2 + 2, m.t + 3) : '')).join('') };
-  },
   // a cluster of peaks, more and bigger the higher it stands, overlapping the hexes around it so a range
   // reads as one massif; snow where it is cold
   mountain(c, v, k, t, snow) {
@@ -137,11 +111,11 @@ const SHAPES = {
   },
 };
 const reliefs = new Map();
-// a hex's hill, mountain or volcano (h: the hex; up: how high it stands, map.js upAt), or null
+// a hex's mountain or volcano (h: the hex; up: how high it stands, map.js upAt), or null
 export function reliefOf(c, h, up) {
   if (!SHAPES[c.terrain] || WATER[c.terrain] || c.lava) return null;
   const t = within(c, up), size = Math.round(t * 3), v = Math.floor(rand(h, 1) * VARIANTS) % (c.terrain === 'volcano' ? 2 : VARIANTS);
-  const k = c.terrain === 'hill' ? 0.8 + 0.35 * size / 3 : c.terrain === 'mountain' ? 0.68 + 0.45 * size / 3 : 0.85 + 0.35 * size / 3;
+  const k = c.terrain === 'mountain' ? 0.68 + 0.45 * size / 3 : 0.85 + 0.35 * size / 3;
   const snow = c.terrain !== 'mountain' ? 0 : c.heat !== undefined ? Math.round(Math.max(0, Math.min(1, (0.2 + 0.35 * t - c.heat) * 4)) * 2) / 2 : c.biome === 'tundra' || c.biome === 'taiga' ? 1 : 0;
   const key = `${c.terrain}|${c.terrain === 'mountain' ? '' : c.biome}|${v}|${size}|${snow}`;
   let shape = reliefs.get(key);
@@ -150,7 +124,7 @@ export function reliefOf(c, h, up) {
 }
 // cooled lava, cracked, still glowing in the cracks
 const LAVA = '<path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3 M-8 8 L-3 5 L2 8 M3 -6 L7 -3 L12 -5" stroke="#e2643a" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3" stroke="#f6c04a" stroke-width=".6" fill="none"/>';
-const TERRAIN_NAME = { hill: 'hills', mountain: 'mountains', volcano: 'a volcano' };
+const TERRAIN_NAME = { mountain: 'mountains', volcano: 'a volcano' };
 export const placeName = c => c.wilds ? 'The uncharted north' : c.city ? `${c.city}, a settlement of other colonists` : WATER[c.terrain] ? (c.terrain === 'lake' ? 'Lake' : 'Open sea') : `${BIOMES[c.biome].name}${TERRAIN_NAME[c.terrain] ? `, ${TERRAIN_NAME[c.terrain]}` : ''}${c.river ? ', a river' : ''}`;
 export const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><ellipse cx="0" cy="1" rx="9" ry="3" fill="#c49a5c"/><ellipse cx="-3" cy="-2" rx="3" ry="4" fill="#f3ead2"/><ellipse cx="3" cy="-2" rx="3" ry="4" fill="#eadcbf"/>';
 

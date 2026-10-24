@@ -150,7 +150,8 @@ test('a dinosaur brought down is critically injured: herbs do not help, a Blood 
   assert.equal(isCritical(b, back), true);
   assert.equal(injuredLeft(b, back), CRITICAL_MINS * 60000);
   assert.ok(r.injured[0].critical);
-  removeItem(s, 'capsule', 99);   // (room in the bag)
+  // (room in the bag: what the trip gathered set aside)
+  for (const id of ['capsule', 'leaf', 'meat', 'seed', 'fruit', 'insect', 'stone', 'amber']) removeItem(s, id, countItem(s, id));
   addItem(s, 'herb', 3);
   assert.equal(applyAction(s, 'heal', { babyId: 'runt' }, back).reason, 'critical');
   assert.equal(applyAction(s, 'transfuse', { babyId: 'runt' }, back).reason, 'no-transfusion');

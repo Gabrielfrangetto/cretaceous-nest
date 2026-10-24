@@ -417,8 +417,9 @@ export const SURVIVAL = {
 export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // The world: a supercontinent on a rectangle of hexes (cols x rows, pointy-top), north at the top,
 // the nest north rows below the top and west columns from the left. land: the share of it that is
-// land; hills, mountains: the share of the land above those heights; volcanoes: hot spots; rivers:
-// springs high in the wet hills. Near the nest (calm, in hexes) the land is a lowland of ferns.
+// land; uplands, mountains: the share of the land above those heights (the uplands, higher ground,
+// crossed as flat ground, their rise shown by the light); volcanoes: hot spots; rivers:
+// springs high in the wet uplands. Near the nest (calm, in hexes) the land is a lowland of ferns.
 // scale: how broad the land's shapes are (mountain ranges, wet and dry lands). cities: the other colonists'
 // settlements, at least cityFromNest hexes from the nest and citySpacing from each other. floodplain,
 // shore: how wide (in hexes) the flat strips along rivers and along the sea are. lakeMax: the most hexes a
@@ -427,7 +428,7 @@ export const WORLD_RADIUS = 7;               // hexes from the nest to the edge
 // MAP_VERSION: the map a world is played on; a world made for an older one starts over on this one
 export const MAP_VERSION = 8;
 export const MAP = {
-  cols: 300, rows: 200, lat: [55, 20], lonSpan: 49, wilds: 60, north: 55, west: 150, land: 0.58, hills: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
+  cols: 300, rows: 200, lat: [55, 20], lonSpan: 49, wilds: 60, north: 55, west: 150, land: 0.58, uplands: 0.16, mountains: 0.07, volcanoes: 10, rivers: 150, lakeMax: 10, greatLake: 8, calm: 3,
   scale: 1.6, cities: 10, cityFromNest: 30, citySpacing: 40, floodplain: 2, shore: 4,
 };
 // One world for everyone: every player explores the same continent (what each has found is their own)
@@ -484,8 +485,8 @@ export const SCIENCE = {
 };
 // what fits each kind of compartment, by size (the player only in a seat)
 export const COMPARTMENTS = { seat: ['player'], small: ['tiny', 'small'], stall: ['tiny', 'small', 'medium'], pen: ['large', 'huge'], flat: ['colossal'] };
-// Driving: hours of the world a hex takes at the wheel (open land about 45 km/h off any road; woods,
-// hills and floodplains about 25; a river forded), `day` hours at the wheel a day (the rest resting); a
+// Driving: hours of the world a hex takes at the wheel (open land about 45 km/h off any road; woods
+// and floodplains about 25; a river forded), `day` hours at the wheel a day (the rest resting); a
 // hex of rough land uses `rough` hexes of battery. No vehicle crosses swamps, mountains, volcanoes or
 // water.
 export const DRIVE = {
@@ -532,7 +533,7 @@ export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, co
 // of the world (a flat hex about half a day, a day's march about 2.3 flat hexes): about 12.5 real minutes.
 export const CLOCK = { walk: 3.5, day: 8 };
 export const UNIT_HOURS = CLOCK.walk * 24 / CLOCK.day;
-export const TRAVEL = { mins: worldMins(UNIT_HOURS), terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
+export const TRAVEL = { mins: worldMins(UNIT_HOURS), terrain: { flat: 1, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
 // On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
 // and the team meets it instead of what waits at the end.

@@ -4,7 +4,7 @@
 // States would on Earth (MAP.lat, from north to south), and its weather is what that land has.
 //
 // Hexes use axial coordinates (q, r) with the nest at 0,0, pointy-top: rows run west to east, r grows
-// to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat', 'hill',
+// to the south. Every hex is { biome, terrain, river, lat, heat, wet }: terrain 'flat',
 // 'mountain', 'volcano', 'lake' or 'ocean' (the last two water, no one goes there); river: a river runs
 // through it (then flow: how many stretches of river it carries, down: the way it flows on, 0-5 as
 // DIRS, -1 where it ends; from: the way to the lake it flows out of); lava: a lava flow cooled there (on
@@ -107,8 +107,10 @@ function randOf(seed, salt) {
 }
 const quantile = (list, share) => { const s = Float64Array.from(list).sort(); return s[Math.min(s.length - 1, Math.max(0, Math.floor(s.length * share)))]; };
 // terrains by code
-const OCEAN = 0, FLAT = 1, HILL = 2, MOUNTAIN = 3, VOLCANO = 4, LAKE = 5;
-const TERRAINS = ['ocean', 'flat', 'hill', 'mountain', 'volcano', 'lake'];
+const OCEAN = 0, FLAT = 1, UPLAND = 2, MOUNTAIN = 3, VOLCANO = 4, LAKE = 5;
+// (the uplands, the higher ground below the mountains, are flat to cross: their rise shows in the light
+// of the land alone)
+const TERRAINS = ['ocean', 'flat', 'flat', 'mountain', 'volcano', 'lake'];
 const water = t => t === OCEAN || t === LAKE;
 // a breadth-first spread from the given hexes over those pass(i) lets through: each hex's steps from the
 // nearest start (-1: not reached)
@@ -157,13 +159,13 @@ export function worldMap(seed) {
   const sea = quantile(height, 1 - MAP.land);
   // the nest's surroundings: always a calm lowland, low enough to be flat and high enough to be land
   const landHeights = height.filter(v => v > sea);
-  const hill = quantile(landHeights, 1 - MAP.hills - MAP.mountains), mountain = quantile(landHeights, 1 - MAP.mountains);
+  const upland = quantile(landHeights, 1 - MAP.uplands - MAP.mountains), mountain = quantile(landHeights, 1 - MAP.mountains);
   const low = quantile(landHeights, 0.3);
-  const calmLow = h => Math.min(Math.max(h, sea + (low - sea) * 0.4), (sea + low) / 2 + (hill - low) * 0.3);
+  const calmLow = h => Math.min(Math.max(h, sea + (low - sea) * 0.4), (sea + low) / 2 + (upland - low) * 0.3);
   for (let i = 0; i < N; i++) if (D[i] <= MAP.calm + 2) height[i] += (calmLow(height[i]) - height[i]) * (D[i] <= MAP.calm ? 1 : 0.5);
   // land: what is joined to the nest's (islands sink)
   const joined = spread([nest], n => height[n] > sea);
-  for (let i = 0; i < N; i++) terrain[i] = joined[i] < 0 ? OCEAN : height[i] >= mountain ? MOUNTAIN : height[i] >= hill ? HILL : FLAT;
+  for (let i = 0; i < N; i++) terrain[i] = joined[i] < 0 ? OCEAN : height[i] >= mountain ? MOUNTAIN : height[i] >= upland ? UPLAND : FLAT;
   // the sea is what joins the open water at the map's edges; a hollow below it inland is not the sea: a
   // great lake if it is big, low ground otherwise
   const edges = [];
@@ -187,7 +189,7 @@ export function worldMap(seed) {
   // hot spots: groups of volcanoes on the high ground, away from the nest (a lone cone, or a field of a
   // few vents along a range), each vent of its own size
   const high = [];
-  for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && D[i] > MAP.calm + 8) high.push(i);
+  for (let i = 0; i < N; i++) if ((terrain[i] === UPLAND || terrain[i] === MOUNTAIN) && D[i] > MAP.calm + 8) high.push(i);
   const vents = [];
   const hexDistI = (a, b) => dist([HX[a][0] - HX[b][0], HX[a][1] - HX[b][1]]);
   for (let g = 0; g < MAP.volcanoes && high.length; g++) {
@@ -234,7 +236,7 @@ export function worldMap(seed) {
       if (terrain[j] === OCEAN) { fetch = k; break; }
       if (k > CLIMATE.shadow) continue;
       if (terrain[j] === MOUNTAIN || terrain[j] === VOLCANO) shadow = Math.min(shadow, 0.45);
-      else if (terrain[j] === HILL) shadow = Math.min(shadow, 0.8);
+      else if (terrain[j] === UPLAND) shadow = Math.min(shadow, 0.8);
     }
     // rain comes in with the wind from the sea upwind, and some from any sea nearby; on the subtropics'
     // eastern shores the warm sea's air makes it wet (Florida, the Gulf), not dry, and that warm wet air
@@ -257,7 +259,7 @@ export function worldMap(seed) {
   // rivers: from springs high up and wet, down to the sea or a lake, or into another river. down: the
   // way (0-5, as DIRS) each stretch flows on to the next (-1: it ends there)
   const springs = [];
-  for (let i = 0; i < N; i++) if ((terrain[i] === HILL || terrain[i] === MOUNTAIN) && wet[i] > 0.4) springs.push(i);
+  for (let i = 0; i < N; i++) if ((terrain[i] === UPLAND || terrain[i] === MOUNTAIN) && wet[i] > 0.4) springs.push(i);
   const rand2 = randOf(seed, 0x1f83d9ab);
   const seen = new Int32Array(N).fill(-1), down = new Int8Array(N).fill(-1), outlet = new Int8Array(N).fill(-1);
   const wayTo = (c, n) => { for (let k = 0; k < 6; k++) if (NB[c * 6 + k] === n) return k; return -1; };
@@ -277,7 +279,7 @@ export function worldMap(seed) {
       }
       // the lowest ground around is lower than the water, or is water, mountains or the nest's calm: the
       // lake spills there
-      const floodable = best >= 0 && (terrain[best] === FLAT || terrain[best] === HILL) && D[best] > MAP.calm + 1;
+      const floodable = best >= 0 && (terrain[best] === FLAT || terrain[best] === UPLAND) && D[best] > MAP.calm + 1;
       if (best < 0 || height[best] < level || !floodable || lake.length >= MAP.lakeMax) {
         // (a pit of a single hex is no lake: the river finds its way over it)
         if (lake.length < 2) return null;
@@ -388,11 +390,11 @@ export function worldMap(seed) {
   }
   let top = sea;
   for (let i = 0; i < N; i++) if (!water(terrain[i])) top = Math.max(top, height[i]);
-  const up = Float32Array.from({ length: N }, (_, i) => upOf(height[i], terrain[i], sea, hill, mountain, top));
+  const up = Float32Array.from({ length: N }, (_, i) => upOf(height[i], terrain[i], sea, upland, mountain, top));
   const out = { cells, cities: cities.map(c => ({ h: HX[c], key: key(...HX[c]), name: cells[c].city })), up, wilds: null, wildsUp: null };
   // the uncharted north, made only when it is drawn
   let wilds = null;
-  const north = () => wilds || (wilds = wildsOf(seed, { heightAt, sea, hill, mountain, top, terrain }));
+  const north = () => wilds || (wilds = wildsOf(seed, { heightAt, sea, upland, mountain, top, terrain }));
   Object.defineProperty(out, 'wilds', { get: () => north().cells });
   Object.defineProperty(out, 'wildsUp', { get: () => north().up });
   if (cache.size > 4) cache.clear();
@@ -403,13 +405,13 @@ export function worldMap(seed) {
 // edges (or the map's sea) is sea and the rest lakes, and many more lakes on the cold flat ground (the
 // lake country scraped out by old ice); its climate carries on to the north: Boreal Forest, then Tundra
 // where it is coldest, prairie where it is dry. [cell by wildsIndex]
-function wildsOf(seed, { heightAt, sea, hill, mountain, top, terrain: mapTerrain }) {
+function wildsOf(seed, { heightAt, sea, upland, mountain, top, terrain: mapTerrain }) {
   const S = MAP.scale, t = new Uint8Array(NW), up = new Float64Array(NW), hx = WILDS_HEXES;
   const nb = (i, k) => { const [q, r] = hx[i], [dq, dr] = DIRS[k]; return wildsIndex([q + dq, r + dr]); };
   for (let i = 0; i < NW; i++) {
     const v = heightAt(hx[i]);
     up[i] = Math.max(0, (v - sea) / (1 - sea));
-    t[i] = v <= sea ? OCEAN : v >= mountain ? MOUNTAIN : v >= hill ? HILL : FLAT;
+    t[i] = v <= sea ? OCEAN : v >= mountain ? MOUNTAIN : v >= upland ? UPLAND : FLAT;
   }
   // the sea: low ground joined to the edges, or to the map's sea below
   const open = new Uint8Array(NW), queue = [];
@@ -436,11 +438,11 @@ function wildsOf(seed, { heightAt, sea, hill, mountain, top, terrain: mapTerrain
       : heat < CLIMATE.wilds.tundra ? 'tundra' : heat < CLIMATE.wilds.taiga ? 'taiga' : wet < 0.3 ? 'meadow' : 'forest';
     cells[i] = { biome, terrain, river: false, lat: Math.round(a * 10) / 10, wilds: true };
   }
-  return { cells, up: Float32Array.from({ length: NW }, (_, i) => cells[i].biome ? upOf(heightAt(hx[i]), t[i], sea, hill, mountain, top) : 0) };
+  return { cells, up: Float32Array.from({ length: NW }, (_, i) => cells[i].biome ? upOf(heightAt(hx[i]), t[i], sea, upland, mountain, top) : 0) };
 }
 export const wildsAt = (seed, h) => { const i = wildsIndex(h); return i < 0 ? null : worldMap(seed).wilds[i]; };
 // How high a hex stands, for drawing its relief: 0 at the sea, 1 the map's highest peak; water is 0. It is
-// the height the land was made from, kept within its terrain's band (flat ground below the hills, hills
+// the height the land was made from, kept within its terrain's band (flat ground below the uplands, uplands
 // below the mountains), so the relief drawn agrees with the terrain.
 export const upAt = (seed, h) => {
   let i = indexOf(h);
@@ -448,10 +450,10 @@ export const upAt = (seed, h) => {
   i = wildsIndex(h);
   return i < 0 ? 0 : worldMap(seed).wildsUp[i];
 };
-function upOf(v, t, sea, hill, mountain, top) {
+function upOf(v, t, sea, upland, mountain, top) {
   if (t === OCEAN || t === LAKE) return 0;
-  const at = x => Math.max(0, (x - sea) / (top - sea)), u = Math.min(1, at(v)), uh = at(hill), um = at(mountain);
-  return t === FLAT ? Math.min(u, uh) : t === HILL ? Math.min(Math.max(u, uh), um) : Math.max(u, um);
+  const at = x => Math.max(0, (x - sea) / (top - sea)), u = Math.min(1, at(v)), uh = at(upland), um = at(mountain);
+  return t === FLAT ? Math.min(u, uh) : t === UPLAND ? Math.min(Math.max(u, uh), um) : Math.max(u, um);
 }
 export const cellAt = (seed, h) => { const i = indexOf(h); return i < 0 ? null : worldMap(seed).cells[i]; };
 export const isWater = (seed, h) => { const c = cellAt(seed, h); return !c || c.terrain === 'ocean' || c.terrain === 'lake'; };
@@ -564,13 +566,13 @@ export const routeCost = (seed, from, to) => { const i = indexOf(to); return i <
 // never ends its way at one: first one ring through them all (the shortest that never crosses itself),
 // then a few straight links across it where two stations near each other are far apart round it, each
 // cutting its ring in two that share it. Each line is laid as straight as it can go between its two
-// stations over land, around the mountains (never over water, mountains or volcanoes; around hills
-// where it costs little). { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }], rings: [[the
+// stations over land, around the mountains (never over water or volcanoes; through a mountain only
+// where there is no other way). { stations: [keys], lines: [{ a, b, path: [hex keys, a to b] }], rings: [[the
 // station keys round each ring, in order]], at: Map(hex key -> [the hex keys the line runs on to]) }
 const rails = new Map();
 const parse = k => k.split(',').map(Number);
 // (what a step onto each ground costs a line; Infinity: never)
-const RAIL_GROUND = { flat: 1, hill: 1.6, mountain: 30, volcano: Infinity, ocean: Infinity, lake: Infinity };
+const RAIL_GROUND = { flat: 1, mountain: 30, volcano: Infinity, ocean: Infinity, lake: Infinity };
 // the straightest way over easy land from one hex to another: each step costs its ground, and more the
 // farther it strays from the straight line between them. The hexes, from first to last; [] when none
 function railPath(seed, from, to) {
