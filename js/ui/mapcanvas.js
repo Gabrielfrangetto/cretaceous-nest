@@ -399,7 +399,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
-    const relief = detail === 'full' && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
+    // (a hill in a biome with a painted ground shows by its light alone: no drawn mound)
+    const relief = detail === 'full' && key !== '0,0' && !cell.city && !(cell.terrain === 'hill' && hasTexture(groundName(cell))) && reliefOf(cell, h, upAt(seed, h));
     if (relief) { drawRelief(ctx, relief, x, y, alpha); continue; }
     // (ground with a picture of its own needs no little drawing)
     const art = key === '0,0' ? NEST : cell.city ? CITY : detail === 'full' && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
