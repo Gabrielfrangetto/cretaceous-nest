@@ -8,7 +8,6 @@ import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS, sharpen, sideOf, face } from '../art.js';
 import { esc, plural, ageLabel } from '../util.js';
 import { now } from '../clock.js';
-import { worldTime } from '../sun.js';
 import { scarLevels, woundsOf } from '../journey.js';
 import { CREATURES } from '../config.js';
 
@@ -132,7 +131,7 @@ function render() {
     </details>
     <dl class="info-facts">
       <div><dt>Parents</dt><dd>${esc(parentsText(b))}</dd></div>
-      <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(worldTime(b.at)))}</dd></div>
+      <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
       ${scarsHTML(b)}
       <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>

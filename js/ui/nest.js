@@ -8,7 +8,7 @@ import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
 import { dressedArt, sleepArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
 import { plural, fmt, ageLabel } from '../util.js';
-import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime } from '../sun.js';
+import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime, WORLD_DAY } from '../sun.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
 import { currentTab, onTabChange } from './tabs.js';
@@ -213,7 +213,6 @@ function bills() {
 const NEST_PLACE = placeOf([0, 0]);
 const clockFmt = { format: t => nestClock.format(new Date(worldTime(t))) };
 const nestClock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-const DAY_MS = 86400000;
 // the moon's lit side: right while it waxes, left as it wanes (seen from the north)
 function moonPath(p) {
   const k = Math.cos(2 * Math.PI * p), rx = (Math.abs(k) * 10).toFixed(2), waxing = p < 0.5;
@@ -236,7 +235,7 @@ function updateSky() {
   st.setProperty('--moon-x', across(((hours - lag) % 24 + 24) % 24)); st.setProperty('--moon-y', height(moonAlt));
   st.setProperty('--moon-o', moonAlt > -4 && p > 0.03 && p < 0.97 ? (0.35 + 0.65 * sky.dark).toFixed(2) : '0');
   scene.querySelector('.moon path').setAttribute('d', moonPath(p));
-  const t = sunTimes(d, NEST_PLACE), tomorrow = sunTimes(d + DAY_MS, NEST_PLACE);
+  const t = sunTimes(d, NEST_PLACE), tomorrow = sunTimes(d + WORLD_DAY, NEST_PLACE);
   const label = clockFmt.format(d) + ' · ' + (!t ? (sky.phase === 'night' ? 'Polar night' : 'Midnight sun')
     : sky.phase === 'day' ? `Day · sunset ${clockFmt.format(t.set)}`
     : sky.phase === 'dusk' ? (d < t.set ? `Dusk · sunset ${clockFmt.format(t.set)}` : 'Dusk')
@@ -320,7 +319,8 @@ const sceneVisible = () => currentTab() === 'nest' && !document.hidden;
 
 export function initNest() {
   updateSky();
-  setInterval(updateSky, 30000);
+  // (the world's day passes in 15 real minutes: the sky moves on every couple of seconds)
+  setInterval(updateSky, 2000);
   renderBabies();
   // the cards and walkers are rebuilt only while the tab is open; the hungry badge updates everywhere
   subscribe(() => currentTab() === 'nest' ? renderBabies() : checkHunger());

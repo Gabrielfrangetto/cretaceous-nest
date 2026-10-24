@@ -1,5 +1,9 @@
 # Transport: the maglev on a timetable, suborbital rockets, and stables in every city
 
+> Times since Oct 2026 are on the world's clock (docs/TIME.md): the maglev at about 300 km/h, a train
+> each way about every 4 hours of the world, rockets half an hour to an hour. Real minutes below are
+> from before it.
+
 Plan for replacing today's instant maglev (any time, from anywhere, no wait) with two scheduled,
 visible ways to travel between the nest and the cities, and letting dinosaurs travel and stay in a
 city without the player. Decided with the owner, Oct 2026. Built: `MAGLEV`, `ROCKET`, `LONG_NECK` in `config.js`; `trainTrip`,

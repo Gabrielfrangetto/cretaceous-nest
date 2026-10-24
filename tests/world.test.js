@@ -506,24 +506,14 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   }
 });
 
-test('the player gets hungry too, and eats from the inventory before setting out', async () => {
-  const { PLAYER_ID: ME, PLAYER_HUNGER_MIN } = await import('../js/config.js');
-  const { addItem: give, removeItem } = await import('../js/economy.js');
+test('at home the player never goes hungry: never kept from setting out, nothing to eat', async () => {
+  const { PLAYER_ID: ME, PLAYER_DIET } = await import('../js/config.js');
   const s = game();
-  for (const food of ['meat', 'fish', 'raw_egg', 'ration']) removeItem(s, food, countItem(s, food));
-  // never having eaten, not hungry
-  assert.equal(exploreProblem(s, ME, '1,0', T0), null);
   s.player.lastFed = T0;
-  const later = T0 + PLAYER_HUNGER_MIN * 60000;
-  assert.equal(exploreProblem(s, ME, '1,0', later), 'starved');
-  assert.equal(applyAction(s, 'feed', { id: ME }, later).reason, 'no-food');
-  give(s, 'meat', 1);
-  const meal = applyAction(s, 'feed', { id: ME }, later);
-  assert.equal(meal.ok, true);
-  assert.equal(meal.food, 'meat');
-  assert.equal(countItem(s, 'meat'), 0);
-  assert.equal(exploreProblem(s, ME, '1,0', later), null);
-  assert.equal(applyAction(s, 'feed', { id: ME }, later).reason, 'full');
+  const much = T0 + 30 * 24 * 3600000;
+  assert.equal(exploreProblem(s, ME, '1,0', much), null);
+  assert.equal(applyAction(s, 'feed', { id: ME }, much).reason, 'full');
+  assert.ok(PLAYER_DIET.length);
 });
 
 test('the maglev: stations at the nest and every city, a ride for a fare, safe, fed and watered aboard', async () => {

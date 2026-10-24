@@ -1,3 +1,5 @@
+import { WORLD } from './config.js';
+
 export function fmt(ms) {
   const t = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
@@ -6,6 +8,19 @@ export function fmt(ms) {
 }
 
 export const minsLabel = m => m >= 60 ? Math.round(m / 60) + ' h' : m + ' min';
+
+// How long something takes in the world (config.js WORLD), from the real time it takes: "40 min",
+// "5 h 20 min", "14 h", "2 days 6 h", "12 days". worldSpanMins: from real minutes
+export function worldSpan(ms) {
+  const mins = Math.max(0, Math.round(ms * WORLD.speed / 60000));
+  if (mins < 60) return `${Math.max(1, mins)} min`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h < 10) return m ? `${h} h ${m} min` : `${h} h`;
+  if (h < 24) return `${h} h`;
+  const d = Math.floor(h / 24), rest = h % 24;
+  return d < 10 && rest ? `${d} ${d === 1 ? 'day' : 'days'} ${rest} h` : `${Math.round(h / 24)} days`;
+}
+export const worldSpanMins = mins => worldSpan(mins * 60000);
 
 export const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 

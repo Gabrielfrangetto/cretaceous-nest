@@ -15,7 +15,7 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, worldMins, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet, stageOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
@@ -283,7 +283,7 @@ export function rocketTrip(s, members, from, to, now = 0) {
   const kg = partyKg(s, members);
   if (kg > ROCKET.load) return { reason: 'too-heavy', kg };
   const d = hexDist([parseKey(to)[0] - parseKey(from)[0], parseKey(to)[1] - parseKey(from)[1]]);
-  const mins = Math.round(ROCKET.mins[0] + (ROCKET.mins[1] - ROCKET.mins[0]) * Math.min(1, d / ROCKET.far));
+  const mins = ROCKET.mins[0] + (ROCKET.mins[1] - ROCKET.mins[0]) * Math.min(1, d / ROCKET.far);
   return { fare: Math.round(ROCKET.base + ROCKET.perTonne * kg / 1000), mins, departAt: nextDeparture(now, ROCKET.every), kg };
 }
 // the party boards at its station (the fare paid): the maglev (by its lines) or a rocket (straight there)
@@ -911,7 +911,7 @@ export function hazardsOf(seed, n, path) {
     for (const z of HAZARDS[cell.biome] || []) {
       if ((z.river && !cell.river) || (z.cold != null && !(cell.heat < z.cold))) continue;
       if (rand() >= z.chance * (z.lava && cell.lava ? z.lava : 1)) continue;
-      out.push({ idx, kind: z.kind, mins: z.delay ? z.delay[0] + Math.floor(rand() * (z.delay[1] - z.delay[0] + 1)) : 0, wound: z.wound || null });
+      out.push({ idx, kind: z.kind, mins: z.delay ? worldMins(z.delay[0] + Math.floor(rand() * (z.delay[1] - z.delay[0] + 1))) : 0, wound: z.wound || null });
       break;
     }
   }

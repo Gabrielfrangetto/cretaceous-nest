@@ -1,4 +1,12 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
+// The world's clock (docs/TIME.md): everything in the world (day and night, the seasons, journeys, the
+// maglev and the rockets, camping) runs WORLD.speed times as fast as the real clock, one clock for every
+// player: a day of the world lasts 15 real minutes, a year about 3.8 real days. Only a dinosaur's life
+// keeps the real clock (its age, its growth and its growth capsules, eggs hatching, breeding) and so
+// do wounds healing. Durations of the world are set here in its hours, worldMins turning them into the
+// real minutes the game keeps time in.
+export const WORLD = { speed: 96 };
+export const worldMins = hours => hours * 60 / WORLD.speed;
 
 // Every species, grouped by rarity. One row each:
 //   species name, build (body shape for equipment art), rarity, diet (foods it eats, favourite first),
@@ -379,8 +387,8 @@ export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin',
 export const FOOD = { plant: 0.15, animal: 0.08, meal: 0.25, edible: 0.5, haul: 0.15, playerHaul: 20 };
 // what each species eats, favourite first; a meal uses the first of these in the inventory
 export const DIET = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.diet]));
-// the player gets hungry every this many minutes, as in life (four meals a day, each a quarter of a
-// day's food: FOOD.meal), and eats the first of these in the inventory
+// the player's meals (a quarter of a day's food each: FOOD.meal) come from the first of these in the
+// inventory; at home the player never goes hungry (only on a journey: SURVIVAL)
 export const PLAYER_HUNGER_MIN = 6 * 60;
 export const PLAYER_DIET = ['ration', 'fish', 'meat', 'fruit', 'seed', 'raw_egg'];
 // Hunger and thirst on a journey (at home the nest's trough, built by the colonists, waters everyone).
@@ -440,24 +448,20 @@ export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater'
 // safe (on elevated, fenced lines) and feeds and waters everyone aboard; the fare is base coins plus perHex a hex for every place taken
 // (seats: a person one, a dinosaur by its size).
 export const TRAIN = { fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
-// The maglev on a timetable (docs/TRANSPORT.md). The game's clock runs fast (a flat hex walked in half a
-// real minute is half a day of the world), so the maglev is set by how it feels against walking. Worked
-// out from the clock alone: nothing is stored.
-// The maglev's line is one ring through every station (map.js railsOf); its trains run round it both
-// ways, keeping their way: each way, one passes each station about every `every` minutes, standing
-// `stand` minutes there (never two going the same way standing at a station at once), at `minsPerHex`
-// (6 s a hex, about five times quicker than on foot).
-// Trains keep to it only roughly: each comes in up to `late` minutes early or late, and stands a little
-// more or less, so the wait between trains is about 5 min, never quite the same.
-// Its doors close `board` seconds before it leaves: who has boarded by then rides it, the same train
-// for every player; after that, only the next.
-export const MAGLEV = { every: 10, stand: 1, minsPerHex: 0.1, late: 0.6, board: 10 };
-// Suborbital rockets between any two stations: a launch from each every `every` minutes, the flight
-// `mins` from the nearest to the farthest (by hexes, up to `far`); the fare by the party's weight
-// (`base` + `perTonne`), up to `load` kg a flight. Babies, colossal and long-necked dinosaurs can't fly
-// (3-5 g up and down, a few minutes weightless); those who fly need `rest` minutes on landing before
-// they can set out again.
-export const ROCKET = { every: 5, mins: [1, 3], far: 100, base: 20, perTonne: 15, load: 20000, rest: 10 };
+// The maglev on a timetable (docs/TRANSPORT.md), worked out from the clock alone: nothing is stored.
+// The lines make rings through every station (map.js railsOf); trains run round them both ways, keeping
+// their way: each way, one passes each station about every `every` minutes (4 hours of the world),
+// standing `stand` minutes there (5 of the world), at `minsPerHex` (about 300 km/h: a 14 km hex in under
+// 3 minutes of the world). Trains keep to it only roughly: each comes in up to `late` minutes early or
+// late (10 of the world), and stands a little more or less. Its doors close `board` real seconds before
+// it leaves: who has boarded by then rides it, the same train for every player; after that, only the next.
+export const MAGLEV = { every: worldMins(4), stand: worldMins(5 / 60), minsPerHex: worldMins(14 / 300), late: worldMins(10 / 60), board: 10 };
+// Suborbital rockets between any two stations: a launch from each every `every` minutes (an hour of the
+// world), the flight `mins` from the nearest to the farthest (by hexes, up to `far`; half an hour to an
+// hour of the world); the fare by the party's weight (`base` + `perTonne`), up to `load` kg a flight.
+// Babies, colossal and long-necked dinosaurs can't fly (3-5 g up and down, a few minutes weightless);
+// those who fly need `rest` minutes on landing (6 hours of the world) before they can set out again.
+export const ROCKET = { every: worldMins(1), mins: [worldMins(0.5), worldMins(1)], far: 100, base: 20, perTonne: 15, load: 20000, rest: worldMins(6) };
 export const LONG_NECK = ['argent'];
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
@@ -492,14 +496,14 @@ export const PACK_MIN = 2;
 export const PACK_BONUS = 0.05;              // +5% damage for each other member striking with it, +5% dodge for each other one standing
 // how many can get at a foe at once, by its size: the rest wait their turn (and step in when one falls)
 export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, colossal: 10 };
-// Travel: a trip takes mins per unit of the easiest way there (there and back). Each hex costs its
-// terrain's or its biome's, whichever is more, plus river to cross one; open water can't be crossed.
-// The world's clock: a unit of a way's cost is walk hours on foot (a flat hex, about 14 km, at about
-// 4 km/h); a team walks day hours a day and spends the rest eating, drinking and sleeping, so a unit
-// is UNIT_HOURS of the world (a flat hex about half a day, a day's march about 2.3 flat hexes).
+// Travel: a trip takes mins (real minutes) per unit of the easiest way there (there and back). Each hex
+// costs its terrain's or its biome's, whichever is more, plus river to cross one; open water can't be
+// crossed. A unit of a way's cost is walk hours on foot (a flat hex, about 14 km, at about 4 km/h); a
+// team walks day hours a day and spends the rest eating, drinking and sleeping, so a unit is UNIT_HOURS
+// of the world (a flat hex about half a day, a day's march about 2.3 flat hexes): about 6.5 real minutes.
 export const CLOCK = { walk: 3.5, day: 8 };
 export const UNIT_HOURS = CLOCK.walk * 24 / CLOCK.day;
-export const TRAVEL = { mins: 1, terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
+export const TRAVEL = { mins: worldMins(UNIT_HOURS), terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
 // On the way: each hex crossed (past the nest's calm), a predator living there that would come for the
 // team may notice it, share times as likely as meeting it there (a lair's: lair); one at most a trip,
 // and the team meets it instead of what waits at the end.
@@ -806,16 +810,18 @@ export const AMBUSH = { spot: 0.5, lead: 1.25 };
 // the team, 'heavy' a large one or bigger (a leg wrenched in a bog), 'cold' a small dinosaur (small
 // bodies lose their warmth fastest); river: only where a river runs; cold: only where the land is
 // colder than this (the north's winters); lava: this many times as likely on a lava flow.
+// (delay: the hours of the world it costs, from the first to the second)
 export const HAZARDS = {
-  desert: [{ kind: 'sandstorm', chance: 0.03, delay: [15, 40] }, { kind: 'heat', chance: 0.03, wound: 'any' }],
+  desert: [{ kind: 'sandstorm', chance: 0.03, delay: [6, 16] }, { kind: 'heat', chance: 0.03, wound: 'any' }],
   volcano: [{ kind: 'fumes', chance: 0.05, wound: 'any', lava: 2 }],
-  floodplain: [{ kind: 'flood', chance: 0.15, delay: [10, 30], river: true }],
-  swamp: [{ kind: 'bog', chance: 0.03, delay: [10, 25], wound: 'heavy' }],
+  floodplain: [{ kind: 'flood', chance: 0.15, delay: [4, 12], river: true }],
+  swamp: [{ kind: 'bog', chance: 0.03, delay: [4, 10], wound: 'heavy' }],
   forest: [{ kind: 'cold', chance: 0.025, wound: 'cold', cold: 0.35 }],
-  subtropical: [{ kind: 'lost', chance: 0.04, delay: [15, 35] }],
+  subtropical: [{ kind: 'lost', chance: 0.04, delay: [6, 14] }],
 };
 export const HAZARD_MAX = 2;
-// Making camp: a team waiting out in the wild settles down for mins minutes to look for water and food
+// Making camp: a team waiting out in the wild settles down for the night, mins minutes (8 hours of the
+// world), to look for water and food
 // and to rest. Fresh water at the hex or beside it is found for sure; otherwise water of the time by the
 // land (a spring, rain caught in hollows, a soak dug in a dry bed). Plant eaters graze their fill on green
 // land; meat eaters catch small game hunt × the land's density of the time; the player forages (roots,
@@ -823,7 +829,7 @@ export const HAZARD_MAX = 2;
 // their feet gets back rest of their health. Without water found, the camp costs thirst (and hunger)
 // as much as this many units of travel.
 export const CAMP = {
-  mins: 30, rest: 0.15, cost: 1, hunt: 1.4,
+  mins: worldMins(8), rest: 0.15, cost: 1, hunt: 1.4,
   water: { meadow: 0.6, forest: 0.7, subtropical: 0.85, swamp: 1, floodplain: 1, coast: 0.5, scrub: 0.35, desert: 0.1, volcano: 0.15 },
   forage: { meadow: 0.6, forest: 0.6, subtropical: 0.7, swamp: 0.5, floodplain: 0.7, coast: 0.6, scrub: 0.4, desert: 0.15, volcano: 0.1 },
 };

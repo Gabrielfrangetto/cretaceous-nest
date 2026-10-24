@@ -42,7 +42,7 @@ test('departures every so many minutes, the same for everyone; rings through eve
   // all through a round: each train keeps its way, and at no station do two leaving onto the same line stand at once
   let before = trains;
   const round = Math.max(...tt.map(r => r.round));
-  for (let sec = 5; sec < round * 60; sec += 5) {
+  for (let sec = 1; sec < round * 60; sec += 1) {
     const now = trainsAt(s, T0 + sec * 1000);
     const standing = now.filter(t => t.standing).map(t => t.at + '>' + t.to);
     assert.equal(new Set(standing).size, standing.length, `two trains standing at once, ${sec} s in`);
@@ -54,7 +54,7 @@ test('departures every so many minutes, the same for everyone; rings through eve
   }
   // trains come into every station at even times: a train every half beat (5 min), a quarter beat where rings meet
   const came = new Map(), was = new Map();
-  for (let sec = 0; sec < 2 * round * 60; sec += 5) for (const t of trainsAt(s, T0 + sec * 1000)) {
+  for (let sec = 0; sec < 2 * round * 60; sec += 1) for (const t of trainsAt(s, T0 + sec * 1000)) {
     if (t.standing && !was.get(t.id)) { if (!came.has(t.at)) came.set(t.at, []); came.get(t.at).push(sec); }
     was.set(t.id, t.standing);
   }
@@ -62,7 +62,7 @@ test('departures every so many minutes, the same for everyone; rings through eve
     const gaps = new Set(secs.slice(1).map((x, i) => x - secs[i])), meets = rings.filter(r => r.includes(k)).length;
     // (about that: each train early or late by up to MAGLEV.late)
     const want = MAGLEV.every * 60 / 2 / meets;
-    for (const g of gaps) assert.ok(Math.abs(g - want) <= 2 * MAGLEV.late * 60 + 5, `uneven at ${k}: ${g} s`);
+    for (const g of gaps) assert.ok(Math.abs(g - want) <= 2 * MAGLEV.late * 60 + 2, `uneven at ${k}: ${g} s`);
     assert.ok(gaps.size > 1, `too regular at ${k}`);
   }
   // (the same at the same time; on later)

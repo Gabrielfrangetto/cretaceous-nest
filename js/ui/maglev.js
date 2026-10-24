@@ -12,7 +12,7 @@ import { sexOf, wornGear, stageOf } from '../economy.js';
 import { dressedArt, playerArt } from '../art.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { esc, fmt } from '../util.js';
+import { esc, worldSpan } from '../util.js';
 
 // the cars after the engine, each with its compartments, and what fits each kind of compartment
 const CARS = [
@@ -28,7 +28,7 @@ const KIND_NAME = { seat: 'a seat', stall: 'a stall', pen: 'a pen', flat: 'the f
 const nameOf = k => (k === '0,0' ? 'Your nest' : cityAt(S.world.seed, parseKey(k)) || '?');
 const sizeOf = id => (id === PLAYER_ID ? 'player' : bodyOf(S, id).size || 'medium');
 const fits = (kind, id) => FITS[kind].includes(sizeOf(id)) || (kind === 'seat' && id === PLAYER_ID);
-const leavesIn = (at, t) => (at - t <= MAGLEV.board * 1000 ? 'doors closed' : at - t < 60000 ? `doors close in ${Math.ceil((at - t) / 1000 - MAGLEV.board)} s` : `leaves in ${fmt(at - t)}`);
+const leavesIn = (at, t) => (at - t <= MAGLEV.board * 1000 ? 'doors closed' : at - t < 60000 ? `doors close in ${worldSpan(at - t - MAGLEV.board * 1000)}` : `leaves in ${worldSpan(at - t)}`);
 
 let state = null, timer = null;
 
@@ -85,7 +85,7 @@ function render() {
       <p class="hint">Pick the station to get off at. A train stands here until it leaves; its doors close ${MAGLEV.board} s before.</p>
       ${trains.map((tr, i) => `<div class="maglev-train">
         <div class="maglev-head"><strong>${tr.way === 'cw' ? 'Clockwise' : 'Anticlockwise'}</strong> <span class="hint departs" data-at="${tr.departAt}">${leavesIn(tr.departAt, t)}</span></div>
-        <ol class="maglev-stops">${tr.stops.map(st => `<li><button class="ghost" type="button" data-train="${i}" data-to="${esc(st.at)}">${esc(nameOf(st.at))} <span class="hint">${Math.max(1, Math.round((st.arriveAt - tr.departAt) / 60000))} min</span></button></li>`).join('')}</ol>
+        <ol class="maglev-stops">${tr.stops.map(st => `<li><button class="ghost" type="button" data-train="${i}" data-to="${esc(st.at)}">${esc(nameOf(st.at))} <span class="hint">${worldSpan(st.arriveAt - tr.departAt)}</span></button></li>`).join('')}</ol>
       </div>`).join('') || '<p class="hint">No train calls here.</p>'}
     </section>
     <section class="maglev-pane">${step2 ? boardHTML(t) : ''}</section>
@@ -114,7 +114,7 @@ function boardHTML(t) {
   const all = state.party ? who.every(c => placed.has(c.id)) : going.length > 0;
   const tooMany = going.length > TEAM_SLOTS;
   return `<h3>${esc(nameOf(state.from))} → ${esc(nameOf(state.to))}</h3>
-    <p class="hint"><span class="departs" data-at="${state.train.departAt}">${leavesIn(state.train.departAt, t)}</span>${trip && !trip.reason ? ` · there in ${trip.mins} min · ${trip.fare} coins` : ''}</p>
+    <p class="hint"><span class="departs" data-at="${state.train.departAt}">${leavesIn(state.train.departAt, t)}</span>${trip && !trip.reason ? ` · there in ${worldSpan(trip.arriveAt - trip.departAt)} · ${trip.fare} coins` : ''}</p>
     <div class="maglev-cars"><div class="maglev-engine" aria-hidden="true"></div>${cars}</div>
     <p class="hint">${state.party ? 'Everyone in this team boards: drag each into a place that fits.' : 'Drag who goes into a place that fits: a seat for you, a stall for small and middling dinosaurs, a pen for large ones, the flatcar for the colossal.'}</p>
     <div class="maglev-tray">${tray.map(c => token(c.id, c.why)).join('') || '<p class="hint">Everyone is aboard.</p>'}</div>

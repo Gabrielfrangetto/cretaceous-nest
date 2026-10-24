@@ -339,12 +339,13 @@ export function hatchEgg(s, now, rand = Math.random) {
 // babies from before sexes existed get a stable one from their id
 export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id) % 2 ? 'm' : 'f');
 
-// At home the keepers feed the dinosaurs; only the player gets hungry there, every PLAYER_HUNGER_MIN.
+// At home the keepers feed the dinosaurs and the player: no one goes hungry there (on a journey,
+// SURVIVAL); a growing one takes its growth capsule every CAPSULE.every hours (the real clock).
 // A young dinosaur instead needs a growth capsule as each one wears off (CAPSULE.every hours of its
 // stage), the first as soon as it hatches; an adult needs none.
 export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : (CAPSULE.every[stageOf(b).id] || 0) * 3600000;
 // (a player who has never eaten yet isn't hungry)
-export const isHungry = (b, now) => b.id === PLAYER_ID ? b.lastFed != null && now - b.lastFed >= hungerEvery(b) : needsCapsule(b, now);
+export const isHungry = (b, now) => b.id !== PLAYER_ID && needsCapsule(b, now);
 export const needsCapsule = (b, now) => !!b && b.id !== PLAYER_ID && !isAdult(b) && (b.lastFed == null || now - b.lastFed >= hungerEvery(b));
 
 // A day's food (kg) for one (a dinosaur at its stage, or the player) of this food: FOOD
