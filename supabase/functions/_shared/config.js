@@ -1,12 +1,11 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
 // The world's clock (docs/TIME.md): everything in the world (day and night, the seasons, journeys, the
 // maglev and the rockets, camping) runs WORLD.speed times as fast as the real clock, one clock for every
-// player: a real hour is a day of the world, a real minute 24 of its minutes, a year of it about 15 real
-// days. Only a dinosaur's life
+// player: a day of the world lasts about 29 real minutes, a year of it about 7 real days. Only a dinosaur's life
 // keeps the real clock (its age, its growth and its growth capsules, eggs hatching, breeding) and so
 // do wounds healing. Durations of the world are set here in its hours, worldMins turning them into the
 // real minutes the game keeps time in.
-export const WORLD = { speed: 24 };
+export const WORLD = { speed: 50 };
 export const worldMins = hours => hours * 60 / WORLD.speed;
 
 // Every species, grouped by rarity. One row each:
@@ -500,7 +499,7 @@ export const REACH_SLOTS = { tiny: 2, small: 3, medium: 4, large: 6, huge: 8, co
 // costs its terrain's or its biome's, whichever is more, plus river to cross one; open water can't be
 // crossed. A unit of a way's cost is walk hours on foot (a flat hex, about 14 km, at about 4 km/h); a
 // team walks day hours a day and spends the rest eating, drinking and sleeping, so a unit is UNIT_HOURS
-// of the world (a flat hex about half a day, a day's march about 2.3 flat hexes): about 26 real minutes.
+// of the world (a flat hex about half a day, a day's march about 2.3 flat hexes): about 12.5 real minutes.
 export const CLOCK = { walk: 3.5, day: 8 };
 export const UNIT_HOURS = CLOCK.walk * 24 / CLOCK.day;
 export const TRAVEL = { mins: worldMins(UNIT_HOURS), terrain: { flat: 1, hill: 1.5, mountain: 3, volcano: 3 }, biome: { meadow: 1, scrub: 1, desert: 1.5, floodplain: 1.5, coast: 1, forest: 1.5, subtropical: 1.5, swamp: 2, volcano: 1.5 }, river: 1 };
