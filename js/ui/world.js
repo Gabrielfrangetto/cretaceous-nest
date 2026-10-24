@@ -130,7 +130,7 @@ let view = null;
 const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds().w;
 // the map as drawn: a canvas, the zoom buttons, the legend; a line read out for the hex the keyboard is on
 function mapHTML() {
-  return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas>
+  return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas><canvas class="world-trains" id="worldTrains" aria-hidden="true"></canvas>
     <p class="sr-only" id="mapFocus" aria-live="polite"></p>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
     <details class="legend-fold"><summary>Map legend</summary><p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · hills and mountains slow a trip, a river takes crossing, water can't be crossed</p></details>`;
@@ -208,6 +208,42 @@ function shadeNight(ctx, f, x1, y1, t) {
   ctx.restore();
 }
 
+// The maglev's trains, on a canvas of their own over the map, drawn every frame where the timetable
+// puts them that moment, so they glide (the map under them is drawn only when it changes); once the
+// map is close enough to see them
+let trainCanvas = null;
+function paintTrains() {
+  requestAnimationFrame(paintTrains);
+  const c = trainCanvas, f = lastFit;
+  if (!c || !c.isConnected || !f || document.hidden || currentTab() !== 'world') return;
+  const w = Math.round(f.width * f.dpr), h = Math.round(f.height * f.dpr);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const ctx = c.getContext('2d'), scale = f.scale, px = n => n / scale;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  if (SIZE * scale < 3) return;
+  ctx.setTransform(f.dpr * scale, 0, 0, f.dpr * scale, -f.x0 * f.dpr * scale, -f.y0 * f.dpr * scale);
+  const seed = S.world.seed, x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale, r = Math.max(SIZE * 0.22, px(3));
+  ctx.fillStyle = '#e8edf2';
+  ctx.strokeStyle = '#2b3138';
+  ctx.lineWidth = Math.max(1, px(1));
+  for (const tr of trainsAt(S, now())) {
+    // (along the line's smooth curve; under a mountain, in its tunnel, unseen)
+    if (inTunnel(seed, tr.path[tr.i]) && inTunnel(seed, tr.path[tr.i + 1])) continue;
+    const pts = railCurve(tr.path), [ax, ay] = pts[tr.i], [bx, by] = pts[tr.i + 1];
+    const x = ax + (bx - ax) * tr.f, y = ay + (by - ay) * tr.f;
+    if (x < f.x0 - r * 4 || x > x1 + r * 4 || y < f.y0 - r * 4 || y > y1 + r * 4) continue;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(by - ay, bx - ax));
+    ctx.beginPath();
+    ctx.roundRect(-r * 1.8, -r * 0.55, r * 3.6, r * 1.1, r * 0.55);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 function paintMap() {
   if (!mapCanvas || !mapCanvas.isConnected) return;
   const w = S.world, t = now();
@@ -237,29 +273,6 @@ function paintMap() {
   for (const h of inView) {
     const key = hexKey(...h);
     if (known(key) && isLair(w.seed, h)) { const [x, y] = center(h); paint(ctx, LAIR, x, y); }
-  }
-  // the maglev's trains, where the timetable puts them now, once the map is close enough to see them
-  if (SIZE * scale >= 3) {
-    ctx.save();
-    const r = Math.max(SIZE * 0.22, px(3));
-    for (const tr of trainsAt(S, t)) {
-      // (along the line's smooth curve; under a mountain, in its tunnel, unseen)
-      if (inTunnel(w.seed, tr.path[tr.i]) && inTunnel(w.seed, tr.path[tr.i + 1])) continue;
-      const pts = railCurve(tr.path), [ax, ay] = pts[tr.i], [bx, by] = pts[tr.i + 1];
-      const x = ax + (bx - ax) * tr.f, y = ay + (by - ay) * tr.f, a = Math.atan2(by - ay, bx - ax);
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(a);
-      ctx.fillStyle = '#e8edf2';
-      ctx.strokeStyle = '#2b3138';
-      ctx.lineWidth = Math.max(1, px(1));
-      ctx.beginPath();
-      ctx.roundRect(-r * 1.8, -r * 0.55, r * 3.6, r * 1.1, r * 0.55);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    }
-    ctx.restore();
   }
   // the cities' names, and the nest's
   ctx.save();
@@ -394,6 +407,8 @@ function paintMap() {
 let dragged = false, grab = null;
 function bindMap(box) {
   const canvas = mapCanvas = box.querySelector('#worldMap');
+  if (!trainCanvas) requestAnimationFrame(paintTrains);
+  trainCanvas = box.querySelector('#worldTrains');
   const zoom = (k, cx = view.x + view.w / 2, cy = view.y + view.h / 2) => {
     const w = Math.min(VIEW_MAX, Math.max(VIEW_MIN, view.w * k)), f = w / view.w;
     view = keepInside({ x: cx - (cx - view.x) * f, y: cy - (cy - view.y) * f, w, h: view.h * f }, canvas);
