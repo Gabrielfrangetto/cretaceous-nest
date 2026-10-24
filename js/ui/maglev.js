@@ -6,10 +6,9 @@
 // closes by itself once the doors of the train it shows have closed.
 import { PLAYER_ID, MAGLEV, TEAM_SLOTS } from '../config.js';
 import { S } from '../state.js';
-import { trainsFrom, rideTrip, woundsOf } from '../journey.js';
-import { isAway, exploreProblem, cityAt, bodyOf, parseKey } from '../world.js';
-import { sexOf, wornGear, stageOf } from '../economy.js';
-import { dressedArt, playerArt } from '../art.js';
+import { trainsFrom, rideTrip } from '../journey.js';
+import { isAway, exploreProblem, cityAt, parseKey } from '../world.js';
+import { boardHTML as carsHTML, bindBoard as bindCars, aboard, labelOf } from './board.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { esc, worldSpan } from '../util.js';
@@ -22,12 +21,8 @@ const CARS = [
   { name: 'Pen car', kind: 'pen', places: 2 },
   { name: 'Flatcar', kind: 'flat', places: 1 },
 ];
-const FITS = { seat: ['player'], stall: ['tiny', 'small', 'medium'], pen: ['large', 'huge'], flat: ['colossal'] };
-const KIND_NAME = { seat: 'a seat', stall: 'a stall', pen: 'a pen', flat: 'the flatcar' };
 
 const nameOf = k => (k === '0,0' ? 'Your nest' : cityAt(S.world.seed, parseKey(k)) || '?');
-const sizeOf = id => (id === PLAYER_ID ? 'player' : bodyOf(S, id).size || 'medium');
-const fits = (kind, id) => FITS[kind].includes(sizeOf(id)) || (kind === 'seat' && id === PLAYER_ID);
 const leavesIn = (at, t) => (at - t <= MAGLEV.board * 1000 ? 'doors closed' : at - t < 60000 ? `doors close in ${worldSpan(at - t - MAGLEV.board * 1000)}` : `leaves in ${worldSpan(at - t)}`);
 
 let state = null, timer = null;
@@ -36,7 +31,7 @@ let state = null, timer = null;
 // player and the dinosaurs at home, any of them); done(message): told when it closes
 export function openMaglev(from, party, done) {
   const dialog = document.getElementById('maglevDialog');
-  state = { from, party, done, train: null, to: null, places: {}, held: null };
+  state = { from, party, done, train: null, to: null, board: { places: {}, held: null } };
   render();
   if (!dialog.open) dialog.showModal();
   clearInterval(timer);
@@ -66,14 +61,6 @@ function candidates(t) {
   return out;
 }
 
-function artOf(id, px) {
-  if (id === PLAYER_ID) return playerArt(S.player.equip, 58);
-  const b = S.hatched.find(x => x.id === id);
-  if (!b) return document.createElement('span');
-  return dressedArt(b.type, px, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind);
-}
-const labelOf = id => (id === PLAYER_ID ? 'You' : esc((S.hatched.find(x => x.id === id) || {}).name || '?'));
-
 function render() {
   const dialog = document.getElementById('maglevDialog'), body = document.getElementById('maglevBody'), t = now();
   const trains = trainsFrom(S, state.from, t);
@@ -94,7 +81,7 @@ function render() {
     const tr = trains[+b.dataset.train];
     state.train = { ri: tr.ri, way: tr.way, j: tr.j, departAt: tr.departAt };
     state.to = b.dataset.to;
-    state.places = {};
+    state.board = { places: {}, held: null };
     render();
   }));
   if (step2) bindBoard(body);
@@ -102,22 +89,14 @@ function render() {
 }
 
 function boardHTML(t) {
-  const who = candidates(t), placed = new Set(Object.values(state.places));
-  const going = Object.values(state.places), trip = going.length ? rideTrip(S, going, state.from, state.train, state.to, t) : null;
-  const tray = who.filter(c => !placed.has(c.id));
-  const token = (id, why = null) => `<div class="maglev-token${state.held === id ? ' held' : ''}${why ? ' off' : ''}" data-who="${esc(id)}" ${why ? `title="${esc(why)}"` : ''}><span class="maglev-art"></span><span class="maglev-name">${labelOf(id)}</span></div>`;
-  let n = 0;
-  const cars = CARS.map(car => `<div class="maglev-car ${car.kind}"><span class="maglev-car-name">${car.name}</span><div class="maglev-places">${Array.from({ length: car.places }, () => {
-    const k = `p${n++}`, id = Object.keys(state.places).includes(k) ? state.places[k] : null;
-    return `<div class="maglev-place${id ? ' full' : ''}" data-place="${k}" data-kind="${car.kind}">${id ? token(id) : ''}</div>`;
-  }).join('')}</div></div>`).join('');
+  const who = candidates(t), going = aboard(state.board), placed = new Set(going);
+  const trip = going.length ? rideTrip(S, going, state.from, state.train, state.to, t) : null;
   const all = state.party ? who.every(c => placed.has(c.id)) : going.length > 0;
   const tooMany = going.length > TEAM_SLOTS;
   return `<h3>${esc(nameOf(state.from))} → ${esc(nameOf(state.to))}</h3>
     <p class="hint"><span class="departs" data-at="${state.train.departAt}">${leavesIn(state.train.departAt, t)}</span>${trip && !trip.reason ? ` · there in ${worldSpan(trip.arriveAt - trip.departAt)} · ${trip.fare} coins` : ''}</p>
-    <div class="maglev-cars"><div class="maglev-engine" aria-hidden="true"></div>${cars}</div>
+    ${carsHTML(state.board, CARS, who)}
     <p class="hint">${state.party ? 'Everyone in this team boards: drag each into a place that fits.' : 'Drag who goes into a place that fits: a seat for you, a stall for small and middling dinosaurs, a pen for large ones, the flatcar for the colossal.'}</p>
-    <div class="maglev-tray">${tray.map(c => token(c.id, c.why)).join('') || '<p class="hint">Everyone is aboard.</p>'}</div>
     ${tooMany ? `<p class="hint warn-text">At most ${TEAM_SLOTS} in a team.</p>` : ''}
     ${trip && trip.reason ? `<p class="hint warn-text">${esc(trip.reason)}</p>` : ''}
     <div class="row"><button class="btn" type="button" id="maglevDone" ${!all || tooMany || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Done</button>
@@ -125,50 +104,10 @@ function boardHTML(t) {
 }
 
 function bindBoard(body) {
-  // (each token shows its sprite, standing idle)
-  body.querySelectorAll('.maglev-token').forEach(el => el.querySelector('.maglev-art').appendChild(artOf(el.dataset.who, 3.2)));
-  const put = (id, place) => {
-    for (const [k, v] of Object.entries(state.places)) if (v === id) delete state.places[k];
-    if (place) state.places[place] = id;
-    state.held = null;
-    render();
-  };
-  const placeAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest('.maglev-place, .maglev-tray'); };
-  const canTake = (target, id) => target && (target.classList.contains('maglev-tray') || (fits(target.dataset.kind, id) && !(target.dataset.place in state.places && state.places[target.dataset.place] !== id)));
-  body.querySelectorAll('.maglev-token:not(.off)').forEach(el => {
-    const id = el.dataset.who;
-    el.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      const ghost = el.cloneNode(true), r = el.getBoundingClientRect();
-      ghost.classList.add('maglev-ghost');
-      Object.assign(ghost.style, { width: `${r.width}px`, left: `${r.left}px`, top: `${r.top}px` });
-      ghost.querySelector('.maglev-art').replaceChildren(artOf(id, 3.2));
-      document.getElementById('maglevDialog').appendChild(ghost);
-      const dx = e.clientX - r.left, dy = e.clientY - r.top, start = [e.clientX, e.clientY];
-      body.querySelectorAll('.maglev-place').forEach(p => p.classList.toggle('fits', canTake(p, id)));
-      const move = m => { ghost.style.left = `${m.clientX - dx}px`; ghost.style.top = `${m.clientY - dy}px`; };
-      const up = u => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        ghost.remove();
-        body.querySelectorAll('.maglev-place').forEach(p => p.classList.remove('fits'));
-        // (a tap without moving picks it up, for a tap on its place after)
-        if (Math.hypot(u.clientX - start[0], u.clientY - start[1]) < 6) { state.held = state.held === id ? null : id; render(); return; }
-        const target = placeAt(u.clientX, u.clientY);
-        if (canTake(target, id)) put(id, target.classList.contains('maglev-tray') ? null : target.dataset.place);
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    });
-  });
-  body.querySelectorAll('.maglev-place').forEach(p => p.addEventListener('click', () => {
-    if (state.held && canTake(p, state.held)) put(state.held, p.dataset.place);
-  }));
-  const tray = body.querySelector('.maglev-tray');
-  if (tray) tray.addEventListener('click', e => { if (state.held && e.target === tray) put(state.held, null); });
-  body.querySelector('#maglevBack').addEventListener('click', () => { state.train = null; state.to = null; state.places = {}; render(); });
+  bindCars(body.querySelector('.maglev-pane:last-child'), state.board, document.getElementById('maglevDialog'), render);
+  body.querySelector('#maglevBack').addEventListener('click', () => { state.train = null; state.to = null; state.board = { places: {}, held: null }; render(); });
   body.querySelector('#maglevDone').addEventListener('click', () => {
-    const going = Object.values(state.places), ride = { ri: state.train.ri, way: state.train.way, j: state.train.j };
+    const going = aboard(state.board), ride = { ri: state.train.ri, way: state.train.way, j: state.train.j };
     const r = state.party
       ? act('order', { id: state.party.id, hex: state.to, train: true, ride })
       : act('explore', { team: going.map(id => (id === PLAYER_ID ? { kind: 'player', id } : { kind: 'dino', id })), hex: state.to, train: true, ride });

@@ -55,8 +55,9 @@ export function drivePath(seed, from, to) {
   ways.set(id, out);
   return out;
 }
-// real minutes a drive of so many hours at the wheel takes (DRIVE.day hours of it a day of the world)
-export const driveMins = hours => worldMins(hours * 24 / DRIVE.day);
+// real minutes a drive of so many hours at the wheel takes: DRIVE.day hours at the wheel a day, a night's
+// rest after each whole day of it
+export const driveMins = hours => worldMins(hours + Math.floor(hours / DRIVE.day) * (24 - DRIVE.day));
 
 // the player's vehicles, rentals that have run out let go
 export function vehiclesOf(s, now) {

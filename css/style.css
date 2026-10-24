@@ -1138,3 +1138,10 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .maglev-art > * { max-height: 64px; width: auto; }
 .maglev-name { font-size: .75em; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .maglev-ghost { position: fixed; z-index: 1000; pointer-events: none; opacity: .9; }
+
+/* land vehicles: the cab in the boarding window, the garage at a station */
+.vehicle-cab { flex: 0 0 46px; border-radius: 8px 22px 22px 8px; background: linear-gradient(#f0c46a, #d79a2e); border: 2px solid #2b2416; }
+.garage { display: grid; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.garage h4 { margin: 0; }
+.garage-row { display: grid; gap: 4px; }
+.row.parked { justify-content: space-between; align-items: center; }

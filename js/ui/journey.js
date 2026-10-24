@@ -577,6 +577,10 @@ function entryHTML(e) {
       const got = lootText(e.found || []);
       return e.by && e.by.length ? `${esc(listNames(e.by))} found ${listNames(got)} along the way.` : `You picked up ${listNames(got)} along the way.`;
     }
+    case 'drive': {
+      const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || 'the spot you picked'));
+      return `You drove the ${e.vehicle === 'hauler' ? 'Hauler' : 'Rover'} from ${name(e.from)} to ${name(e.to)}, round the swamps and the mountains, and parked. Everyone got out, stiff from the ride.`;
+    }
     case 'train': {
       const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || '?'));
       const via = (e.stops || []).slice(1, -1);

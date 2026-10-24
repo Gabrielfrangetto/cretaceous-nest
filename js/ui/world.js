@@ -1,6 +1,6 @@
 // World tab: the map of the continent around the nest, and the parties out exploring it.
 // Pick a hex, put a team together, send it; when it gets there, see the journey, then send it on or home.
-import { SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, ROCKET, MAGLEV, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
+import { VEHICLES, SCOUT, FRENZY_DROPS, BIOMES, ITEMS, SEX, SPECIES, EXPEDITION_SLOTS, TEAM_SLOTS, ROCKET, MAGLEV, STAGES, HEAL_MINS, PLAYER_ID, EYES, AMBUSH, SIZE_ORDER, HAZARDS, SURVIVAL, CAMP, VIA_MAX } from '../config.js';
 import { S, subscribe } from '../state.js';
 import { sexOf, stageOf, countItem } from '../economy.js';
 import {
@@ -14,6 +14,8 @@ import { skyAt, sunTimes, placeOf, worldTime, WORLD_DAY } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
 import { openJourney, partyStatusHTML } from './journey.js';
 import { openMaglev, initMaglev } from './maglev.js';
+import { openDrive, initDrive, garageHTML, parkedHTML, DRIVE_PROBLEMS } from './drive.js';
+import { vehiclesOf, driverOf, vehicleOf } from '../vehicles.js';
 import { teamOdds, dangerOf, whoFlees } from '../combat.js';
 import { playFight } from './fight.js';
 import { act } from '../actions.js';
@@ -41,6 +43,7 @@ export function sampleMapSVG(seed, seen = 3) {
 }
 
 const PROBLEMS = {
+  ...DRIVE_PROBLEMS,
   'too-young': 'Babies stay in the nest. Feed it until it is a juvenile.',
   away: 'Already exploring.',
   city: 'A settlement of other colonists. Its people keep to themselves, for now.',
@@ -72,6 +75,8 @@ const PROBLEMS = {
 const LAIR = '<g class="lair" transform="translate(-13 -15)"><circle r="7" fill="#3b2a24"/><path d="M-3.5 -2 l1.6 4 M0 -3 l0 5 M3.5 -2 l-1.6 4" stroke="#f3ead2" stroke-width="1.6" stroke-linecap="round"/></g>';
 
 let selected = null, message = '', tick = null, walkTick = null;
+// a vehicle about to be driven, waiting for a tap on the hex to drive to: { vehicle, party }
+let drivingFrom = null;
 // Planning the way: { to: the destination, from: where the team sets out, party: the id of a party
 // waiting out there that is sent on (null: a new team from the nest) }, and route: the points the player
 // dragged the way through, in the order the way passes them (the easiest way between them)
@@ -264,7 +269,37 @@ function paintTrains() {
     ctx.stroke();
     ctx.restore();
   }
+  // (the player's vehicles: parked at their hex, or driving along the way with the team)
+  for (const v of vehiclesOf(S, at)) {
+    const e = driverOf(S, v, at);
+    let x, y, a = 0;
+    if (e) {
+      const g = progressOf(S, e, at), keys = [e.leg.from, ...e.leg.path], k = Math.max(0, g.i + 1);
+      const [ax, ay] = center(parseKey(keys[k])), [bx, by] = center(parseKey(keys[Math.min(k + 1, keys.length - 1)]));
+      x = ax + (bx - ax) * g.f; y = ay + (by - ay) * g.f; a = Math.atan2(by - ay, bx - ax);
+    } else { [x, y] = center(parseKey(v.at)); x -= SIZE * 0.45; y += SIZE * 0.35; }
+    vehicleIcon(ctx, x, y, a, Math.max(SIZE * 0.3, px(5)), v.kind);
+  }
   for (const [e, x, y] of placed) partyBubble(ctx, e, x, y, px, accent);
+}
+// a vehicle seen from above: its body, the cab's windscreen at the front (a Hauler with its trailer)
+function vehicleIcon(ctx, x, y, a, r, kind) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  ctx.lineWidth = r * 0.18;
+  ctx.strokeStyle = '#2b2416';
+  ctx.fillStyle = '#e0a43a';
+  if (kind === 'hauler') { ctx.beginPath(); ctx.roundRect(-r * 2.4, -r * 0.62, r * 1.7, r * 1.24, r * 0.2); ctx.fill(); ctx.stroke(); }
+  ctx.beginPath();
+  ctx.roundRect(-r * 0.6, -r * 0.65, r * 1.7, r * 1.3, r * 0.35);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#9fd3e8';
+  ctx.beginPath();
+  ctx.roundRect(r * 0.45, -r * 0.48, r * 0.45, r * 0.96, r * 0.15);
+  ctx.fill();
+  ctx.restore();
 }
 
 function paintMap() {
@@ -468,6 +503,8 @@ function bindMap(box) {
   const pick = key => {
     // (planning the way: a tap on a point dragged puts it back)
     if (tracing) { if (route.includes(key)) { changeRoute(route.filter(k => k !== key)); render(); } return; }
+    // (choosing where to drive: the hex tapped is where)
+    if (drivingFrom) { const d = drivingFrom; drivingFrom = null; openDrive(d.vehicle, key, d.party, msg => { message = msg; render(); }); render(); return; }
     if (pickable(key)) { selected = key; message = ''; render(); }
   };
   const pts = new Map();
@@ -720,6 +757,7 @@ function landHTML(cell) {
 
 function sideHTML(t) {
   if (tracing) return traceHTML(t);
+  if (drivingFrom) return `<h3>Where to?</h3><p class="hint">Tap on the map the hex to drive to. Vehicles go round swamps, mountains and water.</p><div class="row"><button class="ghost" type="button" data-drive-cancel>Cancel</button></div>`;
   if (!selected) return `<div class="sec-head"><h3>Pick a hex</h3><details class="info"><summary aria-label="How exploring works">?</summary><p>Tap any hex of land to explore it, however far; drag the map to look around. The paler hexes are unexplored: what lives there is unknown, and the far lands are dangerous. You always go, with one of the teams you set up in the Team tab: up to ${TEAM_SLOTS - 1} juvenile or adult dinosaurs, or packs. Farther hexes, and rough ground on the way, take longer. What lives out there is young or old, in its prime or past it: the stronger it is, the more it brings, sometimes an egg. A team waits where it went for your orders: on to another hex, or home, and the way back has its dangers too. What it finds is carried until it is home. On the way everyone grows hungry and thirsty: plant eaters graze, meat eaters eat what they bring down, and fresh water (rivers, lakes, swamps) waters all; pack water flasks for the dry lands, and rations for yourself.</p></details></div>
     <p class="hint">Tap a hex on the map to see what is there and set out.</p>`;
   const h = parseKey(selected), d = hexDist(h);
@@ -729,7 +767,8 @@ function sideHTML(t) {
   if (mine) return goOnHTML(mine, h, d, t) + (city ? aheadHTML(t) : '');
   if (d === 0) return `<h3>Your nest</h3><p class="hint">Where your dinosaurs live. Every journey starts and ends here: what a team carries counts once it is home.</p>
     <p class="hint">The maglev stops here: you and any of your dinosaurs at home can take it to a city.</p>
-    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev</button></div>`;
+    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev</button></div>
+    ${parkedHTML('0,0', t)}${garageHTML('0,0', t)}`;
   const seen = isRevealed(S, selected);
   const first = !S.world.visited.includes(selected);
   // the team: the player, with one of the teams set up in the Team tab (dinosaurs never set out without you)
@@ -807,7 +846,7 @@ function goOnHTML(p, h, d, t) {
   const here = selected === p.at;
   const where = esc(placeName(cellAt(S.world.seed, parseKey(p.at))));
   if (p.leg) return `<h3>${title}</h3><p class="hint">Your team is on its way ${p.leg.to === '0,0' ? 'home' : `to the ${esc(placeName(cellAt(S.world.seed, parseKey(p.leg.to))))}`}. Once it gets there, it can go on to any hex from where it is.</p>`;
-  if (here) return `<h3>${title}</h3><p class="hint">Your team is here, waiting for your orders.</p>`;
+  if (here) return `<h3>${title}</h3><p class="hint">Your team is here, waiting for your orders.</p>${parkedHTML(p.at, t)}${garageHTML(p.at, t)}`;
   if (p.camp) return `<h3>${title}</h3><p class="hint">Your team is in camp in the ${where}. Break camp to go on.</p>`;
   if (!canReach(S, selected)) return `<h3>${title}</h3><p class="hint">${PROBLEMS.unreachable}</p>`;
   const units = teamUnits(S, standingUnits(S, p)), path = routePath(S.world.seed, p.at, selected, []);
@@ -899,7 +938,7 @@ function doorsClosed() {
 // billed; none on the maglev, once called, or with a journey still to tell
 function flyButton(p, t) {
   const leg = p.leg;
-  if (leg && (leg.train || leg.rocket || leg.air || leg.fly != null || t >= leg.arriveAt)) return '';
+  if (leg && (leg.train || leg.rocket || leg.drive || leg.air || leg.fly != null || t >= leg.arriveAt)) return '';
   const at = !leg ? p.at : (pr => (pr && pr.i >= 0 ? leg.path[pr.i] : leg.from))(progressOf(S, p, t));
   if (at === '0,0') return '';
   const c = flightBill(S, p, at);
@@ -940,7 +979,7 @@ function tripsHTML(t) {
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
-        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${worldSpan(leg.arriveAt - t)}</span>${leg.train && t < leg.startedAt - MAGLEV.board * 1000 ? `<button class="ghost" type="button" data-alight="${esc(p.id)}">Get off <span class="hint">(until the doors close)</span></button>` : ''}${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
+        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${worldSpan(leg.arriveAt - t)}</span>${leg.train && t < leg.startedAt - MAGLEV.board * 1000 ? `<button class="ghost" type="button" data-alight="${esc(p.id)}">Get off <span class="hint">(until the doors close)</span></button>` : ''}${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket || leg.drive ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -1121,6 +1160,27 @@ function updateBadge() {
 
 export function initWorld() {
   initMaglev();
+  initDrive();
+  // vehicles: renting or buying one at a station, and choosing where to drive one
+  document.addEventListener('click', e => {
+    const get = e.target.closest('#panelWorld [data-rent], #panelWorld [data-buy]');
+    if (get) {
+      const kind = get.dataset.rent || get.dataset.buy, r = act('vehicle', { kind, ...(get.dataset.rent ? { days: +get.dataset.days } : {}) });
+      message = r.ok ? `The ${esc(VEHICLES[kind].name)} is yours${get.dataset.rent ? ` for ${plural(+get.dataset.days, 'day', 'days')}` : ''}: it waits here.` : esc(PROBLEMS[r.reason] || 'Not possible here.');
+      render();
+      return;
+    }
+    const drive = e.target.closest('#panelWorld [data-drive]');
+    if (drive) {
+      const v = vehicleOf(S, drive.dataset.drive), t = now();
+      const party = v && S.world.expeditions.find(x => x.members.includes(PLAYER_ID) && !x.leg && x.at === v.at) || null;
+      drivingFrom = { vehicle: drive.dataset.drive, party };
+      message = '';
+      render();
+      return;
+    }
+    if (e.target.closest('#panelWorld [data-drive-cancel]')) { drivingFrom = null; render(); }
+  });
   // taking the maglev from a station: the boarding window; getting off before the doors close
   document.addEventListener('click', e => {
     const b = e.target.closest('#panelWorld [data-maglev]');
