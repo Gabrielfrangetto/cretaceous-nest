@@ -290,7 +290,7 @@ function layoutOf(biome, set, level, k) {
 function hillLayout(set, size, k) {
   const id = `hill|${size}|${k}`;
   if (set.layouts.has(id)) return set.layouts.get(id);
-  const rand = seq(size * 7919 + k * 104729 + 31), n = rand() < 0.35 ? 2 : 1;
+  const rand = seq(size * 7919 + k * 104729 + 31), n = rand() < 0.15 ? 2 : 1;
   const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
   const placed = [];
   for (let tries = 0; placed.length < n && tries < 2000; tries++) {
@@ -398,7 +398,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
-      const hills = cell.terrain === 'hill' && plantsOf(PLANTED[groundName(cell)].hills || 'hills');
+      // (a painted hill in about half the hill hexes; the rest show theirs by their light)
+      const hills = cell.terrain === 'hill' && cornerRand(h[0], h[1], 84) < 0.45 && plantsOf(PLANTED[groundName(cell)].hills || 'hills');
       // (on a hill, only a few trees, so the hill shows)
       const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, PLANTED[groundName(cell)].counts.length - 2) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
