@@ -16,6 +16,7 @@ ap.add_argument('white')
 ap.add_argument('black')
 ap.add_argument('biome')
 ap.add_argument('--big', type=int, default=72, help='how many pixels across the median single plant is kept at')
+ap.add_argument('--min', type=float, default=0.01, help='pieces smaller than this share of the biggest are left out (loose leaves)')
 a = ap.parse_args()
 
 W = np.asarray(Image.open(a.white).convert('RGB')).astype(np.float32)
@@ -43,7 +44,7 @@ pic = np.dstack([np.clip(rgb, 0, 255), alpha * 255])
 pieces, n = ndimage.label(ndimage.binary_closing(alpha > 0.4, iterations=2))
 boxes = [b for b in ndimage.find_objects(pieces)]
 sizes = ndimage.sum(np.ones_like(alpha), pieces, range(1, n + 1))
-keep = [i for i in range(n) if sizes[i] > sizes.max() * 0.01]
+keep = [i for i in range(n) if sizes[i] > sizes.max() * a.min]
 # (the median single plant: pieces about as wide as tall, the smaller half of them by area)
 widths = sorted(max(boxes[i][0].stop - boxes[i][0].start, boxes[i][1].stop - boxes[i][1].start) for i in keep)
 scale = a.big / widths[len(widths) // 2]
