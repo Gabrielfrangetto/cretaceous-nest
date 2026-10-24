@@ -224,6 +224,8 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
 const PLANTED = { forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const floors = new WeakMap();
+const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
 const plantSets = new Map();
 function plantsOf(biome) {
@@ -232,6 +234,7 @@ function plantsOf(biome) {
   let set = plantSets.get(biome);
   if (!set) {
     set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
+    picture(`${biome}-floor`);
     plantSets.set(biome, set);
     fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; tiles.clear(); texturesLoaded(); }).catch(() => {});
   }
@@ -331,8 +334,16 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
     const planted = !isWaterCell(cell) && !cell.lava && plantsOf(biome);
     if (planted) {
-      // (its floor, plain: the light is laid over it with its plants, below)
-      ctx.save(); ctx.translate(x, y); ctx.fillStyle = PLANTED[biome].floor; ctx.fill(shape); ctx.restore();
+      // (its floor: a picture laid over the whole map, not hex by hex, so it runs on from one hex into the
+      // next; plain until it has come. The light is laid over it with its plants, below)
+      const floor = picture(`${biome}-floor`);
+      ctx.save(); ctx.translate(x, y);
+      if (floor.complete && floor.naturalWidth) {
+        const k = SIZE * SQ3 * 2.4 / floor.naturalWidth, pat = floorPattern(ctx, biome, floor);
+        pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, -x, -y]));
+        ctx.fillStyle = pat;
+      } else ctx.fillStyle = PLANTED[biome].floor;
+      ctx.fill(shape); ctx.restore();
       textured.push({ h, x, y, cell, planted, dense });
       continue;
     }
