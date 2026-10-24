@@ -16,6 +16,7 @@ import { addItem, removeItem, countItem, earn, stageOf, isHungry, seededRand } f
 import { fighterOf, encounterUnit, teamFight, unitOf, whoFlees, isPrey, hitOf, afraidOf } from './combat.js';
 import { inMap, mapNeighbors, MAP_HEXES, isWater, cellAt, travelCost, travelPath, citiesOf, inWilds, wildsAt, WILDS_HEXES } from './map.js';
 import { alphaOf } from './packs.js';
+import { cleanVehicles } from './vehicles.js';
 
 // ---------- hex geometry ----------
 export const hexKey = (q, r) => `${q},${r}`;
@@ -101,7 +102,7 @@ export function threatAt(seed, h, rand = null) {
 
 export function newWorld(seed = WORLD_SEED) {
   const home = [0, 0];
-  return { seed, map: MAP_VERSION, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [] };
+  return { seed, map: MAP_VERSION, revealed: [hexKey(0, 0), ...neighbors(home).map(h => hexKey(...h))], visited: [hexKey(0, 0)], trips: 0, expeditions: [], vehicles: [] };
 }
 
 
@@ -203,7 +204,7 @@ export function memberProblem(s, id, key, now, ride = null) {
   // the player goes anywhere (once fed)
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
-  if (stage === 'baby' && ride !== 'maglev') return ride === 'rocket' ? 'baby-fly' : 'too-young';
+  if (stage === 'baby' && ride !== 'maglev' && ride !== 'drive') return ride === 'rocket' ? 'baby-fly' : 'too-young';
   if (!me && (b.restUntil || 0) > now) return 'resting';
   if (landed(expeditionOf(s, id), now)) return 'report';
   if (isAway(s, id) || flyingLeft(b, now)) return 'away';
@@ -545,5 +546,7 @@ export function cleanWorld(world, s) {
     trips: Math.max(0, Math.floor(Number(w.trips) || 0)),
     // the parties out, as saved: journey.js cleanParties checks them
     expeditions: Array.isArray(w.expeditions) ? w.expeditions : [],
+    // the player's land vehicles (vehicles.js)
+    vehicles: cleanVehicles(w.vehicles, k => inWorld(parseKey(k))),
   };
 }

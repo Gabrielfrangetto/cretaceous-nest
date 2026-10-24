@@ -463,6 +463,27 @@ export const MAGLEV = { every: worldMins(4), stand: worldMins(5 / 60), minsPerHe
 // those who fly need `rest` minutes on landing (6 hours of the world) before they can set out again.
 export const ROCKET = { every: worldMins(1), mins: [worldMins(0.5), worldMins(1)], far: 100, base: 20, perTonne: 15, load: 20000, rest: worldMins(6) };
 export const LONG_NECK = ['argent'];
+// Land vehicles (docs/VEHICLES.md): bought or rented at a station (the nest or a city's), they carry a
+// team from one hex to another, never exploring on the way: the team gets out where it parks, to explore
+// on foot or drive on. The player drives. Each has its compartments (as the maglev's: a seat for the
+// player, stalls for the smaller dinosaurs, a pen for a large one), a battery for `range` hexes of open
+// land (full again at a station, a quarter back for a night's camp beside it), a price, and a rent a day
+// of the world. Who doesn't fit stays behind.
+export const VEHICLES = {
+  rover: { name: 'Rover', price: 400, rent: 30, range: 24, cars: [{ name: 'Cab', kind: 'seat', places: 1 }, { name: 'Back seat', kind: 'small', places: 2 }] },
+  hauler: { name: 'Hauler', price: 1500, rent: 90, range: 16, cars: [{ name: 'Cab', kind: 'seat', places: 1 }, { name: 'Stall trailer', kind: 'stall', places: 4 }, { name: 'Pen trailer', kind: 'pen', places: 1 }] },
+};
+// what fits each kind of compartment, by size (the player only in a seat)
+export const COMPARTMENTS = { seat: ['player'], small: ['tiny', 'small'], stall: ['tiny', 'small', 'medium'], pen: ['large', 'huge'], flat: ['colossal'] };
+// Driving: hours of the world a hex takes at the wheel (open land about 45 km/h off any road; woods,
+// hills and floodplains about 25; a river forded), `day` hours at the wheel a day (the rest resting); a
+// hex of rough land uses `rough` hexes of battery. No vehicle crosses swamps, mountains, volcanoes or
+// water. Rentals: for `days` days of the world.
+export const DRIVE = {
+  hours: { open: 0.3, rough: 0.6, river: 0.3 }, day: 12, rough: 1.5,
+  open: ['meadow', 'scrub', 'coast', 'desert'], never: { terrain: ['mountain', 'volcano', 'ocean', 'lake'], biome: ['swamp', 'volcano'] },
+  days: [1, 3, 7], camp: 0.25,
+};
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack
 export const TEAM_PRESETS = 5;               // teams that can be set up ahead in the Team tab

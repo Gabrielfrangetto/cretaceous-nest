@@ -10,7 +10,8 @@ import {
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
-import { startExpedition, orderParty, joinParty, alightParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
+import { getVehicle } from './vehicles.js';
+import { startExpedition, startDrive, orderParty, joinParty, alightParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 import { setTeamSlot, renameTeam } from './teams.js';
 
@@ -791,6 +792,15 @@ export const ACTIONS = {
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
   order(s, { id, hex, train, rocket, via, departAt, ride }, now) {
     return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null, cleanRide(ride));
+  },
+  // a land vehicle at the station the player stands at: bought, or rented for days of the world
+  vehicle(s, { kind, days }, now) {
+    return getVehicle(s, String(kind), now, days == null ? null : Number(days));
+  },
+  // driving a vehicle to a hex: from the nest with a team (team), or with the party waiting where it is
+  // parked (id)
+  drive(s, { vehicle, to, team, id }, now) {
+    return startDrive(s, { vehicle: String(vehicle), to: String(to), team, party: id == null ? null : String(id) }, now);
   },
   // a party waiting on the platform gives up its ride, until the doors close
   alight(s, { id }, now) {

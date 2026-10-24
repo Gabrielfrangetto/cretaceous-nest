@@ -15,12 +15,13 @@
 import {
   TRAVEL, RUNNER, INTERCEPT, WITNESS, NEST_CALM, PLAYER_ID, SPECIES, ITEMS, DEATH, CRITICAL_MINS, INJURY_MINS, BRUISE_MINS, TOUGH,
   LOOT_PER_HEX, FRENZY_DROPS, GEAR_DROP, EGG_STEP, EGG_CHANCE, EGG_GENES, EGG_TRAY_SIZE, STATS, SCOUT,
-  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, worldMins, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
+  EXPEDITION_SLOTS, TEAM_SLOTS, HAZARDS, HAZARD_MAX, HAZARD_WOUND, HAZARD_FLOOR, SIZE_ORDER, PLAYER_SIZE, SURVIVAL, PLAYER_DIET, TRAIN, MAGLEV, ROCKET, worldMins, VEHICLES, DRIVE, LONG_NECK, CAMP, VIA_MAX, BIOMES, FORAGE, NEST, AGES, VISIBILITY, FOOD, UNIT_HOURS, CRECHE, RESCUE, AIRLIFT, TRIP_CARE, SCARS, WOUNDS, GORE,
 } from './config.js';
 import { addItem, removeItem, countItem, earn, bill, hungerEvery, isHungry as isHungryNow, seededRand, eggSex, dailyKg, massOf, statSheet, stageOf } from './economy.js';
 import { teamFight, unitOf, wildFighter, fears } from './combat.js';
 import { travelPath, routeCost, stepCost, cellAt, trainRoute, isStation, wayAround, railsOf } from './map.js';
 import { skyAt, placeOf } from './sun.js';
+import { drivePath, driveMins, vehicleOf, vehiclesOf, driverOf, chargeOf, fitProblem } from './vehicles.js';
 import {
   hexKey, parseKey, hexDist, nearOf, cityAt, inWorld, neighbors, biomeAt, watery, isWater, threatAt, explorerOf, teamFrom, exploreProblem, teamUnits,
   teamSlow, allRunners, hasScout, teamHaul, bodyOf, encounterChance, keepsAway, passesBy, sailBackOff, huntOdds, scatterOf, runOf,
@@ -462,6 +463,8 @@ export function breakCamp(s, id, now) {
   const rand = seededRand(`camp:${w.seed}:${p.id}:${p.camp.startedAt}`);
   p.camp = null;
   const told = { kind: 'camp', hex: p.at, idx: 0, biome, early, water: false, fed: [], meat: 0 };
+  // (a vehicle parked there charges a little, from its solar panels, over the night)
+  if (!early) for (const v of vehiclesOf(s, now)) if (v.at === p.at) v.charge = Math.min(VEHICLES[v.kind].range, chargeOf(s, v) + VEHICLES[v.kind].range * DRIVE.camp);
   if (!early) {
     const fresh = freshWater(w.seed, h) || neighbors(h).some(n => freshWater(w.seed, n));
     told.water = fresh;
@@ -490,6 +493,46 @@ export function breakCamp(s, id, now) {
 
 // Calling a party back: one waiting somewhere sets out for home; one on its way out stops where it is
 // by now and turns for home (what it met before then is still told). Not one already heading home.
+// A drive: the player at the wheel of a vehicle, with whoever of the team fits aboard (team, from the
+// nest) or the party waiting where it is parked (party: all of it), to another hex: the quickest way it
+// can cross (drivePath), safe, nothing happening on the way; it parks there and the team gets out.
+// { ok, expedition } | { ok: false, reason }
+export function startDrive(s, { vehicle, to, team, party }, now) {
+  const w = W(s), v = vehicleOf(s, vehicle);
+  vehiclesOf(s, now);
+  if (!v || !vehiclesOf(s, now).includes(v)) return { ok: false, reason: 'no-vehicle' };
+  if (driverOf(s, v, now)) return { ok: false, reason: 'driving' };
+  const from = v.at;
+  let p = party ? partyOf(s, party) : null;
+  if (party && (!p || p.camp || (p.leg && now < p.leg.arriveAt))) return { ok: false, reason: 'on-the-way' };
+  if (p && p.leg) return { ok: false, reason: 'untold' };
+  if (p && p.at !== from) return { ok: false, reason: 'not-there' };
+  if (!p && from !== HOME) return { ok: false, reason: 'not-there' };
+  const units = p ? p.team : teamFrom(s, team);
+  if (!units || !units.length || units.includes(null)) return { ok: false, reason: 'no-team' };
+  const members = units.flatMap(u => u.members);
+  if (!members.includes(PLAYER_ID)) return { ok: false, reason: 'no-driver' };
+  const room = fitProblem(s, v.kind, members);
+  if (room) return { ok: false, reason: room };
+  const route = drivePath(w.seed, from, String(to));
+  if (!route) return { ok: false, reason: 'no-way' };
+  if (route.charge > chargeOf(s, v)) return { ok: false, reason: 'battery' };
+  const arriveAt = now + Math.round(driveMins(route.hours) * 60000);
+  if (v.until && arriveAt > v.until) return { ok: false, reason: 'rental-ends' };
+  if (!p) {
+    const problem = exploreProblem(s, team, String(to) === HOME ? '1,0' : String(to), now, 'drive');
+    if (problem) return { ok: false, reason: problem };
+    p = { id: `t${w.trips + 1}`, team: units, members, at: HOME, leg: null, health: {}, hunger: {}, thirst: {}, down: [], hurt: [], dead: [], carry: { items: {}, coins: 0, eggs: [] }, supplies: packOf(s, members), pending: null };
+    for (const [id, n] of Object.entries(p.supplies)) if (ITEMS[id] && n) removeItem(s, id, n);
+    w.expeditions.push(p);
+  }
+  w.trips += 1;
+  v.charge = chargeOf(s, v) - route.charge;
+  v.at = String(to);
+  p.leg = { n: w.trips, from, to: String(to), path: route.path, step: 0, startedAt: now, arriveAt, drive: v.id };
+  Object.assign(p, { hex: String(to), trip: w.trips, startedAt: now, returnAt: arriveAt });
+  return { ok: true, expedition: p, mins: driveMins(route.hours) };
+}
 // A party waiting on the platform gives up its ride, up to the moment the doors close (MAGLEV.board
 // seconds before it leaves): the fare back; from the nest the team breaks up at home, its supplies back
 // in the stores; from a city it waits there again
@@ -515,6 +558,7 @@ export function recallParty(s, id, now) {
   if (!p.leg) return orderParty(s, id, HOME, now);
   const leg = p.leg;
   if (leg.train || leg.rocket) return { ok: false, reason: 'on-the-train' };
+  if (leg.drive) return { ok: false, reason: 'driving' };
   if (leg.to === HOME || leg.recalled) return { ok: false, reason: 'homeward' };
   if (now >= leg.arriveAt) return { ok: false, reason: 'arrived' };
   // stopped for the player: that is to be seen first
@@ -578,9 +622,9 @@ export function journeyStep(s, id, choice = {}, now, dry = false) {
       c.n = leg.n;
       if (c.legs[c.legs.length - 1].n !== leg.n) c.legs.push(snap());
       // on its way: as far as it has got by now
-      if (now < leg.arriveAt && (leg.train || leg.rocket || leg.air || leg.step >= leg.path.length || timeAt(s, leg, leg.step) > now)) break;
-      // (on the train or a rocket nothing happens on the way)
-      if (leg.train || leg.rocket || leg.air) leg.step = leg.path.length;
+      if (now < leg.arriveAt && (leg.train || leg.rocket || leg.air || leg.drive || leg.step >= leg.path.length || timeAt(s, leg, leg.step) > now)) break;
+      // (on the train, a rocket or driving nothing happens on the way)
+      if (leg.train || leg.rocket || leg.air || leg.drive) leg.step = leg.path.length;
       if (leg.step >= leg.path.length) { if (c.dry) break; arrive(c); continue; }
       const idx = leg.step, key = leg.path[idx];
       leg.step += 1;
@@ -611,7 +655,7 @@ export function journeyStep(s, id, choice = {}, now, dry = false) {
 const stops = new Map();
 export function stopOf(s, p) {
   const leg = p.leg;
-  if (!leg || leg.train || leg.air || p.pending || leg.step >= leg.path.length) return null;
+  if (!leg || leg.train || leg.air || leg.drive || p.pending || leg.step >= leg.path.length) return null;
   const key = [W(s).seed, p.id, leg.n, leg.step, leg.path.length, leg.startedAt, leg.arriveAt, p.members.join()].join('|');
   if (stops.has(key)) return stops.get(key);
   const copy = JSON.parse(JSON.stringify(s));
@@ -867,6 +911,17 @@ function arrive(ctx) {
     if (leg.rocket) for (const m of p.members) { const b = m !== PLAYER_ID && explorerOf(s, m); if (b) b.restUntil = leg.arriveAt + ROCKET.rest * 60000; }
     refresh(p);
     if (leg.to === HOME) { comeHome(ctx); return; }
+    p.leg = null;
+    Object.assign(p, { hex: p.at, returnAt: leg.arriveAt });
+    return;
+  }
+  // driven there: the vehicle parked, the team gets out (nothing found on the way); at a city its people
+  // give the team food and water
+  if (leg.drive) {
+    story.push({ kind: 'drive', hex: leg.to, idx: leg.path.length - 1, from: leg.from, to: leg.to, vehicle: (vehicleOf(s, leg.drive) || {}).kind || null });
+    reveal(s, [leg.to]);
+    if (leg.to === HOME) { comeHome(ctx); return; }
+    if (cityAt(w.seed, parseKey(leg.to))) refresh(p);
     p.leg = null;
     Object.assign(p, { hex: p.at, returnAt: leg.arriveAt });
     return;
@@ -1156,7 +1211,7 @@ export function nestShares(biome) {
 }
 function nestRoll(s, p, idx) {
   const w = W(s), h = parseKey(p.leg.path[idx]), cell = cellAt(w.seed, h);
-  if (!cell || nearOf(w.seed, h) <= NEST_CALM || p.leg.train) return null;
+  if (!cell || nearOf(w.seed, h) <= NEST_CALM || p.leg.train || p.leg.drive) return null;
   // (a Gallimimus notices nests twice as often, a scout sniffs them out too: SCOUT.egg)
   const here = nestShares(cell.biome), rand = seededRand(`nest:${w.seed}:${p.leg.n}:${idx}`);
   if (!here.length) return null;
@@ -1916,16 +1971,17 @@ export function cleanParties(s, w) {
       const ride = !air && L.train === true && L.ride && typeof L.ride === 'object' ? { ri: int(L.ride.ri), way: L.ride.way === 'ccw' ? 'ccw' : 'cw', j: int(L.ride.j) } : null;
       const chosen = ride && rideTrip(s, [], from, ride, to);
       const train = !air && L.train === true && (chosen && !chosen.reason ? { path: chosen.path, hexes: chosen.path.length } : trainRoute(w.seed, from, to));
+      const drive = !air && !train && typeof L.drive === 'string' && (w.vehicles || []).some(v => v.id === L.drive) && drivePath(w.seed, from, to);
       const rocket = !air && !train && L.rocket === true && isStation(w.seed, from) && isStation(w.seed, to);
-      const via = train || air || rocket ? [] : cleanVia(s, L.via);
-      const path = air ? airPath(from) : train ? train.path : rocket ? [to] : routePath(w.seed, from, to, via);
+      const via = train || air || rocket || drive ? [] : cleanVia(s, L.via);
+      const path = air ? airPath(from) : train ? train.path : rocket ? [to] : drive ? drive.path : routePath(w.seed, from, to, via);
       if (!path.length) continue;
-      const startedAt = num(L.startedAt), recalled = !train && !rocket && L.recalled === true;
+      const startedAt = num(L.startedAt), recalled = !train && !rocket && !drive && L.recalled === true;
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
-        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : rocket ? ROCKET.mins[0] : legMins(s, members, from, to, via)) * 60000),
+        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : rocket ? ROCKET.mins[0] : drive ? driveMins(drive.hours) : legMins(s, members, from, to, via)) * 60000),
         ...(air ? { air: true } : {}),
-        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(train && chosen && !chosen.reason ? { ride } : {}), ...((train || rocket) && Number.isFinite(L.fare) ? { fare: Math.max(0, int(L.fare)) } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
+        ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(drive ? { drive: L.drive } : {}), ...(train && chosen && !chosen.reason ? { ride } : {}), ...((train || rocket) && Number.isFinite(L.fare) ? { fare: Math.max(0, int(L.fare)) } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
         // (standing where a decision waits for the player, since then)
         ...(e.pending && Number.isFinite(L.pausedAt) ? { pausedAt: num(L.pausedAt) } : {}),
       };
