@@ -580,7 +580,11 @@ function entryHTML(e) {
     case 'train': {
       const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || '?'));
       const via = (e.stops || []).slice(1, -1);
-      return `You boarded the maglev at ${name(e.from)}${via.length ? `, changed at ${listNames(via.map(name))}` : ''} and glided to ${name(e.to)} high above the land, fed and watered on board.`;
+      return `The maglev left ${name(e.from)}${via.length ? `, changing at ${listNames(via.map(name))},` : ''} and glided to ${name(e.to)} high above the land, everyone fed and watered on board.`;
+    }
+    case 'rocket': {
+      const name = k => (k === HOME ? 'your nest' : esc(cityAt(S.world.seed, parseKey(k)) || '?'));
+      return `The rocket lifted off from ${name(e.from)}, arced above the sky and came down at ${name(e.to)}. Everyone was sedated and strapped in; they will need a short rest before setting out again.`;
     }
     case 'city': return `You reached ${esc(e.name)}. Its people gave everyone food and water, and filled the flasks.`;
     case 'water': return 'Fresh water at last: everyone drank their fill, and the flasks were filled again.';

@@ -2,7 +2,16 @@
 
 Plan for replacing today's instant maglev (any time, from anywhere, no wait) with two scheduled,
 visible ways to travel between the nest and the cities, and letting dinosaurs travel and stay in a
-city without the player. Decided with the owner, Oct 2026. Nothing here is built yet.
+city without the player. Decided with the owner, Oct 2026. Built: `MAGLEV`, `ROCKET`, `LONG_NECK` in `config.js`; `trainTrip`,
+`rocketTrip`, `trainsAt`, `joinParty` in `journey.js`; the World tab's ride buttons and "Send dinosaurs
+ahead"; `tests/transport.test.js`.
+
+**Speeds as built.** The game's clock runs fast: a flat hex walked in half a real minute is half a day
+of the world. 1,000 km/h on that clock would be instant, and 1.3 real minutes a hex would be slower
+than walking, so the speeds are set by how they feel against walking: the maglev about 6 s a hex
+(5 to 10 times quicker than on foot; a stretch between stations about 4 to 10 min), a train every
+5 min (about 42 trains on the network); rockets 1 to 3 min, a launch every 5 min, a 10 min rest on
+landing. The sections below keep the first plan's numbers for reference.
 
 ## Why
 

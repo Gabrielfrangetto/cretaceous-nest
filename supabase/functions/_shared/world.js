@@ -196,13 +196,15 @@ export function lootTable(s, key) {
 }
 
 // why this explorer can't go to this hex now, or null when it can
-export function memberProblem(s, id, key, now) {
+// (ride: 'maglev' or 'rocket' for a ride between stations, on which a baby may go by maglev)
+export function memberProblem(s, id, key, now, ride = null) {
   const b = explorerOf(s, id);
   if (!b) return 'missing';
   // the player goes anywhere (once fed)
   const me = id === PLAYER_ID;
   const stage = me ? 'adult' : stageOf(b).id;
-  if (stage === 'baby') return 'too-young';
+  if (stage === 'baby' && ride !== 'maglev') return ride === 'rocket' ? 'baby-fly' : 'too-young';
+  if (!me && (b.restUntil || 0) > now) return 'resting';
   if (landed(expeditionOf(s, id), now)) return 'report';
   if (isAway(s, id) || flyingLeft(b, now)) return 'away';
   if (s.breeding && (s.breeding.maleId === id || s.breeding.femaleId === id)) return 'breeding';
@@ -228,12 +230,16 @@ export function teamFrom(s, team) {
 }
 
 // why this team can't go to this hex now, or null when it can
-export function exploreProblem(s, team, key, now) {
+// dinosaurs sent ahead without the player: they only ride between stations and wait in a city's stables
+export const isFreight = p => EXPEDITION.needsPlayer && !p.members.includes(PLAYER_ID);
+// (ride: 'maglev' or 'rocket' for a ride to a city's station, on which dinosaurs may go alone)
+export function exploreProblem(s, team, key, now, ride = null) {
   const units = teamFrom(s, team);
   if (!units || !units.length) return 'no-team';
   if (units.includes(null)) return 'missing';
-  // dinosaurs never set out without the player
-  if (EXPEDITION.needsPlayer && !units.some(u => u.kind === 'player')) return 'no-player';
+  // dinosaurs never set out to explore without the player; sent ahead to a city, they may
+  const alone = !units.some(u => u.kind === 'player');
+  if (EXPEDITION.needsPlayer && alone && !ride) return 'no-player';
   if (units.length > TEAM_SLOTS) return 'team-full';
   const h = parseKey(key);
   if (!inWorld(h)) return 'out-of-map';
@@ -243,10 +249,11 @@ export function exploreProblem(s, team, key, now) {
   const members = units.flatMap(u => u.members);
   if (new Set(members).size !== members.length) return 'twice';
   for (const id of members) {
-    const problem = memberProblem(s, id, key, now);
+    const problem = memberProblem(s, id, key, now, ride);
     if (problem) return problem;
   }
-  if (W(s).expeditions.filter(e => !e.air).length >= EXPEDITION_SLOTS) return 'no-slot';
+  // (dinosaurs sent ahead alone take no expedition slot: they only wait in a city's stables)
+  if (!(alone && ride && EXPEDITION.needsPlayer) && W(s).expeditions.filter(e => !e.air && !isFreight(e)).length >= EXPEDITION_SLOTS) return 'no-slot';
   return null;
 }
 

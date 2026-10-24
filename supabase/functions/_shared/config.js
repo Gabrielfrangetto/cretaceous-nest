@@ -440,7 +440,20 @@ export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater'
 // links. A ride takes board minutes plus perHex a hex of line, is safe (on elevated, fenced lines) and
 // feeds and waters everyone aboard; the fare is base coins plus perHex a hex for every place taken
 // (seats: a person one, a dinosaur by its size).
-export const TRAIN = { links: 2, board: 2, mins: 0.05, fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
+export const TRAIN = { links: 2, fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
+// The maglev on a timetable (docs/TRANSPORT.md). The game's clock runs fast (a flat hex walked in half a
+// real minute is half a day of the world), so the maglev is set by how it feels against walking: about
+// 6 s a hex, five to ten times quicker than on foot. A train leaves every station on every line, each
+// way, every `every` minutes, standing `stand` minutes at each station on the way. Worked out from the
+// clock alone: nothing is stored.
+export const MAGLEV = { minsPerHex: 0.1, every: 5, stand: 1 };
+// Suborbital rockets between any two stations: a launch from each every `every` minutes, the flight
+// `mins` from the nearest to the farthest (by hexes, up to `far`); the fare by the party's weight
+// (`base` + `perTonne`), up to `load` kg a flight. Babies, colossal and long-necked dinosaurs can't fly
+// (3-5 g up and down, a few minutes weightless); those who fly need `rest` minutes on landing before
+// they can set out again.
+export const ROCKET = { every: 5, mins: [1, 3], far: 100, base: 20, perTonne: 15, load: 20000, rest: 10 };
+export const LONG_NECK = ['argent'];
 export const TRIP_MINS_PER_HEX = 4;          // there and back: 4 min for the nearest hexes, 28 for the edge
 export const EXPEDITION_SLOTS = 2;           // expeditions out at the same time
 export const TEAM_SLOTS = 5;                 // places in one expedition's team: a dinosaur, the player, or a pack

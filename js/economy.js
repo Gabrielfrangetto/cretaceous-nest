@@ -10,7 +10,7 @@ import {
 } from './config.js';
 import { hashId, newId, sha256 } from './util.js';
 import { isAway, healBaby, transfuse, mendFrill } from './world.js';
-import { startExpedition, orderParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
+import { startExpedition, orderParty, joinParty, recallParty, journeyStep, makeCamp, breakCamp, flyHome, tripCare } from './journey.js';
 import { formPack, setPackMembers, renamePack, disbandPack } from './packs.js';
 import { setTeamSlot, renameTeam } from './teams.js';
 
@@ -776,16 +776,19 @@ export const ACTIONS = {
     return feedBaby(s, id, now);
   },
   // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
-  explore(s, { team, babyId, hex, train, via }, now) {
-    return startExpedition(s, team || babyId, hex, now, !!train, via);
+  explore(s, { team, babyId, hex, train, rocket, via }, now) {
+    return startExpedition(s, team || babyId, hex, now, !!train, via, !!rocket);
   },
   // a party out is called home: from where it waits, or from where it is by now on its way out
   recall(s, { id }, now) {
     return recallParty(s, String(id), now);
   },
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
-  order(s, { id, hex, train, via }, now) {
-    return orderParty(s, String(id), String(hex), now, !!train, via);
+  order(s, { id, hex, train, rocket, via }, now) {
+    return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket);
+  },
+  join(s, { id, into }, now) {
+    return joinParty(s, String(id), String(into), now);
   },
   // a team waiting in the wild makes camp, or breaks it (and finds what it found)
   camp(s, { id }, now) {

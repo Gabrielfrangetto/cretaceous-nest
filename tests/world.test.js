@@ -8,7 +8,7 @@ import { capGuestSave } from '../js/sync.js';
 import {
   ALL_HEXES, biomeAt, hexDist, hexKey, newWorld, canReach, exploreProblem, tripMins, lootTable, isAway, isWater, cellAt, travelCost, travelPath, landHexes, threatAt, parseKey,
 } from '../js/world.js';
-import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE, AIRLIFT, TRIP_CARE, SURVIVAL } from '../js/config.js';
+import { MAP, WORLD_SEED, BIOMES, EXPEDITION_SLOTS, AGES, NEST_CALM, NEST_FAR, SPECIES, CLOCK, UNIT_HOURS, TRAVEL, CAPSULES, RESCUE, AIRLIFT, TRIP_CARE, SURVIVAL, MAGLEV, ROCKET } from '../js/config.js';
 
 const T0 = 1_000_000_000_000;
 // (fed as in meals before growth capsules: 10 a juvenile, 30 an adult)
@@ -492,7 +492,7 @@ test('hunger and thirst on a journey: flasks packed and brought back, fresh wate
   assert.equal(countItem(s, 'bone'), bones + 3);
   assert.ok(!isAway(s, 'ad') && !isAway(s, ME));
   // (it had landed by now: a quarter faster than the maglev, straight to the nest)
-  assert.equal(flightMins(rescued.hex), Math.max(1, Math.round(trainMins(hexDist(parseKey(rescued.hex))) * AIRLIFT.pace)));
+  assert.equal(flightMins(rescued.hex), Math.max(1, Math.round((2 + 0.05 * hexDist(parseKey(rescued.hex))) * AIRLIFT.pace)));
   // fresh water waters everyone and fills the flasks
   const wet = landHexes(42).map(h => hexKey(...h)).find(k => hexDist(parseKey(k)) <= 8 && travelPath(42, parseKey(k)).length && freshWater(42, travelPath(42, parseKey(k))[0]));
   if (wet) {
@@ -542,7 +542,7 @@ test('the maglev: stations at the nest and every city, a ride for a fare, safe, 
   assert.equal(trainRoute(42, '0,0', '1,0'), null);
   // a ride to a city: the fare paid, there soon, everyone fed and watered
   const s = game(dino('ad', 30));
-  const city = cities[0], trip = trainTrip(s, ['ad'], '0,0', city);
+  const city = cities[0], trip = trainTrip(s, ['ad'], '0,0', city, T0);
   s.coins = trip.fare - 1;
   assert.equal(applyAction(s, 'explore', { babyId: 'ad', hex: city, train: true }, T0).reason, 'coins');
   s.coins = trip.fare + 100;
@@ -550,7 +550,9 @@ test('the maglev: stations at the nest and every city, a ride for a fare, safe, 
   assert.equal(r.ok, true, r.reason);
   assert.equal(s.coins, 100);
   const p = partyOf(s, r.expedition.id);
-  assert.ok(p.leg.train && p.leg.arriveAt === T0 + trip.mins * 60000);
+  // (it waits at the station for the next train, then rides: much quicker than walking)
+  assert.ok(p.leg.train && p.leg.startedAt === trip.departAt && trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
+  assert.equal(p.leg.arriveAt, trip.departAt + trip.mins * 60000);
   assert.ok(trip.mins < legMins(s, ['ad'], '0,0', city));
   assert.equal(applyAction(s, 'recall', { id: p.id }, T0 + 1000).reason, 'on-the-train');
   // (a saved game keeps the ride)
