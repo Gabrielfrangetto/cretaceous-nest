@@ -170,14 +170,14 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // parts of one forest, seen at the same slant as the ground; from afar it is drawn in its colour, which
 // is the picture's average.
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
-const TEXTURED = ['meadow', 'swamp', 'forest'];
+const TEXTURED = ['meadow', 'swamp'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel of a picture reaches (map units)
 // Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
 // cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
 // stretches, with a little of each hex's own; each set at a place of its own in the picture
-const VARIANTS = { forest: 5, meadow: 3, swamp: 3 };
+const VARIANTS = { forest: 5, meadow: 3, swamp: 3 };   // (forest: its densities of plants, PLANTED)
 const densities = new Map();
 function densityOf(seed, h, biome) {
   const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
@@ -216,7 +216,72 @@ function textureOf(ctx, biome, i, top = false) {
   if (!mine.has(name)) mine.set(name, { pattern: ctx.createPattern(picture(name), 'repeat'), k: TEXTURE_PX, span: picture(name).naturalWidth * TEXTURE_PX });
   return mine.get(name);
 }
-const hasTexture = biome => rank(biome) >= 0 && textures.get(`${biome}-0`)?.naturalWidth > 0;
+const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.naturalWidth > 0) || !!plantsOf(biome);
+
+// ---------- plants standing in their hex ----------
+// A biome drawn in layers: its floor, then plants (scripts/plants.py: trees, single or in clumps, cut
+// whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
+// them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
+// each density, also mirrored).
+const PLANTED = { forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
+const plantSets = new Map();
+function plantsOf(biome) {
+  const p = PLANTED[biome];
+  if (!p) return null;
+  let set = plantSets.get(biome);
+  if (!set) {
+    set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
+    plantSets.set(biome, set);
+    fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; tiles.clear(); texturesLoaded(); }).catch(() => {});
+  }
+  return set.pieces && set.img.complete && set.img.naturalWidth ? set : null;
+}
+// (a seeded random sequence)
+const seq = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+// the hex as it shows (at a slant), its six sides as [x0, y0, x1, y1]
+const SIDES = Array.from({ length: 6 }, (_, i) => { const at = k => { const a = Math.PI / 180 * (60 * k - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; }; return [...at(i), ...at(i + 1)]; });
+// how far (x, y) is inside the hex, from its nearest side (below 0: outside)
+const inside = (x, y) => Math.min(...SIDES.map(([x0, y0, x1, y1]) => ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / Math.hypot(x1 - x0, y1 - y0)));
+function layoutOf(biome, set, level, k) {
+  const id = `${level}|${k}`;
+  if (set.layouts.has(id)) return set.layouts.get(id);
+  const p = PLANTED[biome], unit = p.size / set.big, rand = seq(level * 7919 + k * 104729 + 17);
+  const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
+  const placed = [];
+  for (let tries = 0; placed.length < p.counts[level] && tries < 3000; tries++) {
+    const [px, py, pw, ph] = set.pieces[Math.floor(rand() ** 0.8 * set.pieces.length)];
+    const s = unit * (0.85 + rand() * 0.3), r = Math.max(pw, ph) * s / 2;
+    const x = (rand() - 0.5) * SIZE * SQ3, y = (rand() - 0.5) * SIZE * 2 * TILT;
+    // (wholly inside the hex; packed close in thick forest, apart where it is open)
+    if (inside(x, y) < r * 0.95) continue;
+    if (placed.some(o => Math.hypot(o.x - x, o.y - y) < (o.r + r) * (level < 2 ? 0.5 : 0.85))) continue;
+    placed.push({ x, y, r, s, px, py, pw, ph, flip: rand() < 0.5 });
+  }
+  placed.sort((a, b) => a.y - b.y);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.translate(w / 2, h / 2);
+  g.scale(LAYOUT_PX, LAYOUT_PX);
+  // their shadows on the floor, towards the bottom right (the light from the top-left), then the plants
+  for (const t of placed) {
+    const sh = g.createRadialGradient(t.x + t.r * 0.3, t.y + t.r * 0.35, 0, t.x + t.r * 0.3, t.y + t.r * 0.35, t.r * 1.05);
+    sh.addColorStop(0, 'rgba(10,16,8,.45)'); sh.addColorStop(1, 'rgba(10,16,8,0)');
+    g.fillStyle = sh;
+    g.beginPath(); g.ellipse(t.x + t.r * 0.3, t.y + t.r * 0.35, t.r * 1.05, t.r * 0.95, 0, 0, Math.PI * 2); g.fill();
+  }
+  for (const t of placed) {
+    g.save();
+    g.translate(t.x, t.y);
+    if (t.flip) g.scale(-1, 1);
+    g.drawImage(set.img, t.px, t.py, t.pw, t.ph, -t.pw * t.s / 2, -t.ph * t.s / 2, t.pw * t.s, t.ph * t.s);
+    g.restore();
+  }
+  const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
+  set.layouts.set(id, out);
+  return out;
+}
 // a picture's place in a hex: where in the picture the hex's middle falls, its own
 const placeIn = (tex, h) => new DOMMatrix([tex.k, 0, 0, tex.k * TILT, -cornerRand(h[0], h[1], 71) * tex.span, -cornerRand(h[0], h[1], 72) * tex.span * TILT]);
 
@@ -263,7 +328,14 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   const textured = [];
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
-    const biome = groundName(cell), dense = rank(biome) >= 0 ? densityOf(seed, h, biome) : 0;
+    const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
+    const planted = !isWaterCell(cell) && !cell.lava && plantsOf(biome);
+    if (planted) {
+      // (its floor, plain: the light is laid over it with its plants, below)
+      ctx.save(); ctx.translate(x, y); ctx.fillStyle = PLANTED[biome].floor; ctx.fill(shape); ctx.restore();
+      textured.push({ h, x, y, cell, planted, dense });
+      continue;
+    }
     const tex = !isWaterCell(cell) && !cell.lava && textureOf(ctx, biome, dense);
     if (tex) { textured.push({ h, x, y, cell, tex, dense }); continue; }
     ctx.save();
@@ -273,7 +345,16 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     ctx.restore();
   }
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
-  for (const { h, x, y, cell, tex } of textured) {
+  for (const { h, x, y, cell, tex, planted, dense } of textured) {
+    if (planted) {
+      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
+      ctx.save();
+      ctx.translate(x, y);
+      if (cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
+      ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
+      ctx.restore();
+      continue;
+    }
     // (each picture within its own hex, never over a neighbour's)
     const edge = shape;
     ctx.save();
