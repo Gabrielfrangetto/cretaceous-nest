@@ -177,7 +177,7 @@ const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel o
 // Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
 // cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
 // stretches, with a little of each hex's own; each set at a place of its own in the picture
-const VARIANTS = { forest: 5, meadow: 3, swamp: 3 };   // (forest: its densities of plants, PLANTED)
+const VARIANTS = { forest: 5, meadow: 3, swamp: 3, scrub: 3 };   // (forest: its densities of plants, PLANTED)
 const densities = new Map();
 function densityOf(seed, h, biome) {
   const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
@@ -223,7 +223,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {} };
+const PLANTED = { scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2], noHills: true }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {} };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -398,7 +398,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
-      const hills = cell.terrain === 'hill' && plantsOf('hills');
+      const hills = cell.terrain === 'hill' && !PLANTED[groundName(cell)].noHills && plantsOf('hills');
       // (on a hill, only a few trees, so the hill shows)
       const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, PLANTED[groundName(cell)].counts.length - 2) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
