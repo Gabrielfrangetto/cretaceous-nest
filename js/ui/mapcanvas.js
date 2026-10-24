@@ -4,7 +4,7 @@
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
 import { SIZE, SQ3, TILT, center, flatCenter, fillOf, glyphOf, reliefOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
-import { railsOf, upAt } from '../map.js';
+import { railsOf, upAt, WILDS_HEXES } from '../map.js';
 
 // ---------- SVG snippets as canvas paths ----------
 const attr = (s, name) => { const m = new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(s); return m ? m[1] : null; };
@@ -350,28 +350,69 @@ export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5
 // too. Set today so the map looks as it always has (plants and pictures down to 3 px: even that small
 // they give the forests their grain); raise one when new detail makes the map slow from afar. The
 // tiles are drawn at about 15, 7.5 and 3.75 px a hex, so a threshold between those moves a whole level.
-export const LOD = { texture: 3, plants: 3, relief: 9, glyphs: 9, grid: 9 };
-export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full') {
+// Below blend, the ground is no longer drawn hex by hex at all: each hex's colour, lit as it lies, blended
+// smoothly into its neighbours' (groundField), so from afar no hex shows, only the lie of the land.
+export const LOD = { blend: 9, texture: 3, plants: 3, relief: 9, glyphs: 9, grid: 9 };
+// The whole map's ground as one small picture, two pixels a hex across and one a row of hexes down,
+// each hex's colour lit as it lies (dimmer where not yet explored), to be stretched over the map
+// smoothly: { canvas, x, y, w, h } (where it lies on the map, map units). Made again when what is known
+// changes (sig)
+const fields = new Map();
+function groundField(seed, known, sig) {
+  const id = `${seed}|${sig}`;
+  if (fields.has(id)) return fields.get(id);
+  const hexes = [...ALL_HEXES, ...WILDS_HEXES], hw = SIZE * SQ3 / 2, rh = SIZE * 1.5 * TILT;
+  let n0 = Infinity, n1 = -Infinity, r0 = Infinity, r1 = -Infinity;
+  for (const [q, r] of hexes) { n0 = Math.min(n0, 2 * q + r); n1 = Math.max(n1, 2 * q + r); r0 = Math.min(r0, r); r1 = Math.max(r1, r); }
+  const W = n1 - n0 + 2, H = r1 - r0 + 1, canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+  for (const h of hexes) {
+    const cell = cellAt(seed, h);
+    if (!cell) continue;
+    let rgb = rgbOf(fillOf(cell));
+    if (!isWaterCell(cell)) {
+      const [t, to] = lightTo(lightOf(seed, h).m);
+      rgb = rgb.map((v, i) => v + (to[i] - v) * t);
+      if (!known(hexKey(...h))) rgb = rgb.map((v, i) => v * 0.84 + [30, 34, 28][i] * 0.16);
+    }
+    if (cell.city || (h[0] === 0 && h[1] === 0)) rgb = rgbOf('#a8743c');
+    const x = 2 * h[0] + h[1] - n0, y = h[1] - r0;
+    for (const k of [(y * W + x) * 4, (y * W + x + 1) * 4]) { d[k] = rgb[0]; d[k + 1] = rgb[1]; d[k + 2] = rgb[2]; d[k + 3] = 255; }
+  }
+  g.putImageData(img, 0, 0);
+  const out = { canvas, x: hw * n0 - hw, y: rh * r0 - rh / 2, w: W * hw, h: H * rh };
+  if (fields.size > 2) fields.delete(fields.keys().next().value);
+  fields.set(id, out);
+  return out;
+}
+export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full', sig = '') {
   // (a hair bigger than the hex, so neighbours meet with no gap between them)
   const shape = hexPath(1.01);
   const dim = 'rgba(30, 34, 28, .16)';
   ctx.setLineDash([]);
   ctx.lineWidth = 1;
   ctx.strokeStyle = edge;
-  if (detail === 'dots') {
-    const w = SIZE * SQ3, h = SIZE * 1.5 * TILT;
-    for (const hx of hexes) {
-      const [x, y] = center(hx), cell = cellAt(seed, hx);
-      ctx.fillStyle = cell.city || hexKey(...hx) === '0,0' ? '#a8743c' : groundFill(ctx, seed, hx, cell, false);
-      ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5);
-      if (!isWaterCell(cell) && !known(hexKey(...hx))) { ctx.fillStyle = dim; ctx.fillRect(x - w / 2, y - h / 2, w + 0.5, h + 0.5); }
+  const px = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b), smooth = px >= 44;
+  if (detail === 'dots' || px < LOD.blend) {
+    // the ground blended, no hex showing (the part of the map's picture under these hexes)
+    const f = groundField(seed, known, sig), [ax, ay, bx, by] = areaOf(hexes), m = SIZE * 2;
+    const kx = f.canvas.width / f.w, ky = f.canvas.height / f.h;
+    const sx = Math.max(0, Math.floor((ax - m - f.x) * kx)), sy = Math.max(0, Math.floor((ay - m - f.y) * ky));
+    const sw = Math.min(f.canvas.width, Math.ceil((bx + m - f.x) * kx)) - sx, sh = Math.min(f.canvas.height, Math.ceil((by + m - f.y) * ky)) - sy;
+    if (sw > 0 && sh > 0) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(f.canvas, sx, sy, sw, sh, f.x + sx / kx, f.y + sy / ky, sw / kx, sh / ky);
+      ctx.restore();
     }
-    // from very far only the great rivers show
-    drawRivers(ctx, seed, hexes, 8);
+    // (from very far only the great rivers show)
+    drawRivers(ctx, seed, hexes, detail === 'dots' ? 8 : 3);
     drawRails(ctx, seed, areaOf(hexes));
+    if (detail !== 'dots') for (const h of hexes) { const key = hexKey(...h), cell = cellAt(seed, h); if (key === '0,0' || cell.city) { const [x, y] = center(h); paint(ctx, key === '0,0' ? NEST : CITY, x, y); } }
     return;
   }
-  const px = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b), smooth = px >= 44;
   // the ground: first each hex in its colour, lit as it lies; then those with a picture of their ground,
   // each within its own hex (their light over it too); then over all of them, the unexplored dimmed and
   // the line between hexes
@@ -585,7 +626,7 @@ function makeTile(seed, known, sig, edge, k, tx, ty) {
   const ctx = canvas.getContext('2d');
   ctx.scale(k, k);
   ctx.translate(-ox, -oy);
-  drawHexes(ctx, seed, hexesIn(ox, oy, ox + span, oy + span), known, edge, detailAt(k));
+  drawHexes(ctx, seed, hexesIn(ox, oy, ox + span, oy + span), known, edge, detailAt(k), sig);
   tiles.set(id, canvas);
   while (tiles.size > TILE_KEEP) tiles.delete(tiles.keys().next().value);
   return canvas;
