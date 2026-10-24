@@ -96,9 +96,9 @@ Plan: a hex map under fog explored by idle expeditions (now), later small walkab
 - [ ] Event pictures: one per event in images/events (names in its README); done: fight-dilo
 - [x] Team tab: up to 5 named teams of 4 places (the player always goes besides), each place filled from a picker of dinosaur and pack cards; on the World map the player picks which team goes with them, or no one
 - [x] Biome hazards on journeys: sandstorms and heat, volcanic fumes, floods, bogs, cold nights in the north, losing the way in thick forest (they cost time or wear someone down, never kill)
-- [x] Relief on the map: each hex keeps its height (map.js upAt), the ground is lit from the north-west by its slope, hills, mountains and volcanoes stand up out of their hexes (drawn north to south, with shadows)
+- [x] Relief on the map: each hex keeps its height (map.js upAt), the ground is lit from the north-west by its slope, mountains and volcanoes stand up out of their hexes (hills removed, Oct 2026: the higher ground shows by its light alone) (drawn north to south, with shadows)
 - [x] The map seen at a slant (2.5D, hexdraw.js TILT = 0.75): the ground at three quarters of its depth, what stands on it upright
-- [ ] Map textures per biome (a few variants each, turned and tinted per hex, soft edges between biomes), then painted art for mountains, hills and volcanoes cut out like the sprites
+- [ ] Map textures per biome (a few variants each, turned and tinted per hex, soft edges between biomes), then painted art for mountains and volcanoes cut out like the sprites
 - [ ] Walls where the ground drops (cliffs, the coast), shown on a hex's south edge now that the map is seen at a slant
 - [ ] Later, a true 3D map (WebGL, three.js): the same heights as a terrain mesh (hex columns or one smooth surface), mountains, trees and the nest as simple models or upright pictures, a perspective camera that turns; picking by ray, the map in chunks for phones, the journey map and the landing page's map with it. A working example of a real patch was made to compare (Oct 2026); the 2.5D map stays until then
 - [x] Transport (docs/TRANSPORT.md): the maglev on a timetable at 1,000 km/h for anyone, suborbital rockets for those who can fly, dinosaurs travelling without the player, stables in every city

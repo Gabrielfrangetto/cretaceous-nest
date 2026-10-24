@@ -17,7 +17,7 @@ first one ring through the nest and every city (the cheapest to build that never
 up to three straight links across it where two stations are at least 2.5 times as far apart round the
 ring as across (on this map, the nest to Highfen), each cutting its ring in two that share it; so no
 line ends at a city. Each line is laid as straight as it goes between its stations, over land, around
-mountains where it can (hills cost a little more, a mountain a lot: a tunnel, short, drawn dashed, the
+mountains where it can (a mountain costs a lot: a tunnel, short, drawn dashed, the
 trains unseen in it), and drawn smooth. On every ring trains run round both ways, each keeping its way,
 on a beat of 10 min (`journey.js timetableOf`): each line takes a whole number of 5 min from leaving one
 station to leaving the next (its run, at about 6 s a hex, set to fit, and 1 min standing), and each ring

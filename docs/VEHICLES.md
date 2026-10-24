@@ -19,7 +19,7 @@ to drive on.
   those at home who fit the compartments go (dragged into them, as on the maglev: `ui/board.js`), from
   anywhere else the party waiting where it is parked, all of it. The way is the quickest a vehicle can
   cross (`drivePath`): never swamps, mountains, volcanoes or water. About 45 km/h on open land, 25 in
-  woods, hills and floodplains, 12 hours at the wheel a day (`DRIVE`). Nothing happens on the way: no
+  woods and floodplains, 12 hours at the wheel a day (`DRIVE`). Nothing happens on the way: no
   encounters, hazards or finds; it parks and the hex is seen.
 - **Battery**: so many hexes of open land (rough land takes 1.5); full again at a station, a quarter
   back for a night's camp beside it.
