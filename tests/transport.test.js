@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { applyAction } from '../js/economy.js';
 import { freshState } from '../js/state.js';
 import { newWorld, citiesOf } from '../js/world.js';
-import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, timetableOf, trainMins, cleanParties, restLeft } from '../js/journey.js';
+import { partyOf, trainTrip, rocketTrip, nextDeparture, trainsAt, timetableOf, trainMins, cleanParties, restLeft, rideAt, progressOf } from '../js/journey.js';
 import { railsOf } from '../js/map.js';
 import { CAPSULES, MAGLEV, ROCKET, PLAYER_ID } from '../js/config.js';
 
@@ -135,4 +135,31 @@ test('rockets: straight from station to station, quick, dear by weight; no babie
   const home = applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
   assert.ok(home.story.some(e => e.kind === 'home'));
   assert.equal(s.world.expeditions.length, 0);
+});
+
+test('everyone rides the same train: its doors close 10 s before it leaves; a party rides inside its train', () => {
+  const s = game(dino('ad', 30), dino('b2', 30));
+  const city = cities()[0], first = trainTrip(s, ['ad'], '0,0', city, T0);
+  // (booked up to the doors closing, the same train for all; a moment later, only the next)
+  const late = first.departAt - MAGLEV.board * 1000;
+  assert.equal(trainTrip(s, ['b2'], '0,0', city, late - 1000).departAt, first.departAt);
+  assert.equal(trainTrip(s, ['b2'], '0,0', city, late).departAt, first.departAt);
+  assert.ok(trainTrip(s, ['b2'], '0,0', city, late + 1000).departAt > first.departAt);
+  // (the train chosen, refused once its doors have closed)
+  assert.equal(applyAction(s, 'explore', { team: dinos('b2'), hex: city, train: true, departAt: first.departAt }, late + 1000).reason, 'train-gone');
+  const r = applyAction(s, 'explore', { team: dinos('ad'), hex: city, train: true, departAt: first.departAt }, T0);
+  assert.equal(r.ok, true, r.reason);
+  const p = partyOf(s, r.expedition.id);
+  // on the platform until it leaves; then aboard: where its train is, all the way
+  assert.deepEqual(rideAt(s, p.leg, first.departAt - 1000).at, '0,0');
+  for (let t = first.departAt + 1000; t < p.leg.arriveAt; t += 7000) {
+    const ride = rideAt(s, p.leg, t);
+    if (ride.at) continue;
+    const train = trainsAt(s, t).find(x => x.id === ride.train);
+    assert.ok(train, 'its train runs');
+    // (the same hex as its train, the train's line being part of the ride's way)
+    const g = progressOf(s, p, t), here = g.i < 0 ? p.leg.from : p.leg.path[g.i];
+    assert.ok(Math.abs(g.f - train.f) < 1e-6 || here === train.path[train.i] || here === train.path[train.i + 1] || train.standing, `apart at ${t}`);
+    assert.equal(train.path[train.i + (train.f > 0.5 ? 1 : 0)], g.f > 0.5 ? p.leg.path[g.i + 1] : here);
+  }
 });

@@ -776,16 +776,17 @@ export const ACTIONS = {
     return feedBaby(s, id, now);
   },
   // a team: [{ kind: 'dino' | 'player' | 'pack', id }]; one explorer's babyId still works
-  explore(s, { team, babyId, hex, train, rocket, via }, now) {
-    return startExpedition(s, team || babyId, hex, now, !!train, via, !!rocket);
+  // departAt: the train or rocket chosen (its departure), refused once its doors have closed
+  explore(s, { team, babyId, hex, train, rocket, via, departAt }, now) {
+    return startExpedition(s, team || babyId, hex, now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null);
   },
   // a party out is called home: from where it waits, or from where it is by now on its way out
   recall(s, { id }, now) {
     return recallParty(s, String(id), now);
   },
   // a party waiting at a hex is sent on: to another hex, or home ('0,0')
-  order(s, { id, hex, train, rocket, via }, now) {
-    return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket);
+  order(s, { id, hex, train, rocket, via, departAt }, now) {
+    return orderParty(s, String(id), String(hex), now, !!train, via, !!rocket, Number.isFinite(departAt) ? departAt : null);
   },
   join(s, { id, into }, now) {
     return joinParty(s, String(id), String(into), now);

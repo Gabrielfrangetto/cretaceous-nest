@@ -449,7 +449,9 @@ export const TRAIN = { fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small
 // (6 s a hex, about five times quicker than on foot).
 // Trains keep to it only roughly: each comes in up to `late` minutes early or late, and stands a little
 // more or less, so the wait between trains is about 5 min, never quite the same.
-export const MAGLEV = { every: 10, stand: 1, minsPerHex: 0.1, late: 0.6 };
+// Its doors close `board` seconds before it leaves: who has boarded by then rides it, the same train
+// for every player; after that, only the next.
+export const MAGLEV = { every: 10, stand: 1, minsPerHex: 0.1, late: 0.6, board: 10 };
 // Suborbital rockets between any two stations: a launch from each every `every` minutes, the flight
 // `mins` from the nearest to the farthest (by hexes, up to `far`); the fare by the party's weight
 // (`base` + `perTonne`), up to `load` kg a flight. Babies, colossal and long-necked dinosaurs can't fly

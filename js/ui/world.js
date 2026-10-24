@@ -8,7 +8,7 @@ import {
   threatAt, isLair, injuredLeft, isCritical, explorerOf, memberProblem, teamFrom, teamUnits, keepsAway, passesBy, watery, routeRisk, sailBackOff, chaseOf, huntOdds, encounterChance,
 } from '../world.js';
 import { packOf } from '../packs.js';
-import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, rocketTrip, routePath, freshWater, standingUnits, flightBill, flightMins, stopOf, trainsAt, restLeft } from '../journey.js';
+import { legMins, progressOf, packOf as suppliesOf, dryStretch, trainTrip, rocketTrip, routePath, freshWater, standingUnits, flightBill, flightMins, stopOf, trainsAt, restLeft, rideAt } from '../journey.js';
 import { isStation, upAt } from '../map.js';
 import { skyAt, sunTimes, placeOf, worldTime } from '../sun.js';
 import { citiesOf, cityAt } from '../world.js';
@@ -48,6 +48,7 @@ const PROBLEMS = {
   report: 'Back home by air: see the journey report first.',
   coins: 'Not enough coins for the fare.',
   'no-line': 'No maglev line goes there.',
+  'train-gone': 'The doors closed on that maglev: it left without you. Pick the next one.',
   'no-slot': `Only ${EXPEDITION_SLOTS} teams can be out at the same time.`,
   unreachable: 'Too deep in the fog. Explore the hexes next to it first.',
   home: 'This is your nest.',
@@ -229,27 +230,40 @@ function paintTrains() {
   const ctx = c.getContext('2d'), scale = f.scale, px = n => n / scale;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  if (SIZE * scale < 3) return;
   ctx.setTransform(f.dpr * scale, 0, 0, f.dpr * scale, -f.x0 * f.dpr * scale, -f.y0 * f.dpr * scale);
   const seed = S.world.seed, x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale, r = Math.max(SIZE * 0.22, px(3));
-  ctx.fillStyle = '#e8edf2';
-  ctx.strokeStyle = '#2b3138';
+  // (the parties riding: aboard a train, which shows in their colour, or waiting on a platform)
+  const at = now(), accent = cssVar('--accent'), riding = new Map(), placed = [];
+  for (const e of S.world.expeditions) {
+    if (!e.leg || !e.leg.train || at >= e.leg.arriveAt) continue;
+    const ride = rideAt(S, e.leg, at);
+    if (ride && ride.train) riding.set(ride.train, e);
+    else if (ride && ride.at) { const [x, y] = center(parseKey(ride.at)); placed.push([e, x, y]); }
+  }
+  // (the trains only once the map is close enough to see them; a party aboard shows from anywhere)
+  const seen = SIZE * scale >= 3;
   ctx.lineWidth = Math.max(1, px(1));
-  for (const tr of trainsAt(S, now())) {
+  ctx.strokeStyle = '#2b3138';
+  for (const tr of trainsAt(S, at)) {
+    const mine = riding.get(tr.id);
+    if (!seen && !mine) continue;
     // (along the line's smooth curve; under a mountain, in its tunnel, unseen)
-    if (inTunnel(seed, tr.path[tr.i]) && inTunnel(seed, tr.path[tr.i + 1])) continue;
     const pts = railCurve(tr.path), [ax, ay] = pts[tr.i], [bx, by] = pts[tr.i + 1];
     const x = ax + (bx - ax) * tr.f, y = ay + (by - ay) * tr.f;
+    if (mine) placed.push([mine, x, y]);
+    if (!seen || (inTunnel(seed, tr.path[tr.i]) && inTunnel(seed, tr.path[tr.i + 1]))) continue;
     if (x < f.x0 - r * 4 || x > x1 + r * 4 || y < f.y0 - r * 4 || y > y1 + r * 4) continue;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.atan2(by - ay, bx - ax));
+    ctx.fillStyle = mine ? accent : '#e8edf2';
     ctx.beginPath();
     ctx.roundRect(-r * 1.8, -r * 0.55, r * 3.6, r * 1.1, r * 0.55);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
   }
+  for (const [e, x, y] of placed) partyBubble(ctx, e, x, y, px, accent);
 }
 
 function paintMap() {
@@ -395,25 +409,31 @@ function paintMap() {
   }
   // where each party is by now: waiting somewhere, or along its way
   for (const e of w.expeditions) {
+    // (riding the maglev: drawn with its train, every frame, by paintTrains)
+    if (e.leg && e.leg.train && t < e.leg.arriveAt) continue;
     // (on its way: between the last hex reached and the next, as far as the time says)
     const g = e.leg ? progressOf(S, e, t) : null;
     const hexOf = i => center(parseKey(i < 0 ? e.leg.from : e.leg.path[i]));
     let [x, y] = center(parseKey(e.leg ? (g.i < 0 ? e.leg.from : e.leg.path[g.i]) : e.at));
     if (g && g.f > 0 && g.i + 1 < e.leg.path.length) { const [nx, ny] = hexOf(g.i + 1); x += (nx - x) * g.f; y += (ny - y) * g.f; }
-    const r = Math.max(8, px(7)), cx = x + Math.max(12, px(9)), cy = y - Math.max(12, px(9));
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = e.leg && t >= e.leg.arriveAt ? heart : accent;
-    ctx.fill();
-    ctx.lineWidth = r / 4;
-    ctx.strokeStyle = edge;
-    ctx.stroke();
-    ctx.fillStyle = accentInk;
-    ctx.font = `700 ${(r * 1.25).toFixed(1)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(e.team.length > 1 ? String(e.team.length) : (unitName(e.team[0])[0] || '?'), cx, cy + r * 0.08);
+    partyBubble(ctx, e, x, y, px, e.leg && t >= e.leg.arriveAt ? heart : accent);
   }
+}
+// a party's marker: a disc by where it is, with how many go (or the one's initial)
+function partyBubble(ctx, e, x, y, px, fill) {
+  const r = Math.max(8, px(7)), cx = x + Math.max(12, px(9)), cy = y - Math.max(12, px(9));
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineWidth = r / 4;
+  ctx.strokeStyle = cssVar('--panel');
+  ctx.stroke();
+  ctx.fillStyle = cssVar('--accent-ink');
+  ctx.font = `700 ${(r * 1.25).toFixed(1)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(e.team.length > 1 ? String(e.team.length) : (unitName(e.team[0])[0] || '?'), cx, cy + r * 0.08);
 }
 
 // drag to look around, the wheel or two fingers to zoom; a press that doesn't move is a tap on a hex;
@@ -739,7 +759,7 @@ function sideHTML(t) {
     ${units.length ? routeHTML(units, selected, true) : ''}
     ${team.length ? suppliesHTML(members, selected) : ''}
     ${teamFieldHTML(rows)}
-    <div class="row"><button class="btn" type="button" id="sendTrain" ${problem || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Take the maglev</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t)}, ${fly.mins} min · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
+    <div class="row"><button class="btn" type="button" id="sendTrain" ${trip && !trip.reason ? `data-depart="${trip.departAt}"` : ''} ${problem || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>Take the maglev</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
     ${fly && fly.reason && PROBLEMS[fly.reason] ? `<p class="hint">No rocket for this team: ${esc(PROBLEMS[fly.reason])}</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
@@ -772,7 +792,7 @@ function aheadHTML(t) {
   return `<details class="ahead"${ahead.length ? ' open' : ''}><summary>Send dinosaurs ahead, without you</summary>
     <p class="hint">They ride on their own and wait here in the city's stables, fed and watered, until you come for them or send them on.</p>
     <ul class="ahead-list">${home.map(b => `<li><label><input type="checkbox" data-ahead="${esc(b.id)}"${ahead.includes(b.id) ? ' checked' : ''}> ${esc(b.name)} <span class="hint">${esc(SPECIES[b.type].species)} · ${esc(stageOf(b).id)}</span></label></li>`).join('')}</ul>
-    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadTrain" ${why || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>By maglev <span class="hint">(${trip && !trip.reason ? `${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins` : '—'})</span></button><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t)}, ${fly.mins} min · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
+    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadTrain" ${trip && !trip.reason ? `data-depart="${trip.departAt}"` : ''} ${why || !trip || trip.reason || S.coins < trip.fare ? 'disabled' : ''}>By maglev <span class="hint">(${trip && !trip.reason ? `${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins` : '—'})</span></button><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
     ${why && PROBLEMS[why] ? `<p class="hint warn-text">${esc(PROBLEMS[why])}</p>` : ''}
   </details>`;
 }
@@ -846,8 +866,8 @@ function trainButtons(p) {
   const button = to => {
     if (to === p.at) return '';
     const trip = trainTrip(S, p.members, p.at, to, t), fly = rocketTrip(S, p.members, p.at, to, t);
-    const maglev = trip.reason ? '' : `<button class="ghost" type="button" data-train="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= trip.fare ? '' : 'disabled'}>Maglev to ${esc(stationName(to))} <span class="hint">(${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins)</span></button>`;
-    const rocket = fly.reason ? '' : `<button class="ghost" type="button" data-rocket="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= fly.fare ? '' : 'disabled'}>Rocket to ${esc(stationName(to))} <span class="hint">(${departs(fly.departAt, t)}, ${fly.mins} min · ${fly.fare} coins)</span></button>`;
+    const maglev = trip.reason ? '' : `<button class="ghost" type="button" data-train="${esc(p.id)}" data-hex="${esc(to)}" data-depart="${trip.departAt}" ${S.coins >= trip.fare ? '' : 'disabled'}>Maglev to ${esc(stationName(to))} <span class="hint">(${departs(trip.departAt, t)}, ${trip.mins} min · ${trip.fare} coins)</span></button>`;
+    const rocket = fly.reason ? '' : `<button class="ghost" type="button" data-rocket="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= fly.fare ? '' : 'disabled'}>Rocket to ${esc(stationName(to))} <span class="hint">(${departs(fly.departAt, t, false)}, ${fly.mins} min · ${fly.fare} coins)</span></button>`;
     return maglev + rocket;
   };
   const other = selected && selected !== p.at && selected !== '0,0' && isStation(S.world.seed, selected) ? button(selected) : '';
@@ -856,7 +876,21 @@ function trainButtons(p) {
   return button('0,0') + other + join;
 }
 // when the next train or rocket leaves
-const departs = (at, t) => (at - t < 30000 ? 'leaves now' : `leaves in ${fmt(at - t)}`);
+// (a train's doors close MAGLEV.board seconds before it leaves)
+const departsText = (at, t, doors = true) => (doors && at - t < 60000 ? `boarding, doors close in ${Math.max(0, Math.ceil((at - t) / 1000 - MAGLEV.board))} s` : `leaves in ${fmt(at - t)}`);
+// (kept counting down, second by second: doorsClosed)
+const departs = (at, t, doors = true) => `<span class="departs" data-at="${at}"${doors ? '' : ' data-open'}>${departsText(at, t, doors)}</span>`;
+// When the doors close on a train someone was choosing (a ride button showing it), the choice is
+// closed: the dinosaurs picked to send ahead are put back, and the panel shows the next train instead
+function doorsClosed() {
+  if (currentTab() !== 'world' || document.hidden) return;
+  const t = now(), shown = [...document.querySelectorAll('#panelWorld [data-depart]')].map(b => +b.dataset.depart);
+  const gone = shown.filter(d => d - t <= MAGLEV.board * 1000);
+  if (!gone.length) { document.querySelectorAll('#panelWorld .departs').forEach(el => { el.textContent = departsText(+el.dataset.at, t, !('open' in el.dataset)); }); return; }
+  ahead = [];
+  message = 'The doors closed on that maglev: it leaves without you. Pick the next one below.';
+  render();
+}
 
 // the parties out: where each is, how it is, what it carries, and what can be done with it
 // An aircraft home for the whole team, from where it is now: the fit's share paid then, the badly hurt
@@ -898,7 +932,7 @@ function tripsHTML(t) {
     </li>`;
     }
     const ride = leg.train ? 'maglev' : leg.rocket ? 'rocket' : '';
-    const where = leg.air ? 'flying home by air' : (ride ? (t < leg.startedAt ? `waiting for the ${ride} (${departs(leg.startedAt, t)}) ` : `on the ${ride} `) : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
+    const where = leg.air ? 'flying home by air' : (ride ? (onRide => onRide && onRide.at ? `waiting at ${esc(stationName(onRide.at))} for the ${ride}${t < leg.startedAt ? ` (${departs(leg.startedAt, t)})` : ''} ` : t < leg.startedAt ? `waiting for the ${ride} (${departs(leg.startedAt, t, !leg.rocket)}) ` : `on the ${ride} `)(rideAt(S, leg, t)) : '') + (leg.to === '0,0' ? 'heading home' : `→ ${esc(placeName(cellAt(S.world.seed, parseKey(leg.to))))}`);
     const frac = Math.min(1, (t - leg.startedAt) / Math.max(1, leg.arriveAt - leg.startedAt));
     return `<li class="trip-row">
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
@@ -961,7 +995,7 @@ function render() {
   for (const [id, rocket] of [['aheadTrain', false], ['aheadRocket', true]]) {
     const btn = document.getElementById(id);
     if (btn) btn.addEventListener('click', () => {
-      const names = ahead.map(i => byId(i).name), r = act('explore', { team: ahead.map(i => ({ kind: 'dino', id: i })), hex: selected, ...(rocket ? { rocket: true } : { train: true }) });
+      const names = ahead.map(i => byId(i).name), r = act('explore', { team: ahead.map(i => ({ kind: 'dino', id: i })), hex: selected, ...(rocket ? { rocket: true } : { train: true, departAt: +btn.dataset.depart }) });
       message = r.ok ? `${esc(listNames(names))} sent ahead to ${esc(stationName(selected))} by ${rocket ? 'rocket' : 'maglev'}.` : esc(PROBLEMS[r.reason] || 'They could not board.');
       if (r.ok) ahead = [];
       render();
@@ -969,7 +1003,7 @@ function render() {
   }
   const train = document.getElementById('sendTrain');
   if (train) train.addEventListener('click', () => {
-    const names = team.map(unitName), r = act('explore', { team, hex: selected, train: true });
+    const names = team.map(unitName), r = act('explore', { team, hex: selected, train: true, departAt: +train.dataset.depart });
     message = r.ok ? `${esc(listNames(names))} boarded the maglev for ${esc(stationName(selected))}.` : esc(PROBLEMS[r.reason] || 'The team could not board.');
     if (r.ok) team = [];
     render();
@@ -1040,8 +1074,8 @@ function bindTrips(box) {
     render();
   }));
   box.querySelectorAll('[data-train]').forEach(btn => btn.addEventListener('click', () => {
-    const r = act('order', { id: btn.dataset.train, hex: btn.dataset.hex, train: true });
-    message = r.ok ? `You boarded the maglev for ${esc(stationName(btn.dataset.hex))}.` : r.reason === 'coins' ? 'Not enough coins for the fare.' : 'The team could not board.';
+    const r = act('order', { id: btn.dataset.train, hex: btn.dataset.hex, train: true, departAt: +btn.dataset.depart });
+    message = r.ok ? `You boarded the maglev for ${esc(stationName(btn.dataset.hex))}.` : r.reason === 'coins' ? 'Not enough coins for the fare.' : esc(PROBLEMS[r.reason] || 'The team could not board.');
     render();
   }));
   box.querySelectorAll('[data-fly]').forEach(btn => btn.addEventListener('click', () => {
@@ -1106,6 +1140,7 @@ export function initWorld() {
     }, 200);
   });
   setInterval(updateBadge, 1000);
+  setInterval(doorsClosed, 1000);
   // (the night moving over the map: the trains move on their own canvas)
   setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, 30000);
   updateBadge();

@@ -21,7 +21,13 @@ a whole number of 10 min round; so each way comes into every station once every 
 5 min apart, at every station alike: a train every 5 min, steady. Where two rings meet the second
 ring's trains come in between the first's, a train every 2.5 min. Trains keep to it only roughly, as real ones do
 (`MAGLEV.late`): each comes in up to 0.6 min early or late and stands 40 to 70 s, the same for every
-player, so the wait between trains is about 5 min (4 to 6), never quite the same. Trains slow into each station and
+player, so the wait between trains is about 5 min (4 to 6), never quite the same. A party rides a real train
+(`journey.js rideAt`): it waits on the platform, boards the next train that can still be boarded, rides
+inside it (the map shows that train in the party's colour, the party's marker over it), stays aboard
+where the same train goes on and changes where its way leaves it. A train's doors close
+`MAGLEV.board` (10) seconds before it leaves, the same for every player: everyone who boards before
+then rides the same train; a choice made for a train whose doors have closed is refused
+('train-gone'), and the World tab puts the dinosaurs being picked back and offers the next one. Trains slow into each station and
 speed away. A ride is a wait of up to 10 min, then the quickest way, changing rings where needed.
 Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.
