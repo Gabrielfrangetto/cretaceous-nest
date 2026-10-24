@@ -429,7 +429,7 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .world-map-wrap .world-map { width: 100%; height: min(62vh, 560px); touch-action: none; cursor: grab; background: #2b3a46; border-radius: 10px; user-select: none; }
 .world-map-wrap .world-map:active { cursor: grabbing; }
-.world-map-wrap .world-trains { position: absolute; top: 8px; left: 8px; width: calc(100% - 16px); height: min(62vh, 560px); pointer-events: none; border-radius: 10px; }
+.world-map-wrap .world-trains { position: absolute; pointer-events: none; border-radius: 10px; }
 .world-map-wrap .world-map:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .map-tools { position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; }
 .map-tools button { min-width: 34px; background: var(--panel); }

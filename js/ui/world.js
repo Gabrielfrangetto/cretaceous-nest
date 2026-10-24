@@ -216,6 +216,9 @@ function paintTrains() {
   requestAnimationFrame(paintTrains);
   const c = trainCanvas, f = lastFit;
   if (!c || !c.isConnected || !f || document.hidden || currentTab() !== 'world') return;
+  // (laid exactly over the map, wherever the page puts it)
+  const m = mapCanvas, place = `${m.offsetLeft}px|${m.offsetTop}px|${f.width}px|${f.height}px`;
+  if (c.dataset.place !== place) { c.dataset.place = place; [c.style.left, c.style.top, c.style.width, c.style.height] = place.split('|'); }
   const w = Math.round(f.width * f.dpr), h = Math.round(f.height * f.dpr);
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   const ctx = c.getContext('2d'), scale = f.scale, px = n => n / scale;
