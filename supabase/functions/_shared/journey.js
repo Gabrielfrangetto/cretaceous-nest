@@ -98,40 +98,48 @@ export const trainMins = hexes => Math.max(1, Math.floor(MAGLEV.minsPerHex * hex
 // each start of the cycle)
 export const nextDeparture = (at, every, phase = 0) => { const e = every * 60000, p = phase * 60000; return Math.round(Math.ceil((at - p) / e - 1e-9) * e + p); };
 // The maglev's timetable: the lines make rings through the stations (map.js railsOf), and on each ring
-// trains run round both ways, each keeping its way, never ending at a station. On every ring, each way,
-// a train passes every station every MAGLEV.every minutes, standing MAGLEV.stand minutes there; each
-// ring's trains run at the speed that brings them round in a whole number of those, so every ring keeps
-// the same beat, and each ring's ways are set in it so that no two trains leaving a station the same
-// way (onto the same line, the same way), or coming in off the same line, stand there at once.
-// [{ round, trains, ways: { cw, ccw } }], each way: { stops: [station keys in its order], lines: [hex
-// paths, each from a stop to the next], leave: [minutes after a train's start when it leaves each
-// stop], runs: [minutes on each line], offset } (cw: clockwise on the map)
+// trains run round both ways, each keeping its way, never ending at a station; on a clock beat of
+// MAGLEV.every minutes. Each line takes a whole number of half beats from leaving one station to leaving
+// the next (its run and the MAGLEV.stand minutes standing at the next; the speed set to fit, about the
+// MAGLEV.minsPerHex), and each ring a whole number of beats round; so a train each way comes into every
+// station once a beat, the two ways half a beat apart, at every station alike: a train every 5 min, one
+// way then the other. Where rings meet, the second ring's trains come in between the first's, a quarter
+// beat on. [{ round, trains, ways: { cw, ccw } }], each way: { stops: [station keys in its order],
+// lines: [hex paths, each from a stop to the next], leave: [minutes after a train's start when it leaves
+// each stop], runs: [minutes on each line], offset } (cw: clockwise on the map)
 const timetables = new Map();
 export function timetableOf(seed) {
   if (timetables.has(seed)) return timetables.get(seed);
-  const { lines, rings } = railsOf(seed), E = MAGLEV.every, stand = MAGLEV.stand;
+  const { lines, rings } = railsOf(seed), E = MAGLEV.every, half = E / 2, stand = MAGLEV.stand;
   const lineOf = (a, b) => { const l = lines.find(x => (x.a === a && x.b === b) || (x.a === b && x.b === a)); return l.a === a ? l.path : [...l.path].reverse(); };
   const xy = k => { const [q, r] = parseKey(k); return [Math.sqrt(3) * (q + r / 2), 1.5 * r]; };
-  const taken = new Map(), gap = (a, b) => { const d = ((a - b) % E + E) % E; return Math.min(d, E - d); };
-  const out = rings.map(ring => {
-    const hexes = ring.reduce((t, k, i) => t + lineOf(k, ring[(i + 1) % ring.length]).length - 1, 0);
-    const trains = Math.max(1, Math.round((MAGLEV.minsPerHex * hexes + stand * ring.length) / E)), round = trains * E;
-    const v = Math.max(0.01, round - stand * ring.length) / hexes;
-    const area = ring.reduce((t, k, i) => { const [x0, y0] = xy(k), [x1, y1] = xy(ring[(i + 1) % ring.length]); return t + x0 * y1 - x1 * y0; }, 0);
-    const ways = {};
-    for (const [way, stops] of [['cw', area > 0 ? ring : [...ring].reverse()], ['ccw', area > 0 ? [...ring].reverse() : ring]]) {
-      const ls = stops.map((k, i) => lineOf(k, stops[(i + 1) % stops.length])), runs = ls.map(l => v * (l.length - 1)), leave = [stand];
-      for (const r of runs) leave.push(leave[leave.length - 1] + r + stand);
-      // (each stop's platforms: the line it leaves on, the way, and the line it came in by)
-      const keys = stops.map((k, i) => [`${k}>${stops[(i + 1) % stops.length]}`, `${stops[(i - 1 + stops.length) % stops.length]}>${k}`]);
-      const busy = o => keys.some((ks, n) => ks.some(key => (taken.get(key) || []).some(t => gap(o + leave[n], t) < stand + 0.5)));
-      let offset = 0;
-      while (offset < E && busy(offset)) offset += 0.25;
-      offset %= E;
-      keys.forEach((ks, n) => ks.forEach(key => { if (!taken.has(key)) taken.set(key, []); taken.get(key).push(offset + leave[n]); }));
-      ways[way] = { stops, lines: ls, leave, runs, offset };
+  // (each ring's place in the beat: rings that meet a quarter beat apart, or an eighth if they must)
+  const phase = rings.map(() => null);
+  rings.forEach((r, i) => {
+    const near = rings.map((x, j) => j !== i && phase[j] != null && x.some(k => r.includes(k)) ? phase[j] : null).filter(x => x != null);
+    phase[i] = [0, E / 4, E / 8, E * 3 / 8].find(p => !near.includes(p)) ?? 0;
+  });
+  const out = rings.map((ring, ri) => {
+    const n = ring.length, ls = ring.map((k, i) => lineOf(k, ring[(i + 1) % n]));
+    // each line's time, stand included, in whole half beats; the round made whole beats on the line most rushed
+    const legs = ls.map(l => half * Math.max(1, Math.round((MAGLEV.minsPerHex * (l.length - 1) + stand) / half)));
+    if (legs.reduce((t, x) => t + x, 0) % E) {
+      const rushed = legs.reduce((m, x, i) => ((ls[i].length - 1) / x > (ls[m].length - 1) / legs[m] ? i : m), 0);
+      legs[rushed] += half;
     }
-    return { round, trains, ways };
+    const round = legs.reduce((t, x) => t + x, 0), trains = round / E;
+    const area = ring.reduce((t, k, i) => { const [x0, y0] = xy(k), [x1, y1] = xy(ring[(i + 1) % n]); return t + x0 * y1 - x1 * y0; }, 0);
+    const wayOf = (stops, times, offset) => {
+      const leave = [stand];
+      for (const t of times) leave.push(leave[leave.length - 1] + t);
+      return { stops, lines: stops.map((k, i) => lineOf(k, stops[(i + 1) % n])), leave, runs: times.map(t => t - stand), offset };
+    };
+    // (one way round the ring as listed, the other back: ring[0], ring[n - 1], …, the times the same lines')
+    const fwd = wayOf(ring, legs, phase[ri]);
+    const back = [ring[0], ...ring.slice(1).reverse()], backTimes = back.map((k, i) => legs[(n - 1 - i + n) % n]);
+    // (comes into ring[0] half a beat after the first way does)
+    const bwd = wayOf(back, backTimes, ((phase[ri] + half) % E + E) % E);
+    return { round, trains, ways: area > 0 ? { cw: fwd, ccw: bwd } : { cw: bwd, ccw: fwd } };
   });
   timetables.set(seed, out);
   return out;

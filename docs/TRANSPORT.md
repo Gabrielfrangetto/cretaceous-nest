@@ -15,10 +15,11 @@ ring as across (on this map, the nest to Highfen), each cutting its ring in two 
 line ends at a city. Each line is laid as straight as it goes between its stations, over land, around
 mountains where it can (hills cost a little more, a mountain a lot: a tunnel, short, drawn dashed, the
 trains unseen in it), and drawn smooth. On every ring trains run round both ways, each keeping its way,
-one each way past every station every 10 min, standing 1 min (`journey.js timetableOf`); each ring's
-trains run at the speed that brings them round in a whole number of 10 min (about 6 s a hex), so all
-rings keep one beat, and they are set in it so that no two trains leaving a station onto the same line
-the same way, or coming in off the same line, stand there at once. Trains slow into each station and
+on a beat of 10 min (`journey.js timetableOf`): each line takes a whole number of 5 min from leaving one
+station to leaving the next (its run, at about 6 s a hex, set to fit, and 1 min standing), and each ring
+a whole number of 10 min round; so each way comes into every station once every 10 min and the two ways
+5 min apart, at every station alike: a train every 5 min, steady. Where two rings meet the second
+ring's trains come in between the first's, a train every 2.5 min. Trains slow into each station and
 speed away. A ride is a wait of up to 10 min, then the quickest way, changing rings where needed.
 Rockets 1 to 3 min, a launch every
 5 min, a 10 min rest on landing. The sections below keep the first plan's numbers for reference.

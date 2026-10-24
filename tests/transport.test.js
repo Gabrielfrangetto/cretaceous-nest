@@ -52,6 +52,16 @@ test('departures every so many minutes, the same for everyone; rings through eve
     }
     before = now;
   }
+  // trains come into every station at even times: a train every half beat (5 min), a quarter beat where rings meet
+  const came = new Map(), was = new Map();
+  for (let sec = 0; sec < 2 * round * 60; sec += 5) for (const t of trainsAt(s, T0 + sec * 1000)) {
+    if (t.standing && !was.get(t.id)) { if (!came.has(t.at)) came.set(t.at, []); came.get(t.at).push(sec); }
+    was.set(t.id, t.standing);
+  }
+  for (const [k, secs] of came) {
+    const gaps = new Set(secs.slice(1).map((x, i) => x - secs[i])), meets = rings.filter(r => r.includes(k)).length;
+    assert.deepEqual([...gaps], [MAGLEV.every * 60 / 2 / meets], `uneven at ${k}`);
+  }
   // (the same at the same time; on later)
   assert.deepEqual(trainsAt(s, T0), trains);
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
