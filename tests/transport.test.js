@@ -22,21 +22,27 @@ function game(...babies) {
 const dinos = (...ids) => ids.map(id => ({ kind: 'dino', id }));
 const cities = () => citiesOf(42).map(c => c.key);
 
-test('departures every so many minutes, the same for everyone; trains run their lines both ways', () => {
+test('departures every so many minutes, the same for everyone; one train a line, never two standing at a station', () => {
   assert.equal(nextDeparture(T0, 5) % (5 * 60000), 0);
   assert.ok(nextDeparture(T0, 5) >= T0 && nextDeparture(T0, 5) - T0 < 5 * 60000);
   assert.equal(nextDeparture(nextDeparture(T0, 5), 5), nextDeparture(T0, 5));
+  assert.equal((nextDeparture(T0, 20, 3) - 3 * 60000) % (20 * 60000), 0);
   const s = game();
   const lines = railsOf(42).lines, trains = trainsAt(s, T0);
-  // every line has its trains, one every MAGLEV.every minutes each way
-  for (const [li, l] of lines.entries()) {
-    const n = trains.filter(t => t.line === li).length, period = 2 * (MAGLEV.minsPerHex * (l.path.length - 1) + MAGLEV.stand);
-    assert.equal(n, Math.ceil(period / MAGLEV.every));
-  }
+  assert.equal(trains.length, lines.length);
   for (const t of trains) assert.ok(t.i >= 0 && t.i < t.path.length - 1 && t.f >= 0 && t.f <= 1);
+  // all through the cycle, at most one train standing at any station
+  for (let sec = 0; sec < MAGLEV.cycle * 60; sec += 5) {
+    const standing = trainsAt(s, T0 + sec * 1000).filter(t => t.standing).map(t => t.at);
+    assert.equal(new Set(standing).size, standing.length, `two trains standing at once, ${sec} s in`);
+  }
   // (the same at the same time; on later)
   assert.deepEqual(trainsAt(s, T0), trains);
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
+  // a ride leaves within a cycle and takes at least a run
+  const [a] = cities(), trip = trainTrip(s, ['x'], '0,0', a, T0);
+  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.cycle * 60000);
+  assert.ok(trip.mins >= MAGLEV.cycle / 2 - MAGLEV.stand);
 });
 
 test('dinosaurs sent ahead alone by maglev, a baby too; they wait in the city and take no expedition slot', () => {
@@ -50,7 +56,7 @@ test('dinosaurs sent ahead alone by maglev, a baby too; they wait in the city an
   const p = partyOf(s, r.expedition.id);
   assert.ok(!p.members.includes(PLAYER_ID));
   // (it waits for the next train)
-  assert.equal(p.leg.startedAt, nextDeparture(T0, MAGLEV.every));
+  assert.equal(p.leg.startedAt, trainTrip(s, ['ad', 'baby'], '0,0', city, T0).departAt);
   applyAction(s, 'journey', { id: p.id }, p.leg.arriveAt);
   assert.equal(p.at, city);
   // in the city's stables: no walking on without the player, but on by maglev or home

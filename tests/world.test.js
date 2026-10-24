@@ -551,7 +551,7 @@ test('the maglev: stations at the nest and every city, a ride for a fare, safe, 
   assert.equal(s.coins, 100);
   const p = partyOf(s, r.expedition.id);
   // (it waits at the station for the next train, then rides: much quicker than walking)
-  assert.ok(p.leg.train && p.leg.startedAt === trip.departAt && trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
+  assert.ok(p.leg.train && p.leg.startedAt === trip.departAt && trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.cycle * 60000);
   assert.equal(p.leg.arriveAt, trip.departAt + trip.mins * 60000);
   assert.ok(trip.mins < legMins(s, ['ad'], '0,0', city));
   assert.equal(applyAction(s, 'recall', { id: p.id }, T0 + 1000).reason, 'on-the-train');

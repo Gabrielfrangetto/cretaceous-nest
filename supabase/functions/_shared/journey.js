@@ -92,15 +92,47 @@ function startLeg(s, p, to, at, via = []) {
 // for the next departure, then rides; it may be dinosaurs alone, sent ahead without the player.
 const seatsOf = (s, members) => members.reduce((t, id) => t + (TRAIN.seats[id === PLAYER_ID ? PLAYER_SIZE : bodyOf(s, id).size] || 1), 0);
 export const trainFare = (s, members, hexes) => Math.round(TRAIN.fare.base + TRAIN.fare.perHex * hexes * seatsOf(s, members));
-// the time a ride takes once aboard: its hexes at speed, and the stations stood at on the way
-export const trainMins = (hexes, stops = 2) => Math.max(1, Math.round(MAGLEV.minsPerHex * hexes + MAGLEV.stand * Math.max(0, stops - 2)));
-// the next departure from a station at or after a time, every so many minutes
-export const nextDeparture = (at, every) => Math.ceil(at / (every * 60000)) * every * 60000;
-// a ride from one station to another, or why not: { route, fare, mins, departAt } | { reason }
+// the shortest a ride of so many hexes can take aboard (a saved ride is never shorter)
+export const trainMins = hexes => Math.max(1, Math.floor(hexes / 100 * (MAGLEV.cycle / 2 - MAGLEV.stand)));
+// the next departure from a station at or after a time, every so many minutes (phase: minutes past
+// each start of the cycle)
+export const nextDeparture = (at, every, phase = 0) => { const e = every * 60000, p = phase * 60000; return Math.ceil((at - p) / e) * e + p; };
+// The maglev's timetable: each line's one train, its offset in the cycle (minutes) so that at every
+// station the trains standing there take turns. The train stands at the line's end a from its offset
+// for MAGLEV.stand, runs to b, stands there from offset + cycle / 2, and runs back.
+const timetables = new Map();
+export function timetableOf(seed) {
+  if (timetables.has(seed)) return timetables.get(seed);
+  const { lines } = railsOf(seed), C = MAGLEV.cycle, half = C / 2, taken = new Map();
+  const busy = (k, m) => (taken.get(k) || []).some(t => ((m - t) % C + C) % C < MAGLEV.stand || ((t - m) % C + C) % C < MAGLEV.stand);
+  const out = lines.map(l => {
+    let o = 0;
+    while (o < C && (busy(l.a, o) || busy(l.b, (o + half) % C))) o++;
+    for (const [k, m] of [[l.a, o % C], [l.b, (o + half) % C]]) { if (!taken.has(k)) taken.set(k, []); taken.get(k).push(m); }
+    return { ...l, offset: o % C, run: half - MAGLEV.stand };
+  });
+  timetables.set(seed, out);
+  return out;
+}
+// the next train from one station to the next on a line, at or after a time: { departAt, arriveAt }
+function nextTrain(seed, from, to, at) {
+  const l = timetableOf(seed).find(x => (x.a === from && x.b === to) || (x.b === from && x.a === to));
+  const phase = l.offset + MAGLEV.stand + (l.a === from ? 0 : MAGLEV.cycle / 2);
+  const departAt = nextDeparture(at, MAGLEV.cycle, phase % MAGLEV.cycle);
+  return { departAt, arriveAt: departAt + l.run * 60000 };
+}
+// a ride from one station to another, or why not: { route, fare, mins, departAt, arriveAt } | { reason };
+// changing trains on the way, each the next of its line
 export function trainTrip(s, members, from, to, now = 0) {
-  const route = trainRoute(W(s).seed, from, to);
-  if (!route) return { reason: isStation(W(s).seed, to) ? 'no-line' : 'no-station' };
-  return { route, fare: trainFare(s, members, route.hexes), mins: trainMins(route.hexes, route.stops.length), departAt: nextDeparture(now, MAGLEV.every) };
+  const seed = W(s).seed, route = trainRoute(seed, from, to);
+  if (!route) return { reason: isStation(seed, to) ? 'no-line' : 'no-station' };
+  let t = now, departAt = null;
+  for (let i = 1; i < route.stops.length; i++) {
+    const leg = nextTrain(seed, route.stops[i - 1], route.stops[i], t);
+    if (departAt == null) departAt = leg.departAt;
+    t = leg.arriveAt;
+  }
+  return { route, fare: trainFare(s, members, route.hexes), departAt, arriveAt: t, mins: Math.round((t - departAt) / 60000) };
 }
 // why one of a party can't fly, or null: babies, colossal and long-necked dinosaurs stay on the ground
 export function flyProblem(s, id) {
@@ -132,33 +164,28 @@ function startRide(s, p, to, at, rocket = false) {
   s.coins -= trip.fare;
   w.trips += 1;
   // (it waits at the station until it leaves: startedAt is the departure)
-  p.leg = { n: w.trips, from: p.at, to, path: rocket ? [to] : trip.route.path, step: 0, boardedAt: at, startedAt: trip.departAt, arriveAt: trip.departAt + trip.mins * 60000, ...(rocket ? { rocket: true } : { train: true }) };
+  p.leg = { n: w.trips, from: p.at, to, path: rocket ? [to] : trip.route.path, step: 0, boardedAt: at, startedAt: trip.departAt, arriveAt: trip.arriveAt || trip.departAt + trip.mins * 60000, ...(rocket ? { rocket: true } : { train: true }) };
   Object.assign(p, { hex: to, trip: w.trips, startedAt: at, returnAt: p.leg.arriveAt });
   return { ok: true, expedition: p, fare: trip.fare, departAt: trip.departAt };
 }
 // how long one of the team still rests after a flight
 export const restLeft = (b, now) => Math.max(0, (b && b.restUntil || 0) - now);
 
-// Where every maglev train is now (for the map): each line's trains, `every` minutes apart, run to its
-// far end, stand, and come back. [{ line, path, i, f }]: the hex index along the line's path it last
-// passed and how far on to the next
+// Where every maglev train is now (for the map): one a line, shuttling end to end on the timetable.
+// [{ line, path, i, f, standing }]: the hex index along the line's path it last passed, how far on to
+// the next, and whether it stands at a station
 export function trainsAt(s, now) {
-  const out = [], mins = now / 60000;
-  for (const [li, l] of railsOf(W(s).seed).lines.entries()) {
-    const n = l.path.length - 1, run = MAGLEV.minsPerHex * n, period = 2 * (run + MAGLEV.stand);
-    for (let k = 0; k * MAGLEV.every < period; k++) {
-      let t = ((mins - k * MAGLEV.every) % period + period) % period;
-      // (out, stood at the far end, back, stood at the near end)
-      let x;
-      if (t < run) x = t / run;
-      else if (t < run + MAGLEV.stand) x = 1;
-      else if (t < 2 * run + MAGLEV.stand) x = 1 - (t - run - MAGLEV.stand) / run;
-      else x = 0;
-      const at = x * n, i = Math.min(n - 1, Math.floor(at));
-      out.push({ line: li, path: l.path, i, f: at - i });
-    }
-  }
-  return out;
+  const C = MAGLEV.cycle, half = C / 2, mins = now / 60000;
+  return timetableOf(W(s).seed).map((l, li) => {
+    const n = l.path.length - 1, t = ((mins - l.offset) % C + C) % C;
+    let x, standing = false;
+    if (t < MAGLEV.stand) { x = 0; standing = true; }
+    else if (t < half) x = (t - MAGLEV.stand) / l.run;
+    else if (t < half + MAGLEV.stand) { x = 1; standing = true; }
+    else x = 1 - (t - half - MAGLEV.stand) / l.run;
+    const at = x * n, i = Math.min(n - 1, Math.floor(at));
+    return { line: li, path: l.path, i, f: at - i, standing, at: standing ? (x ? l.b : l.a) : null };
+  });
 }
 
 // a new party sets out from the nest to a hex (on foot), or to a city's station by maglev or rocket
@@ -1731,7 +1758,7 @@ export function cleanParties(s, w) {
       const startedAt = num(L.startedAt), recalled = !train && !rocket && L.recalled === true;
       leg = {
         n: int(L.n, 1), from, to, path, step: Math.min(path.length, int(L.step)), startedAt,
-        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes, train.stops.length) : rocket ? ROCKET.mins[0] : legMins(s, members, from, to, via)) * 60000),
+        arriveAt: recalled ? Math.max(num(L.arriveAt), startedAt) : Math.max(num(L.arriveAt), startedAt + (air ? flightMins(from) : train ? trainMins(train.hexes) : rocket ? ROCKET.mins[0] : legMins(s, members, from, to, via)) * 60000),
         ...(air ? { air: true } : {}),
         ...(recalled ? { recalled } : {}), ...(recalled && Number.isFinite(L.fly) ? { fly: int(L.fly) } : {}), ...(train ? { train: true } : {}), ...(rocket ? { rocket: true } : {}), ...(Number.isFinite(L.boardedAt) ? { boardedAt: num(L.boardedAt) } : {}), ...(via.length && !recalled ? { via } : {}),
         // (standing where a decision waits for the player, since then)

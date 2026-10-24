@@ -443,10 +443,12 @@ export const CITY_NAMES = ['Ambergate', 'Fernhollow', 'Cinderford', 'Stonewater'
 export const TRAIN = { links: 2, fare: { base: 5, perHex: 0.1 }, seats: { tiny: 0.5, small: 1, medium: 1.5, large: 2.5, huge: 4, colossal: 6 } };
 // The maglev on a timetable (docs/TRANSPORT.md). The game's clock runs fast (a flat hex walked in half a
 // real minute is half a day of the world), so the maglev is set by how it feels against walking: about
-// 6 s a hex, five to ten times quicker than on foot. A train leaves every station on every line, each
-// way, every `every` minutes, standing `stand` minutes at each station on the way. Worked out from the
-// clock alone: nothing is stored.
-export const MAGLEV = { minsPerHex: 0.1, every: 5, stand: 1 };
+// 5 to 14 s a hex, two to six times quicker than on foot. Worked out from the clock alone: nothing is
+// stored.
+// One train a line, shuttling end to end on a common cycle of `cycle` minutes (a round trip), standing
+// `stand` minutes at each end; each line's trains are timed so that no station ever has two standing at
+// once. A train runs its line in cycle / 2 - stand minutes, whatever its length (about 5 to 14 s a hex).
+export const MAGLEV = { cycle: 20, stand: 1 };
 // Suborbital rockets between any two stations: a launch from each every `every` minutes, the flight
 // `mins` from the nearest to the farthest (by hexes, up to `far`); the fare by the party's weight
 // (`base` + `perTonne`), up to `load` kg a flight. Babies, colossal and long-necked dinosaurs can't fly
