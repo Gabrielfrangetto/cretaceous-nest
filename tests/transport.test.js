@@ -68,9 +68,9 @@ test('departures every so many minutes, the same for everyone; rings through eve
   // (the same at the same time; on later)
   assert.deepEqual(trainsAt(s, T0), trains);
   assert.notDeepEqual(trainsAt(s, T0 + 60000), trains);
-  // a ride leaves within a cycle and takes at least a run
+  // a ride leaves within a cycle (give or take a train's lateness, and its doors closing) and takes at least a run
   const [a] = cities(), trip = trainTrip(s, ['x'], '0,0', a, T0);
-  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < MAGLEV.every * 60000);
+  assert.ok(trip.departAt >= T0 && trip.departAt - T0 < (MAGLEV.every + MAGLEV.late) * 60000 + MAGLEV.board * 1000);
   assert.ok(trip.mins >= trainMins(trip.route.hexes));
 });
 
