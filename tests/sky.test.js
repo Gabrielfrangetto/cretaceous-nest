@@ -10,8 +10,8 @@ const HOUR = 3600000 / WORLD.speed;
 const hours = t => (t.set - t.rise) / HOUR;
 const at = (y, m, d, h = 12) => toReal(Date.UTC(y, m, d, h));
 
-test("the world's day lasts 15 real minutes, its year about 3.8 real days", () => {
-  assert.equal(WORLD_DAY, 15 * 60000);
+test("a real second is a minute of the world: its day lasts 24 real minutes, its year about 6 real days", () => {
+  assert.equal(WORLD_DAY, 24 * 60000);
   assert.ok(Math.abs(at(2027, 0, 1, 0) - at(2026, 0, 1, 0) - 365 * WORLD_DAY) < 1);
   const t = at(2026, 9, 19, 18);
   assert.ok(Math.abs(sunTimes(t + WORLD_DAY, NEST).rise - sunTimes(t, NEST).rise - WORLD_DAY) < 60000);

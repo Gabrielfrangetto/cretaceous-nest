@@ -1152,7 +1152,7 @@ export function initWorld() {
   });
   setInterval(updateBadge, 1000);
   setInterval(doorsClosed, 1000);
-  // (the night moving over the map, the world's day passing in 15 real minutes: the trains move on their
+  // (the night moving over the map, the world's day passing in 24 real minutes: the trains move on their
   // own canvas)
   setInterval(() => { if (currentTab() === 'world' && !document.hidden) drawMap(); }, SHADE_EVERY);
   updateBadge();

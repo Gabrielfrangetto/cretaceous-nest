@@ -2,25 +2,26 @@
 
 Decided with the owner, Oct 2026. One rule, so every feature knows which clock it is on.
 
-## The world's clock (×96)
+## The world's clock (×60: a real second is a minute of the world)
 
-Everything in the world runs on one clock, the same for every player, `WORLD.speed` (96) times as fast
+Everything in the world runs on one clock, the same for every player, `WORLD.speed` (60) times as fast
 as the real one (`config.js WORLD`, `sun.js toWorld` / `toReal`):
 
 | World | Real |
 |---|---|
-| 1 hour | 37.5 s |
-| 1 day | 15 min |
-| 1 week | 1 h 45 min |
-| 1 month | ~7 h 20 min |
-| 1 year | ~3.8 days |
+| 1 minute | 1 s |
+| 1 hour | 1 min |
+| 1 day | 24 min |
+| 1 week | 2 h 48 min |
+| 1 month | ~12 h |
+| 1 year | ~6 days |
 
 On it: day and night, the moon, the seasons (the nest's sky, the night over the map, who is awake),
 journeys on foot, the maglev, rockets, aircraft, camping, hazards on the way. The map keeps its size:
 a hex is about 14 km, the continent about the size of the United States.
 
 - On foot: 4 km/h, 8 hours of marching a day (`CLOCK`): a flat hex is half a day of the world (about
-  6.5 real minutes), a day's march about 2.3 flat hexes. Hunger and thirst only fall on a journey, by
+  10.5 real minutes), a day's march about 2.3 flat hexes. Hunger and thirst only fall on a journey, by
   the way walked (`SURVIVAL`, per unit of a way's cost, half a day of the world each).
 - Maglev: about 300 km/h, a train each way about every 4 hours of the world (`MAGLEV`); its doors
   close `MAGLEV.board` real seconds before it leaves.
