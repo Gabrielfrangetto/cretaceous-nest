@@ -170,7 +170,7 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // parts of one forest, seen at the same slant as the ground; from afar it is drawn in its colour, which
 // is the picture's average.
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
-const TEXTURED = ['meadow', 'swamp'];
+const TEXTURED = ['swamp'];
 const rank = biome => TEXTURED.indexOf(biome);
 const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel of a picture reaches (map units)
@@ -223,7 +223,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {} };
+const PLANTED = { meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] }, hills: {} };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -400,7 +400,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full')
     if (planted) {
       const hills = cell.terrain === 'hill' && plantsOf('hills');
       // (on a hill, only a few trees, so the hill shows)
-      const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, 3) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
+      const L = planted, lay = layoutOf(groundName(cell), L, hills ? Math.max(dense, PLANTED[groundName(cell)].counts.length - 2) : dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
       ctx.translate(x, y);
       if (hills) {
