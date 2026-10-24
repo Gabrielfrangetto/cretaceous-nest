@@ -20,7 +20,24 @@ ap.add_argument('--min', type=float, default=0.01, help='pieces smaller than thi
 a = ap.parse_args()
 
 W = np.asarray(Image.open(a.white).convert('RGB')).astype(np.float32)
-if a.black == '-':
+# (a black sheet of another size, drawn again rather than only its background changed, doesn't line up
+# pixel for pixel: the plants are cut from the white one, and the black one only tells, for each patch of
+# white closed in by a plant, whether it is a gap to see through (black there) or white paint, as bone)
+Bimg = None if a.black == '-' else Image.open(a.black).convert('RGB')
+if Bimg is not None and Bimg.size != (W.shape[1], W.shape[0]):
+    pale = W.min(2) > 225
+    lab, count = ndimage.label(pale)
+    edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    Bs = np.asarray(Bimg.resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32).max(2)
+    bright = ndimage.mean(Bs, lab, np.arange(1, count + 1))
+    holes = [i + 1 for i in range(count) if (i + 1) in edge or bright[i] < 90]
+    back = np.isin(lab, holes)
+    rim = back & ndimage.binary_dilation(~back, iterations=2)
+    alpha = np.where(back, 0.0, 1.0)
+    alpha[rim] = np.clip((255 - W[rim].min(1)) / 60, 0, 1)
+    a_ = np.maximum(alpha[..., None], 1e-3)
+    rgb = np.where(alpha[..., None] > 0.97, W, (W - 255 * (1 - alpha[..., None])) / a_)
+elif a.black == '-':
     # (the background: near-white reaching in from the sheet's edges)
     pale = W.min(2) > 225
     lab, _ = ndimage.label(pale)
