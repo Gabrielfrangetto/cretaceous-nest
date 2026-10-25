@@ -756,7 +756,7 @@ function drawWater(ctx, seed, hexes, px, part) {
 }
 // Each half of river (hexdraw.js riverHalves) filled as the shape its changing width makes, all of them
 // one shape (so where they overlap, at a hex's middle, nothing shows twice). Close up, the water is the
-// lake's (its picture, laid over the map as the lakes' is) within a darker bank of wet earth
+// lake's (its picture, laid over the map as the lakes' is) within a thin bank of the lakes' mud
 function drawRivers(ctx, seed, hexes, minFlow) {
   const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
   const close = scale * SIZE >= LOD.plants * 4 && lake.complete && lake.naturalWidth;
@@ -794,8 +794,17 @@ function drawRivers(ctx, seed, hexes, minFlow) {
   };
   ctx.save();
   if (close) {
-    ctx.fillStyle = 'rgba(52, 58, 36, 0.45)';
-    ctx.fill(shape(Math.max(1.6, hair * 1.5), true), 'nonzero');
+    // (a thin bank of the lakes' mud, fading into the land)
+    const mud = mudOf(ctx, scale * SIZE), grow = Math.max(1.6, hair * 1.5);
+    if (mud) {
+      ctx.fillStyle = mud;
+      ctx.globalAlpha = 0.4; ctx.fill(shape(grow * 2.2, true), 'nonzero');
+      ctx.globalAlpha = 0.85; ctx.fill(shape(grow * 1.2, true), 'nonzero');
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = 'rgba(52, 58, 36, 0.45)';
+      ctx.fill(shape(grow, true), 'nonzero');
+    }
     const k = SIZE * SQ3 * PLANTED.lake.span / lake.naturalWidth, pat = floorPattern(ctx, 'lake', lake);
     pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
     ctx.fillStyle = pat;
