@@ -155,7 +155,7 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   canvas.style.height = `${Math.round(height)}px`;
   canvas.style.width = `${Math.round(height * 171 / 528)}px`;
   const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
-  const tone = LOOK.skins[look.skin] && look.skin !== 'light' ? `-${look.skin}` : '';
+  const tone = LOOK.skins[look.skin] && (LOOK.toned[sex] || []).includes(look.skin) ? `-${look.skin}` : '';
   const body = bodyPic(name + tone);
   Promise.all([boxes, loaded(body)]).then(([b]) => {
     const box = b[name];
