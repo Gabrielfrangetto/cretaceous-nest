@@ -24,7 +24,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, worldSpan, worldSpanMins } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, warmAround, preloadTerrain, railCurve, railPoints, inTunnel } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, onTexture, preloadTerrain, railCurve, railPoints, inTunnel } from './mapcanvas.js';
 import { drawAmbient, ambientOn } from './ambient.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
@@ -228,13 +228,18 @@ function shadeNight(ctx, f, x1, y1, t) {
 let trainCanvas = null, trainsDrawn = { at: 0, fit: null };
 function paintTrains() {
   requestAnimationFrame(paintTrains);
+  drawOverlay(false);
+}
+// (force: drawn now whatever, as the map under it has just been drawn: the same frame, the same view,
+// so what is on it never lags behind the map while it zooms or moves)
+function drawOverlay(force) {
   const c = trainCanvas, f = lastFit;
   if (!c || !c.isConnected || !f || document.hidden || currentTab() !== 'world') return;
   // (a train runs a hex in about MAGLEV.minsPerHex minutes)
   const pxPerMs = SIZE * SQ3 * f.scale / (MAGLEV.minsPerHex * 60000), t = performance.now();
   // (and as often as what moves on the map needs, while some of it is in view)
   const every = trainsDrawn.moving ? 33 : Math.min(1000, 0.33 / pxPerMs);
-  if (trainsDrawn.fit === f && t - trainsDrawn.at < every) return;
+  if (!force && trainsDrawn.fit === f && t - trainsDrawn.at < every) return;
   trainsDrawn = { at: t, fit: f, moving: false };
   // (laid exactly over the map, wherever the page puts it)
   const m = mapCanvas, place = `${m.offsetLeft}px|${m.offsetTop}px|${f.width}px|${f.height}px`;
@@ -351,10 +356,12 @@ function paintMap() {
   const knownSet = new Set(w.revealed), known = k => knownSet.has(k);
   const edge = cssVar('--panel'), accent = cssVar('--accent'), ink = cssVar('--ink'), heart = cssVar('--heart'), accentInk = cssVar('--accent-ink');
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
-  const close = SIZE * scale >= DETAIL_PX;
+  // (hex by hex only closer than the sharpest tiles go; else the tiles, made once and kept, so a frame
+  // only lays pictures down)
+  const close = scale * f.dpr > 4.2;
   const inView = close || SIZE * scale >= 6 ? hexesIn(f.x0, f.y0, x1, y1) : [];
   let building = false;
-  if (close) { drawHexes(ctx, w.seed, inView, known, GRID); warmAround(w.seed, known, w.revealed.length, GRID, f); }
+  if (close) drawHexes(ctx, w.seed, inView, known, GRID);
   else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, GRID)) { building = true; drawMap(); }
   if (!mapShown && !building) { mapShown = true; const veil = document.getElementById('mapLoading'); if (veil) veil.hidden = true; }
   // the blurriest tiles of the whole map, drawn ahead once the map is up
@@ -484,6 +491,7 @@ function paintMap() {
     if (g && g.f > 0 && g.i + 1 < e.leg.path.length) { const [nx, ny] = hexOf(g.i + 1); x += (nx - x) * g.f; y += (ny - y) * g.f; }
     partyBubble(ctx, e, x, y, px, e.leg && t >= e.leg.arriveAt ? heart : accent);
   }
+  drawOverlay(true);
 }
 // a party's marker: a disc by where it is, with how many go (or the one's initial)
 function partyBubble(ctx, e, x, y, px, fill) {

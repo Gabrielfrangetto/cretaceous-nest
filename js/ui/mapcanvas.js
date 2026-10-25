@@ -261,7 +261,11 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 const PLANTED = { lake: { floor: '#65a3b0', counts: [0], bare: true, span: 5 }, ocean: { floor: '#235d74', counts: [0], bare: true, span: 7 }, rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
-const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
+const LAYOUTS = 10;   // arrangements a density
+// (pixels a map unit an arrangement is made at: as sharp as the zoom it is drawn at needs, no sharper,
+// so from afar it costs a small part of what it does close up)
+const LAYOUT_RES = [0.5, 1, 2, 3, 5];
+const layoutRes = px => LAYOUT_RES.find(r => r * SIZE >= px) || LAYOUT_RES.at(-1);
 const plantSets = new Map();
 function plantsOf(biome) {
   const p = PLANTED[biome];
@@ -415,8 +419,9 @@ function shoreWet(seed, h, sides) {
 // shoreWet's, off a lake's or the sea's edge); such a
 // layout is the hex's own, the last RIVER_LAYOUTS of them kept
 const RIVER_LAYOUTS = 400;
-function layoutOf(biome, set, level, k, river = null, hex = '', shore = []) {
-  const id = (river && river.length) || shore.length ? `${level}|${k}|${hex}` : `${level}|${k}`;
+function layoutOf(biome, set, level, k, river = null, hex = '', shore = [], res = LAYOUT_RES.at(-1)) {
+  const LAYOUT_PX = res;
+  const id = (river && river.length) || shore.length ? `${level}|${k}|${res}|${hex}` : `${level}|${k}|${res}`;
   if (set.layouts.has(id)) return set.layouts.get(id);
   // (points along the river's curves and the shore, each with how far from it a plant's middle stays)
   const wet = [...shore];
@@ -455,7 +460,7 @@ function layoutOf(biome, set, level, k, river = null, hex = '', shore = []) {
     g.restore();
   }
   const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
-  if (wet.length) { set.rivers = (set.rivers || 0) + 1; if (set.rivers > RIVER_LAYOUTS) { for (const key of set.layouts.keys()) if (key.split('|').length > 2) { set.layouts.delete(key); break; } } }
+  if (wet.length) { set.rivers = (set.rivers || 0) + 1; if (set.rivers > RIVER_LAYOUTS) { for (const key of set.layouts.keys()) if (key.split('|').length > 3) { set.layouts.delete(key); break; } } }
   set.layouts.set(id, out);
   return out;
 }
@@ -520,7 +525,8 @@ function groundField(seed, known, sig) {
   fields.set(id, out);
   return out;
 }
-export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full', sig = '') {
+// (below: hexes south of these whose mountains or volcanoes rise up into them, drawn with theirs only)
+export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full', sig = '', below = []) {
   // (a hair bigger than the hex, so neighbours meet with no gap between them)
   const shape = hexPath(1.01);
   const dim = 'rgba(30, 34, 28, .16)';
@@ -593,7 +599,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
       // (a hex with a river or a shore has its own, its plants off the water: never mirrored, as its
       // water isn't)
       const river = cell.river ? riverHalves(seed, h) : null, shore = sides.length ? shoreWet(seed, h, sides) : [];
-      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h), shore);
+      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h), shore, layoutRes(px));
       ctx.save();
       ctx.translate(x, y);
       if (!river && !shore.length && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
@@ -640,13 +646,14 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   drawWater(ctx, seed, waters, px, 'water');
   drawRails(ctx, seed, areaOf(hexes));
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
-  for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
+  const belowSet = new Set(below);
+  for (const h of [...hexes, ...below].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
     const relief = px >= LOD.relief && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
     if (relief) { if (!drawPainted(ctx, relief, x, y, alpha)) drawRelief(ctx, relief, x, y, alpha); continue; }
     // (ground with a picture of its own needs no little drawing)
     const art = key === '0,0' ? NEST : cell.city ? CITY : px >= LOD.glyphs && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
-    if (art) paint(ctx, art, x, y, alpha);
+    if (art && !belowSet.has(h)) paint(ctx, art, x, y, alpha);
   }
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
@@ -946,7 +953,8 @@ export function mapBounds() {
 // A tile not drawn yet is drawn in the next frames (as many as fit in a few milliseconds a frame, so
 // zooming never stalls), the blurrier one standing in; and once the view is all drawn, the tiles one
 // sharper and one blurrier for it are drawn ahead while the browser is idle, ready for the next zoom.
-const TILE = 256, LEVELS = [0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 160;
+let shownLevel = null;
+const TILE = 256, LEVELS = [4, 2, 1, 0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 220;
 const tiles = new Map();
 // When a picture of the ground comes, every tile drawn before it is out of date; they are kept aside
 // (stale), still shown until their new ones are all drawn, so the map never blinks while it catches up
@@ -974,7 +982,10 @@ function makeTile(seed, known, sig, edge, k, tx, ty) {
   const ctx = canvas.getContext('2d');
   ctx.scale(k, k);
   ctx.translate(-ox, -oy);
-  drawHexes(ctx, seed, hexesIn(ox, oy, ox + span, oy + span), known, edge, detailAt(k), sig);
+  // (the hexes a little below the tile too, for mountains standing there that rise up into it)
+  const own = hexesIn(ox, oy, ox + span, oy + span), seen = new Set(own.map(h => `${h[0]},${h[1]}`));
+  const below = hexesIn(ox, oy + span, ox + span, oy + span + SIZE * 3).filter(h => !seen.has(`${h[0]},${h[1]}`));
+  drawHexes(ctx, seed, own, known, edge, detailAt(k), sig, below);
   tiles.set(id, canvas);
   // (the oldest let go, but never the blurriest level's: the map whole, always there to fall back on)
   for (const old of tiles.keys()) {
@@ -1015,6 +1026,9 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
   // (a level all up to date; else one all there, some of it out of date)
   let k = order.find(l => ready(l, tileOf)), get = tileOf;
   if (k == null) { k = order.find(l => ready(l, anyTileOf)); get = anyTileOf; }
+  // (while the level wanted is being made, the level shown last stays, made bigger or smaller, if it
+  // covers the view: the map changes once, when the new one is all there, never square by square)
+  if (k == null && shownLevel != null && ready(shownLevel, anyTileOf)) { k = shownLevel; get = anyTileOf; }
   if (k == null) {
     // (not all there yet: each tile of the level wanted that is, and a blurrier one standing in for
     // each that isn't, until it is)
@@ -1032,6 +1046,7 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
     }
     return true;
   }
+  shownLevel = k;
   const span = TILE / k;
   for (const [tx, ty] of cover(k)) ctx.drawImage(get(seed, known, sig, edge, k, tx, ty), b.x + tx * span, b.y + ty * span, span, span);
   if (k !== want || get !== tileOf) return true;
