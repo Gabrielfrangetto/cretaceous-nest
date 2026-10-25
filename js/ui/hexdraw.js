@@ -111,7 +111,8 @@ const SHAPES = {
   },
 };
 const reliefs = new Map();
-// a hex's mountain or volcano (h: the hex; up: how high it stands, map.js upAt), or null
+// a hex's mountain or volcano (h: the hex; up: how high it stands, map.js upAt), or null; with t (where
+// in its band it stands), snow (0, 0.5, 1) and pick (0 to 1, its own) for a painted one (mapcanvas.js)
 export function reliefOf(c, h, up) {
   if (!SHAPES[c.terrain] || WATER[c.terrain] || c.lava) return null;
   const t = within(c, up), size = Math.round(t * 3), v = Math.floor(rand(h, 1) * VARIANTS) % (c.terrain === 'volcano' ? 2 : VARIANTS);
@@ -120,7 +121,7 @@ export function reliefOf(c, h, up) {
   const key = `${c.terrain}|${c.terrain === 'mountain' ? '' : c.biome}|${v}|${size}|${snow}`;
   let shape = reliefs.get(key);
   if (!shape) reliefs.set(key, shape = { key, ...SHAPES[c.terrain](c, v, k, size / 3, snow) });
-  return { ...shape, dx: (rand(h, 2) - 0.5) * (c.terrain === 'mountain' ? 12 : 10), dy: (rand(h, 3) - 0.5) * 6 * TILT };
+  return { ...shape, terrain: c.terrain, t, snow, pick: rand(h, 4), dx: (rand(h, 2) - 0.5) * (c.terrain === 'mountain' ? 12 : 10), dy: (rand(h, 3) - 0.5) * 6 * TILT };
 }
 // cooled lava, cracked, still glowing in the cracks
 const LAVA = '<path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3 M-8 8 L-3 5 L2 8 M3 -6 L7 -3 L12 -5" stroke="#e2643a" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/><path d="M-12 2 L-6 -1 L-2 3 L4 0 L11 3" stroke="#f6c04a" stroke-width=".6" fill="none"/>';

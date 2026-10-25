@@ -42,6 +42,28 @@ export function paint(ctx, svg, x, y, alpha = 1) {
   ctx.restore();
 }
 
+// A painted mountain (images/terrain/mountain-plants.webp, scripts/plants.py --snow): one of the pieces,
+// snowy where it is cold, bigger the higher it stands, standing on the hex's front so a range overlaps
+// into one massif; false until the picture has come (then drawn as shapes)
+const MOUNTAINS = { img: null, pieces: null, snow: null };
+function drawMountain(ctx, r, x, y, alpha) {
+  const M = MOUNTAINS;
+  if (!M.img) {
+    M.img = picture('mountain-plants');
+    fetch(new URL('../../images/terrain/mountain-plants.json', import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => {});
+  }
+  if (!M.pieces || !M.img.complete || !M.img.naturalWidth) return false;
+  const snowy = r.snow >= 1 || (r.snow > 0 && r.pick < 0.5);
+  const list = M.pieces.map((p, i) => i).filter(i => M.snow.has(i) === snowy);
+  const [sx, sy, sw, sh] = M.pieces[list[Math.floor(r.pick * 997) % list.length]];
+  const k = SIZE * SQ3 * (1.3 + 0.6 * r.t) / M.big, w = sw * k, h = sh * k;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(M.img, sx, sy, sw, sh, x + r.dx - w / 2, y + r.dy + SIZE * TILT * 0.55 - h, w, h);
+  ctx.restore();
+  return true;
+}
+
 // A mountain or volcano (hexdraw.js reliefOf) drawn as a picture made once for its shape, at the
 // sharpness the zoom needs (in half steps of doubling), the last SPRITE_KEEP kept; close up, where few
 // hexes show, drawn as shapes
@@ -177,7 +199,7 @@ const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel o
 // Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
 // cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
 // stretches, with a little of each hex's own; each set at a place of its own in the picture
-const VARIANTS = { forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
+const VARIANTS = { rock: 1, forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
 const densities = new Map();
 function densityOf(seed, h, biome) {
   const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
@@ -223,7 +245,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const PLANTED = { rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -232,6 +254,8 @@ function plantsOf(biome) {
   const p = PLANTED[biome];
   if (!p) return null;
   let set = plantSets.get(biome);
+  // (bare ground, as a mountain's rock: its floor only)
+  if (p.bare) return { pieces: [], layouts: new Map(), floor: picture(`${biome}-floor`) };
   if (!set) {
     set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
     if (PLANTED[biome].counts) picture(`${biome}-floor`);
@@ -407,6 +431,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
+      if (!PLANTED[groundName(cell)].counts[dense]) continue;
       const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
       ctx.save();
       ctx.translate(x, y);
@@ -449,7 +474,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
     const relief = px >= LOD.relief && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
-    if (relief) { drawRelief(ctx, relief, x, y, alpha); continue; }
+    if (relief) { if (!(relief.terrain === 'mountain' && drawMountain(ctx, relief, x, y, alpha))) drawRelief(ctx, relief, x, y, alpha); continue; }
     // (ground with a picture of its own needs no little drawing)
     const art = key === '0,0' ? NEST : cell.city ? CITY : px >= LOD.glyphs && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
     if (art) paint(ctx, art, x, y, alpha);

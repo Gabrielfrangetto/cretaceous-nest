@@ -2,7 +2,7 @@
 # background) into one picture of them all (images/terrain/<biome>-plants.webp) and a list of where each
 # is in it (…-plants.json: [x, y, w, h] each, in its pixels), for the map to stand them up in its hexes.
 # Each piece is one tree, or a clump of them touching; specks are left out.
-# Usage: python3 scripts/plants.py white.jpg black.jpg forest [--big 72]   (needs Pillow, numpy, scipy)
+# Usage: python3 scripts/plants.py white.jpg black.jpg forest [--big 72] [--snow]   (needs Pillow, numpy, scipy)
 # When the generator gave a black sheet that doesn't match the white one, pass - for black: the plants
 # are cut from the white sheet alone (good for plants with a dark outline): the white reaching in from
 # the edges is the background, faded out over a pixel or two at the plants' rims.
@@ -19,6 +19,7 @@ ap.add_argument('--big', type=int, default=72, help='how many pixels across the 
 ap.add_argument('--skip', nargs='*', default=[], help='x,y points (white sheet pixels) of pieces to leave out')
 ap.add_argument('--only', nargs='*', default=[], help='x,y points of the only pieces to keep')
 ap.add_argument('--tint', help='a colour (#rrggbb) the pieces are moved to, by their average')
+ap.add_argument('--snow', action='store_true', help='list the pieces with white paint on them (snow), for the map to choose by')
 ap.add_argument('--min', type=float, default=0.01, help='pieces smaller than this share of the biggest are left out (loose leaves)')
 a = ap.parse_args()
 
@@ -55,8 +56,12 @@ elif a.black == '-':
 else:
     # (a black sheet made smaller than the white is stretched to it: the same picture, the same framing)
     B = np.asarray(Image.open(a.black).convert('RGB').resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32)
-    # (a "black" that came out dark grey: its own background level, from the sheet's edges, taken as black)
-    bg = float(np.median(np.concatenate([B[:8].reshape(-1, 3), B[-8:].reshape(-1, 3), B[:, :8].reshape(-1, 3), B[:, -8:].reshape(-1, 3)]).mean(1)))
+    # (a "black" that came out dark grey, or shading from grey to black: its background, worked out
+    # point by point from where the white sheet is plain white and smoothed, taken as black)
+    plain = (W.min(2) > 245).astype(np.float32)
+    level = B.mean(2)
+    bg = ndimage.gaussian_filter(level * plain, 40) / np.maximum(ndimage.gaussian_filter(plain, 40), 1e-3)
+    bg = np.clip(bg, 0, 200)[..., None]
     B = np.clip((B - bg) * 255 / (255 - bg), 0, 255)
     alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
     alpha[alpha < 0.05] = 0
@@ -85,7 +90,7 @@ if a.tint:
 widths = sorted(max(boxes[i][0].stop - boxes[i][0].start, boxes[i][1].stop - boxes[i][1].start) for i in keep)
 scale = a.big / widths[len(widths) // 2]
 
-cuts = []
+cuts, snowy = [], []
 for i in keep:
     ys, xs = boxes[i]
     pad = 4
@@ -93,10 +98,12 @@ for i in keep:
     cut = pic[y0:y1, x0:x1].copy()
     cut[..., 3] *= (pieces[y0:y1, x0:x1] == i + 1) | (ndimage.binary_dilation(pieces[y0:y1, x0:x1] == i + 1, iterations=3))
     img = Image.fromarray(cut.astype(np.uint8))
+    snowy.append(bool(a.snow) and ((cut[..., :3].min(2) > 215) & (cut[..., 3] > 200)).sum() > 0.03 * (cut[..., 3] > 200).sum())
     cuts.append(img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))), Image.LANCZOS))
 
 # laid in rows, biggest first
-cuts.sort(key=lambda c: -c.height)
+order = sorted(range(len(cuts)), key=lambda i: -cuts[i].height)
+cuts, snowy = [cuts[i] for i in order], [snowy[i] for i in order]
 row_w, x, y, row_h, places = 1024, 0, 0, 0, []
 for c in cuts:
     if x + c.width > row_w:
@@ -108,5 +115,5 @@ sheet = Image.new('RGBA', (row_w, y + row_h))
 for c, (px, py, _, _) in zip(cuts, places):
     sheet.paste(c, (px, py))
 sheet.save(f'images/terrain/{a.biome}-plants.webp', 'WEBP', quality=86, method=6)
-json.dump({'big': a.big, 'pieces': places}, open(f'images/terrain/{a.biome}-plants.json', 'w'))
+json.dump({'big': a.big, 'pieces': places, **({'snow': [i for i, s in enumerate(snowy) if s]} if a.snow else {})}, open(f'images/terrain/{a.biome}-plants.json', 'w'))
 print(f'images/terrain/{a.biome}-plants.webp: {len(cuts)} pieces, {sheet.width}×{sheet.height}')
