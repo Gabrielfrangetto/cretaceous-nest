@@ -137,26 +137,62 @@ export const RIVER_COLOR = '#5a9cab';
 const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 export const riverWidth = flow => Math.min(12, 1.6 + 1.2 * Math.sqrt(flow || 1));
 const wobble = (q, r, k) => { let x = Math.imul(q * 73856093 ^ r * 19349663 ^ k * 83492791, 0x9e3779b1); x ^= x >>> 15; return ((x >>> 0) % 1000) / 1000 - 0.5; };
-// the halves of river in a hex, around its middle (0, 0): [{ to: the edge's middle, bend: the curve's
-// pull, width }]
+// The river in a hex, around its middle (0, 0), as halves from where it runs through the hex (a little
+// off the middle) to where it crosses an edge (a little off the edge's middle): each a smooth curve that
+// leaves the edge the way the neighbour's half comes into it, so a river runs on with no corner from hex
+// to hex, and the main way through a hex bends smoothly in and out. Its width changes along it: its own
+// at each edge and each middle, swelling or narrowing between; thin at a spring. [{ pts: [[x, y, width],
+// ...] from the middle to the edge, flow: what it carries at the edge }]
+const RIVER_PTS = 12, smooth = t => t * t * (3 - 2 * t);
+const unit = ([x, y]) => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+// (an edge's own: the same from the hexes on both sides of it; its way across, from the lesser hex to
+// the greater, turned a little; where along the edge it crosses; how wide it is there)
+function edgeOf(h, k) {
+  const [dq, dr] = STEPS[k], n = [h[0] + dq, h[1] + dr], first = h[0] < n[0] || (h[0] === n[0] && h[1] < n[1]);
+  const [a, b] = first ? [h, n] : [n, h], salt = (i) => wobble(a[0] * 3 + b[0], a[1] * 3 + b[1], 90 + i);
+  const out = unit(center([dq, dr])), across = first ? out : [-out[0], -out[1]], turn = salt(1) * 0.7;
+  const d = [across[0] * Math.cos(turn) - across[1] * Math.sin(turn), across[0] * Math.sin(turn) + across[1] * Math.cos(turn)];
+  const mid = center([dq, dr]).map(v => v / 2), off = salt(2) * SIZE * 0.45, side = [-across[1], across[0]];
+  return { at: [mid[0] + side[0] * off, mid[1] + side[1] * off], dir: first ? d : [-d[0], -d[1]], wide: 0.8 + 0.45 * (salt(3) + 0.5), swell: salt(4) * 0.5 };
+}
+const halvesCache = new Map();
 export function riverHalves(seed, h) {
+  const id = `${seed}|${h[0]},${h[1]}`;
+  if (halvesCache.has(id)) return halvesCache.get(id);
   const c = cellAt(seed, h);
   if (!c || !c.river) return [];
-  const out = [];
-  const half = (k, width) => {
-    const [dq, dr] = STEPS[k], [x, y] = center([dq, dr]), to = [x / 2, y / 2];
-    // (the curve pulled to one side of the straight way, by up to a third of a hex)
-    const side = wobble(h[0], h[1], k) * SIZE * 0.7, len = Math.hypot(...to);
-    out.push({ to, bend: [to[0] / 2 - to[1] / len * side, to[1] / 2 + to[0] / len * side], width });
-  };
-  if (c.down >= 0) half(c.down, riverWidth(c.flow));
+  const ways = [];
+  if (c.down >= 0) ways.push({ k: c.down, flow: c.flow, out: true });
   // (a river flowing out of a lake starts at its shore)
-  if (c.from >= 0) half(c.from, riverWidth(c.flow));
+  if (c.from >= 0) ways.push({ k: c.from, flow: c.flow });
   STEPS.forEach(([dq, dr], k) => {
     const n = cellAt(seed, [h[0] + dq, h[1] + dr]);
-    if (n && n.river && n.down === (k + 3) % 6) half(k, riverWidth(n.flow));
+    if (n && n.river && n.down === (k + 3) % 6) ways.push({ k, flow: n.flow });
   });
-  return out;
+  const ins = ways.filter(w => !w.out), main = ins.find(w => w.k === c.from) || ins.sort((a, b) => b.flow - a.flow)[0], out = ways.find(w => w.out);
+  for (const w of ways) w.edge = edgeOf(h, w.k);
+  const P = [wobble(h[0], h[1], 11) * SIZE * 0.35, wobble(h[0], h[1], 12) * SIZE * 0.35 * TILT];
+  // (the way through the middle: from where the main river comes in to where it goes out)
+  const T = out && main ? unit([out.edge.at[0] - main.edge.at[0], out.edge.at[1] - main.edge.at[1]]) : out ? unit([out.edge.at[0] - P[0], out.edge.at[1] - P[1]]) : main ? unit([P[0] - main.edge.at[0], P[1] - main.edge.at[1]]) : [1, 0];
+  const own = riverWidth(c.flow) * (0.8 + 0.45 * (wobble(h[0], h[1], 13) + 0.5)) * (main ? 1 : 0.5);
+  const result = ways.map(w => {
+    const M = w.edge.at, L = Math.hypot(M[0] - P[0], M[1] - P[1]), at = riverWidth(w.flow) * w.edge.wide;
+    const toM = unit([M[0] - P[0], M[1] - P[1]]);
+    const lead = w.out ? T : w === main ? [-T[0], -T[1]] : unit([toM[0] * 0.6 - T[0] * 0.4, toM[1] * 0.6 - T[1] * 0.4]);
+    const c1 = [P[0] + lead[0] * L * 0.4, P[1] + lead[1] * L * 0.4], c2 = [M[0] - w.edge.dir[0] * L * 0.4, M[1] - w.edge.dir[1] * L * 0.4];
+    const w0 = w.out || w === main ? own : Math.min(own, at);
+    const pts = [];
+    for (let i = 0; i <= RIVER_PTS; i++) {
+      const t = i / RIVER_PTS, u = 1 - t;
+      const x = u * u * u * P[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * M[0];
+      const y = u * u * u * P[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * M[1];
+      pts.push([x, y, (w0 + (at - w0) * smooth(t)) * (1 + w.edge.swell * Math.sin(Math.PI * t))]);
+    }
+    return { pts, flow: w.flow };
+  });
+  if (halvesCache.size > 20000) halvesCache.clear();
+  halvesCache.set(id, result);
+  return result;
 }
 // the river of a hex as SVG, around its middle
-export const riverSVG = (seed, h) => riverHalves(seed, h).map(s => `<path d="M0 0 Q${s.bend[0].toFixed(1)} ${s.bend[1].toFixed(1)} ${s.to[0].toFixed(1)} ${s.to[1].toFixed(1)}" fill="none" stroke="${RIVER_COLOR}" stroke-width="${s.width.toFixed(1)}" stroke-linecap="round"/>`).join('');
+export const riverSVG = (seed, h) => riverHalves(seed, h).map(s => `<path d="M${s.pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L')}" fill="none" stroke="${RIVER_COLOR}" stroke-width="${(s.pts.reduce((m, p) => m + p[2], 0) / s.pts.length).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');

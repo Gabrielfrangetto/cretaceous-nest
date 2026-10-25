@@ -3,7 +3,7 @@
 // once each at the sharpness the zoom needs. The little drawings are the same SVG snippets as everywhere else
 // (hexdraw.js), turned into canvas paths.
 import { ALL_HEXES, hexKey, cellAt as mapCell, inWorld as inMap, inWilds, wildsAt } from '../world.js';
-import { SIZE, SQ3, TILT, center, flatCenter, fillOf, glyphOf, reliefOf, NEST, riverHalves, riverWidth, RIVER_COLOR } from './hexdraw.js';
+import { SIZE, SQ3, TILT, center, flatCenter, fillOf, glyphOf, reliefOf, NEST, riverHalves, RIVER_COLOR } from './hexdraw.js';
 import { railsOf, upAt, WILDS_HEXES } from '../map.js';
 
 // ---------- SVG snippets as canvas paths ----------
@@ -284,10 +284,7 @@ function layoutOf(biome, set, level, k, river = null, hex = '') {
   if (set.layouts.has(id)) return set.layouts.get(id);
   // (points along the river's curves, each with how far from it a plant's middle stays)
   const wet = [];
-  if (river) for (const { to, bend, width } of river) for (let i = 0; i <= 14; i++) {
-    const t = i / 14, u = 1 - t;
-    wet.push([2 * u * t * bend[0] + t * t * to[0], 2 * u * t * bend[1] + t * t * to[1], width / 2 + 1.5]);
-  }
+  if (river) for (const { pts } of river) for (const [x, y, w] of pts) wet.push([x, y, w / 2 + 1.5]);
   const p = PLANTED[biome], unit = p.size / set.big, rand = seq(level * 7919 + k * 104729 + 17);
   const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
   const placed = [];
@@ -502,8 +499,9 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
 // never thinner on screen than the water they carry deserves
-// Close up, the water is the lake's (its picture, laid over the map as the lakes' is) within a darker
-// bank of wet earth
+// Each half of river (hexdraw.js riverHalves) filled as the shape its changing width makes, all of them
+// one shape (so where they overlap, at a hex's middle, nothing shows twice). Close up, the water is the
+// lake's (its picture, laid over the map as the lakes' is) within a darker bank of wet earth
 function drawRivers(ctx, seed, hexes, minFlow) {
   const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
   const close = scale * SIZE >= LOD.plants * 4 && lake.complete && lake.naturalWidth;
@@ -512,27 +510,40 @@ function drawRivers(ctx, seed, hexes, minFlow) {
     const cell = cellAt(seed, h);
     if (!cell.river || cell.flow < minFlow) continue;
     const [x, y] = center(h);
-    for (const s of riverHalves(seed, h)) if (s.width >= riverWidth(minFlow)) halves.push({ x, y, s, w: Math.max(s.width, hair * (0.6 + Math.sqrt(s.width) * 0.45)) });
+    for (const s of riverHalves(seed, h)) if (s.flow >= minFlow) halves.push({ x, y, pts: s.pts });
   }
-  const stroke = grow => {
-    for (const { x, y, s, w } of halves) {
-      ctx.lineWidth = w + grow;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x + s.bend[0], y + s.bend[1], x + s.to[0], y + s.to[1]);
-      ctx.stroke();
+  const shape = grow => {
+    const path = new Path2D();
+    for (const { x, y, pts } of halves) {
+      const left = [], right = [];
+      pts.forEach(([px, py, w], i) => {
+        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        const r = (Math.max(w, hair * (0.6 + Math.sqrt(w) * 0.45)) + grow) / 2, nx = -(b[1] - a[1]) / l * r, ny = (b[0] - a[0]) / l * r;
+        left.push([x + px + nx, y + py + ny]); right.push([x + px - nx, y + py - ny]);
+      });
+      // (all turning the same way, as the circles do, so none cancels another out where they overlap)
+      let poly = [...left, ...right.reverse()], area = 0;
+      poly.forEach(([ax, ay], i) => { const [bx, by] = poly[(i + 1) % poly.length]; area += ax * by - bx * ay; });
+      if (area < 0) poly = poly.reverse();
+      path.moveTo(...poly[0]);
+      for (const p of poly.slice(1)) path.lineTo(...p);
+      path.closePath();
+      // (round where it runs through the hex's middle, where halves meet)
+      const [px, py, w] = pts[0], r = (Math.max(w, hair * (0.6 + Math.sqrt(w) * 0.45)) + grow) / 2;
+      path.moveTo(x + px + r, y + py);
+      path.arc(x + px, y + py, r, 0, Math.PI * 2);
     }
+    return path;
   };
   ctx.save();
-  ctx.lineCap = 'round';
   if (close) {
-    ctx.strokeStyle = 'rgba(52, 58, 36, 0.45)';
-    stroke(Math.max(1.6, hair * 1.5));
+    ctx.fillStyle = 'rgba(52, 58, 36, 0.45)';
+    ctx.fill(shape(Math.max(1.6, hair * 1.5)), 'nonzero');
     const k = SIZE * SQ3 * PLANTED.lake.span / lake.naturalWidth, pat = floorPattern(ctx, 'lake', lake);
     pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
-    ctx.strokeStyle = pat;
-  } else ctx.strokeStyle = RIVER_COLOR;
-  stroke(0);
+    ctx.fillStyle = pat;
+  } else ctx.fillStyle = RIVER_COLOR;
+  ctx.fill(shape(0), 'nonzero');
   ctx.restore();
 }
 // The maglev's elevated lines: a dark guideway with a pale rail along it, drawn smooth along each line
