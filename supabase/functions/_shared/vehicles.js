@@ -93,14 +93,54 @@ const targets = new Map();
 export function scienceTargets(seed, station) {
   const id = `${seed}|${station}`;
   if (targets.has(id)) return targets.get(id);
-  const [q0, r0] = parseKey(station), out = [];
+  // (the quickest ways out from the station to every hex around, and back to it from each: two searches
+  // over the land around, rather than one for each hex each way)
+  const [q0, r0] = parseKey(station), reach = SCIENCE.radius * 2;
+  const near = n => hexDist([n[0] - q0, n[1] - r0]) <= reach;
+  const search = back => {
+    const best = new Map([[station, 0]]), step = new Map(), done = new Set(), open = [];
+    // (a binary heap of [cost, key] by cost)
+    const push = e => { let k = open.push(e) - 1; while (k > 0) { const q = (k - 1) >> 1; if (open[q][0] <= open[k][0]) break; [open[q], open[k]] = [open[k], open[q]]; k = q; } };
+    const pop = () => {
+      const top = open[0], last = open.pop();
+      if (open.length) { open[0] = last; for (let k = 0; ;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === k) break; [open[m], open[k]] = [open[k], open[m]]; k = m; } }
+      return top;
+    };
+    push([0, station]);
+    while (open.length) {
+      const [cost, k] = pop();
+      if (done.has(k)) continue;
+      done.add(k);
+      const h = parseKey(k), here = cellAt(seed, h);
+      for (const n of neighbors(h)) {
+        const nk = hexKey(...n), c = cellAt(seed, n);
+        if (blocked(c) || !near(n)) continue;
+        // (out: from here into n; back: from n into here)
+        const nc = cost + (back ? hexDrive(here || c, c) : hexDrive(c, here)).hours;
+        if (!best.has(nk) || nc < best.get(nk)) { best.set(nk, nc); step.set(nk, k); push([nc, nk]); }
+      }
+    }
+    return step;
+  };
+  const outStep = search(false), backStep = search(true);
+  // (a way as drivePath gives it: its hexes, the start left out, and its hours and charge)
+  const wayOf = path => {
+    let hours = 0, charge = 0, last = cellAt(seed, parseKey(path[0]));
+    for (const k of path.slice(1)) { const c = cellAt(seed, parseKey(k)), d = hexDrive(c, last); hours += d.hours; charge += d.charge; last = c; }
+    return { path: path.slice(1), hours, charge: Math.ceil(charge) };
+  };
+  const out = [];
   for (let dq = -SCIENCE.radius; dq <= SCIENCE.radius; dq++) for (let dr = -SCIENCE.radius; dr <= SCIENCE.radius; dr++) {
     const d = hexDist([dq, dr]);
     if (d < SCIENCE.near || d > SCIENCE.radius) continue;
     const k = hexKey(q0 + dq, r0 + dr);
-    if (isWater(seed, parseKey(k)) || isStation(seed, k)) continue;
-    const go = drivePath(seed, station, k), back = go && drivePath(seed, k, station);
-    if (go && back && go.path.length <= d * 2) out.push({ to: k, out: go, back });
+    if (isWater(seed, parseKey(k)) || isStation(seed, k) || !outStep.has(k) || !backStep.has(k)) continue;
+    const there = [k];
+    for (let x = k; x !== station; x = outStep.get(x)) there.unshift(outStep.get(x));
+    const home = [k];
+    for (let x = k; x !== station; x = backStep.get(x)) home.push(backStep.get(x));
+    const go = wayOf(there), back = wayOf(home);
+    if (go.path.length <= d * 2) out.push({ to: k, out: go, back });
   }
   targets.set(id, out);
   return out;

@@ -55,7 +55,7 @@ function paintedPlace(r, x, y) {
   if (!M) return null;
   if (!M.img) {
     M.img = picture(`${M.sheet}-plants`);
-    fetch(new URL(`../../images/terrain/${M.sheet}-plants.json`, import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => {});
+    fetch(new URL(`../../images/terrain/${M.sheet}-plants.json`, import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => { M.failed = true; });
   }
   if (!M.pieces || !M.img.complete || !M.img.naturalWidth) return null;
   const all = M.pieces.map((p, i) => i);
@@ -273,7 +273,7 @@ function plantsOf(biome) {
     set = { img: picture(`${biome}-plants`), pieces: null, layouts: new Map() };
     if (PLANTED[biome].counts) picture(`${biome}-floor`);
     plantSets.set(biome, set);
-    fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; retireTiles(); texturesLoaded(); }).catch(() => {});
+    fetch(new URL(`../../images/terrain/${biome}-plants.json`, import.meta.url).href).then(r => r.json()).then(j => { set.pieces = j.pieces; set.big = j.big; retireTiles(); texturesLoaded(); }).catch(() => { set.failed = true; });
   }
   return set.pieces && set.img.complete && set.img.naturalWidth ? set : null;
 }
@@ -693,7 +693,7 @@ function drawShoreThings(ctx, list) {
       T.pieces = j.pieces; T.big = j.big; T.of = {};
       j.kinds.forEach((k, i) => (T.of[k] = T.of[k] || []).push(i));
       retireTiles(); texturesLoaded();
-    }).catch(() => {});
+    }).catch(() => { T.failed = true; });
   }
   if (!T.pieces || !T.img.complete || !T.img.naturalWidth) return;
   for (const t of list.sort((a, b) => a.y - b.y)) {
@@ -1102,6 +1102,30 @@ export function fit(canvas, view) {
   return { ctx, scale, width: w, height: h, x0, y0, dpr };
 }
 // the hexes whose centre falls inside a box of the map (with a hex's margin), row by row
+// Every picture of the ground, the plants, the mountains and the water asked for at once (they are
+// otherwise fetched as the map first needs each), and a promise of when all are there (or failed, or
+// after a while anyway), so the map can be shown only once it looks as it should
+let preloading = null;
+export function preloadTerrain(wait = 12000) {
+  if (preloading) return preloading;
+  const checks = [];
+  const pic = name => { const img = picture(name); checks.push(() => img.complete); };
+  for (const [biome, p] of Object.entries(PLANTED)) {
+    pic(`${biome}-floor`);
+    if (!p.bare) { const set = (plantsOf(biome), plantSets.get(biome)); checks.push(() => !!set.pieces || set.failed); pic(`${biome}-plants`); }
+  }
+  for (const name of Object.keys(SHORES)) pic(`${SHORES[name].picture || name}-floor`);
+  const ask = (M, load) => { load(); checks.push(() => !!M.pieces || M.failed); };
+  for (const terrain of Object.keys(PAINTED)) ask(PAINTED[terrain], () => paintedPlace({ terrain, t: 0, snow: 0, pick: 0, dx: 0, dy: 0 }, 0, 0));
+  ask(THINGS, () => drawShoreThings(null, []));
+  const start = performance.now();
+  preloading = new Promise(done => {
+    const look = () => (checks.every(c => c()) || performance.now() - start > wait ? done() : setTimeout(look, 60));
+    look();
+  });
+  return preloading;
+}
+
 // What moves on the map among these hexes (ui/world.js draws it, every frame, over the map): the
 // lakes' and the sea's water (one shape each, as drawWater has them), the sea's surf (its shores where
 // waves break: not a mangrove's), and the smoking volcanoes' craters ({ x, y, size }: where their smoke

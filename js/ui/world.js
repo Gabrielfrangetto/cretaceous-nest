@@ -24,7 +24,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, worldSpan, worldSpanMins } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, warmAround, railCurve, railPoints, inTunnel } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, warmAround, preloadTerrain, railCurve, railPoints, inTunnel } from './mapcanvas.js';
 import { drawAmbient, ambientOn } from './ambient.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
@@ -139,6 +139,7 @@ const VIEW_W = SIZE * SQ3 * 14, VIEW_MIN = SIZE * SQ3 * 5, VIEW_MAX = mapBounds(
 // the map as drawn: a canvas, the zoom buttons, the legend; a line read out for the hex the keyboard is on
 function mapHTML() {
   return `<canvas class="world-map" id="worldMap" tabindex="0" role="application" aria-label="World map. Drag to look around, arrow keys to move between hexes, Enter to pick one, plus and minus to zoom." aria-describedby="mapFocus"></canvas><canvas class="world-trains" id="worldTrains" aria-hidden="true"></canvas>
+    <div class="map-loading" id="mapLoading" role="status"><span class="map-spinner" aria-hidden="true"></span><span>Loading the map…</span></div>
     <p class="sr-only" id="mapFocus" aria-live="polite"></p>
     <div class="map-tools"><button class="ghost" type="button" data-zoom="in" aria-label="Zoom in">+</button><button class="ghost" type="button" data-zoom="out" aria-label="Zoom out">−</button><button class="ghost" type="button" data-zoom="home">Nest</button></div>
     <details class="legend-fold"><summary>Map legend</summary><p class="hint map-legend"><span class="unknown-key">Not yet explored</span><span style="--c:${WATER.ocean}">Sea</span><span style="--c:${WATER.lake}">Lake</span>${Object.values(BIOMES).map(b => `<span style="--c:${b.color}">${esc(b.name)}</span>`).join('')} · mountains slow a trip, a river takes crossing, water can't be crossed</p></details>`;
@@ -183,8 +184,11 @@ function keepInside(v, canvas) {
 let mapCanvas = null, frame = 0, lastFit = null, hover = null, focusKey = null, warmed = '', goal = null;
 // (and again when a picture of the ground has come)
 onTexture(() => drawMap());
+// (the map is drawn only once every picture of its ground has come: until then, and until it is all
+// drawn the first time, a loading screen covers it, so it never shows itself half painted)
+let terrainReady = false, mapShown = false;
 function drawMap() {
-  if (!mapCanvas || frame) return;
+  if (!mapCanvas || frame || !terrainReady) return;
   frame = requestAnimationFrame(() => { frame = 0; paintMap(); });
 }
 // Night over the map, as it is right now (sun.js): darker where the sun is down, a small picture of it
@@ -324,6 +328,10 @@ function vehicleIcon(ctx, x, y, a, r, kind) {
 
 function paintMap() {
   if (!mapCanvas || !mapCanvas.isConnected) return;
+  // (the veil kept laid exactly over the map's canvas while it shows)
+  const veil = document.getElementById('mapLoading');
+  if (veil && !veil.hidden) Object.assign(veil.style, { top: `${mapCanvas.offsetTop}px`, left: `${mapCanvas.offsetLeft}px`, width: `${mapCanvas.offsetWidth}px`, height: `${mapCanvas.offsetHeight}px` });
+  if (!terrainReady) return;
   const w = S.world, t = now();
   if (!view) view = homeView();
   // (a zoom gliding: the view a part of the way to where it is going, and on again next frame)
@@ -345,8 +353,10 @@ function paintMap() {
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
   const close = SIZE * scale >= DETAIL_PX;
   const inView = close || SIZE * scale >= 6 ? hexesIn(f.x0, f.y0, x1, y1) : [];
+  let building = false;
   if (close) { drawHexes(ctx, w.seed, inView, known, GRID); warmAround(w.seed, known, w.revealed.length, GRID, f); }
-  else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, GRID)) drawMap();
+  else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, GRID)) { building = true; drawMap(); }
+  if (!mapShown && !building) { mapShown = true; const veil = document.getElementById('mapLoading'); if (veil) veil.hidden = true; }
   // the blurriest tiles of the whole map, drawn ahead once the map is up
   const sig = `${w.seed}|${w.revealed.length}`;
   if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, GRID), 400); }
@@ -499,6 +509,9 @@ function bindMap(box) {
   const canvas = mapCanvas = box.querySelector('#worldMap');
   if (!trainCanvas) requestAnimationFrame(paintTrains);
   trainCanvas = box.querySelector('#worldTrains');
+  const veil = box.querySelector('#mapLoading');
+  if (!terrainReady) preloadTerrain().then(() => { terrainReady = true; drawMap(); });
+  else veil.hidden = mapShown;
   // Zooming glides: each step sets where the zoom is going (goal: the width it ends at, and the point
   // of the map that stays put under the pointer, where on the screen it is), and every frame the view
   // goes a part of the way there
