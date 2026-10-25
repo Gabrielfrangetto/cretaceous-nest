@@ -794,7 +794,7 @@ function sideHTML(t) {
   // the team: the player, with one of the teams set up in the Team tab (dinosaurs never set out without you)
   const presets = cleanTeams(S);
   if (goWith >= 0 && !(presets[goWith] && presets[goWith].slots.some(Boolean))) goWith = -1;
-  team = [{ kind: 'player', id: PLAYER_ID }, ...(goWith >= 0 ? presets[goWith].slots.filter(Boolean) : [])];
+  team = [{ kind: 'player', id: PLAYER_ID }, ...(goWith >= 0 ? presets[goWith].slots.filter(Boolean) : [])].filter(u => !membersOf(u).some(id => leftOut.has(id)));
   const problem = exploreProblem(S, team, selected, t);
   const scout = hasScout(S, team.flatMap(membersOf));
   const blocker = team.map(u => unitProblem(u, t)).find(Boolean);
@@ -810,6 +810,9 @@ function sideHTML(t) {
       + (critical ? 'Critically injured: it went down in a fight. Herbs won\'t help; a Blood Transfusion heals it at once.' : PROBLEMS[problem])
       + (problem === 'injured' && blocker ? ` Heals in ${fmt(injuredLeft(byId(blocker.id), t))}.` : '')
     : '';
+  // (what keeps it from setting off, told in a window when Explore is tapped)
+  const babies = team.flatMap(membersOf).filter(id => id !== PLAYER_ID && byId(id) && stageOf(byId(id)).id === 'baby');
+  blocked = problem ? { problem, why, babies: problem === 'too-young' ? babies : [] } : null;
   // a city: its station on the maglev, and a place to stop (fed, watered, the flasks filled)
   const members = team.flatMap(membersOf), trip = city && members.length ? trainTrip(S, members, '0,0', selected, t) : null;
   const fly = city && members.length ? rocketTrip(S, members, '0,0', selected, t) : null;
@@ -821,7 +824,7 @@ function sideHTML(t) {
     ${units.length ? routeHTML(units, selected, true) : ''}
     ${team.length ? suppliesHTML(members, selected) : ''}
     ${teamFieldHTML(rows)}
-    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev from your nest</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${worldSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Walk there</button></div>
+    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev from your nest</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${worldSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip">Walk there</button></div>
     ${fly && fly.reason && PROBLEMS[fly.reason] ? `<p class="hint">No rocket for this team: ${esc(PROBLEMS[fly.reason])}</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
@@ -835,7 +838,7 @@ function sideHTML(t) {
     ${team.length ? suppliesHTML(team.flatMap(membersOf), selected) : ''}
     ${teamFieldHTML(rows)}
     ${rivalsHTML(team.flatMap(membersOf))}
-    ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip" ${problem ? 'disabled' : ''}>Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
+    ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip">Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, once growth capsules have raised them past babyhood.</p>` : ''}`;
@@ -1005,6 +1008,29 @@ function tripsHTML(t) {
 }
 
 // the player's own hunger, and a meal from the inventory
+// What keeps the team picked from setting off ({ problem, why (html), babies: ids of the babies in it,
+// when that is what's wrong }), told in a window when Explore is tapped (a hint in small print goes
+// unseen); and the dinosaurs left out of the team for this trip (Go without them)
+let blocked = null, leftOut = new Set();
+function showBlocked(b) {
+  const dialog = document.getElementById('blockedDialog'), body = document.getElementById('blockedBody');
+  const names = b.babies.map(id => esc(byId(id).name));
+  // (a baby in a pack: the whole pack stays behind with it)
+  const out = team.filter(u => membersOf(u).some(id => b.babies.includes(id))), packed = out.some(u => u.kind === 'pack');
+  const label = packed ? `Go without ${listNames(out.map(u => (u.kind === 'pack' ? `the ${esc(unitName(u))}` : esc(unitName(u)))))}` : `Go without ${names.length > 1 ? 'them' : 'it'}`;
+  body.innerHTML = b.babies.length
+    ? `<h2 id="blockedTitle">${listNames(names)} ${names.length > 1 ? 'are still babies' : 'is still a baby'}</h2>
+      <p>Babies stay safe in the nest: they can't go out into the wild yet. Feed ${names.length > 1 ? 'them' : 'it'} in the Nest until ${names.length > 1 ? 'they grow' : 'it grows'} into a juvenile, and then ${names.length > 1 ? 'they' : 'it'} can come along.</p>
+      <p class="hint">Babies can ride the maglev to a city, though.</p>
+      <div class="row"><button class="btn" type="button" id="blockedWithout">${label}</button><button class="ghost" type="button" id="blockedOk">OK</button></div>`
+    : `<h2 id="blockedTitle">Your team can't set off</h2><p>${b.why}</p><div class="row"><button class="btn" type="button" id="blockedOk">OK</button></div>`;
+  body.querySelector('#blockedOk').addEventListener('click', () => dialog.close());
+  document.getElementById('blockedClose').onclick = () => dialog.close();
+  const without = body.querySelector('#blockedWithout');
+  if (without) without.addEventListener('click', () => { for (const id of b.babies) leftOut.add(id); dialog.close(); message = ''; render(); });
+  if (!dialog.open) dialog.showModal();
+}
+
 function render() {
   const box = document.getElementById('worldBox');
   if (!box) return;
@@ -1023,6 +1049,7 @@ function render() {
   drawMap();
   box.querySelectorAll('[data-go-with]').forEach(btn => btn.addEventListener('click', () => {
     goWith = +btn.dataset.goWith;
+    leftOut = new Set();
     message = '';
     render();
   }));
@@ -1071,7 +1098,8 @@ function render() {
     const { to, party } = tracing, names = team.map(unitName);
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
     const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
-    message = !r.ok ? esc(PROBLEMS[r.reason] || 'The team could not go.') : to === '0,0' ? `You set off for home. Home in ${worldSpanMins(mins)}.`
+    if (!r.ok) { showBlocked({ problem: r.reason, why: esc(PROBLEMS[r.reason] || `The team could not go (${r.reason}).`), babies: [] }); return; }
+    message = to === '0,0' ? `You set off for home. Home in ${worldSpanMins(mins)}.`
       : `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${worldSpanMins(mins)}: then you wait there for orders.`;
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
@@ -1083,7 +1111,10 @@ function render() {
   const cancel = document.getElementById('traceCancel');
   if (cancel) cancel.addEventListener('click', () => { tracing = null; route = []; render(); });
   const send = document.getElementById('sendTrip');
-  if (send) send.addEventListener('click', () => { tracing = { to: selected, from: '0,0', party: null }; route = []; undoRoute = []; message = ''; render(); });
+  if (send) send.addEventListener('click', () => {
+    if (blocked) { showBlocked(blocked); return; }
+    tracing = { to: selected, from: '0,0', party: null }; route = []; undoRoute = []; message = ''; render();
+  });
   bindTrips(box);
 }
 
