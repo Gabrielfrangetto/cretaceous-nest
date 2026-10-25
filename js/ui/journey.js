@@ -12,7 +12,7 @@ import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
 import { GRID, fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
-import { esc, plural, worldSpan, worldSpanMins } from '../util.js';
+import { esc, plural, realSpan, realSpanMins } from '../util.js';
 import { eventArtUrls, dressedArt, playerArt } from '../art.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
 
@@ -260,9 +260,9 @@ function end() {
   let text = '';
   const buttons = [];
   if (!p) text = '';
-  else if (p.leg) text = `You are on your way ${p.leg.to === HOME ? 'home' : `to the ${esc(place(p.leg.to))}`}: there in ${worldSpan(Math.max(0, p.leg.arriveAt - now()))}.`;
+  else if (p.leg) text = `You are on your way ${p.leg.to === HOME ? 'home' : `to the ${esc(place(p.leg.to))}`}: there in ${realSpan(Math.max(0, p.leg.arriveAt - now()))}.`;
   else {
-    text = `You wait in the ${esc(place(p.at))} with your team. Explore on from the World map, or come home: the way back has its dangers too (${worldSpanMins(legMins(S, p.members, p.at, HOME))}).`;
+    text = `You wait in the ${esc(place(p.at))} with your team. Explore on from the World map, or come home: the way back has its dangers too (${realSpanMins(legMins(S, p.members, p.at, HOME))}).`;
     buttons.push('<button class="ghost" type="button" data-home>Come home</button>');
   }
   actBox.innerHTML = `${text ? `<p class="hint">${text}</p>` : ''}${p && !p.leg ? partyStatusHTML(p) : ''}<div class="row">${buttons.join('')}<button class="btn" type="button" data-close>Close</button></div>`;
@@ -345,7 +345,7 @@ function decide(v) {
   // an aircraft home for everyone, from here (the fit's share paid now)
   const flyBtn = () => {
     const c = flightBill(S, p, v.hex);
-    return `<button class="ghost" type="button" data-fly ${S.coins < c.now ? 'disabled' : ''}>Called an aircraft home <span class="hint">(${plural(c.now, 'coin', 'coins')}${c.later ? `, ${c.later} billed` : ''}; ${worldSpanMins(flightMins(v.hex))})</span></button>`;
+    return `<button class="ghost" type="button" data-fly ${S.coins < c.now ? 'disabled' : ''}>Called an aircraft home <span class="hint">(${plural(c.now, 'coin', 'coins')}${c.later ? `, ${c.later} billed` : ''}; ${realSpanMins(flightMins(v.hex))})</span></button>`;
   };
   const btn = (choice, label, ghost = false) => `<button class="${ghost ? 'ghost' : 'btn small'}" type="button" data-choice='${esc(JSON.stringify(choice))}'>${label}</button>`;
   let html = '';
@@ -429,7 +429,7 @@ function decide(v) {
   } else if (v.kind === 'airlift') {
     // which of the fallen to fly home: each one ticked adds to the aircraft needed and to the care
     const rows = v.who.map(x => `<label class="check"><input type="checkbox" data-air="${esc(x.id)}" checked> ${esc(x.name)} <span class="hint">(${healthWord(x.health)}; care ${plural(x.care, 'coin', 'coins')})</span></label>`).join('');
-    html = `<p>${cap(listNames(v.who.map(x => esc(x.name))))} ${v.who.length > 1 ? 'were' : 'was'} down, gravely hurt. Did you call the sanctuary's rescue for ${v.who.length > 1 ? 'them' : 'it'}? An aircraft would fly ${v.who.length > 1 ? 'them' : 'it'} home in ${worldSpanMins(v.mins)}, straight to the hospital; the rest of you would go on.</p>
+    html = `<p>${cap(listNames(v.who.map(x => esc(x.name))))} ${v.who.length > 1 ? 'were' : 'was'} down, gravely hurt. Did you call the sanctuary's rescue for ${v.who.length > 1 ? 'them' : 'it'}? An aircraft would fly ${v.who.length > 1 ? 'them' : 'it'} home in ${realSpanMins(v.mins)}, straight to the hospital; the rest of you would go on.</p>
       <div class="air-pick">${rows}</div><p class="hint" id="airCost"></p>
       <div class="row">${btn({ airlift: v.who.map(x => x.id) }, 'Called the rescue')}${btn({}, `Carried ${v.who.length > 1 ? 'them' : 'it'} on`, true)}</div>`;
   } else if (v.kind === 'go-on') {
@@ -536,7 +536,7 @@ function nestHTML(e) {
 
 // the land's own dangers met on the way (HAZARDS)
 function hazardHTML(e) {
-  const who = e.who ? esc(e.who.name) : '', lost = `, and lost about ${worldSpanMins(e.mins)}`;
+  const who = e.who ? esc(e.who.name) : '', lost = `, and lost about ${realSpanMins(e.mins)}`;
   const is = e.who && e.who.id === PLAYER_ID ? 'were' : 'was';
   switch (e.hazard) {
     case 'sandstorm': return `A sandstorm swept over the dunes. You sheltered in the lee of a dune until it blew itself out${lost}.`;
@@ -545,7 +545,7 @@ function hazardHTML(e) {
     case 'flood': return `The river had burst its banks. You waited for the water to fall before crossing${lost}.`;
     case 'bog': return `The ground gave way to a bog. Hauling free took a long while${lost}${who ? `, and ${who} wrenched a leg` : ''}.`;
     case 'cold': return `A bitter night came down over the forest. ${who}, too small to keep warm, was chilled to the bone.`;
-    case 'lost': return `The forest closed in, thick and dark: you lost your way, and it took about ${worldSpanMins(e.mins)} to find it again.`;
+    case 'lost': return `The forest closed in, thick and dark: you lost your way, and it took about ${realSpanMins(e.mins)} to find it again.`;
     default: return '';
   }
 }

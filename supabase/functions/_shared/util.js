@@ -9,18 +9,20 @@ export function fmt(ms) {
 
 export const minsLabel = m => m >= 60 ? Math.round(m / 60) + ' h' : m + ' min';
 
-// How long something takes in the world (config.js WORLD), from the real time it takes: "40 min",
-// "5 h 20 min", "14 h", "2 days 6 h", "12 days". worldSpanMins: from real minutes
-export function worldSpan(ms) {
-  const mins = Math.max(0, Math.round(ms * WORLD.speed / 60000));
-  if (mins < 60) return `${Math.max(1, mins)} min`;
+// How long the player waits, in real time (a trip, a train's leaving, a camp: what they plan around),
+// though it is set in the world's hours (config.js WORLD): "40 s", "6 min", "1 h 20 min", "2 days 3 h".
+// realSpanMins: from real minutes
+export function realSpan(ms) {
+  const secs = Math.max(0, Math.round(ms / 1000));
+  if (secs < 60) return `${Math.max(1, secs)} s`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60), m = mins % 60;
-  if (h < 10) return m ? `${h} h ${m} min` : `${h} h`;
-  if (h < 24) return `${h} h`;
+  if (h < 24) return m ? `${h} h ${m} min` : `${h} h`;
   const d = Math.floor(h / 24), rest = h % 24;
-  return d < 10 && rest ? `${d} ${d === 1 ? 'day' : 'days'} ${rest} h` : `${Math.round(h / 24)} days`;
+  return rest ? `${d} ${d === 1 ? 'day' : 'days'} ${rest} h` : `${d} ${d === 1 ? 'day' : 'days'}`;
 }
-export const worldSpanMins = mins => worldSpan(mins * 60000);
+export const realSpanMins = mins => realSpan(mins * 60000);
 
 export const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 

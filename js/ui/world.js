@@ -21,7 +21,7 @@ import { playFight } from './fight.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
 import { ITEM_ICONS } from '../art.js';
-import { esc, fmt, plural, worldSpan, worldSpanMins } from '../util.js';
+import { esc, fmt, plural, realSpan, realSpanMins } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
 import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, onTexture, preloadTerrain, railCurve, railPoints, inTunnel } from './mapcanvas.js';
@@ -839,21 +839,21 @@ function sideHTML(t) {
   // a city: its station on the maglev, and a place to stop (fed, watered, the flasks filled)
   const members = team.flatMap(membersOf), trip = city && members.length ? trainTrip(S, members, '0,0', selected, t) : null;
   const fly = city && members.length ? rocketTrip(S, members, '0,0', selected, t) : null;
-  const ride = trip && !trip.reason ? `<p class="hint">By the maglev: ${departs(trip.departAt, t)}, then ${worldSpan(trip.arriveAt - trip.departAt)}${trip.route.stops.length > 2 ? `, changing at ${esc(listNames(trip.route.stops.slice(1, -1).map(stationName)))}` : ''} · ${trip.fare} coins for this team${S.coins < trip.fare ? ` <span class="warn-text">(${trip.fare - S.coins} more needed)</span>` : ''}. Safe, and everyone is fed and watered aboard.</p>` : '';
+  const ride = trip && !trip.reason ? `<p class="hint">By the maglev: ${departs(trip.departAt, t)}, then ${realSpan(trip.arriveAt - trip.departAt)}${trip.route.stops.length > 2 ? `, changing at ${esc(listNames(trip.route.stops.slice(1, -1).map(stationName)))}` : ''} · ${trip.fare} coins for this team${S.coins < trip.fare ? ` <span class="warn-text">(${trip.fare - S.coins} more needed)</span>` : ''}. Safe, and everyone is fed and watered aboard.</p>` : '';
   if (city) return `<h3>${esc(city)}</h3>
     <p class="hint">A settlement of other colonists, ${plural(d, 'hex', 'hexes')} from your nest, with a station on the maglev. Around it the land is calm, as around yours: no predator hunts there. A team that stops here is fed and watered, and its flasks filled; from here it can explore the lands around on foot.</p>
     ${ride}
-    <p class="hint">On foot: ${worldSpanMins(legMins(S, members, '0,0', selected))}, and the dangers of the way.</p>
+    <p class="hint">On foot: ${realSpanMins(legMins(S, members, '0,0', selected))}, and the dangers of the way.</p>
     ${units.length ? routeHTML(units, selected, true) : ''}
     ${team.length ? suppliesHTML(members, selected) : ''}
     ${teamFieldHTML(rows)}
-    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev from your nest</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${worldSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip">Walk there</button></div>
+    <div class="row"><button class="btn" type="button" data-maglev="0,0">Take the maglev from your nest</button>${fly && !fly.reason ? `<button class="btn" type="button" id="sendRocket" ${problem || S.coins < fly.fare ? 'disabled' : ''}>Take a rocket <span class="hint">(${departs(fly.departAt, t, false)}, ${realSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>` : ''}<button class="ghost" type="button" id="sendTrip">Walk there</button></div>
     ${fly && fly.reason && PROBLEMS[fly.reason] ? `<p class="hint">No rocket for this team: ${esc(PROBLEMS[fly.reason])}</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
     ${aheadHTML(t)}`;
   return `<h3>${esc(placeName(cellAt(S.world.seed, h)))}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${worldSpanMins(legMins(S, team.flatMap(membersOf), '0,0', selected, route))} to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ' · never visited' : ''}</p>
+    <p class="hint">${plural(d, 'hex', 'hexes')} from the nest · ${realSpanMins(legMins(S, team.flatMap(membersOf), '0,0', selected, route))} to get there${route.length ? ' by your route' : ''}, as long again to come back${teamSlow(S, team.flatMap(membersOf)) > 1 ? ` (a giant sets a slow pace, but brings home ×${teamHaul(S, team.flatMap(membersOf))} of what it finds)` : ''}${allRunners(S, team.flatMap(membersOf)) ? ' (only Gallimimus, with you riding one: twice as fast)' : ''}${first ? ' · never visited' : ''}</p>
     ${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}
     ${lootHTML(selected)}
     ${threatHTML(h, units, scout)}
@@ -880,7 +880,7 @@ function aheadHTML(t) {
   return `<details class="ahead"${ahead.length ? ' open' : ''}><summary>Send dinosaurs ahead, without you</summary>
     <p class="hint">They ride on their own and wait here in the city's stables, fed and watered, until you come for them or send them on.</p>
     <ul class="ahead-list">${home.map(b => `<li><label><input type="checkbox" data-ahead="${esc(b.id)}"${ahead.includes(b.id) ? ' checked' : ''}> ${esc(b.name)} <span class="hint">${esc(SPECIES[b.type].species)} · ${esc(stageOf(b).id)}</span></label></li>`).join('')}</ul>
-    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t, false)}, ${worldSpanMins(fly.mins)} · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
+    ${team.length ? `<div class="row"><button class="btn small" type="button" id="aheadRocket" ${why || !fly || fly.reason || S.coins < fly.fare ? 'disabled' : ''}>By rocket <span class="hint">(${fly && !fly.reason ? `${departs(fly.departAt, t, false)}, ${realSpanMins(fly.mins)} · ${fly.fare} coins` : esc(PROBLEMS[fly.reason] || '—')})</span></button></div>` : ''}
     ${why && PROBLEMS[why] ? `<p class="hint warn-text">${esc(PROBLEMS[why])}</p>` : ''}
   </details>`;
 }
@@ -898,7 +898,7 @@ function goOnHTML(p, h, d, t) {
   const units = teamUnits(S, standingUnits(S, p)), path = routePath(S.world.seed, p.at, selected, []);
   const seen = d === 0 || isRevealed(S, selected), first = d > 0 && !S.world.visited.includes(selected);
   return `<h3>${title}${seen ? '' : ' <span class="hint">· unexplored</span>'}</h3>
-    <p class="hint">From the ${where}, where your team waits: ${worldSpanMins(legMins(S, p.members, p.at, selected))}${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ' · never visited' : ''}</p>
+    <p class="hint">From the ${where}, where your team waits: ${realSpanMins(legMins(S, p.members, p.at, selected))}${d === 0 ? '' : ` · ${plural(d, 'hex', 'hexes')} from the nest`}${first ? ' · never visited' : ''}</p>
     ${d === 0 ? '' : `${landHTML(cellAt(S.world.seed, h))}${timeHTML(h, t)}${lootHTML(selected)}${threatHTML(h, units, hasScout(S, p.members))}`}
     ${units.length ? routeHTML(units, selected, d === 0, path) : ''}
     <div class="row"><button class="btn" type="button" data-trace="${esc(p.id)}" data-hex="${esc(selected)}">${d === 0 ? 'Head home' : 'Explore'}</button></div>
@@ -914,7 +914,7 @@ function traceHTML(t) {
   // (home is where it goes: only the way there can change)
   return `<h3>${home ? 'The way home' : `The way to the ${esc(dest)}`}</h3>
     <p class="hint">${plural(hexes, 'hex', 'hexes')}, numbered on the map from ${tracing.from === '0,0' ? 'the nest' : 'where the team waits'}. Drag any point of the way to another hex to go that way instead: the rest of the way is worked out again, never over the same ground twice. Tap a point you moved to put it back. Hexes ringed in blue have fresh water.</p>
-    <p class="hint">${worldSpanMins(legMins(S, members, tracing.from, tracing.to, route))} to get there.</p>
+    <p class="hint">${realSpanMins(legMins(S, members, tracing.from, tracing.to, route))} to get there.</p>
     ${(() => { const units = teamUnits(S, party ? standingUnits(S, party) : (teamFrom(S, team) || []).filter(Boolean)); return units.length ? routeHTML(units, tracing.to, !!cityAt(S.world.seed, parseKey(tracing.to)), plannedPath().slice(1)) : ''; })()}
     ${party ? (() => { const dry = dryStretch(S.world.seed, tracing.from, tracing.to, route); return dry.thirst >= SURVIVAL.at ? `<p class="hint ${dry.thirst >= SURVIVAL.faint ? 'warn-text' : ''}">The longest dry stretch: ${plural(dry.hexes, 'hex', 'hexes')} with no fresh water${sup.water ? `, with ${sup.water} ${sup.water === 1 ? 'drink' : 'drinks'} left in the flasks` : ''}.</p>` : '<p class="hint">Water all the way.</p>'; })() : members.length ? suppliesHTML(members, tracing.to) : ''}
     <div class="row"><button class="btn" type="button" id="traceGo">Set off</button>
@@ -936,7 +936,7 @@ function teamFieldHTML(rows) {
 function campHTML(p, t) {
   const done = t >= p.camp.endsAt;
   return `<div class="row">${done ? `<button class="btn small" type="button" data-break-camp="${esc(p.id)}">Break camp: see what they found</button>`
-    : `<span class="hint">In camp for the night, looking for water and food · ${worldSpan(p.camp.endsAt - t)} left</span><button class="ghost" type="button" data-break-camp="${esc(p.id)}">Break camp now</button>`}</div>`;
+    : `<span class="hint">In camp for the night, looking for water and food · ${realSpan(p.camp.endsAt - t)} left</span><button class="ghost" type="button" data-break-camp="${esc(p.id)}">Break camp now</button>`}</div>`;
 }
 // what a camp found, in words
 function campText(c) {
@@ -954,7 +954,7 @@ function trainButtons(p) {
   const button = to => {
     if (to === p.at) return '';
     const trip = trainTrip(S, p.members, p.at, to, t), fly = rocketTrip(S, p.members, p.at, to, t);
-    const rocket = fly.reason ? '' : `<button class="ghost" type="button" data-rocket="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= fly.fare ? '' : 'disabled'}>Rocket to ${esc(stationName(to))} <span class="hint">(${departs(fly.departAt, t, false)}, ${worldSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>`;
+    const rocket = fly.reason ? '' : `<button class="ghost" type="button" data-rocket="${esc(p.id)}" data-hex="${esc(to)}" ${S.coins >= fly.fare ? '' : 'disabled'}>Rocket to ${esc(stationName(to))} <span class="hint">(${departs(fly.departAt, t, false)}, ${realSpanMins(fly.mins)} · ${fly.fare} coins)</span></button>`;
     return rocket;
   };
   const other = selected && selected !== p.at && selected !== '0,0' && isStation(S.world.seed, selected) ? button(selected) : '';
@@ -964,7 +964,7 @@ function trainButtons(p) {
 }
 // when the next train or rocket leaves
 // (a train's doors close MAGLEV.board seconds before it leaves)
-const departsText = (at, t, doors = true) => (doors && at - t < 60000 ? `boarding, doors close in ${worldSpan(Math.max(0, at - t - MAGLEV.board * 1000))}` : `leaves in ${worldSpan(at - t)}`);
+const departsText = (at, t, doors = true) => (doors && at - t < 60000 ? `boarding, doors close in ${realSpan(Math.max(0, at - t - MAGLEV.board * 1000))}` : `leaves in ${realSpan(at - t)}`);
 // (kept counting down, second by second: doorsClosed)
 const departs = (at, t, doors = true) => `<span class="departs" data-at="${at}"${doors ? '' : ' data-open'}>${departsText(at, t, doors)}</span>`;
 // When the doors close on a train someone was choosing (a ride button showing it), the choice is
@@ -988,7 +988,7 @@ function flyButton(p, t) {
   const at = !leg ? p.at : (pr => (pr && pr.i >= 0 ? leg.path[pr.i] : leg.from))(progressOf(S, p, t));
   if (at === '0,0') return '';
   const c = flightBill(S, p, at);
-  return `<button class="ghost" type="button" data-fly="${esc(p.id)}" ${S.coins < c.now ? 'disabled' : ''}>Call an aircraft home <span class="hint">(${plural(c.now, 'coin', 'coins')}${c.later ? `, ${c.later} billed for the badly hurt` : ''}; ${worldSpanMins(flightMins(at))})</span></button>`;
+  return `<button class="ghost" type="button" data-fly="${esc(p.id)}" ${S.coins < c.now ? 'disabled' : ''}>Call an aircraft home <span class="hint">(${plural(c.now, 'coin', 'coins')}${c.later ? `, ${c.later} billed for the badly hurt` : ''}; ${realSpanMins(flightMins(at))})</span></button>`;
 }
 
 function tripsHTML(t) {
@@ -1003,7 +1003,7 @@ function tripsHTML(t) {
         ${partyStatusHTML(p)}
         ${p.camp ? campHTML(p, t) : !p.members.includes(PLAYER_ID) ? `<div class="row">${trainButtons(p)}</div><p class="hint">Waiting in the city's stables, fed and watered, for you to join them or send them on by maglev or rocket.${p.members.some(m => restLeft(byId(m), t)) ? ' Resting after the flight.' : ''}</p>` : `<div class="row">${trainButtons(p)}<button class="btn small" type="button" data-trace="${esc(p.id)}" data-hex="0,0">${isStation(S.world.seed, p.at) ? 'Walk home' : 'Come home'} <span class="hint">(${legMins(S, p.members, p.at, '0,0')} min)</span></button>
         <span class="hint">Pick a hex on the map to explore on from here.</span>
-        ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(the night, ${worldSpanMins(CAMP.mins)}: look for water and food, rest)</span></button>`}${flyButton(p, t)}</div>`}
+        ${isStation(S.world.seed, p.at) ? '' : `<button class="ghost" type="button" data-camp="${esc(p.id)}">Make camp <span class="hint">(the night, ${realSpanMins(CAMP.mins)}: look for water and food, rest)</span></button>`}${flyButton(p, t)}</div>`}
       </li>`;
     }
     const leg = p.leg, done = t >= leg.arriveAt;
@@ -1025,7 +1025,7 @@ function tripsHTML(t) {
       <div>${names} <span class="hint">${where}${leg.recalled ? ' · called back' : ''}</span></div>
       <div class="bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
       <div class="row">${done ? `<button class="btn small" type="button" data-journey="${esc(p.id)}">${p.pending ? 'A decision awaits' : leg.to === '0,0' ? 'Back! See the journey' : 'Arrived! See the journey'}</button>`
-        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${worldSpan(leg.arriveAt - t)}</span>${leg.train && t < leg.startedAt - MAGLEV.board * 1000 ? `<button class="ghost" type="button" data-alight="${esc(p.id)}">Get off <span class="hint">(until the doors close)</span></button>` : ''}${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket || leg.drive ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
+        : `<span class="hint">${leg.air ? 'Lands' : leg.to === '0,0' ? 'Home' : 'There'} in ${realSpan(leg.arriveAt - t)}</span>${leg.train && t < leg.startedAt - MAGLEV.board * 1000 ? `<button class="ghost" type="button" data-alight="${esc(p.id)}">Get off <span class="hint">(until the doors close)</span></button>` : ''}${leg.to === '0,0' || leg.recalled || leg.train || leg.rocket || leg.drive ? '' : `<button class="ghost" type="button" data-recall="${esc(p.id)}">Call back</button>`}${flyButton(p, t)}`}</div>
     </li>`;
   }).join('')}</ul>`;
 }
@@ -1122,8 +1122,8 @@ function render() {
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
     const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
     if (!r.ok) { showBlocked({ problem: r.reason, why: esc(PROBLEMS[r.reason] || `The team could not go (${r.reason}).`), babies: [] }); return; }
-    message = to === '0,0' ? `You set off for home. Home in ${worldSpanMins(mins)}.`
-      : `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${worldSpanMins(mins)}: then you wait there for orders.`;
+    message = to === '0,0' ? `You set off for home. Home in ${realSpanMins(mins)}.`
+      : `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${realSpanMins(mins)}: then you wait there for orders.`;
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
   }
@@ -1160,7 +1160,7 @@ function bindTrips(box) {
   }));
   box.querySelectorAll('[data-camp]').forEach(btn => btn.addEventListener('click', () => {
     const r = act('camp', { id: btn.dataset.camp });
-    message = r.ok ? `You made camp for the night. In ${worldSpanMins(CAMP.mins)} you will see what you found.` : 'You could not make camp here.';
+    message = r.ok ? `You made camp for the night. In ${realSpanMins(CAMP.mins)} you will see what you found.` : 'You could not make camp here.';
     render();
   }));
   box.querySelectorAll('[data-break-camp]').forEach(btn => btn.addEventListener('click', () => {
@@ -1194,7 +1194,7 @@ function bindTrips(box) {
     if (r.ok && !r.story) { openJourney(btn.dataset.fly, render); return; }
     const f = r.ok && r.story.find(e => e.kind === 'flown');
     message = !r.ok ? (r.reason === 'coins' ? 'Not enough coins for the aircraft.' : 'No aircraft could come.')
-      : `An aircraft is flying you all home: ${plural(f.paid, 'coin', 'coins')} paid${f.later ? `, ${f.later} billed` : ''}. You land in ${worldSpan(f.lands - now())}.`;
+      : `An aircraft is flying you all home: ${plural(f.paid, 'coin', 'coins')} paid${f.later ? `, ${f.later} billed` : ''}. You land in ${realSpan(f.lands - now())}.`;
     render();
   }));
   box.querySelectorAll('[data-recall]').forEach(btn => btn.addEventListener('click', () => {

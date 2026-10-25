@@ -1,6 +1,6 @@
 // Land vehicles in the World tab: the garage at a station (buy one), the science teams setting out from
 // it (a free ride out, or back from where one studies), and the window for a drive or a ride: the way
-// (its time in the world's hours), the compartments with who goes dragged into them (board.js), and
+// (how long it takes), the compartments with who goes dragged into them (board.js), and
 // Done to set off. Who doesn't fit stays behind.
 import { PLAYER_ID, VEHICLES, SCIENCE, MAGLEV, TEAM_SLOTS } from '../config.js';
 import { S } from '../state.js';
@@ -10,7 +10,7 @@ import { isStation, cellAt } from '../map.js';
 import { boardHTML, bindBoard, aboard } from './board.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { esc, plural, worldSpan, worldSpanMins } from '../util.js';
+import { esc, plural, realSpan, realSpanMins } from '../util.js';
 import { placeName } from './hexdraw.js';
 
 const PROBLEMS = {
@@ -19,7 +19,7 @@ const PROBLEMS = {
   'no-station': 'Only at a station: the nest or a city.', 'not-there': 'Your team isn\'t where it sets out.', 'no-slot': 'All your expedition slots are in use.',
 };
 const nameOf = k => (k === '0,0' ? 'your nest' : cityAt(S.world.seed, parseKey(k)) || placeName(cellAt(S.world.seed, parseKey(k))));
-const leavesIn = (at, t) => (at - t <= MAGLEV.board * 1000 ? 'doors closed' : `leaves in ${worldSpan(at - t)}`);
+const leavesIn = (at, t) => (at - t <= MAGLEV.board * 1000 ? 'doors closed' : `leaves in ${realSpan(at - t)}`);
 
 // The garage at a station where the player stands: their vehicles here, and the ones to buy
 export function garageHTML(at, t) {
@@ -37,8 +37,8 @@ export function scienceHTML(at, t) {
   const trips = scienceFrom(S.world.seed, at, t);
   if (!trips.length) return '';
   return `<section class="garage"><h4>Science expeditions</h4>
-    <p class="hint">The colony's scientists drive out to study the dinosaurs where they live. Ride along for free: they pick where to go, study there half a day, and drive back.</p>
-    ${trips.map(x => `<div class="row parked"><span>To <strong>${esc(nameOf(x.to))}</strong> <span class="hint"><span class="departs" data-at="${x.departAt}">${leavesIn(x.departAt, t)}</span> · there in ${worldSpan(x.arriveAt - x.departAt)} · back here ${worldSpan(x.homeAt - t)} from now</span></span>
+    <p class="hint">The colony's scientists drive out to study the dinosaurs where they live. Ride along for free: they pick where to go, study there ${realSpanMins(SCIENCE.stay)}, and drive back.</p>
+    ${trips.map(x => `<div class="row parked"><span>To <strong>${esc(nameOf(x.to))}</strong> <span class="hint"><span class="departs" data-at="${x.departAt}">${leavesIn(x.departAt, t)}</span> · there in ${realSpan(x.arriveAt - x.departAt)} · back here ${realSpan(x.homeAt - t)} from now</span></span>
       <button class="btn small" type="button" data-science="${esc(at)}" data-k="${x.k}">Ride along</button></div>`).join('')}
   </section>`;
 }
@@ -95,14 +95,14 @@ function ride(t) {
     const x = scienceTrip(S.world.seed, state.sci.station, state.sci.k), back = state.sci.back;
     const from = back ? x.to : x.station, to = back ? x.station : x.to, departAt = back ? x.backAt : x.departAt, arriveAt = back ? x.homeAt : x.arriveAt;
     return { title: `Science truck: ${nameOf(from)} → ${nameOf(to)}`, cars: SCIENCE.cars, to, departAt, why: departAt - t <= MAGLEV.board * 1000 ? 'gone' : null,
-      info: `<span class="departs" data-at="${departAt}">${leavesIn(departAt, t)}</span> · there in ${worldSpan(arriveAt - departAt)} · free. ${back ? '' : 'They study there half a day, then drive back: ride back with them, or stay.'}` };
+      info: `<span class="departs" data-at="${departAt}">${leavesIn(departAt, t)}</span> · there in ${realSpan(arriveAt - departAt)} · free. ${back ? '' : `They study there ${realSpanMins(SCIENCE.stay)}, then drive back: ride back with them, or stay.`}` };
   }
   const v = vehiclesOf(S).find(x => x.id === state.vehicle), way = v && drivePath(S.world.seed, v.at, state.to);
   if (!v) return null;
   const mins = way && driveMins(way.hours), battery = chargeOf(S, v);
   return { title: `${VEHICLES[v.kind].name}: ${nameOf(v.at)} → ${nameOf(state.to)}`, cars: VEHICLES[v.kind].cars, to: state.to,
     why: !way ? 'no-way' : way.charge > battery ? 'battery' : null,
-    info: way ? `${worldSpanMins(mins)} on the way, ${plural(way.path.length, 'hex', 'hexes')} · battery ${way.charge} of ${Math.round(battery)} hexes. Nothing happens on the way: the team gets out where it parks.` : '' };
+    info: way ? `${realSpanMins(mins)} on the way, ${plural(way.path.length, 'hex', 'hexes')} · battery ${way.charge} of ${Math.round(battery)} hexes. Nothing happens on the way: the team gets out where it parks.` : '' };
 }
 function render() {
   const body = document.getElementById('driveBody'), t = now(), r = ride(t);
@@ -124,7 +124,7 @@ function render() {
     const team = aboard(state.board).map(id => (id === PLAYER_ID ? { kind: 'player', id } : { kind: 'dino', id })), by = state.party ? { id: state.party.id } : { team };
     const res = state.sci ? act('science', { station: state.sci.station, k: state.sci.k, back: !!state.sci.back, ...by }) : act('drive', { vehicle: state.vehicle, to: state.to, ...by });
     if (!res.ok) { const p = document.createElement('p'); p.className = 'hint warn-text'; p.textContent = res.reason === 'train-gone' ? 'The truck has left.' : PROBLEMS[res.reason] || `Could not set off (${res.reason}).`; body.appendChild(p); return; }
-    close(state.sci ? `You ride with the science team to ${esc(nameOf(r.to))}: waiting for the truck to leave.` : `You drive to ${esc(nameOf(r.to))}: there in ${worldSpanMins(res.mins)}.`);
+    close(state.sci ? `You ride with the science team to ${esc(nameOf(r.to))}: waiting for the truck to leave.` : `You drive to ${esc(nameOf(r.to))}: there in ${realSpanMins(res.mins)}.`);
   });
 }
 // every second: the countdown, and the window closed once the truck's doors have closed

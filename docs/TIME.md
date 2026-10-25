@@ -43,11 +43,13 @@ At home no one goes hungry or thirsty, the player neither: the keepers feed ever
 
 ## On screen
 
-What happens in the world is told in the world's time: "there in 14 h", "leaves in 2 h 24 min",
-"29 days to get there", never real minutes (`util.js worldSpan` / `worldSpanMins`, from real ms or
-minutes). A dinosaur's age, hatching and healing are told in real time.
+How long the player waits is told in real time, though it is set in the world's hours: a trip "there
+in 17 min", a train "leaves in 3 min", a camp "10 min left" (`util.js realSpan` / `realSpanMins`, from
+real ms or minutes), so no one reads "14 h" and thinks they must wait that long. The time of day where
+a team is, sunrise and nightfall are the world's (sun.js). A dinosaur's age, hatching and healing are
+real time too.
 
 ## Adding something new
 
 Decide which clock it is on: in the world (most things) → set it in world hours with `worldMins`, show
-it with `worldSpan`; part of a dinosaur's life or healing → real time.
+how long it takes with `realSpan`; part of a dinosaur's life or healing → real time.
