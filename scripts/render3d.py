@@ -16,7 +16,7 @@ ap.add_argument('--view', default='side', help='side (facing right, as the dinos
 ap.add_argument('--height', type=int, default=528, help='pixels the model stands tall')
 ap.add_argument('--anim', help='the animation to render (its name, or part of it); its frames side by side')
 ap.add_argument('--frames', type=int, default=8)
-ap.add_argument('--outline', type=float, default=2.5, help='outline thickness, pixels')
+ap.add_argument('--outline', type=float, default=1.6, help='outline thickness, pixels')
 ap.add_argument('--samples', type=int, default=16)
 ap.add_argument('--ink', default='#2a2420')
 a = ap.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else None)
@@ -26,8 +26,11 @@ rgb = lambda h: tuple((int(h[i:i + 2], 16) / 255) ** 2.2 for i in (1, 3, 5))
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=a.model)
 sc = bpy.context.scene
-meshes = [o for o in sc.objects if o.type == 'MESH']
 arm = next((o for o in sc.objects if o.type == 'ARMATURE'), None)
+# (with a skeleton, only what it moves is the model: generators leave helpers in the file, as a sphere)
+meshes = [o for o in sc.objects if o.type == 'MESH' and (not arm or o.parent == arm or any(m.type == 'ARMATURE' for m in o.modifiers))]
+for o in sc.objects:
+    if o.type == 'MESH' and o not in meshes: o.hide_render = True
 
 # the animation, if asked: its frames, spread over its length
 frames = [sc.frame_current]
@@ -83,21 +86,26 @@ def bounds():
         pts += [e.matrix_world @ v.co for v in m.vertices]
         e.to_mesh_clear()
     return Vector([min(p[i] for p in pts) for i in range(3)]), Vector([max(p[i] for p in pts) for i in range(3)])
-# (the box round the model in every frame drawn, so all frames stand on the same ground, at one size)
-lo, hi = Vector((1e9,) * 3), Vector((-1e9,) * 3)
-for f in frames:
-    sc.frame_set(f)
-    l, h = bounds()
-    lo = Vector(map(min, lo, l)); hi = Vector(map(max, hi, h))
-mid, tall = (lo + hi) / 2, hi.z - lo.z
 r = math.radians(yaw)
 # (glTF models face -Y: from -X it faces right; turned by yaw towards the front)
 d = Vector((-math.cos(r), -math.sin(r), 0))
+side = d.cross(Vector((0, 0, 1))).normalized()
+# (the box round the model as the camera sees it, in every frame drawn, so all frames stand on the same
+# ground, at one size: across the picture, and up)
+lo_x = lo_z = 1e9; hi_x = hi_z = -1e9; mid3 = Vector((0, 0, 0)); n = 0
+for f in frames:
+    sc.frame_set(f)
+    l, h = bounds()
+    mid3 += (l + h) / 2; n += 1
+    for p in [Vector((x, y, z)) for x in (l.x, h.x) for y in (l.y, h.y) for z in (l.z, h.z)]:
+        lo_x = min(lo_x, p.dot(side)); hi_x = max(hi_x, p.dot(side)); lo_z = min(lo_z, p.z); hi_z = max(hi_z, p.z)
+mid3 /= n
+tall, across = hi_z - lo_z, hi_x - lo_x
+mid = side * ((lo_x + hi_x) / 2) + Vector((0, 0, (lo_z + hi_z) / 2)) + d * mid3.dot(d)
 cam.location = mid + d * (tall * 4)
 cam.rotation_euler = (-d).to_track_quat('-Z', 'Y').to_euler()
 cam.data.clip_end = tall * 20
-across = max((hi - lo).x, (hi - lo).y) * 1.04
-pad = 1.04
+pad = 1.06
 cam.data.ortho_scale = max(tall, across) * pad
 sun.rotation_euler = (math.radians(50), 0, math.radians(yaw - 55))
 
@@ -107,15 +115,18 @@ sc.cycles.samples = a.samples
 sc.cycles.use_denoising = True
 ren.film_transparent = True
 k = a.height / tall
-ren.resolution_y = round(max(tall, across) * pad * k)
-ren.resolution_x = ren.resolution_y
+ren.resolution_y = round(tall * pad * k)
+ren.resolution_x = round(across * pad * k)
 ren.use_freestyle = True
 ren.line_thickness_mode = 'ABSOLUTE'
 ren.line_thickness = a.outline
 ls = sc.view_layers[0].freestyle_settings.linesets[0] if sc.view_layers[0].freestyle_settings.linesets else sc.view_layers[0].freestyle_settings.linesets.new('ink')
 if ls.linestyle is None: ls.linestyle = bpy.data.linestyles.new('ink')
 ls.select_by_visibility = True
-ls.select_silhouette = ls.select_border = ls.select_crease = True
+ls.select_silhouette = ls.select_border = True
+ls.select_crease = False
+# (only the outline, and where one part passes in front of another: a generated mesh is full of creases)
+ls.select_contour = True
 ls.linestyle.color = rgb(a.ink)
 ls.linestyle.thickness = a.outline
 sc.view_settings.view_transform = 'Standard'
