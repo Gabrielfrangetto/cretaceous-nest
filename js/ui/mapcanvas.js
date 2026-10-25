@@ -200,12 +200,12 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
 const TEXTURED = [];
 const rank = biome => TEXTURED.indexOf(biome);
-const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.biome);
+const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.terrain === 'ocean' ? 'ocean' : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel of a picture reaches (map units)
 // Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
 // cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
 // stretches, with a little of each hex's own; each set at a place of its own in the picture
-const VARIANTS = { rock: 1, forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
+const VARIANTS = { ocean: 1, rock: 1, forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
 const densities = new Map();
 function densityOf(seed, h, biome) {
   const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
@@ -251,7 +251,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const PLANTED = { ocean: { floor: '#235d74', counts: [0], bare: true, span: 7 }, rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -411,7 +411,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     const [x, y] = center(h), cell = cellAt(seed, h);
     const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
     // (cooled lava has the volcanic slopes' ground too)
-    const planted = px >= LOD.plants && !isWaterCell(cell) && plantsOf(biome);
+    const planted = px >= LOD.plants && (!isWaterCell(cell) || PLANTED[biome]) && plantsOf(biome);
     if (planted) {
       // (its floor: a picture laid over the whole map, not hex by hex, so it runs on from one hex into the
       // next; plain until it has come. The light is laid over it with its plants, below)
@@ -458,6 +458,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   // (the light over each, lightening or darkening the painting; blended across it at every zoom, as
   // steps of light from hex to hex would show on a painting)
   for (const { h, x, y, cell } of textured) {
+    if (isWaterCell(cell)) continue;
     ctx.save();
     ctx.translate(x, y);
     ctx.globalCompositeOperation = 'soft-light';

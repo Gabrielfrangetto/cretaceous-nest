@@ -19,6 +19,7 @@ ap.add_argument('--contrast', type=float, default=1.2)
 ap.add_argument('--size', type=int, default=352, help='pixels across one source tile')
 ap.add_argument('--quality', type=int, default=78)
 ap.add_argument('--blend', type=float, default=0.08, help='how wide the blend at the edges is, a share of the tile')
+ap.add_argument('--flatten', action='store_true', help='take out light that changes broadly across the picture (a bright corner), so its repeats don\'t show')
 ap.add_argument('--seed', type=int, default=7)
 ap.add_argument('--variants', action='store_true', help='each picture saved on its own, for the map to give each hex one')
 ap.add_argument('--each', action='store_true', help='move each picture to the colour from its own average')
@@ -36,6 +37,10 @@ def tile_of(path, size):
     if min(diff(w // 2, 0) / diff(1, 0), diff(0, h // 2) / diff(0, 1)) < 1.8:
         img = img[:h // 2, :w // 2]
         h, w = img.shape[:2]
+    if a.flatten:
+        from scipy import ndimage
+        broad = ndimage.gaussian_filter(img, (min(h, w) / 10, min(h, w) / 10, 0), mode='reflect')
+        img = img - broad + broad.reshape(-1, 3).mean(0)
     # no seam: near each edge the tile fades into a copy of itself moved by half, whose edges are its middle
     moved = np.roll(img, (h // 2, w // 2), (0, 1))
     band = max(4, int(min(h, w) * a.blend))

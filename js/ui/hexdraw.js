@@ -36,7 +36,7 @@ const GLYPH = {
   tundra: '<ellipse cx="4" cy="2" rx="7" ry="3" fill="#f2f4f2"/><path d="M-11 8 l2 -5 l2 5 M-6 8 l2 -4 l2 4 M8 9 l1.5 -4 l1.5 4" stroke="#7d8060" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
   volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
 };
-export const WATER = { ocean: '#3b6e9e', lake: '#5b95c8' };
+export const WATER = { ocean: '#235d74', lake: '#5b95c8' };
 // (a lava flow: dark rock, cooled)
 // (a mountain's ground is bare rock, with a little of its land's colour)
 export const fillOf = c => WATER[c.terrain] || (c.lava ? '#5e463e' : c.terrain === 'mountain' ? MOUNTAIN_GROUND(c.biome) : (BIOMES[c.biome] || WILDS_BIOMES[c.biome]).color);
