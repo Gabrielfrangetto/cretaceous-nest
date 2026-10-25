@@ -645,11 +645,12 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 // how far up onto the land a lake's bank reaches here (of SIZE): smooth over the map, the same from
 // either hex
 const bankAt = ([x, y]) => 0.02 + 0.14 * (0.5 + 0.25 * Math.sin(x * 0.11 + y * 0.07) + 0.25 * Math.sin(x * 0.05 - y * 0.13 + 1.7));
-// the mud's picture as a pattern laid over the map, or null until it has come (or from afar)
-function mudOf(ctx, px) {
-  const img = picture('lakeshore-floor');
+// a shore's picture (a lake's mud, the sea's sand) as a pattern laid over the map, or null until it has
+// come (or from afar)
+function mudOf(ctx, px, name = 'lakeshore') {
+  const img = picture(`${name}-floor`);
   if (px < LOD.plants || !img.complete || !img.naturalWidth) return null;
-  const pat = floorPattern(ctx, 'lakeshore', img), k = SIZE * SQ3 * 2.5 / img.naturalWidth;
+  const pat = floorPattern(ctx, name, img), k = SIZE * SQ3 * 2.5 / img.naturalWidth;
   pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
   return pat;
 }
@@ -710,7 +711,7 @@ function drawWater(ctx, seed, hexes, px, part) {
       for (const line of shores) { edge.moveTo(...line[0]); for (const p of line.slice(1)) edge.lineTo(...p); }
       // (the bank's far edge: the shore moved up onto the land, by more in some places than others)
       const c = center(h);
-      for (const line of shores) line.forEach((p, i) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1, o = SIZE * bankAt(p); bank[i ? 'lineTo' : 'moveTo'](p[0] + (p[0] - c[0]) / d * o, p[1] + (p[1] - c[1]) / d * o); });
+      for (const line of shores) line.forEach((p, i) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1, o = SIZE * bankAt(p) * (kind === 'ocean' ? 1.6 : 1); bank[i ? 'lineTo' : 'moveTo'](p[0] + (p[0] - c[0]) / d * o, p[1] + (p[1] - c[1]) / d * o); });
     }
     if (!any) continue;
     const floor = picture(`${kind}-floor`);
@@ -722,13 +723,13 @@ function drawWater(ctx, seed, hexes, px, part) {
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    // (wet ground just above the waterline: on a lake a bank of mud (its picture), wider in places, fading
-    // into the land; on the sea darker wet ground)
-    const mud = kind === 'lake' && mudOf(ctx, px);
+    // (wet ground just above the waterline: on a lake a bank of mud, on the sea a beach of sand (their
+    // pictures), wider in places, fading into the land)
+    const mud = mudOf(ctx, px, kind === 'lake' ? 'lakeshore' : 'beach'), wide = kind === 'lake' ? 1 : 1.6;
     if (part === 'bank') {
       if (mud) {
         ctx.strokeStyle = mud;
-        for (const [path, w, a] of [[bank, 0.22, 0.25], [bank, 0.12, 0.5], [edge, 0.24, 0.5], [edge, 0.14, 0.85]]) { ctx.globalAlpha = a; ctx.lineWidth = SIZE * w; ctx.stroke(path); }
+        for (const [path, w, a] of [[bank, 0.22, 0.25], [bank, 0.12, 0.5], [edge, 0.24, 0.5], [edge, 0.14, 0.85]]) { ctx.globalAlpha = a; ctx.lineWidth = SIZE * w * wide; ctx.stroke(path); }
       } else {
         ctx.strokeStyle = kind === 'ocean' ? 'rgba(70, 60, 40, .22)' : 'rgba(80, 64, 46, .45)';
         ctx.lineWidth = SIZE * 0.1;
