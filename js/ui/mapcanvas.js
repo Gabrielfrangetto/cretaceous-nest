@@ -510,11 +510,13 @@ function drawRivers(ctx, seed, hexes, minFlow) {
     const cell = cellAt(seed, h);
     if (!cell.river || cell.flow < minFlow) continue;
     const [x, y] = center(h);
-    for (const s of riverHalves(seed, h)) if (s.flow >= minFlow) halves.push({ x, y, pts: s.pts });
+    for (const s of riverHalves(seed, h)) if (s.flow >= minFlow) halves.push({ x, y, pts: s.pts, shore: s.shore });
   }
-  const shape = grow => {
+  // (bank: the bank's shape, stopping at a shore)
+  const shape = (grow, bank = false) => {
     const path = new Path2D();
-    for (const { x, y, pts } of halves) {
+    for (const h of halves) {
+      const { x, y } = h, pts = bank ? h.pts.slice(0, h.shore + 1) : h.pts;
       const left = [], right = [];
       pts.forEach(([px, py, w], i) => {
         const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -538,7 +540,7 @@ function drawRivers(ctx, seed, hexes, minFlow) {
   ctx.save();
   if (close) {
     ctx.fillStyle = 'rgba(52, 58, 36, 0.45)';
-    ctx.fill(shape(Math.max(1.6, hair * 1.5)), 'nonzero');
+    ctx.fill(shape(Math.max(1.6, hair * 1.5), true), 'nonzero');
     const k = SIZE * SQ3 * PLANTED.lake.span / lake.naturalWidth, pat = floorPattern(ctx, 'lake', lake);
     pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
     ctx.fillStyle = pat;

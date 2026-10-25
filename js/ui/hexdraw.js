@@ -142,7 +142,8 @@ const wobble = (q, r, k) => { let x = Math.imul(q * 73856093 ^ r * 19349663 ^ k 
 // leaves the edge the way the neighbour's half comes into it, so a river runs on with no corner from hex
 // to hex, and the main way through a hex bends smoothly in and out. Its width changes along it: its own
 // at each edge and each middle, swelling or narrowing between; thin at a spring. [{ pts: [[x, y, width],
-// ...] from the middle to the edge, flow: what it carries at the edge }]
+// ...] from the middle to the edge (on into a lake or the sea it meets), shore: the last of them on
+// land, flow: what it carries at the edge }]
 const RIVER_PTS = 12, smooth = t => t * t * (3 - 2 * t);
 const unit = ([x, y]) => { const l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
 // (an edge's own: the same from the hexes on both sides of it; its way across, from the lesser hex to
@@ -170,7 +171,12 @@ export function riverHalves(seed, h) {
     if (n && n.river && n.down === (k + 3) % 6) ways.push({ k, flow: n.flow });
   });
   const ins = ways.filter(w => !w.out), main = ins.find(w => w.k === c.from) || ins.sort((a, b) => b.flow - a.flow)[0], out = ways.find(w => w.out);
-  for (const w of ways) w.edge = edgeOf(h, w.k);
+  for (const w of ways) {
+    w.edge = edgeOf(h, w.k);
+    // (where it meets a lake or the sea: at the shore's middle, straight into the water)
+    const n = cellAt(seed, [h[0] + STEPS[w.k][0], h[1] + STEPS[w.k][1]]);
+    if (n && (n.terrain === 'lake' || n.terrain === 'ocean')) { w.water = true; w.edge = { ...w.edge, at: center(STEPS[w.k]).map(v => v / 2), dir: unit(center(STEPS[w.k])), swell: 0 }; }
+  }
   const P = [wobble(h[0], h[1], 11) * SIZE * 0.35, wobble(h[0], h[1], 12) * SIZE * 0.35 * TILT];
   // (the way through the middle: from where the main river comes in to where it goes out)
   const T = out && main ? unit([out.edge.at[0] - main.edge.at[0], out.edge.at[1] - main.edge.at[1]]) : out ? unit([out.edge.at[0] - P[0], out.edge.at[1] - P[1]]) : main ? unit([P[0] - main.edge.at[0], P[1] - main.edge.at[1]]) : [1, 0];
@@ -188,7 +194,11 @@ export function riverHalves(seed, h) {
       const y = u * u * u * P[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * M[1];
       pts.push([x, y, (w0 + (at - w0) * smooth(t)) * (1 + w.edge.swell * Math.sin(Math.PI * t))]);
     }
-    return { pts, flow: w.flow };
+    // (on into the water, opening out as it goes, so river and lake run into one another; its bank
+    // stops at the shore: pts after shore are in the water)
+    const shore = pts.length - 1;
+    if (w.water) for (let i = 1; i <= 4; i++) pts.push([M[0] + w.edge.dir[0] * SIZE * 0.12 * i, M[1] + w.edge.dir[1] * SIZE * 0.12 * i, at * (1 + 0.25 * i)]);
+    return { pts, flow: w.flow, shore };
   });
   if (halvesCache.size > 20000) halvesCache.clear();
   halvesCache.set(id, result);
