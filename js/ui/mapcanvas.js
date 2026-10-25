@@ -349,7 +349,7 @@ function waterOutline(seed, h, path, shores) {
     if (landAt(seed, h, k)) {
       const line = sideLine(seed, h, k), fwd = SIDE_CORNERS[k][0] === c ? line : line.reverse();
       for (const p of fwd.slice(1, -1)) items.push({ p });
-      shores.push(fwd);
+      shores.push(Object.assign(fwd, { land: cellAt(seed, [h[0] + STEP[k][0], h[1] + STEP[k][1]]) }));
     }
   }
   // (a lone corner: the points next to it dropped, a curve from the one before to the one after)
@@ -644,6 +644,15 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
 // never thinner on screen than the water they carry deserves
+// The kinds of shore (images/terrain/<name>-floor.webp): how wide (by bankAt), its colour from afar,
+// and the picture it borrows until it has one of its own. A lake's is mud; the sea's sand, but where a
+// swamp meets it a mangrove's mudflat
+const SHORES = {
+  lakeshore: { wide: 1, color: 'rgba(80, 64, 46, .45)' },
+  beach: { wide: 1.6, color: 'rgba(70, 60, 40, .22)' },
+  mangrove: { wide: 1.3, color: 'rgba(60, 58, 40, .4)', picture: 'lakeshore' },
+};
+const shoreOf = (kind, land) => (kind === 'lake' ? 'lakeshore' : land && land.biome === 'swamp' ? 'mangrove' : 'beach');
 // how far up onto the land a lake's bank reaches here (of SIZE): smooth over the map, the same from
 // either hex
 const bankAt = ([x, y]) => 0.02 + 0.14 * (0.5 + 0.25 * Math.sin(x * 0.11 + y * 0.07) + 0.25 * Math.sin(x * 0.05 - y * 0.13 + 1.7));
@@ -662,8 +671,9 @@ function mudOf(ctx, px, name = 'lakeshore') {
 // What lies in the water along its shores (images/terrain/water-plants.webp, scripts/plants.py; kinds
 // in its .json): on a lake reeds at the edge, water lilies a little out, now and then a rock or a log; on
 // the sea foam and rocks where the waves break, a log washed up. { kind: [[chance a side of shore, how
-// far out (of SIZE), how big (map units)]] }
+// far out (of SIZE), how big (map units)]] }; a mangrove's (where a swamp meets the sea) calmer, reedy
 const SHORE_THINGS = {
+  mangrove: [['reed', 0.4, 0.06, 12], ['reed', 0.2, 0.12, 11], ['foam', 0.15, 0.1, 15], ['log', 0.04, 0.12, 16]],
   lake: [['reed', 0.55, 0.06, 13], ['reed', 0.3, 0.1, 12], ['lily', 0.5, 0.3, 13], ['lily', 0.25, 0.45, 12], ['rock', 0.1, 0.12, 10], ['log', 0.06, 0.15, 16]],
   ocean: [['foam', 0.6, 0.1, 19], ['foam', 0.25, 0.2, 15], ['rock', 0.18, 0.14, 11], ['rock', 0.08, 0.25, 10], ['log', 0.012, 0.1, 16]],
 };
@@ -695,7 +705,7 @@ function drawShoreThings(ctx, list) {
 function drawWater(ctx, seed, hexes, px, part) {
   const things = [];
   for (const kind of ['ocean', 'lake']) {
-    const area = new Path2D(), edge = new Path2D(), bank = new Path2D();
+    const area = new Path2D(), edge = new Path2D(), banks = new Map();
     let any = false;
     for (const h of hexes) {
       if (cellAt(seed, h).terrain !== kind) continue;
@@ -704,16 +714,21 @@ function drawWater(ctx, seed, hexes, px, part) {
       waterOutline(seed, h, area, shores);
       for (let c = 0; c < 6; c++) tipOf(seed, h, c, area);
       // (things along each side of shore, each its own chance, place and size)
-      if (px >= 30) shores.forEach((line, n) => SHORE_THINGS[kind].forEach(([what, chance, out, size], m) => {
+      if (px >= 30) shores.forEach((line, n) => SHORE_THINGS[shoreOf(kind, line.land) === 'mangrove' ? 'mangrove' : kind].forEach(([what, chance, out, size], m) => {
         const r = salt => cornerRand(h[0] * 7 + n, h[1] * 7 + m, salt);
         if (r(61) >= chance) return;
         const p = line[1 + Math.floor(r(62) * (line.length - 2))], c = center(h), d = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1, o = SIZE * out * (0.7 + 0.6 * r(63));
         things.push({ kind: what, x: p[0] + (c[0] - p[0]) / d * o, y: p[1] + (c[1] - p[1]) / d * o, size, pick: r(64), flip: r(65) < 0.5 });
       }));
-      for (const line of shores) { edge.moveTo(...line[0]); for (const p of line.slice(1)) edge.lineTo(...p); }
-      // (the bank's far edge: the shore moved up onto the land, by more in some places than others)
       const c = center(h);
-      for (const line of shores) line.forEach((p, i) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1, o = SIZE * bankAt(p) * (kind === 'ocean' ? 1.6 : 1); bank[i ? 'lineTo' : 'moveTo'](p[0] + (p[0] - c[0]) / d * o, p[1] + (p[1] - c[1]) / d * o); });
+      for (const line of shores) {
+        const name = shoreOf(kind, line.land);
+        if (!banks.has(name)) banks.set(name, { edge: new Path2D(), bank: new Path2D() });
+        const b = banks.get(name);
+        for (const path of [edge, b.edge]) { path.moveTo(...line[0]); for (const p of line.slice(1)) path.lineTo(...p); }
+        // (the bank's far edge: the shore moved up onto the land, by more in some places than others)
+        line.forEach((p, i) => { const d = Math.hypot(p[0] - c[0], p[1] - c[1]) || 1, o = SIZE * bankAt(p) * SHORES[name].wide; b.bank[i ? 'lineTo' : 'moveTo'](p[0] + (p[0] - c[0]) / d * o, p[1] + (p[1] - c[1]) / d * o); });
+      }
     }
     if (!any) continue;
     const floor = picture(`${kind}-floor`);
@@ -725,25 +740,31 @@ function drawWater(ctx, seed, hexes, px, part) {
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    // (wet ground just above the waterline: on a lake a bank of mud, on the sea a beach of sand (their
-    // pictures), wider in places, fading into the land)
-    const mud = mudOf(ctx, px, kind === 'lake' ? 'lakeshore' : 'beach'), wide = kind === 'lake' ? 1 : 1.6;
+    // (wet ground just above the waterline, its kind by the land's (SHORES): a bank of its picture, wider
+    // in places, fading into the land)
     if (part === 'bank') {
-      if (mud) {
-        ctx.strokeStyle = mud;
-        for (const [path, w, a] of [[bank, 0.22, 0.25], [bank, 0.12, 0.5], [edge, 0.24, 0.5], [edge, 0.14, 0.85]]) { ctx.globalAlpha = a; ctx.lineWidth = SIZE * w * wide; ctx.stroke(path); }
-      } else {
-        ctx.strokeStyle = kind === 'ocean' ? 'rgba(70, 60, 40, .22)' : 'rgba(80, 64, 46, .45)';
-        ctx.lineWidth = SIZE * 0.1;
-        ctx.stroke(edge);
+      for (const [name, b] of banks) {
+        const mud = mudOf(ctx, px, SHORES[name].picture || name), wide = SHORES[name].wide;
+        if (mud) {
+          ctx.strokeStyle = mud;
+          for (const [path, w, a] of [[b.bank, 0.22, 0.25], [b.bank, 0.12, 0.5], [b.edge, 0.24, 0.5], [b.edge, 0.14, 0.85]]) { ctx.globalAlpha = a; ctx.lineWidth = SIZE * w * wide; ctx.stroke(path); }
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.strokeStyle = SHORES[name].color;
+          ctx.lineWidth = SIZE * 0.1;
+          ctx.stroke(b.edge);
+        }
       }
       ctx.restore();
       continue;
     }
     ctx.fill(area);
     ctx.clip(area);
-    // (the mud showing through the shallowest water)
-    if (mud) { ctx.globalAlpha = 0.3; ctx.strokeStyle = mud; ctx.lineWidth = SIZE * 0.2; ctx.stroke(edge); ctx.globalAlpha = 1; }
+    // (the bank showing through the shallowest water)
+    for (const [name, b] of banks) {
+      const mud = mudOf(ctx, px, SHORES[name].picture || name);
+      if (mud) { ctx.globalAlpha = 0.3; ctx.strokeStyle = mud; ctx.lineWidth = SIZE * 0.2; ctx.stroke(b.edge); ctx.globalAlpha = 1; }
+    }
     // (the shallows, paler the nearer the shore)
     for (const [w, a] of [[0.8, 0.06], [0.65, 0.06], [0.5, 0.07], [0.36, 0.07], [0.24, 0.08], [0.12, 0.08]]) {
       ctx.strokeStyle = kind === 'ocean' ? `rgba(140, 215, 210, ${a})` : `rgba(200, 235, 225, ${a})`;
