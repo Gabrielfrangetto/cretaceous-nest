@@ -7,7 +7,7 @@ import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft }
 import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
 import { dressedArt, sleepArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
-import { plural, fmt, ageLabel } from '../util.js';
+import { plural, fmt, ageLabel, realSpanMins } from '../util.js';
 import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime, WORLD_DAY } from '../sun.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
@@ -121,7 +121,7 @@ function checkHunger() {
     w.bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + `<span>${caps ? 'Needs a capsule' : 'Out of capsules!'}</span>`;
   }
   const fs = document.getElementById('foodStock');
-  const fsText = `${ITEM_ICONS[CAPSULE.item]}<span><b>${caps}</b> growth ${caps === 1 ? 'capsule' : 'capsules'}${caps ? '' : ' · buy some in the Shop'}</span><span class="meta">One every ${CAPSULE.every.baby} h for a baby, ${CAPSULE.every.juvenile} h for a juvenile. The keepers feed everyone.</span>`;
+  const fsText = `${ITEM_ICONS[CAPSULE.item]}<span><b>${caps}</b> growth ${caps === 1 ? 'capsule' : 'capsules'}${caps ? '' : ' · buy some in the Shop'}</span><span class="meta">One a day for a baby or a juvenile (a day here is ${realSpanMins(CAPSULE.every.baby * 60)}). The keepers feed everyone.</span>`;
   if (fs.dataset.html !== fsText) { fs.dataset.html = fsText; fs.innerHTML = fsText; }
   bills();
   const pill = document.getElementById('hungryPill');

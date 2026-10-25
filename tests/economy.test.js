@@ -121,7 +121,7 @@ test('a growth capsule as soon as it hatches, and coins for giving it; none with
   assert.equal(r.n, 1);
   assert.equal(countItem(s, 'capsule'), 0);
   assert.equal(s.coins, coins + FEED_COINS);
-  // the next once it wears off: a baby's works 4 h
+  // the next once it wears off: a day of the world
   assert.equal(feedBaby(s, baby.id, baby.at + 2000).reason, 'full');
   assert.equal(feedBaby(s, baby.id, baby.at + 1000 + hungerEvery(baby)).reason, 'no-food');
 });

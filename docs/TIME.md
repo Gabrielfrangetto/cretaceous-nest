@@ -35,11 +35,12 @@ minutes the game keeps time in). Everything is stored as real instants (`clock.j
 
 Only a dinosaur's life, and healing:
 
-- a dinosaur's age and growth, its growth capsules (every `CAPSULE.every` real hours), eggs hatching,
-  breeding;
+- a dinosaur's age, eggs hatching, breeding;
 - wounds and injuries healing (`INJURY_MINS`, `HEAL_MINS`, …).
 
-At home no one goes hungry or thirsty, the player neither: the keepers feed everyone.
+A young dinosaur's growth capsule lasts a day of the world (`CAPSULE.every`, about half a real hour),
+and it grows only on capsules (`CAPSULES`: as many for each species as before, so it grows up that much
+sooner). At home no one goes hungry or thirsty, the player neither: the keepers feed everyone.
 
 ## On screen
 

@@ -9,11 +9,11 @@ const baby = fed => ({ id: 'g1', type: 'proto', sex: 'f', name: 'Pop', at: 0, ge
 
 test('a young one grows on growth capsules, as many as its species takes in the wild at PACE', () => {
   const { juvenile, adult } = CAPSULES.proto;
-  // a Protoceratops full grown at about 8, a fifth of the way a juvenile: a capsule works 4 h for a
-  // baby, 6 h for a juvenile
+  // a Protoceratops full grown at about 8, a fifth of the way a juvenile: a capsule stands for 4 h of
+  // a baby's growing, 6 h of a juvenile's
   const hours = LIFE.proto[1] * 365 * 24 / PACE;
-  assert.equal(juvenile, Math.ceil(hours * 0.2 / CAPSULE.every.baby));
-  assert.equal(adult, juvenile + Math.ceil(hours * 0.8 / CAPSULE.every.juvenile));
+  assert.equal(juvenile, Math.ceil(hours * 0.2 / CAPSULE.grows.baby));
+  assert.equal(adult, juvenile + Math.ceil(hours * 0.8 / CAPSULE.grows.juvenile));
   assert.equal(stageOf(baby(0)).id, 'baby');
   assert.equal(stageOf(baby(juvenile - 1)).id, 'baby');
   assert.equal(stageOf(baby(juvenile)).id, 'juvenile');
@@ -22,10 +22,11 @@ test('a young one grows on growth capsules, as many as its species takes in the 
   assert.equal(stageOf({ id: 'x' }).id, 'baby');
   assert.equal(isAdult(baby(adult)), true);
   assert.equal(isAdult(baby(adult - 1)), false);
-  // the bigger and slower-growing, the more it takes: a Tyrannosaurus about a month's worth
+  // the bigger and slower-growing, the more it takes: a Tyrannosaurus about a hundred and thirty, a
+  // capsule a day of the world, so a few real days if it is never without one
   assert.ok(CAPSULES.rex.adult > CAPSULES.proto.adult && CAPSULES.proto.adult > CAPSULES.coelo.adult);
   const rexDays = (CAPSULES.rex.juvenile * CAPSULE.every.baby + (CAPSULES.rex.adult - CAPSULES.rex.juvenile) * CAPSULE.every.juvenile) / 24;
-  assert.ok(rexDays > 28 && rexDays < 35);
+  assert.ok(rexDays > 2 && rexDays < 4);
 });
 
 test('the next stage says how many capsules are left', () => {
@@ -51,8 +52,8 @@ test('a capsule as soon as it hatches, the next once it wears off; the one that 
   assert.equal(r.grewTo, 'juvenile');
   assert.equal(countItem(s, 'capsule'), 4);
   assert.equal(countItem(s, 'leaf'), leaves);
-  // a juvenile's works 6 h
-  assert.equal(hungerEvery(b), CAPSULE.every.juvenile * 3600000);
+  // a juvenile's works a day of the world
+  assert.equal(hungerEvery(b), Math.round(CAPSULE.every.juvenile * 3600000));
   assert.equal(feedBaby(s, 'g1', t + hungerEvery(b) - 1).reason, 'full');
   t += hungerEvery(b);
   assert.equal(feedBaby(s, 'g1', t).grewTo, null);

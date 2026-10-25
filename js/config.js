@@ -1,9 +1,9 @@
 // Game content and balance. Change numbers here; the rest of the code reads them.
 // The world's clock (docs/TIME.md): everything in the world (day and night, the seasons, journeys, the
 // maglev and the rockets, camping) runs WORLD.speed times as fast as the real clock, one clock for every
-// player: a day of the world lasts about 29 real minutes, a year of it about 7 real days. Only a dinosaur's life
-// keeps the real clock (its age, its growth and its growth capsules, eggs hatching, breeding) and so
-// do wounds healing. Durations of the world are set here in its hours, worldMins turning them into the
+// player: a day of the world lasts about 29 real minutes, a year of it about 7 real days. A growth
+// capsule lasts a day of the world (CAPSULE). Only the rest of a dinosaur's life keeps the real clock
+// (its age, eggs hatching, breeding) and so do wounds healing. Durations of the world are set here in its hours, worldMins turning them into the
 // real minutes the game keeps time in.
 export const WORLD = { speed: 50 };
 export const worldMins = hours => hours * 60 / WORLD.speed;
@@ -1140,7 +1140,7 @@ export const GUIDE = {
 };
 
 // Growth: at home the keepers feed everyone; what makes a young one grow is a growth capsule, each
-// one working for every hours of its stage (a baby's, a juvenile's), and nothing grows without one.
+// one working for a day of the world (every, in real hours), and nothing grows without one.
 // A stage begins at share of the growing (LIFE, at PACE). Only adults wear equipment. scale draws
 // juveniles (and adults without an adult sprite yet) larger than babies.
 export const STAGES = [
@@ -1148,11 +1148,13 @@ export const STAGES = [
   { id: 'juvenile', name: 'Juvenile', share: 0.2, scale: 1.25 },
   { id: 'adult', name: 'Adult', share: 1, scale: 1.5 },
 ];
-export const CAPSULE = { item: 'capsule', every: { baby: 4, juvenile: 6 } };
-// the growth capsules each species takes to reach each stage (a whole capsule's hours each)
+// every: real hours a capsule works for, a day of the world each (WORLD); grows: the hours of a
+// species' growing (LIFE, at PACE) each stands for, which sets how many each species takes
+export const CAPSULE = { item: 'capsule', every: { baby: worldMins(24) / 60, juvenile: worldMins(24) / 60 }, grows: { baby: 4, juvenile: 6 } };
+// the growth capsules each species takes to reach each stage
 export const CAPSULES = Object.fromEntries(Object.keys(SPECIES_LIST).map(k => {
-  const hours = LIFE[k][1] * 365 * 24 / PACE, juvenile = Math.ceil(hours * STAGES[1].share / CAPSULE.every.baby);
-  return [k, { baby: 0, juvenile, adult: juvenile + Math.ceil(hours * (1 - STAGES[1].share) / CAPSULE.every.juvenile) }];
+  const hours = LIFE[k][1] * 365 * 24 / PACE, juvenile = Math.ceil(hours * STAGES[1].share / CAPSULE.grows.baby);
+  return [k, { baby: 0, juvenile, adult: juvenile + Math.ceil(hours * (1 - STAGES[1].share) / CAPSULE.grows.juvenile) }];
 }));
 
 // Rewards and prices (coins)
