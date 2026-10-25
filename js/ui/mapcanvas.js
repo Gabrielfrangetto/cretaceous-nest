@@ -276,14 +276,143 @@ const seq = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(se
 const SIDES = Array.from({ length: 6 }, (_, i) => { const at = k => { const a = Math.PI / 180 * (60 * k - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; }; return [...at(i), ...at(i + 1)]; });
 // how far (x, y) is inside the hex, from its nearest side (below 0: outside)
 const inside = (x, y) => Math.min(...SIDES.map(([x0, y0, x1, y1]) => ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / Math.hypot(x1 - x0, y1 - y0)));
-// river: a hex's river (hexdraw.js riverHalves), its plants kept off the water and its bank; such a
+// ---------- shores ----------
+// Where land meets a lake or the sea the shore isn't the hexes' straight sides: each corner of it is
+// rounded off (the corner where three hexes meet moved a little into the one that is alone in being
+// water, or land), and each side between wanders a little either way, the same seen from either hex.
+// Only how it is drawn: a hex is still land or water.
+const STEP = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+// (the corners of the side towards each STEP, and each corner's place around the middle)
+const SIDE_CORNERS = [[0, 1], [5, 0], [4, 5], [3, 4], [2, 3], [1, 2]];
+const cornerAt = i => { const a = Math.PI / 180 * (60 * i - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; };
+const isWaterAt = (seed, h) => { const c = cellAt(seed, h); return !!c && isWaterCell(c); };
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+// a corner of hex h where it lies on the shore, around h's middle: moved into the hex it stands alone in
+const shoreCorners = new Map();
+function shoreCorner(seed, h, i) {
+  const at = cornerAt(i), g = add(center(h), at), id = `${seed}|${Math.round(g[0] * 4)},${Math.round(g[1] * 4)}`;
+  let v = shoreCorners.get(id);
+  if (!v) {
+    const three = [h, ...[0, 1, 2, 3, 4, 5].filter(k => SIDE_CORNERS[k].includes(i)).map(k => [h[0] + STEP[k][0], h[1] + STEP[k][1]])];
+    const wet = three.filter(t => isWaterAt(seed, t));
+    if (wet.length === 0 || wet.length === 3) v = g;
+    else {
+      const lone = wet.length === 1 ? wet[0] : three.find(t => !isWaterAt(seed, t)), c = center(lone);
+      const f = 0.3 + 0.12 * cornerRand(Math.round(g[0] * 4), Math.round(g[1] * 4), 41);
+      v = [g[0] + (c[0] - g[0]) * f, g[1] + (c[1] - g[1]) * f];
+    }
+    if (shoreCorners.size > 60000) shoreCorners.clear();
+    shoreCorners.set(id, v);
+  }
+  const c = center(h);
+  return [v[0] - c[0], v[1] - c[1]];
+}
+// the shore along a water hex's side k (towards land), from corner a to corner b, around its middle:
+// points wandering either way, never off the side's middle (where a river may come in)
+const SHORE_PTS = 10;
+function shoreSide(seed, h, k, a, b) {
+  const A = shoreCorner(seed, h, a), B = shoreCorner(seed, h, b), g = add(center(h), cornerAt(a)), g2 = add(center(h), cornerAt(b));
+  const i = Math.round((g[0] + g2[0]) * 2), j = Math.round((g[1] + g2[1]) * 2);
+  const amp = SIZE * 0.1, a1 = (cornerRand(i, j, 51) - 0.5) * 2, a2 = (cornerRand(i, j, 52) - 0.5) * 0.4;
+  const len = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1, n = [-(B[1] - A[1]) / len, (B[0] - A[0]) / len];
+  const out = [];
+  for (let s = 1; s < SHORE_PTS; s++) {
+    const t = s / SHORE_PTS, d = amp * (a1 * Math.sin(2 * Math.PI * t) + a2 * Math.sin(4 * Math.PI * t));
+    out.push([A[0] + (B[0] - A[0]) * t + n[0] * d, A[1] + (B[1] - A[1]) * t + n[1] * d]);
+  }
+  return out;
+}
+// a side's points from corner a to corner b of hex h, the shore's wandering in between, on the map
+function sideLine(seed, h, k) {
+  const [a, b] = SIDE_CORNERS[k], c = center(h);
+  return [shoreCorner(seed, h, a), ...shoreSide(seed, h, k, a, b), shoreCorner(seed, h, b)].map(p => add(p, c));
+}
+const landAt = (seed, h, k) => !isWaterAt(seed, [h[0] + STEP[k][0], h[1] + STEP[k][1]]);
+// the line of shore of water hex h starting at its corner i (on the map), from that corner along it
+function shoreFrom(seed, h, i) {
+  const k = [0, 1, 2, 3, 4, 5].find(k => SIDE_CORNERS[k].includes(i) && landAt(seed, h, k));
+  const line = sideLine(seed, h, k);
+  return SIDE_CORNERS[k][0] === i ? line : line.reverse();
+}
+const ROUND = 3;   // (how many of a side's points a rounded corner takes, each way)
+// A water hex's outline on the map: a path of its corners and sides, its sides towards land wandering,
+// a corner where it is the only water rounded off (by a curve within it); and its shore lines alone,
+// for the shallows and the foam. Where it is one of two water hexes at a corner of land, that corner
+// is rounded off by tipOf
+function waterOutline(seed, h, path, shores) {
+  const items = [];
+  for (let c = 0; c < 6; c++) {
+    const next = (c + 1) % 6, k = SIDE_CORNERS.findIndex(([x, y]) => (x === c && y === next) || (x === next && y === c));
+    const lone = landAt(seed, h, k) && landAt(seed, h, SIDE_CORNERS.findIndex((pair, kk) => kk !== k && pair.includes(c)));
+    const g = add(shoreCorner(seed, h, c), center(h));
+    items.push({ p: g, lone });
+    if (landAt(seed, h, k)) {
+      const line = sideLine(seed, h, k), fwd = SIDE_CORNERS[k][0] === c ? line : line.reverse();
+      for (const p of fwd.slice(1, -1)) items.push({ p });
+      shores.push(fwd);
+    }
+  }
+  // (a lone corner: the points next to it dropped, a curve from the one before to the one after)
+  const n = items.length, drop = new Set();
+  items.forEach((it, i) => { if (it.lone) for (let d = 1; d < ROUND; d++) { drop.add((i - d + n) % n); drop.add((i + d) % n); } });
+  const start = items.findIndex((it, i) => !it.lone && !drop.has(i));
+  let first = true;
+  for (let s = 0; s < n; s++) {
+    const i = (start + s) % n, it = items[i];
+    if (drop.has(i)) continue;
+    if (it.lone) {
+      const after = items[(i + ROUND) % n].p;
+      path.quadraticCurveTo(it.p[0], it.p[1], after[0], after[1]);
+      s += ROUND;
+      continue;
+    }
+    if (first) { path.moveTo(...it.p); first = false; } else path.lineTo(...it.p);
+  }
+  path.closePath();
+}
+// Where land pokes into the water between two water hexes: its tip, rounded off, as a shape for the
+// water to cover (once a corner, the one with the lesser hex doing it), or nothing
+function tipOf(seed, h, c, path) {
+  const three = [h, ...[0, 1, 2, 3, 4, 5].filter(k => SIDE_CORNERS[k].includes(c)).map(k => [h[0] + STEP[k][0], h[1] + STEP[k][1]])];
+  const wet = three.filter(t => isWaterAt(seed, t));
+  if (wet.length !== 2) return;
+  const other = wet.find(t => t !== h);
+  if (other[0] < h[0] || (other[0] === h[0] && other[1] < h[1])) return;
+  // (the other's own number for this corner)
+  const V = add(shoreCorner(seed, h, c), center(h)), oc = center(other);
+  const c2 = [0, 1, 2, 3, 4, 5].reduce((best, i) => (Math.hypot(...add(add(cornerAt(i), oc), [-add(cornerAt(c), center(h))[0], -add(cornerAt(c), center(h))[1]])) < Math.hypot(...add(add(cornerAt(best), oc), [-add(cornerAt(c), center(h))[0], -add(cornerAt(c), center(h))[1]])) ? i : best), 0);
+  const one = shoreFrom(seed, h, c), two = shoreFrom(seed, other, c2);
+  const poly = [...one.slice(1, ROUND + 1).reverse(), V, ...two.slice(1, ROUND + 1)];
+  let area = 0;
+  poly.forEach(([ax, ay], i) => { const [bx, by] = poly[(i + 1) % poly.length]; area += ax * by - bx * ay; });
+  const pts = area < 0 ? poly.reverse() : poly;
+  path.moveTo(...pts[0]);
+  for (const p of pts.slice(1)) path.lineTo(...p);
+  path.quadraticCurveTo(V[0], V[1], pts[0][0], pts[0][1]);
+  path.closePath();
+}
+// the sides of a land hex towards water, as STEP indices
+const waterSides = (seed, h) => [0, 1, 2, 3, 4, 5].filter(k => isWaterAt(seed, [h[0] + STEP[k][0], h[1] + STEP[k][1]]));
+// for a land hex's plants: points of the water's edge in it, each with how far to keep from it
+function shoreWet(seed, h, sides) {
+  const out = [];
+  for (const k of sides) {
+    const [a, b] = SIDE_CORNERS[k], A = cornerAt(a), B = cornerAt(b);
+    for (let s = 0; s <= 6; s++) out.push([A[0] + (B[0] - A[0]) * s / 6, A[1] + (B[1] - A[1]) * s / 6, SIZE * 0.14]);
+    for (const i of [a, b]) { const v = shoreCorner(seed, h, i); out.push([v[0], v[1], SIZE * 0.2]); }
+  }
+  return out;
+}
+
+// river: a hex's river (hexdraw.js riverHalves), its plants kept off the water and its bank (and shore:
+// shoreWet's, off a lake's or the sea's edge); such a
 // layout is the hex's own, the last RIVER_LAYOUTS of them kept
 const RIVER_LAYOUTS = 400;
-function layoutOf(biome, set, level, k, river = null, hex = '') {
-  const id = river && river.length ? `${level}|${k}|${hex}` : `${level}|${k}`;
+function layoutOf(biome, set, level, k, river = null, hex = '', shore = []) {
+  const id = (river && river.length) || shore.length ? `${level}|${k}|${hex}` : `${level}|${k}`;
   if (set.layouts.has(id)) return set.layouts.get(id);
-  // (points along the river's curves, each with how far from it a plant's middle stays)
-  const wet = [];
+  // (points along the river's curves and the shore, each with how far from it a plant's middle stays)
+  const wet = [...shore];
   if (river) for (const { pts } of river) for (const [x, y, w] of pts) wet.push([x, y, w / 2 + 1.5]);
   const p = PLANTED[biome], unit = p.size / set.big, rand = seq(level * 7919 + k * 104729 + 17);
   const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
@@ -414,9 +543,13 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   // the ground: first each hex in its colour, lit as it lies; then those with a picture of their ground,
   // each within its own hex (their light over it too); then over all of them, the unexplored dimmed and
   // the line between hexes
-  const textured = [];
+  const textured = [], waters = [];
+  // (a land hex's ground runs on under the water beside it, to where the wandering shore comes)
+  const under = (h, sides) => { for (const k of sides) { const [a, b] = SIDE_CORNERS[k], o = center(STEP[k]); ctx.beginPath(); ctx.moveTo(...cornerAt(a)); ctx.lineTo(...cornerAt(b)); ctx.lineTo(...o); ctx.closePath(); ctx.fill(); } };
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h);
+    if (isWaterCell(cell)) { waters.push(h); continue; }
+    const sides = waterSides(seed, h);
     const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
     // (cooled lava has the volcanic slopes' ground too)
     const planted = px >= LOD.plants && (!isWaterCell(cell) || PLANTED[biome]) && plantsOf(biome);
@@ -430,8 +563,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
         pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, -x, -y]));
         ctx.fillStyle = pat;
       } else ctx.fillStyle = PLANTED[biome].floor;
-      ctx.fill(shape); ctx.restore();
-      textured.push({ h, x, y, cell, planted, dense });
+      ctx.fill(shape); under(h, sides); ctx.restore();
+      textured.push({ h, x, y, cell, planted, dense, sides });
       continue;
     }
     const tex = px >= LOD.texture && !PLANTED[biome] && !isWaterCell(cell) && !cell.lava && textureOf(ctx, biome, dense);
@@ -440,18 +573,20 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     ctx.translate(x, y);
     ctx.fillStyle = groundFill(ctx, seed, h, cell, smooth);
     ctx.fill(shape);
+    under(h, sides);
     ctx.restore();
   }
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
-  for (const { h, x, y, cell, tex, planted, dense } of textured) {
+  for (const { h, x, y, cell, tex, planted, dense, sides } of textured) {
     if (planted) {
       if (!PLANTED[groundName(cell)].counts[dense]) continue;
-      // (a hex with a river has its own, its plants off the water: never mirrored, as its river isn't)
-      const river = cell.river ? riverHalves(seed, h) : null;
-      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h));
+      // (a hex with a river or a shore has its own, its plants off the water: never mirrored, as its
+      // water isn't)
+      const river = cell.river ? riverHalves(seed, h) : null, shore = sides.length ? shoreWet(seed, h, sides) : [];
+      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h), shore);
       ctx.save();
       ctx.translate(x, y);
-      if (!river && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
+      if (!river && !shore.length && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
       ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
       ctx.restore();
       continue;
@@ -478,14 +613,21 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   }
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), unknown = !isWaterCell(cell) && !known(hexKey(...h));
-    if (!unknown && px < LOD.grid) continue;
+    if (isWaterCell(cell) || (!unknown && px < LOD.grid)) continue;
     ctx.save();
     ctx.translate(x, y);
     if (unknown) { ctx.fillStyle = dim; ctx.fill(shape); }
-    if (px >= LOD.grid) ctx.stroke(shape);
+    if (px >= LOD.grid) {
+      // (no line along a shore: the water has none)
+      const sides = waterSides(seed, h);
+      if (!sides.length) ctx.stroke(shape);
+      else { ctx.beginPath(); for (let k = 0; k < 6; k++) if (!sides.includes(k)) { const [a, b] = SIDE_CORNERS[k]; ctx.moveTo(...cornerAt(a)); ctx.lineTo(...cornerAt(b)); } ctx.stroke(); }
+    }
     ctx.restore();
   }
+  // (the rivers first: where one runs into a lake or the sea, the water and its shallows lie over its end)
   drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3);
+  drawWater(ctx, seed, waters, px);
   drawRails(ctx, seed, areaOf(hexes));
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
@@ -499,6 +641,49 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
 // never thinner on screen than the water they carry deserves
+// The lakes and the sea: each one shape over its hexes (no line between them), their shores wandering
+// (waterOutline); in its picture close up. Along a shore the water is shallower, paler, and on the sea a
+// line of foam, on a lake a darker wet edge
+function drawWater(ctx, seed, hexes, px) {
+  for (const kind of ['ocean', 'lake']) {
+    const area = new Path2D(), edge = new Path2D();
+    let any = false;
+    for (const h of hexes) {
+      if (cellAt(seed, h).terrain !== kind) continue;
+      any = true;
+      const shores = [];
+      waterOutline(seed, h, area, shores);
+      for (let c = 0; c < 6; c++) tipOf(seed, h, c, area);
+      for (const line of shores) { edge.moveTo(...line[0]); for (const p of line.slice(1)) edge.lineTo(...p); }
+    }
+    if (!any) continue;
+    const floor = picture(`${kind}-floor`);
+    if (px >= LOD.plants && floor.complete && floor.naturalWidth) {
+      const k = SIZE * SQ3 * PLANTED[kind].span / floor.naturalWidth, pat = floorPattern(ctx, kind, floor);
+      pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
+      ctx.fillStyle = pat;
+    } else ctx.fillStyle = PLANTED[kind].floor;
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    // (wet ground just above the waterline)
+    ctx.strokeStyle = kind === 'ocean' ? 'rgba(70, 60, 40, .22)' : 'rgba(45, 50, 32, .35)';
+    ctx.lineWidth = SIZE * 0.1;
+    ctx.stroke(edge);
+    ctx.fill(area);
+    ctx.clip(area);
+    // (the shallows, paler the nearer the shore)
+    for (const [w, a] of [[0.8, 0.06], [0.65, 0.06], [0.5, 0.07], [0.36, 0.07], [0.24, 0.08], [0.12, 0.08]]) {
+      ctx.strokeStyle = kind === 'ocean' ? `rgba(140, 215, 210, ${a})` : `rgba(200, 235, 225, ${a})`;
+      ctx.lineWidth = SIZE * w;
+      ctx.stroke(edge);
+    }
+    ctx.strokeStyle = kind === 'ocean' ? 'rgba(245, 250, 245, .7)' : 'rgba(40, 52, 36, .35)';
+    ctx.lineWidth = kind === 'ocean' ? SIZE * 0.07 : SIZE * 0.05;
+    ctx.stroke(edge);
+    ctx.restore();
+  }
+}
 // Each half of river (hexdraw.js riverHalves) filled as the shape its changing width makes, all of them
 // one shape (so where they overlap, at a hex's middle, nothing shows twice). Close up, the water is the
 // lake's (its picture, laid over the map as the lakes' is) within a darker bank of wet earth
