@@ -347,6 +347,11 @@ export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 :
 // (no one is hungry at home)
 export const isHungry = () => false;
 
+// how long (real ms) until a young one has had n more capsules from the keepers
+export function grownIn(b, n, now) {
+  const every = hungerEvery(b), last = Math.max(b.lastFed != null ? b.lastFed : (b.at != null ? b.at : now), Math.min(now, CAPSULE.since));
+  return Math.max(0, last + every - now) + Math.max(0, n - 1) * every;
+}
 // The young dinosaurs grown up to now: a capsule from the keepers for each day of the world gone by
 // since the last (the first when it hatched), wherever it is, until it is grown. Worked out from when
 // the last one was given, so it comes to the same whenever it is worked out, here or on the server.

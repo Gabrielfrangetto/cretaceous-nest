@@ -1,13 +1,13 @@
 // Nest tab: the walking babies, growing on the keepers' growth capsules, and the collection of hatched babies.
 import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
 import { S, subscribe, commit } from '../state.js';
-import { sexOf, growUp, hungerEvery, isAdult, ageOf, wornGear, stageOf, nextStage, mealsFor } from '../economy.js';
+import { sexOf, growUp, grownIn, hungerEvery, isAdult, ageOf, wornGear, stageOf, nextStage, mealsFor } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
 import { dressedArt, sleepArt, ITEM_ICONS, adultWalk, sheetFor, face } from '../art.js';
-import { plural, fmt, ageLabel, realSpanMins } from '../util.js';
+import { plural, fmt, ageLabel, realSpan, realSpanMins } from '../util.js';
 import { skyAt, sunTimes, sunHours, moonPhase, moonAltitude, placeOf, worldTime, WORLD_DAY } from '../sun.js';
 import { powerText } from './stats.js';
 import { openBabyInfo } from './baby-info.js';
@@ -69,7 +69,7 @@ function renderBabies() {
       // the stage, and how far it is to the next
       const next = nextStage(b), st = stageOf(b);
       const grow = document.createElement('span'); grow.className = 'growth';
-      grow.innerHTML = `<span>${st.name}${next ? ` <span class="meta">· ${plural(next.mealsLeft, 'day', 'days')} to ${next.stage.name}</span>` : ''}</span>${next ? `<i class="bar"><b style="width:${Math.round(growthShare(b) * 100)}%"></b></i>` : ''}`;
+      grow.innerHTML = `<span>${st.name}${next ? ` <span class="meta">· ${next.stage.name} in ${realSpan(grownIn(b, next.mealsLeft, gameNow()))}</span>` : ''}</span>${next ? `<i class="bar"><b style="width:${Math.round(growthShare(b) * 100)}%"></b></i>` : ''}`;
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'meta'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
       const gear = document.createElement('span'); gear.className = 'gear-icons';
@@ -116,7 +116,7 @@ function checkHunger() {
         : flyingLeft(b, now) ? 'Flown home by air · lands in ' + fmt(flyingLeft(b, now))
         : inHospital(b, now) ? 'In the hospital · out in ' + fmt(hurt)
         : hungry ? 'Needs a growth capsule!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt)
-        : isAdult(b) ? '' : 'Growing · a day older in ' + fmt(b.lastFed + hungerEvery(b) - now);
+        : isAdult(b) ? '' : 'Growing · next capsule in ' + fmt(grownIn(b, 1, now));
       fed.classList.toggle('hungry', hungry);
     }
   }
@@ -269,7 +269,7 @@ function feed(w) {
   w.hop = 0.45;
   if (!b || isAdult(b)) return;
   const next = nextStage(b);
-  if (next) popText(w, 'say', `${plural(next.mealsLeft, 'day', 'days')} to ${next.stage.id === 'adult' ? 'grown up' : 'a juvenile'}`);
+  if (next) popText(w, 'say', `${next.stage.id === 'adult' ? 'Grown up' : 'A juvenile'} in ${realSpan(grownIn(b, next.mealsLeft, gameNow()))}`);
 }
 
 // ---------- walking ----------

@@ -2,11 +2,11 @@
 // equipment (equip and take off) and family.
 import { SPECIES, SEX, ITEMS, GEAR_SLOTS, OUTFITS, STAGES, FRILL, ROLES } from '../config.js';
 import { S, subscribe } from '../state.js';
-import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, ageOf, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
+import { sexOf, isGear, outfitFits, isAdult, wornGear, stageOf, nextStage, mealsFor, grownIn, ageOf, carriedWeight, carryCapacity, itemWeight, countItem } from '../economy.js';
 import { frillOf } from '../world.js';
 import { act } from '../actions.js';
 import { dressedArt, ITEM_ICONS, sharpen, sideOf, face } from '../art.js';
-import { esc, plural, ageLabel } from '../util.js';
+import { esc, plural, ageLabel, realSpan } from '../util.js';
 import { now } from '../clock.js';
 import { scarLevels, woundsOf } from '../journey.js';
 import { CREATURES } from '../config.js';
@@ -76,8 +76,8 @@ function equipmentHTML(b) {
     </li>`;
   }).join('');
   const next = nextStage(b);
-  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more day', 'more days');
-  return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
+  const until = next && realSpan(grownIn(b, mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), now()));
+  return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up in ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
     ${loadHTML(b)}
     <ul class="gear-slots">${rows}</ul>
     <p class="hint">Equipment is bought with coins in the <button type="button" class="link" id="gearShop">Shop</button>. Every piece has a weight: big, strong dinosaurs carry more, and a load over half of what one can carry costs agility. Head and neck pieces show on the dinosaur; body and back pieces only change its stats.</p>`;
@@ -135,7 +135,7 @@ function render() {
       <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
       ${scarsHTML(b)}
       <div><dt>Days of growing</dt><dd>${b.fed || 0}</dd></div>
-      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'day', 'days')} to ${nextStage(b).stage.name})` : ''}</dd></div>
+      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${nextStage(b).stage.name} in ${realSpan(grownIn(b, nextStage(b).mealsLeft, now()))})` : ''}</dd></div>
     </dl>`;
   body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
   body.querySelector('.info-art').addEventListener('click', () => openZoom(b));
