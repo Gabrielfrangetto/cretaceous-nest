@@ -200,12 +200,12 @@ function groundFill(ctx, seed, h, cell, smooth, over = false) {
 // (in order: where two meet, the later one's ground runs over the edge into the other's)
 const TEXTURED = [];
 const rank = biome => TEXTURED.indexOf(biome);
-const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.terrain === 'ocean' ? 'ocean' : cell.biome);
+const groundName = cell => (cell.terrain === 'mountain' ? 'rock' : cell.terrain === 'ocean' || cell.terrain === 'lake' ? cell.terrain : cell.biome);
 const TEXTURE_PX = SIZE * SQ3 * 1.6 / 352;   // how far across the map a pixel of a picture reaches (map units)
 // Each hex of a biome shows one of its pictures whole (scripts/texture.py --variants, densest first),
 // cut to the hex: which one by broad patches over the map, so thick forest and clearings come in
 // stretches, with a little of each hex's own; each set at a place of its own in the picture
-const VARIANTS = { ocean: 1, rock: 1, forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
+const VARIANTS = { lake: 1, ocean: 1, rock: 1, forest: 5, meadow: 3, swamp: 3, scrub: 3, subtropical: 4, coast: 3, floodplain: 3, desert: 3, volcano: 3 };   // (forest: its densities of plants, PLANTED)
 const densities = new Map();
 function densityOf(seed, h, biome) {
   const n = VARIANTS[biome], id = `${biome}|${h[0]},${h[1]}`;
@@ -251,7 +251,7 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // whole) standing in each hex, every one wholly inside it, so nothing crosses into a neighbour; more of
 // them the denser the hex (densityOf). Each hex shows one of a few arrangements made once (LAYOUTS for
 // each density, also mirrored).
-const PLANTED = { ocean: { floor: '#235d74', counts: [0], bare: true, span: 7 }, rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
+const PLANTED = { lake: { floor: '#65a3b0', counts: [0], bare: true, span: 5 }, ocean: { floor: '#235d74', counts: [0], bare: true, span: 7 }, rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
 const floors = new WeakMap();
 const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
 const LAYOUTS = 10, LAYOUT_PX = 5;   // arrangements a density, pixels a map unit they are made at
@@ -489,24 +489,37 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 }
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
 // never thinner on screen than the water they carry deserves
+// Close up, the water is the lake's (its picture, laid over the map as the lakes' is) within a darker
+// bank of wet earth
 function drawRivers(ctx, seed, hexes, minFlow) {
-  const hair = 1 / Math.max(1e-6, ctx.getTransform().a);
-  ctx.save();
-  ctx.strokeStyle = RIVER_COLOR;
-  ctx.lineCap = 'round';
+  const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
+  const close = scale * SIZE >= LOD.plants * 4 && lake.complete && lake.naturalWidth;
+  const halves = [];
   for (const h of hexes) {
     const cell = cellAt(seed, h);
     if (!cell.river || cell.flow < minFlow) continue;
     const [x, y] = center(h);
-    for (const s of riverHalves(seed, h)) {
-      if (s.width < riverWidth(minFlow)) continue;
-      ctx.lineWidth = Math.max(s.width, hair * (0.6 + Math.sqrt(s.width) * 0.45));
+    for (const s of riverHalves(seed, h)) if (s.width >= riverWidth(minFlow)) halves.push({ x, y, s, w: Math.max(s.width, hair * (0.6 + Math.sqrt(s.width) * 0.45)) });
+  }
+  const stroke = grow => {
+    for (const { x, y, s, w } of halves) {
+      ctx.lineWidth = w + grow;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.quadraticCurveTo(x + s.bend[0], y + s.bend[1], x + s.to[0], y + s.to[1]);
       ctx.stroke();
     }
-  }
+  };
+  ctx.save();
+  ctx.lineCap = 'round';
+  if (close) {
+    ctx.strokeStyle = 'rgba(52, 58, 36, 0.45)';
+    stroke(Math.max(1.6, hair * 1.5));
+    const k = SIZE * SQ3 * PLANTED.lake.span / lake.naturalWidth, pat = floorPattern(ctx, 'lake', lake);
+    pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
+    ctx.strokeStyle = pat;
+  } else ctx.strokeStyle = RIVER_COLOR;
+  stroke(0);
   ctx.restore();
 }
 // The maglev's elevated lines: a dark guideway with a pale rail along it, drawn smooth along each line

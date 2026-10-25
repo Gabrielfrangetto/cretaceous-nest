@@ -36,7 +36,7 @@ const GLYPH = {
   tundra: '<ellipse cx="4" cy="2" rx="7" ry="3" fill="#f2f4f2"/><path d="M-11 8 l2 -5 l2 5 M-6 8 l2 -4 l2 4 M8 9 l1.5 -4 l1.5 4" stroke="#7d8060" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
   volcano: '<path d="M-12 9 L-4 -6 L4 -6 L12 9Z" fill="#5a3a30"/><path d="M-4 -6 L-2 -10 L1 -8 L4 -11 L4 -6Z" fill="#e2643a"/>',
 };
-export const WATER = { ocean: '#235d74', lake: '#5b95c8' };
+export const WATER = { ocean: '#235d74', lake: '#65a3b0' };
 // (a lava flow: dark rock, cooled)
 // (a mountain's ground is bare rock, with a little of its land's colour)
 export const fillOf = c => WATER[c.terrain] || (c.lava ? '#5e463e' : c.terrain === 'mountain' ? MOUNTAIN_GROUND(c.biome) : (BIOMES[c.biome] || WILDS_BIOMES[c.biome]).color);
@@ -133,7 +133,7 @@ export const NEST = '<ellipse cx="0" cy="4" rx="13" ry="5" fill="#9c7240"/><elli
 // A river is drawn as one line from hex to hex: in each hex, from its middle to the edge it flows out
 // by (down), and from each edge a river flows in by, wider the more water it carries (flow). The bend
 // of each half is the hex's own, so the river meanders.
-export const RIVER_COLOR = '#4f8fcf';
+export const RIVER_COLOR = '#5a9cab';
 const STEPS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 export const riverWidth = flow => Math.min(12, 1.6 + 1.2 * Math.sqrt(flow || 1));
 const wobble = (q, r, k) => { let x = Math.imul(q * 73856093 ^ r * 19349663 ^ k * 83492791, 0x9e3779b1); x ^= x >>> 15; return ((x >>> 0) % 1000) / 1000 - 0.5; };
