@@ -1,11 +1,11 @@
 # Renders a 3D model (a .glb, rigged or not) as the game's painted-looking sprites: an orthographic
 # camera (no perspective, as a drawing), the model's own painted texture as its colour and shade (the
-# generators paint the light in; --lit toon lights it here instead, from the top left, in a
-# few flat bands (toon) and a dark ink line round it, on a transparent background. One picture, or a strip of an
+# generators paint the light in; --lit toon lights it here instead, from the top left, in a few flat
+# bands), and a dark ink line round it, on a transparent background. One picture, or a strip of an
 # animation's frames side by side.
 # Run with Blender's Python module (pip install bpy):
 #   python scripts/render3d.py model.glb out.png [--view side|front|three|back] [--height 528]
-#     [--anim walk --frames 8] [--rim 1.7] [--lines 0] [--samples 16]
+#     [--anim walk --frames 8] [--rim 1.7] [--lines 0] [--lit flat|toon|delight] [--samples 48]
 import argparse, math, sys
 import bpy
 from mathutils import Vector
