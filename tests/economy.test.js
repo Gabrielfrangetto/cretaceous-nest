@@ -4,7 +4,7 @@ import {
   addItem, removeItem, countItem, roomFor, moveSlot, sortInventory, splitStack,
   startEgg, eggProgress, warmEgg, hatchEgg, feedBaby, hungerEvery, buyRow, buyPack, rowPrice, mealSize } from '../js/economy.js';
 import { freshState } from '../js/state.js';
-import { ITEMS, SLOTS, MAX_STACK, FEED_COINS, HATCH_COINS, SPECIES } from '../js/config.js';
+import { ITEMS, SLOTS, MAX_STACK, HATCH_COINS, SPECIES, CAPSULE } from '../js/config.js';
 
 const MIN = 60000;
 // hatch times follow the config: a Protoceratops egg takes SPECIES.proto.mins minutes
@@ -106,24 +106,12 @@ test('warming can cut at most half of the hatch time', () => {
   assert.equal(eggProgress(s.current, PROTO / 2).frac, 1);
 });
 
-test('a growth capsule as soon as it hatches, and coins for giving it; none without one', () => {
+test('a new game has no growth capsules to buy or give: the keepers give them', () => {
   const s = freshState();
   startEgg(s, 'rex', 0);
   const { baby } = hatchEgg(s, SPECIES.rex.mins * MIN);
-  // (a new game starts with some)
-  assert.ok(countItem(s, 'capsule') > 0);
-  removeItem(s, 'capsule', 99);
-  assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'no-food');
-  addItem(s, 'capsule', 1);
-  const coins = s.coins;
-  const r = feedBaby(s, baby.id, baby.at + 1000);
-  assert.equal(r.ok, true);
-  assert.equal(r.n, 1);
-  assert.equal(countItem(s, 'capsule'), 0);
-  assert.equal(s.coins, coins + FEED_COINS);
-  // the next once it wears off: a day of the world
-  assert.equal(feedBaby(s, baby.id, baby.at + 2000).reason, 'full');
-  assert.equal(feedBaby(s, baby.id, baby.at + 1000 + hungerEvery(baby)).reason, 'no-food');
+  assert.equal(countItem(s, CAPSULE.item), 0);
+  assert.equal(feedBaby(s, baby.id, baby.at + 1000).reason, 'keepers');
 });
 
 test('backpack rows cost 50, 100, 150 ... and stop at 100 slots', () => {

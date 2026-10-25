@@ -282,7 +282,7 @@ export const ITEMS = {
   seed:         { name: 'Seeds', plural: 'seeds', kg: 0.2, food: true, desc: 'A handful of cycad and conifer seeds. Plant eaters crack them, and so can you.' },
   fruit:        { name: 'Fruit', plural: 'fruit', kg: 0.5, food: true, desc: 'Fruit from high branches, knocked down by browsers that reach up into the trees. Plant eaters and you can eat it.' },
   stone:        { name: 'Gizzard Stone', plural: 'gizzard stones', desc: 'A smooth, rounded pebble. Plant eaters swallow them to grind tough food in the gizzard: Psittacosaurus skeletons are found with dozens inside.' },
-  capsule:      { name: 'Growth Capsule', plural: 'growth capsules', desc: "The sanctuary's growth formula, given to a baby or a juvenile while it grows. Without it, a young dinosaur doesn't grow." },
+  capsule:      { name: 'Growth Capsule', plural: 'growth capsules', desc: "The sanctuary's growth formula. The keepers give the young ones theirs every day; the Scientists buy any spare." },
   herb:         { name: 'Healing Herb', plural: 'healing herbs', desc: 'Chewing one heals an injured dinosaur 10 minutes sooner.' },
 
   // Equipment: one per slot on each baby. Bought with coins earned in the game, never with real money.
@@ -373,7 +373,7 @@ export const DRAWN_SLOTS = ['head', 'neck'];
 // cosmetic shop. Example:
 //   knight_rex: { name: 'Knight', species: 'rex', sprites: { m: 'sprites/outfits/knight_rex-m.png', f: 'sprites/outfits/knight_rex-f.png' } },
 export const OUTFITS = {};
-export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1], ['capsule', 20]];
+export const STARTER = [['leaf', 20], ['meat', 12], ['amber', 1], ['water_skin', 1]];
 
 // Feeding
 // How much one eats (food kg: each food item's kg; a trail ration, dried and dense, counts as a day of a
@@ -1150,7 +1150,8 @@ export const STAGES = [
 ];
 // every: real hours a capsule works for, a day of the world each (WORLD); grows: the hours of a
 // species' growing (LIFE, at PACE) each stands for, which sets how many each species takes
-export const CAPSULE = { item: 'capsule', every: { baby: worldMins(24) / 60, juvenile: worldMins(24) / 60 }, grows: { baby: 4, juvenile: 6 } };
+// since: when the keepers began giving them (before, the player did): nothing grows for days before it
+export const CAPSULE = { item: 'capsule', every: { baby: worldMins(24) / 60, juvenile: worldMins(24) / 60 }, grows: { baby: 4, juvenile: 6 }, since: Date.UTC(2026, 9, 25, 18) };
 // the growth capsules each species takes to reach each stage
 export const CAPSULES = Object.fromEntries(Object.keys(SPECIES_LIST).map(k => {
   const hours = LIFE[k][1] * 365 * 24 / PACE, juvenile = Math.ceil(hours * STAGES[1].share / CAPSULE.grows.baby);
@@ -1158,13 +1159,12 @@ export const CAPSULES = Object.fromEntries(Object.keys(SPECIES_LIST).map(k => {
 }));
 
 // Rewards and prices (coins)
-export const FEED_COINS = 5;
 export const HATCH_COINS = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, RARITIES[sp.rarity].coins]));
 export const HATCH_LOOT = Object.fromEntries(Object.entries(SPECIES).map(([k, sp]) => [k, sp.rarity === 'Legendary' ? 'golden_shell' : 'shell']));
 // a small one's meal pays more than its food costs; a big one's costs more than it pays
 export const FOOD_PACKS = [
   { id: 'leaf', qty: 5, price: 2 }, { id: 'meat', qty: 5, price: 4 }, { id: 'insect', qty: 5, price: 2 },
-  { id: 'fish', qty: 5, price: 4 }, { id: 'herb', qty: 3, price: 15 }, { id: 'capsule', qty: 10, price: 20 },
+  { id: 'fish', qty: 5, price: 4 }, { id: 'herb', qty: 3, price: 15 },
   { id: 'ration', qty: 3, price: 6 }, { id: 'water_skin', qty: 2, price: 40 },
   { id: 'leaf', qty: 50, price: 15 }, { id: 'meat', qty: 50, price: 30 },
 ];
@@ -1260,8 +1260,8 @@ export const ACHIEVEMENTS = [
   { id: 'king', title: 'King of the Nest', desc: 'Hatch a Tyrannosaurus from a Golden Egg.', metric: 'hatched_rex', target: 1, coins: 150 },
   { id: 'all_species', title: 'Full Collection', desc: 'Hatch every species at least once.', metric: 'species', target: 4, coins: 200 },
   { id: 'pair', title: 'Perfect Pair', desc: 'Have a male and a female of the same species.', metric: 'pair', target: 1, coins: 75 },
-  { id: 'meals_25', title: 'Good Keeper', desc: 'Give your young dinosaurs 25 growth capsules.', metric: 'meals', target: 25, coins: 75 },
-  { id: 'meals_100', title: 'Master Keeper', desc: 'Give your young dinosaurs 100 growth capsules.', metric: 'meals', target: 100, coins: 250 },
+  { id: 'meals_25', title: 'Good Keeper', desc: 'Raise your young dinosaurs through 25 days of growing.', metric: 'meals', target: 25, coins: 75 },
+  { id: 'meals_100', title: 'Master Keeper', desc: 'Raise your young dinosaurs through 100 days of growing.', metric: 'meals', target: 100, coins: 250 },
   { id: 'streak_7', title: 'Week Streak', desc: 'Claim the daily reward 7 days in a row.', metric: 'best_streak', target: 7, coins: 150 },
   { id: 'big_backpack', title: 'Big Backpack', desc: 'Unlock 30 inventory slots.', metric: 'slots', target: 30, coins: 100 },
   { id: 'coins_1000', title: 'Treasure Hunter', desc: 'Earn 1,000 coins in total.', metric: 'coins_earned', target: 1000, coins: 200 },

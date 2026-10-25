@@ -864,7 +864,7 @@ function sideHTML(t) {
     ${S.hatched.some(b => stageOf(b).id !== 'baby') || team.length ? `<div class="row"><button class="btn" type="button" id="sendTrip">Explore</button></div><p class="hint">You will see the way there, and can change it before the team sets off.</p>` : ''}
     ${why ? `<p class="hint warn-text">${why}</p>` : ''}
     ${problem === 'injured' && blocker ? healHTML(byId(blocker.id), t) : ''}
-    ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles, once growth capsules have raised them past babyhood.</p>` : ''}`;
+    ${!S.hatched.some(b => stageOf(b).id !== 'baby') ? `<p class="hint">Your dinosaurs can join once they are juveniles: the keepers' growth capsules, one a day, raise them past babyhood.</p>` : ''}`;
 }
 
 // Dinosaurs sent ahead to a city without you, from the nest: any of those at home, babies too (by

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stageOf, nextStage, isAdult, feedBaby, hungerEvery, needsCapsule, isHungry, ageOf, addItem, removeItem, countItem } from '../js/economy.js';
+import { stageOf, nextStage, isAdult, feedBaby, hungerEvery, growUp, applyAction, isHungry, ageOf } from '../js/economy.js';
 import { freshState, migrate } from '../js/state.js';
 import { STAGES, CAPSULES, CAPSULE, LIFE, PACE, SPECIES, BREED_MINS } from '../js/config.js';
 import { ageLabel } from '../js/util.js';
@@ -36,31 +36,34 @@ test('the next stage says how many capsules are left', () => {
   assert.equal(nextStage(baby(adult)), null);
 });
 
-test('a capsule as soon as it hatches, the next once it wears off; the one that crosses a threshold reports the growth', () => {
-  const s = freshState();
-  const b = baby(CAPSULES.proto.juvenile - 1);
+test('the keepers give each young one a capsule a day of the world; the one that crosses a threshold reports the growth', () => {
+  const s = freshState(), day = hungerEvery(baby(0)), t0 = CAPSULE.since;
+  // (a day of the world each, a baby's or a juvenile's)
+  assert.equal(day, Math.round(CAPSULE.every.baby * 3600000));
+  const b = { ...baby(CAPSULES.proto.juvenile - 1), lastFed: t0 };
   s.hatched.push(b);
-  removeItem(s, 'capsule', 99);
-  assert.equal(feedBaby(s, 'g1', 0).reason, 'no-food');
-  addItem(s, 'capsule', 5);
-  // no food is any good: only a capsule
-  addItem(s, 'leaf', 50);
-  const leaves = countItem(s, 'leaf');
-  let t = 0;
-  const r = feedBaby(s, 'g1', t);
-  assert.equal(r.ok, true);
-  assert.equal(r.grewTo, 'juvenile');
-  assert.equal(countItem(s, 'capsule'), 4);
-  assert.equal(countItem(s, 'leaf'), leaves);
-  // a juvenile's works a day of the world
-  assert.equal(hungerEvery(b), Math.round(CAPSULE.every.juvenile * 3600000));
-  assert.equal(feedBaby(s, 'g1', t + hungerEvery(b) - 1).reason, 'full');
-  t += hungerEvery(b);
-  assert.equal(feedBaby(s, 'g1', t).grewTo, null);
-  // an adult takes none
-  b.fed = CAPSULES.proto.adult;
-  assert.equal(feedBaby(s, 'g1', t + 1e9).reason, 'grown');
-  assert.equal(needsCapsule(b, t + 1e9), false);
+  // no one gives it one: the player can't
+  assert.equal(feedBaby(s, 'g1', t0).reason, 'keepers');
+  assert.deepEqual(growUp(s, t0 + day - 1), []);
+  assert.deepEqual(growUp(s, t0 + day), [{ id: 'g1', grewTo: 'juvenile' }]);
+  assert.equal(b.fed, CAPSULES.proto.juvenile);
+  // worked out again, or later in bits, it comes to the same
+  assert.deepEqual(growUp(s, t0 + day), []);
+  growUp(s, t0 + day * 3.5);
+  growUp(s, t0 + day * 5);
+  assert.equal(b.fed, CAPSULES.proto.juvenile + 4);
+  // any action first grows them up to its time
+  applyAction(s, 'claimDaily', {}, t0 + day * 7);
+  assert.equal(b.fed, CAPSULES.proto.juvenile + 6);
+  // grown, it takes no more
+  growUp(s, t0 + day * 1e5);
+  assert.equal(b.fed, CAPSULES.proto.adult);
+  assert.equal(isAdult(b), true);
+  // days from before the keepers gave them don't count
+  const old = { ...baby(3), id: 'g2', lastFed: t0 - day * 100 };
+  s.hatched.push(old);
+  growUp(s, t0 + 10);
+  assert.equal(old.fed, 3);
 });
 
 test('a dinosaur at home is never hungry: the keepers feed it', () => {

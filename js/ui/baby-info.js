@@ -76,7 +76,7 @@ function equipmentHTML(b) {
     </li>`;
   }).join('');
   const next = nextStage(b);
-  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more capsule', 'more capsules');
+  const until = next && plural(mealsFor(b, STAGES[STAGES.length - 1]) - (b.fed || 0), 'more day', 'more days');
   return `${adult ? '' : `<p class="hint"><strong>Only adults can wear equipment.</strong> ${esc(b.name)} grows up after ${until}. Anything it already wears does nothing until then and can be taken off.</p>`}
     ${loadHTML(b)}
     <ul class="gear-slots">${rows}</ul>
@@ -134,8 +134,8 @@ function render() {
       <div><dt>Hatched</dt><dd>${dateFmt.format(new Date(b.at))}</dd></div>
       <div><dt>Age</dt><dd>${ageLabel(ageOf(b, now()))}</dd></div>
       ${scarsHTML(b)}
-      <div><dt>Growth capsules</dt><dd>${b.fed || 0}</dd></div>
-      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'capsule', 'capsules')} to ${nextStage(b).stage.name})` : ''}</dd></div>
+      <div><dt>Days of growing</dt><dd>${b.fed || 0}</dd></div>
+      <div><dt>Stage</dt><dd>${stageOf(b).name}${nextStage(b) ? ` (${plural(nextStage(b).mealsLeft, 'day', 'days')} to ${nextStage(b).stage.name})` : ''}</dd></div>
     </dl>`;
   body.querySelector('.info-art').appendChild(dressedArt(b.type, 8, sex, wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
   body.querySelector('.info-art').addEventListener('click', () => openZoom(b));

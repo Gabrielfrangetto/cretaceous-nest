@@ -160,11 +160,10 @@ test('who can explore: juveniles and adults anywhere, never babies, hungry or bu
   assert.equal(exploreProblem(s, 'ad3', '1,0', T0), 'no-slot');
 });
 
-test('a dinosaur away can be neither fed nor paired', () => {
+test('a dinosaur away can\'t be paired', () => {
   const s = game(dino('ad', 30), dino('ad2', 30, 'f'));
   applyAction(s, 'explore', { babyId: 'ad', hex: '1,0' }, T0);
   assert.equal(isAway(s, 'ad'), true);
-  assert.equal(feedBaby(s, 'ad', T0 + 1e9).reason, 'away');
   assert.equal(breedProblem(s, 'ad', 'ad2'), 'away');
 });
 

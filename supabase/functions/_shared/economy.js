@@ -2,7 +2,7 @@
 // so the same rules can be tested in Node and later run on a server.
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET,
-  FEED_COINS, HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
+  HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
   FACTIONS, HOME_FACTION, OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
   KG, PLAYER_KG, MASS,
@@ -341,13 +341,36 @@ export function hatchEgg(s, now, rand = Math.random) {
 export const sexOf = b => b.sex === 'm' || b.sex === 'f' ? b.sex : (hashId(b.id) % 2 ? 'm' : 'f');
 
 // At home the keepers feed the dinosaurs and the player: no one goes hungry there (on a journey,
-// SURVIVAL); a growing one takes its growth capsule every CAPSULE.every hours (a day of the world).
-// A young dinosaur instead needs a growth capsule as each one wears off (CAPSULE.every hours of its
-// stage), the first as soon as it hatches; an adult needs none.
-export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : Math.round((CAPSULE.every[stageOf(b).id] || 0) * 3600000);
-// (a player who has never eaten yet isn't hungry)
-export const isHungry = (b, now) => b.id !== PLAYER_ID && needsCapsule(b, now);
-export const needsCapsule = (b, now) => !!b && b.id !== PLAYER_ID && !isAdult(b) && (b.lastFed == null || now - b.lastFed >= hungerEvery(b));
+// SURVIVAL). The keepers give each young dinosaur its growth capsule too, one a day of the world
+// (CAPSULE.every hours), from the day it hatches until it is grown: growUp.
+export const hungerEvery = b => b.id === PLAYER_ID ? PLAYER_HUNGER_MIN * 60000 : Math.round((CAPSULE.every[stageOf(b).id] || CAPSULE.every.baby) * 3600000);
+// (no one is hungry at home)
+export const isHungry = () => false;
+
+// The young dinosaurs grown up to now: a capsule from the keepers for each day of the world gone by
+// since the last (the first when it hatched), wherever it is, until it is grown. Worked out from when
+// the last one was given, so it comes to the same whenever it is worked out, here or on the server.
+// [{ id, grewTo }] for each that reached a new stage
+export function growUp(s, now) {
+  const grew = [];
+  if (!Number.isFinite(now)) return grew;
+  for (const b of s.hatched || []) {
+    if (b.id === PLAYER_ID || isAdult(b)) continue;
+    if (b.lastFed == null) b.lastFed = b.at != null ? b.at : now;
+    // (days from before the keepers gave them don't count: a young one long without a capsule doesn't
+    // grow up all at once)
+    if (b.lastFed < CAPSULE.since) b.lastFed = Math.min(now, CAPSULE.since);
+    const every = hungerEvery(b), n = Math.floor((now - b.lastFed) / every);
+    if (n <= 0) continue;
+    const before = stageOf(b), more = Math.min(n, Math.max(0, mealsFor(b, STAGES.at(-1)) - (b.fed || 0)));
+    b.fed = (b.fed || 0) + more;
+    b.lastFed += n * every;
+    if (more) bump(s, 'meals', more);
+    const after = stageOf(b);
+    if (after !== before) grew.push({ id: b.id, grewTo: after.id });
+  }
+  return grew;
+}
 
 // A day's food (kg) for one (a dinosaur at its stage, or the player) of this food: FOOD
 const PLANT_FOOD = ['leaf', 'fruit', 'seed'];
@@ -365,23 +388,10 @@ export function dietLabel(type) {
   return d.includes('meat') ? 'Meat eater' : 'Plant eater';
 }
 
-// gives a young dinosaur its growth capsule (the player: a meal)
+// the player eats a meal (the young dinosaurs' growth capsules the keepers give: growUp)
 export function feedBaby(s, id, now) {
   if (id === PLAYER_ID) return feedPlayer(s, now);
-  const b = s.hatched.find(x => x.id === id);
-  if (!b) return { ok: false, reason: 'missing' };
-  if (isAway(s, id, now)) return { ok: false, reason: 'away' };
-  if (!needsCapsule(b, now)) return { ok: false, reason: isAdult(b) ? 'grown' : 'full' };
-  const food = CAPSULE.item, n = 1;
-  if (countItem(s, food) < n) return { ok: false, reason: 'no-food', food, n };
-  removeItem(s, food, n);
-  const before = stageOf(b);
-  b.lastFed = now;
-  b.fed = (b.fed || 0) + 1;
-  earn(s, FEED_COINS);
-  bump(s, 'meals');
-  const after = stageOf(b);
-  return { ok: true, food, n, coins: FEED_COINS, grewTo: after !== before ? after.id : null };
+  return { ok: false, reason: 'keepers' };
 }
 
 // the player eats (in the nest): no coins for it
@@ -933,5 +943,7 @@ export const ACTIONS = {
 export function applyAction(s, name, args, now, rand = Math.random) {
   const fn = Object.hasOwn(ACTIONS, name) ? ACTIONS[name] : null;
   if (!fn) return fail('unknown-action');
+  // (the young grown up to now first, as the keepers have kept giving them their capsules)
+  growUp(s, now);
   return fn(s, args && typeof args === 'object' ? args : {}, now, rand);
 }

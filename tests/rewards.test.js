@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   gameDay, nextDayAt, dailyStatus, claimDaily, achievementList, claimAchievement, claimableCount,
-  countItem, addItem, startEgg, hatchEgg, feedBaby, hungerEvery, applyAction,
+  countItem, addItem, startEgg, hatchEgg, growUp, hungerEvery, applyAction,
 } from '../js/economy.js';
 import { freshState, migrate, SAVE_VERSION } from '../js/state.js';
-import { DAILY_REWARDS, ACHIEVEMENTS, SPECIES, HATCH_COINS, FEED_COINS } from '../js/config.js';
+import { DAILY_REWARDS, ACHIEVEMENTS, SPECIES, HATCH_COINS, CAPSULE } from '../js/config.js';
 
 const PROTO = SPECIES.proto.mins * 60000;   // how long a Protoceratops egg takes
 
@@ -71,17 +71,17 @@ test('achievements unlock from progress and pay once', () => {
   assert.equal(claimAchievement(s, 'made_up', MORNING).reason, 'unknown-achievement');
 });
 
-test('growth capsules, pairs and coins earned are counted for achievements', () => {
+test('days of growing, pairs and coins earned are counted for achievements', () => {
   const s = freshState();
   startEgg(s, 'proto', 0, { sex: 'm' }); hatchEgg(s, PROTO);   // male
   startEgg(s, 'proto', 0, { sex: 'f' }); hatchEgg(s, PROTO);   // female
   const baby = s.hatched[0];
-  addItem(s, 'capsule', 1);
-  feedBaby(s, baby.id, baby.at + hungerEvery(baby));
+  // (each grows a day of the world after the keepers began)
+  growUp(s, CAPSULE.since + hungerEvery(baby));
   const list = Object.fromEntries(achievementList(s).map(a => [a.id, a]));
   assert.equal(list.pair.done, true);
-  assert.equal(list.meals_25.progress, 1);
-  assert.equal(list.coins_1000.progress, HATCH_COINS.proto * 2 + FEED_COINS);
+  assert.equal(list.meals_25.progress, 2);
+  assert.equal(list.coins_1000.progress, HATCH_COINS.proto * 2);
 });
 
 test('the Rewards badge counts the daily reward and finished achievements', () => {

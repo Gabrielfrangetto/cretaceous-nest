@@ -1,7 +1,7 @@
-// Nest tab: the walking babies, their growth capsules, and the collection of hatched babies.
+// Nest tab: the walking babies, growing on the keepers' growth capsules, and the collection of hatched babies.
 import { SPECIES, SEX, ITEMS, STAGES, CAPSULE } from '../config.js';
-import { S, subscribe } from '../state.js';
-import { sexOf, needsCapsule, hungerEvery, isAdult, ageOf, countItem, wornGear, stageOf, nextStage, mealsFor } from '../economy.js';
+import { S, subscribe, commit } from '../state.js';
+import { sexOf, growUp, hungerEvery, isAdult, ageOf, wornGear, stageOf, nextStage, mealsFor } from '../economy.js';
 import { act } from '../actions.js';
 import { expeditionOf, isAway, injuredLeft, isCritical, inHospital, flyingLeft } from '../world.js';
 import { now as gameNow } from '../clock.js';
@@ -69,7 +69,7 @@ function renderBabies() {
       // the stage, and how far it is to the next
       const next = nextStage(b), st = stageOf(b);
       const grow = document.createElement('span'); grow.className = 'growth';
-      grow.innerHTML = `<span>${st.name}${next ? ` <span class="meta">· ${plural(next.mealsLeft, 'capsule', 'capsules')} to ${next.stage.name}</span>` : ''}</span>${next ? `<i class="bar"><b style="width:${Math.round(growthShare(b) * 100)}%"></b></i>` : ''}`;
+      grow.innerHTML = `<span>${st.name}${next ? ` <span class="meta">· ${plural(next.mealsLeft, 'day', 'days')} to ${next.stage.name}</span>` : ''}</span>${next ? `<i class="bar"><b style="width:${Math.round(growthShare(b) * 100)}%"></b></i>` : ''}`;
       const fed = document.createElement('span'); fed.className = 'fed'; fed.dataset.id = b.id;
       const gen = document.createElement('span'); gen.className = 'meta'; gen.textContent = `Gen ${b.gen || 1} · ${powerText(b)}`;
       const gear = document.createElement('span'); gear.className = 'gear-icons';
@@ -85,12 +85,21 @@ function renderBabies() {
 
 function checkHunger() {
   const now = gameNow();
+  // (the keepers' capsules given since: those that grew say so)
+  const grew = growUp(S, now);
+  if (grew.length) {
+    commit();
+    for (const g of grew) {
+      const b = S.hatched.find(x => x.id === g.id), w = walkers.get(g.id), st = STAGES.find(x => x.id === g.grewTo);
+      if (b && w && st) { w.hop = 0.45; popText(w, 'grew', `${b.name} grew into ${st.id === 'adult' ? 'an adult' : 'a juvenile'}!`); }
+    }
+  }
   let hungryCount = 0;
   for (const b of S.hatched) {
     // (one flown home is home once it lands, its report still to read)
     const trip = isAway(S, b.id, now) ? expeditionOf(S, b.id) : null;
     // explorers are away: they don't grow until they are home again
-    const hungry = !trip && needsCapsule(b, now);
+    const hungry = false;
     if (hungry) hungryCount++;
     const w = walkers.get(b.id);
     if (w && w.hungry !== hungry) {
@@ -107,21 +116,12 @@ function checkHunger() {
         : flyingLeft(b, now) ? 'Flown home by air · lands in ' + fmt(flyingLeft(b, now))
         : inHospital(b, now) ? 'In the hospital · out in ' + fmt(hurt)
         : hungry ? 'Needs a growth capsule!' : hurt ? (isCritical(b, now) ? 'Critically injured · heals in ' : 'Injured · heals in ') + fmt(hurt)
-        : isAdult(b) ? '' : 'Growing · next capsule in ' + fmt(b.lastFed + hungerEvery(b) - now);
+        : isAdult(b) ? '' : 'Growing · a day older in ' + fmt(b.lastFed + hungerEvery(b) - now);
       fed.classList.toggle('hungry', hungry);
     }
   }
-  // young ones whose capsule wore off ask for the next, or say there is none left
-  const caps = countItem(S, CAPSULE.item);
-  for (const w of walkers.values()) {
-    if (!w.hungry) continue;
-    const key = caps ? 'ask' : 'none';
-    if (w.askFor === key) continue;
-    w.askFor = key;
-    w.bubble.innerHTML = ITEM_ICONS[CAPSULE.item] + `<span>${caps ? 'Needs a capsule' : 'Out of capsules!'}</span>`;
-  }
   const fs = document.getElementById('foodStock');
-  const fsText = `${ITEM_ICONS[CAPSULE.item]}<span><b>${caps}</b> growth ${caps === 1 ? 'capsule' : 'capsules'}${caps ? '' : ' · buy some in the Shop'}</span><span class="meta">One a day for a baby or a juvenile (a day here is ${realSpanMins(CAPSULE.every.baby * 60)}). The keepers feed everyone.</span>`;
+  const fsText = `${ITEM_ICONS[CAPSULE.item]}<span>The keepers feed everyone, and give the young ones their growth capsules</span><span class="meta">One a day (a day here is ${realSpanMins(CAPSULE.every.baby * 60)}), until they are grown.</span>`;
   if (fs.dataset.html !== fsText) { fs.dataset.html = fsText; fs.innerHTML = fsText; }
   bills();
   const pill = document.getElementById('hungryPill');
@@ -263,23 +263,13 @@ function popText(w, cls, text) {
   setTimeout(() => p.remove(), cls === 'grew' ? 2400 : 1200);
 }
 
+// a tap on one: it hops, and a young one says how it is growing
 function feed(w) {
-  const result = act('feed', { id: w.id });
-  if (result.ok) {
-    w.hop = 0.45;
-    w.askFor = null;
-    popText(w, 'heart', '♥ +' + result.coins);
-    if (result.grewTo) {
-      const b = S.hatched.find(x => x.id === w.id);
-      const st = STAGES.find(x => x.id === result.grewTo);
-      if (b && st) setTimeout(() => popText(w, 'grew', `${b.name} grew into ${st.id === 'adult' ? 'an adult' : 'a juvenile'}!`), 500);
-    }
-  } else if (result.reason === 'no-food') {
-    popText(w, 'say', `No ${ITEMS[CAPSULE.item].plural} left: buy some in the Shop`);
-  } else if (result.reason === 'full' || result.reason === 'grown') {
-    w.hop = 0.45;
-    popText(w, 'say', result.reason === 'grown' ? "I'm all grown up" : 'My capsule is still working');
-  }
+  const b = S.hatched.find(x => x.id === w.id);
+  w.hop = 0.45;
+  if (!b || isAdult(b)) return;
+  const next = nextStage(b);
+  if (next) popText(w, 'say', `${plural(next.mealsLeft, 'day', 'days')} to ${next.stage.id === 'adult' ? 'grown up' : 'a juvenile'}`);
 }
 
 // ---------- walking ----------
