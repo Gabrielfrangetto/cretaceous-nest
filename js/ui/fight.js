@@ -24,7 +24,7 @@ function unitArt(unit, who, n) {
   const b = who(unit.members[0]);
   if (!b) return document.createElement('span');
   const scale = n > 2 ? 0.6 : n > 1 ? 0.8 : 1;
-  if (b.id === PLAYER_ID) return playerArt(b.equip, 130 * scale);
+  if (b.id === PLAYER_ID) return playerArt(b.equip, 130 * scale, b.look);
   const art = dressedArt(b.type, 6 * scale, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy);
   if (unit.kind !== 'pack') return art;
   // a pack: its leader with a few of the others peeking out behind

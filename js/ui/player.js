@@ -6,6 +6,7 @@ import { S, subscribe } from '../state.js';
 import { isHungry, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, mealFor } from '../economy.js';
 import { expeditionOf, injuredLeft } from '../world.js';
 import { act } from '../actions.js';
+import { openLook } from './look.js';
 import { now } from '../clock.js';
 import { ITEM_ICONS, playerArt } from '../art.js';
 import { modsHTML, loadHTML } from './stats.js';
@@ -42,6 +43,7 @@ function html(t) {
   }).join('');
   return `<div class="you-top"><span class="you-art"></span>
       <div><h2>${esc(p.name)}</h2>
+      <button class="ghost small" type="button" data-look>Change look</button>
       <p class="you-state ${hurt ? 'warn-text' : ''}">${away ? 'Out exploring' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'At the nest'}</p></div></div>
     <dl class="you-stats">
       <div><dt>Power</dt><dd>${sheet.power}</dd></div><div><dt>Health</dt><dd>${d.hp}</dd></div>
@@ -62,8 +64,9 @@ function render() {
   // (not while a choice is being made in it)
   if (!box || box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
   box.innerHTML = html(now());
-  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 96));
+  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 96, S.player.look));
   box.querySelector('#gearFold').addEventListener('toggle', e => { gearOpen = e.target.open; });
+  box.querySelector('[data-look]').addEventListener('click', openLook);
   const eat = box.querySelector('[data-eat]');
   if (eat) eat.addEventListener('click', () => { act('feed', { id: PLAYER_ID }); render(); });
   box.querySelectorAll('[data-arms]').forEach(btn => btn.addEventListener('click', () => {

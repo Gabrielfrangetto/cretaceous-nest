@@ -1101,6 +1101,22 @@ export const RECIPES = [
 // injured, and wears its own weapons and armor.
 export const PLAYER_ID = 'player';
 export const PLAYER_BASE = { str: 40, agi: 45, vit: 45, res: 35 };   // 165
+// How the player's explorer looks, chosen when the game begins (and changed later): a body (sprites/
+// player/<sex>-<build>.webp, scripts/bodies.py) and the colours it is tinted. A build gives a little of
+// one stat for a little of another (as gear's 'increased' bonuses).
+export const LOOK = {
+  sexes: { male: 'Man', female: 'Woman' },
+  builds: {
+    average: { name: 'Average', mods: [] },
+    slim: { name: 'Slim', mods: [{ stat: 'agi', type: 'increased', value: 0.08 }, { stat: 'str', type: 'increased', value: -0.04 }] },
+    muscular: { name: 'Muscular', mods: [{ stat: 'str', type: 'increased', value: 0.08 }, { stat: 'agi', type: 'increased', value: -0.04 }] },
+    heavy: { name: 'Heavy', mods: [{ stat: 'res', type: 'increased', value: 0.08 }, { stat: 'agi', type: 'increased', value: -0.04 }] },
+  },
+  skins: ['#f6d2b8', '#eab995', '#d49a72', '#b97b52', '#8d5a38', '#5e3a24'],
+  // (the bodies drawn so far: one not drawn yet borrows these)
+  drawn: { male: true },
+};
+export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: LOOK.skins[1] };
 export const PLAYER_SLOTS = [
   { id: 'weapon', name: 'Weapon' },
   { id: 'shield', name: 'Shield' },

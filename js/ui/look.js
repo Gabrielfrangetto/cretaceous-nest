@@ -1,0 +1,61 @@
+// Making the player's explorer: who they are (man or woman), their build (each a little of one stat
+// for a little of another), their skin and their name, with the explorer drawn as it is chosen. Opens
+// by itself when a game has no look yet (before the tutorial), and from the player's panel later.
+import { LOOK, DEFAULT_LOOK, PLAYER_ID, STATS } from '../config.js';
+import { S, subscribe } from '../state.js';
+import { act } from '../actions.js';
+import { devMode } from '../state.js';
+import { inGame } from '../cloud.js';
+import { isAway } from '../world.js';
+import { playerArt } from '../art.js';
+import { esc } from '../util.js';
+
+let draft = null;
+const statName = id => (STATS.find(s => s.id === id) || { name: id }).name;
+const modsText = mods => mods.map(m => `${m.value > 0 ? '+' : '−'}${Math.round(Math.abs(m.value) * 100)}% ${statName(m.stat)}`).join(', ');
+// whether the game is waiting for the explorer to be made (the tutorial waits for it)
+export const lookPending = () => !!S.player && !S.player.look;
+
+export function openLook() {
+  draft = { ...(S.player.look || DEFAULT_LOOK), name: S.player.name === 'You' ? '' : S.player.name };
+  render();
+  const dialog = document.getElementById('lookDialog');
+  if (!dialog.open) dialog.showModal();
+}
+function render() {
+  const body = document.getElementById('lookBody'), first = !S.player.look;
+  const pick = (group, value, label, extra = '') => `<button type="button" class="${draft[group] === value ? 'btn' : 'ghost'} small" data-${group}="${esc(value)}" aria-pressed="${draft[group] === value}">${label}${extra}</button>`;
+  body.innerHTML = `<h2 id="lookTitle">${first ? 'Who are you?' : 'Your look'}</h2>
+    <div class="look-layout"><div class="look-preview"></div>
+    <div class="look-fields">
+      <label class="field"><span class="label">Name</span><input type="text" id="lookName" maxlength="24" placeholder="Your name" value="${esc(draft.name || '')}"></label>
+      <div class="field"><span class="label">Explorer</span><div class="look-row">${Object.entries(LOOK.sexes).map(([k, n]) => pick('sex', k, n)).join('')}</div></div>
+      <div class="field"><span class="label">Build</span><div class="look-row">${Object.entries(LOOK.builds).map(([k, b]) => pick('build', k, b.name)).join('')}</div>
+        <p class="hint">${LOOK.builds[draft.build].mods.length ? modsText(LOOK.builds[draft.build].mods) : 'Balanced: no strength or weakness.'}</p></div>
+      <div class="field"><span class="label">Skin</span><div class="look-row">${LOOK.skins.map(c => `<button type="button" class="look-swatch${draft.skin === c ? ' on' : ''}" data-skin="${c}" style="--c:${c}" aria-label="Skin tone" aria-pressed="${draft.skin === c}"></button>`).join('')}</div></div>
+      ${LOOK.drawn[draft.sex] ? '' : '<p class="hint">This explorer is still being drawn: for now they look like the other.</p>'}
+      <p class="hint warn-text" id="lookWhy" hidden></p>
+      <div class="row"><button class="btn" type="button" id="lookDone">${first ? 'Start exploring' : 'Done'}</button>${first ? '' : '<button class="ghost" type="button" id="lookCancel">Cancel</button>'}</div>
+    </div></div>`;
+  body.querySelector('.look-preview').appendChild(playerArt(S.player.equip, 260, draft));
+  const name = body.querySelector('#lookName');
+  name.addEventListener('input', () => { draft.name = name.value; });
+  for (const group of ['sex', 'build', 'skin']) body.querySelectorAll(`[data-${group}]`).forEach(b => b.addEventListener('click', () => { draft[group] = b.dataset[group]; render(); }));
+  body.querySelector('#lookDone').addEventListener('click', () => {
+    const r = act('setLook', { look: { sex: draft.sex, build: draft.build, skin: draft.skin }, name: draft.name });
+    if (!r.ok) { const why = body.querySelector('#lookWhy'); why.hidden = false; why.textContent = r.reason === 'away' ? 'Not while you are out exploring.' : 'That could not be set.'; return; }
+    document.getElementById('lookDialog').close();
+  });
+  const cancel = body.querySelector('#lookCancel');
+  if (cancel) cancel.addEventListener('click', () => document.getElementById('lookDialog').close());
+}
+
+export function initLook() {
+  const dialog = document.getElementById('lookDialog');
+  // (the first time it can't be put off)
+  dialog.addEventListener('cancel', e => { if (lookPending()) e.preventDefault(); });
+  const check = () => { if (lookPending() && !dialog.open && (devMode() || inGame()) && !isAway(S, PLAYER_ID)) openLook(); };
+  subscribe(check);
+  setInterval(check, 1500);
+  check();
+}

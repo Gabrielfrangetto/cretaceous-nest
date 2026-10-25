@@ -19,6 +19,7 @@ import { initWorld } from './ui/world.js';
 import { initPlayer } from './ui/player.js';
 import { initTeam } from './ui/team.js';
 import { initForge } from './ui/forge.js';
+import { initLook } from './ui/look.js';
 
 // local dev mode: play without an account on localhost with ?dev (never on the real site)
 if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).has('dev')) enableDevMode();
@@ -42,4 +43,5 @@ initWater();
 initLanding();
 initGate();
 initGuide();
+initLook();
 if (!devMode()) initCloud();

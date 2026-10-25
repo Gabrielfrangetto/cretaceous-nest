@@ -1,5 +1,5 @@
 // Drawings made in code: eggs, the nest, item icons, and the baby sprites (with a pixel-art fallback).
-import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS, MASS } from './config.js';
+import { SPECIES, SEX, DRAWN_SLOTS, OUTFITS, STAGES, ITEMS, SCARS, MASS, LOOK, DEFAULT_LOOK } from './config.js';
 import { anchorFor, gearArtFor, FITTED, BEHIND, SCAR_ANCHORS } from './gear-art.js';
 import { SHEETS } from './sheets.js';
 import { SCAR_GUESS } from './scar-guess.js';
@@ -135,7 +135,67 @@ export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 
 // The player's explorer, drawn in code (a placeholder until real art): a small figure facing right,
 // dressed in whatever it wears. height is in pixels.
 const tint = (equip, slot, fallback) => (equip[slot] && ITEMS[equip[slot]] && ITEMS[equip[slot]].color) || fallback;
-export function playerArt(equip = {}, height = 120) {
+// The player's explorer as they chose to look (LOOK: a painted body, sprites/player/, its skin tinted),
+// with what they wear in hand and on the head; a canvas drawn once its pictures have come. Before the
+// bodies are there (or with no look), the drawing below
+const bodyPics = new Map();
+let bodyBoxes = null;
+const bodyPic = name => {
+  if (!bodyPics.has(name)) { const img = new Image(); img.src = asset(`sprites/player/${name}.webp`); bodyPics.set(name, img); }
+  return bodyPics.get(name);
+};
+const loaded = img => (img.complete && img.naturalWidth ? Promise.resolve() : new Promise(ok => { img.addEventListener('load', ok, { once: true }); img.addEventListener('error', ok, { once: true }); }));
+export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
+  look = look || DEFAULT_LOOK;
+  const sex = LOOK.drawn[look.sex] ? look.sex : 'male', name = `${sex}-${LOOK.builds[look.build] ? look.build : 'average'}`;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'player-art';
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Your explorer');
+  canvas.style.height = `${Math.round(height)}px`;
+  canvas.style.width = `${Math.round(height * 171 / 528)}px`;
+  const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
+  const body = bodyPic(name), skin = bodyPic(`${name}-skin`);
+  Promise.all([boxes, loaded(body), loaded(skin)]).then(([b]) => {
+    const box = b[name];
+    if (!box || !body.naturalWidth) return;
+    const dpr = Math.min(2, globalThis.devicePixelRatio || 1), k = height / box.h * dpr;
+    canvas.width = Math.round(box.w * k); canvas.height = Math.round(box.h * k);
+    canvas.style.width = `${Math.round(box.w * height / box.h)}px`;
+    const g = canvas.getContext('2d');
+    g.scale(k, k);
+    g.drawImage(body, 0, 0, box.w, box.h);
+    // (the skin: its light and shade, multiplied by the tone chosen)
+    if (skin.naturalWidth) {
+      const t = document.createElement('canvas');
+      t.width = box.w; t.height = box.h;
+      const tg = t.getContext('2d');
+      tg.drawImage(skin, 0, 0);
+      tg.globalCompositeOperation = 'multiply';
+      tg.fillStyle = LOOK.skins.includes(look.skin) ? look.skin : DEFAULT_LOOK.skin;
+      tg.fillRect(0, 0, box.w, box.h);
+      tg.globalCompositeOperation = 'destination-in';
+      tg.drawImage(skin, 0, 0);
+      g.drawImage(t, 0, 0);
+    }
+    // what they wear on the head and hold: over the head, in the hand hanging in front
+    const [hx0, hy0, hx1, hy1] = box.head, hw = hx1 - hx0, hand = [hx0 + hw * 0.4, box.h * 0.63];
+    const stroke = () => { g.lineWidth = 2.5; g.strokeStyle = '#2a2420'; g.stroke(); };
+    if (equip.shield) { g.beginPath(); g.ellipse(hand[0] - hw * 0.25, hand[1] - box.h * 0.06, hw * 0.42, hw * 0.52, 0, 0, Math.PI * 2); g.fillStyle = tint(equip, 'shield', '#9a6a3a'); g.fill(); stroke(); }
+    if (equip.weapon && ITEMS[equip.weapon]) {
+      g.save(); g.translate(...hand); g.rotate(-0.5);
+      g.beginPath(); g.roundRect(-4, -hw * 1.3, 8, hw * 1.45, 3); g.fillStyle = ITEMS[equip.weapon].color; g.fill(); stroke();
+      g.restore();
+    }
+    if (equip.head) {
+      g.beginPath(); g.ellipse(hx0 + hw * 0.48, hy0 + (hy1 - hy0) * 0.32, hw * 0.56, (hy1 - hy0) * 0.36, 0, Math.PI, 0); g.closePath();
+      g.fillStyle = tint(equip, 'head', '#a77b4f'); g.fill(); stroke();
+    }
+  });
+  return canvas;
+}
+// the explorer as first drawn, before the painted bodies
+export function playerSketch(equip = {}, height = 120) {
   const skin = '#e3b48a', hair = '#4a3324';
   const shirt = tint(equip, 'body', '#d8c8a2'), shoes = tint(equip, 'feet', skin);
   const weapon = equip.weapon && ITEMS[equip.weapon];

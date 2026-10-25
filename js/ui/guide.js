@@ -2,6 +2,7 @@
 // tip at a time (GUIDE in config.js). A tip is shown once per account: reading it to the end records
 // it in the save, so it does not come back on another device either.
 import { GUIDE } from '../config.js';
+import { lookPending } from './look.js';
 import { S, subscribe } from '../state.js';
 import { act } from '../actions.js';
 import { inGame } from '../cloud.js';
@@ -102,7 +103,8 @@ export function showGuide(id) {
 
 // the first tip that is due pops up once the game is on screen, a moment later so the page settles
 function check() {
-  if (showing || !playing()) return;
+  // (not until the explorer is made: ui/look.js)
+  if (showing || !playing() || lookPending()) return;
   const due = Object.keys(GUIDE).find(id => unseen(id) && READY[id] && READY[id]());
   if (!due) return;
   clearTimeout(timer);

@@ -3,7 +3,7 @@
 import {
   SPECIES, ITEMS, TAP_MS, TAP_CAP, SLOTS, BASE_SLOTS, ROW, MAX_STACK, DIET,
   HATCH_COINS, HATCH_LOOT, FOOD_PACKS, ROW_PRICE, DAY_OFFSET_HOURS, DAILY_REWARDS, ACHIEVEMENTS,
-  FACTIONS, HOME_FACTION, OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
+  FACTIONS, HOME_FACTION, LOOK, DEFAULT_LOOK, OUTFITS, RECIPES, STARTERS, GUIDE, NURSE, CARRY, CARRY_PER_STR, PLAYER_CARRY, LOAD_FREE, LOAD_AGI_LOSS, PLAYER_ID, PLAYER_BASE, PLAYER_SLOTS, STATS, GENES_MAX, WILD_GENES, GENE_GRADES, SPECIES_BASE, GENE_FLOOR, DERIVED, BREED_MINS, BREED_GENE_CHANGE, EGG_TRAY_SIZE, STAGES, CAPSULE, CAPSULES, PLAYER_HUNGER_MIN, PLAYER_DIET,
   PROMO_CODES, PROMO_SALT, EGG_GENES, EGG_STEP,
   KG, PLAYER_KG, MASS,
   FOOD,
@@ -103,6 +103,8 @@ export function loadFactor(b) {
 // the bonuses from everything a baby wears, and what the load costs
 export function gearMods(baby) {
   const mods = Object.values(wornGear(baby)).flatMap(id => (ITEMS[id] && ITEMS[id].mods) || []);
+  // (the player's build: LOOK)
+  if (baby && baby.id === PLAYER_ID && baby.look && LOOK.builds[baby.look.build]) mods.push(...LOOK.builds[baby.look.build].mods.map(m => ({ ...m, build: true })));
   const load = loadFactor(baby);
   if (load < 1) mods.push({ stat: 'agi', type: 'more', value: Math.round(load * 100) / 100, weight: true });
   // raised among Hypacrosaurus (NURSE)
@@ -544,12 +546,28 @@ export function unequipArms(s, slot) {
   return { ok: true, item: id };
 }
 
+// a look as chosen, inside the choices (LOOK), or null
+export function cleanLook(l) {
+  if (!l || typeof l !== 'object' || !LOOK.sexes[l.sex] || !LOOK.builds[l.build]) return null;
+  return { sex: l.sex, build: l.build, skin: LOOK.skins.includes(l.skin) ? l.skin : DEFAULT_LOOK.skin };
+}
+// The player's look, and name, set (when the game begins, or changed later at home)
+export function setLook(s, look, name) {
+  const l = cleanLook(look);
+  if (!l) return { ok: false, reason: 'bad-look' };
+  if (isAway(s, PLAYER_ID)) return { ok: false, reason: 'away' };
+  s.player.look = l;
+  if (name !== undefined) s.player.name = String(name ?? '').trim().slice(0, 24) || 'You';
+  return { ok: true, look: l };
+}
+
 // keeps a loaded player inside the rules
 export function cleanPlayer(p) {
   const src = p && typeof p === 'object' ? p : newPlayer();
   const name = String(src.name ?? '').trim().slice(0, 24) || 'You';
   const equip = Object.fromEntries(PLAYER_SLOTS.map(({ id }) => [id, src.equip && src.equip[id]]).filter(([slot, item]) => isArms(item) && ITEMS[item].slot === slot));
-  return { id: PLAYER_ID, name, equip, ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}), ...(Number(src.lastFed) > 0 ? { lastFed: Number(src.lastFed) } : {}), ...(Number(src.flyingUntil) > 0 ? { flyingUntil: Number(src.flyingUntil) } : {}) };
+  const look = cleanLook(src.look);
+  return { id: PLAYER_ID, name, equip, ...(look ? { look } : {}), ...(Number(src.injuredUntil) > 0 ? { injuredUntil: Number(src.injuredUntil) } : {}), ...(Number(src.lastFed) > 0 ? { lastFed: Number(src.lastFed) } : {}), ...(Number(src.flyingUntil) > 0 ? { flyingUntil: Number(src.flyingUntil) } : {}) };
 }
 
 // ---------- outfits ----------
@@ -733,6 +751,9 @@ const MAX_TAPS_PER_REQUEST = 600;
 // a maglev train as an action names it: { ri, way, j } (journey.js trainsFrom), or null
 const cleanRide = r => (r && typeof r === 'object' && Number.isInteger(r.ri) && Number.isInteger(r.j) && (r.way === 'cw' || r.way === 'ccw') ? { ri: r.ri, way: r.way, j: r.j } : null);
 export const ACTIONS = {
+  setLook(s, { look, name }) {
+    return setLook(s, look, name);
+  },
   // { eggId } puts an egg from the tray in the incubator; eggs come from expeditions and breeding only
   startEgg(s, { eggId }, now) {
     if (s.current) return fail('busy');
