@@ -353,7 +353,8 @@ function paintMap() {
   ctx.fillStyle = '#2b3a46';
   ctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
   ctx.restore();
-  const knownSet = new Set(w.revealed), known = k => knownSet.has(k);
+  // (and the list itself, for the workers drawing tiles: mapcanvas.js)
+  const knownSet = new Set(w.revealed), known = Object.assign(k => knownSet.has(k), { list: () => w.revealed });
   const edge = cssVar('--panel'), accent = cssVar('--accent'), ink = cssVar('--ink'), heart = cssVar('--heart'), accentInk = cssVar('--accent-ink');
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
   // (hex by hex only closer than the sharpest tiles go; else the tiles, made once and kept, so a frame

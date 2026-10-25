@@ -228,8 +228,13 @@ const textures = new Map(), patterns = new WeakMap();
 let texturesLoaded = () => {};
 // fn: called when a picture has come, to draw the map again
 export function onTexture(fn) { texturesLoaded = fn; }
+// (a canvas: on the page an element, in a worker (tiles-worker.js) one off screen)
+const IN_WORKER = typeof document === 'undefined';
+const newCanvas = (w, h) => (IN_WORKER ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }));
 const picture = name => {
   let img = textures.get(name);
+  // (in a worker every picture is fetched before any tile is drawn: loadPictures)
+  if (!img && IN_WORKER) return { complete: false, naturalWidth: 0 };
   if (!img) {
     img = new Image();
     img.onload = () => { retireTiles(); texturesLoaded(); };
@@ -440,8 +445,7 @@ function layoutOf(biome, set, level, k, river = null, hex = '', shore = [], res 
     placed.push({ x, y, r, s, px, py, pw, ph, flip: rand() < 0.5 });
   }
   placed.sort((a, b) => a.y - b.y);
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
+  const c = newCanvas(w, h);
   const g = c.getContext('2d');
   g.translate(w / 2, h / 2);
   g.scale(LAYOUT_PX, LAYOUT_PX);
@@ -485,13 +489,14 @@ export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5
 // very far); otherwise what is drawn goes by how big a hex looks (LOD)
 // How much is drawn by how big a hex looks: each thing from this many pixels (a hex's radius on the
 // screen, the device's pixels) up; below 3 the map is squares of colour ('dots') whatever these say.
-// Below plants, a planted ground (forest, meadow…) is its colour alone; below texture, a painted ground
-// too. Set today so the map looks as it always has (plants and pictures down to 3 px: even that small
-// they give the forests their grain); raise one when new detail makes the map slow from afar. The
-// tiles are drawn at about 15, 7.5 and 3.75 px a hex, so a threshold between those moves a whole level.
-// Below blend, the ground is no longer drawn hex by hex at all: each hex's colour, lit as it lies, blended
-// smoothly into its neighbours' (groundField), so from afar no hex shows, only the lie of the land.
-export const LOD = { blend: 9, texture: 3, plants: 3, relief: 9, glyphs: 9, grid: 9 };
+// Below plants, a planted ground (forest, meadow…) shows its floor's picture alone (each hex's plants,
+// standing within it, would draw the hexes' shapes from afar); below texture, its colour alone. Below
+// grid no line between hexes, nor each lit on its own (they would show as a net), the blended ground
+// laid under them so no seam shows dark. The tiles are drawn at about 120, 60, 30, 15, 7.5 and 3.75 px
+// a hex, so a threshold between those moves a whole level. Below blend, the ground is no longer drawn
+// hex by hex at all: each hex's colour, lit as it lies, blended smoothly into its neighbours'
+// (groundField), so from afar no hex shows, only the lie of the land.
+export const LOD = { blend: 3, texture: 3, plants: 9, relief: 4, glyphs: 9, grid: 9 };
 // The whole map's ground as one small picture, two pixels a hex across and one a row of hexes down,
 // each hex's colour lit as it lies (dimmer where not yet explored), to be stretched over the map
 // smoothly: { canvas, x, y, w, h } (where it lies on the map, map units). Made again when what is known
@@ -503,8 +508,7 @@ function groundField(seed, known, sig) {
   const hexes = [...ALL_HEXES, ...WILDS_HEXES], hw = SIZE * SQ3 / 2, rh = SIZE * 1.5 * TILT;
   let n0 = Infinity, n1 = -Infinity, r0 = Infinity, r1 = -Infinity;
   for (const [q, r] of hexes) { n0 = Math.min(n0, 2 * q + r); n1 = Math.max(n1, 2 * q + r); r0 = Math.min(r0, r); r1 = Math.max(r1, r); }
-  const W = n1 - n0 + 2, H = r1 - r0 + 1, canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
+  const W = n1 - n0 + 2, H = r1 - r0 + 1, canvas = newCanvas(W, H);
   const g = canvas.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   for (const h of hexes) {
     const cell = cellAt(seed, h);
@@ -527,15 +531,17 @@ function groundField(seed, known, sig) {
 }
 // (below: hexes south of these whose mountains or volcanoes rise up into them, drawn with theirs only)
 export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full', sig = '', below = []) {
-  // (a hair bigger than the hex, so neighbours meet with no gap between them)
-  const shape = hexPath(1.01);
+  const px = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b), smooth = px >= 44;
+  // (a hair bigger than the hex, so neighbours meet with no gap between them: more from afar, where a
+  // hair is less than a pixel)
+  const shape = hexPath(px >= LOD.grid ? 1.01 : 1.06);
   const dim = 'rgba(30, 34, 28, .16)';
   ctx.setLineDash([]);
   ctx.lineWidth = 1;
   ctx.strokeStyle = edge;
-  const px = SIZE * Math.hypot(ctx.getTransform().a, ctx.getTransform().b), smooth = px >= 44;
-  if (detail === 'dots' || px < LOD.blend) {
-    // the ground blended, no hex showing (the part of the map's picture under these hexes)
+  // the ground blended, no hex showing (the part of the map's picture under these hexes): from very far
+  // all there is of it; from afar under the pictures of the ground, so no seam between hexes shows dark
+  const field = () => {
     const f = groundField(seed, known, sig), [ax, ay, bx, by] = areaOf(hexes), m = SIZE * 2;
     const kx = f.canvas.width / f.w, ky = f.canvas.height / f.h;
     const sx = Math.max(0, Math.floor((ax - m - f.x) * kx)), sy = Math.max(0, Math.floor((ay - m - f.y) * ky));
@@ -547,6 +553,10 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
       ctx.drawImage(f.canvas, sx, sy, sw, sh, f.x + sx / kx, f.y + sy / ky, sw / kx, sh / ky);
       ctx.restore();
     }
+  };
+  if (px < LOD.grid && detail !== 'dots' && px >= LOD.blend) field();
+  if (detail === 'dots' || px < LOD.blend) {
+    field();
     // (from very far only the great rivers show)
     drawRivers(ctx, seed, hexes, detail === 'dots' ? 8 : 3);
     drawRails(ctx, seed, areaOf(hexes));
@@ -565,7 +575,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     const sides = waterSides(seed, h);
     const biome = groundName(cell), dense = rank(biome) >= 0 || PLANTED[biome] ? densityOf(seed, h, biome) : 0;
     // (cooled lava has the volcanic slopes' ground too)
-    const planted = px >= LOD.plants && (!isWaterCell(cell) || PLANTED[biome]) && plantsOf(biome);
+    const planted = px >= LOD.texture && (!isWaterCell(cell) || PLANTED[biome]) && plantsOf(biome);
     if (planted) {
       // (its floor: a picture laid over the whole map, not hex by hex, so it runs on from one hex into the
       // next; plain until it has come. The light is laid over it with its plants, below)
@@ -595,7 +605,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense, sides } of textured) {
     if (planted) {
-      if (!PLANTED[groundName(cell)].counts[dense]) continue;
+      // (the floor from afar, the plants standing on it only once they are big enough to see)
+      if (px < LOD.plants || !PLANTED[groundName(cell)].counts[dense]) continue;
       // (a hex with a river or a shore has its own, its plants off the water: never mirrored, as its
       // water isn't)
       const river = cell.river ? riverHalves(seed, h) : null, shore = sides.length ? shoreWet(seed, h, sides) : [];
@@ -618,7 +629,8 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   }
   // (the light over each, lightening or darkening the painting; blended across it at every zoom, as
   // steps of light from hex to hex would show on a painting)
-  for (const { h, x, y, cell } of textured) {
+  // (from afar not at all: lit hex by hex, the hexes would show as a net over the land)
+  if (px >= LOD.grid) for (const { h, x, y, cell } of textured) {
     if (isWaterCell(cell)) continue;
     ctx.save();
     ctx.translate(x, y);
@@ -627,20 +639,22 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     ctx.fill(shape);
     ctx.restore();
   }
+  // (the unexplored dimmed all as one shape, so where hexes overlap a hair it isn't dimmed twice)
+  const fog = new Path2D();
   for (const h of hexes) {
     const [x, y] = center(h), cell = cellAt(seed, h), unknown = !isWaterCell(cell) && !known(hexKey(...h));
-    if (isWaterCell(cell) || (!unknown && px < LOD.grid)) continue;
+    if (unknown) fog.addPath(shape, new DOMMatrix([1, 0, 0, 1, x, y]));
+    if (isWaterCell(cell) || px < LOD.grid) continue;
     ctx.save();
     ctx.translate(x, y);
-    if (unknown) { ctx.fillStyle = dim; ctx.fill(shape); }
-    if (px >= LOD.grid) {
-      // (no line along a shore: the water has none)
-      const sides = waterSides(seed, h);
-      if (!sides.length) ctx.stroke(shape);
-      else { ctx.beginPath(); for (let k = 0; k < 6; k++) if (!sides.includes(k)) { const [a, b] = SIDE_CORNERS[k]; ctx.moveTo(...cornerAt(a)); ctx.lineTo(...cornerAt(b)); } ctx.stroke(); }
-    }
+    // (no line along a shore: the water has none)
+    const sides = waterSides(seed, h);
+    if (!sides.length) ctx.stroke(shape);
+    else { ctx.beginPath(); for (let k = 0; k < 6; k++) if (!sides.includes(k)) { const [a, b] = SIDE_CORNERS[k]; ctx.moveTo(...cornerAt(a)); ctx.lineTo(...cornerAt(b)); } ctx.stroke(); }
     ctx.restore();
   }
+  ctx.fillStyle = dim;
+  ctx.fill(fog);
   // (the rivers first: where one runs into a lake or the sea, the water and its shallows lie over its end)
   drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3, 'water');
   drawWater(ctx, seed, waters, px, 'water');
@@ -674,7 +688,7 @@ const bankAt = ([x, y]) => 0.02 + 0.14 * (0.5 + 0.25 * Math.sin(x * 0.11 + y * 0
 // come (or from afar)
 function mudOf(ctx, px, name = 'lakeshore') {
   const img = picture(`${name}-floor`);
-  if (px < LOD.plants || !img.complete || !img.naturalWidth) return null;
+  if (px < LOD.texture || !img.complete || !img.naturalWidth) return null;
   const pat = floorPattern(ctx, name, img), k = SIZE * SQ3 * 2.5 / img.naturalWidth;
   pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
   return pat;
@@ -746,7 +760,7 @@ function drawWater(ctx, seed, hexes, px, part) {
     }
     if (!any) continue;
     const floor = picture(`${kind}-floor`);
-    if (px >= LOD.plants && floor.complete && floor.naturalWidth) {
+    if (px >= LOD.texture && floor.complete && floor.naturalWidth) {
       const k = SIZE * SQ3 * PLANTED[kind].span / floor.naturalWidth, pat = floorPattern(ctx, kind, floor);
       pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
       ctx.fillStyle = pat;
@@ -799,7 +813,7 @@ function drawWater(ctx, seed, hexes, px, part) {
 // (part: 'bank' only its bank, 'water' only its water; both if not given)
 function drawRivers(ctx, seed, hexes, minFlow, part) {
   const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
-  const close = scale * SIZE >= LOD.plants * 4 && lake.complete && lake.naturalWidth;
+  const close = scale * SIZE >= LOD.texture && lake.complete && lake.naturalWidth;
   const halves = [];
   for (const h of hexes) {
     const cell = cellAt(seed, h);
@@ -974,11 +988,11 @@ function tileOf(seed, known, sig, edge, k, tx, ty) {
 }
 // a tile up to date, or else one out of date (to show while the new one is drawn)
 const anyTileOf = (seed, known, sig, edge, k, tx, ty) => tileOf(seed, known, sig, edge, k, tx, ty) || stale.get(`${seed}|${sig}|${edge}|${k}|${tx}|${ty}`) || null;
-function makeTile(seed, known, sig, edge, k, tx, ty) {
-  const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`, b = mapBounds(), span = TILE / k;
+// A tile drawn: a canvas of the map at level k, tile (tx, ty)
+export function renderTile(seed, known, sig, edge, k, tx, ty) {
+  const b = mapBounds(), span = TILE / k;
   const ox = b.x + tx * span, oy = b.y + ty * span;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = TILE;
+  const canvas = newCanvas(TILE, TILE);
   const ctx = canvas.getContext('2d');
   ctx.scale(k, k);
   ctx.translate(-ox, -oy);
@@ -986,13 +1000,63 @@ function makeTile(seed, known, sig, edge, k, tx, ty) {
   const own = hexesIn(ox, oy, ox + span, oy + span), seen = new Set(own.map(h => `${h[0]},${h[1]}`));
   const below = hexesIn(ox, oy + span, ox + span, oy + span + SIZE * 3).filter(h => !seen.has(`${h[0]},${h[1]}`));
   drawHexes(ctx, seed, own, known, edge, detailAt(k), sig, below);
+  return canvas;
+}
+// A tile made and kept: drawn by a worker off the page's thread where there can be one (it comes a
+// little later, and the map is drawn again then; false while too many are already being drawn), else
+// drawn here and now
+function makeTile(seed, known, sig, edge, k, tx, ty) {
+  const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`;
+  if (painters()) return askTile(id, seed, known, sig, edge, k, tx, ty);
+  keepTile(id, renderTile(seed, known, sig, edge, k, tx, ty));
+  return true;
+}
+function keepTile(id, canvas) {
   tiles.set(id, canvas);
   // (the oldest let go, but never the blurriest level's: the map whole, always there to fall back on)
   for (const old of tiles.keys()) {
     if (tiles.size <= TILE_KEEP) break;
-    if (old.split('|')[3] !== String(LEVELS.at(-1))) tiles.delete(old);
+    if (old.split('|')[3] !== String(LEVELS.at(-1))) { tiles.get(old).close?.(); tiles.delete(old); }
   }
-  return canvas;
+}
+
+// ---------- the painters: workers drawing tiles ----------
+// Two workers (tiles-worker.js) each drawing a tile at a time; what is revealed sent to them as it
+// grows. A tile asked for and not yet come is not asked for again; at most AT_ONCE wait at each.
+const AT_ONCE = 3;
+let workers = null, asked = new Map(), sentKnown = '';
+function painters() {
+  if (workers !== null) return workers.length > 0;
+  workers = [];
+  if (IN_WORKER || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function' || !('transferToImageBitmap' in OffscreenCanvas.prototype)) return false;
+  try {
+    for (let i = 0; i < Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)); i++) {
+      const w = new Worker(new URL(`./tiles-worker.js${new URL(import.meta.url).search}`, import.meta.url), { type: 'module' });
+      w.busy = 0;
+      w.onmessage = e => {
+        const { id, bitmap } = e.data;
+        w.busy--;
+        asked.delete(id);
+        if (bitmap) { keepTile(id, bitmap); texturesLoaded(); }
+      };
+      // (a worker that fails: the tiles drawn here instead from then on)
+      w.onerror = () => { workers = []; asked.clear(); texturesLoaded(); };
+      workers.push(w);
+    }
+  } catch (e) { workers = []; }
+  return workers.length > 0;
+}
+function askTile(id, seed, known, sig, edge, k, tx, ty) {
+  if (asked.has(id)) return true;
+  const w = workers.reduce((a, b) => (b.busy < a.busy ? b : a));
+  if (w.busy >= AT_ONCE) return false;
+  // (what is revealed, once for each time it grows)
+  const knownId = `${seed}|${sig}`;
+  if (sentKnown !== knownId) { sentKnown = knownId; const list = known.list ? known.list() : []; for (const x of workers) x.postMessage({ known: list, sig }); }
+  w.busy++;
+  asked.set(id, true);
+  w.postMessage({ id, seed, sig, edge, k, tx, ty });
+  return true;
 }
 // Draws the tiles covering the view (f: from fit); returns whether some are still to be drawn (then
 // ask for another frame). sig: what of the map is known (when it changes, the tiles are drawn anew).
@@ -1077,8 +1141,9 @@ function drawAhead(seed, known, sig, edge, f, k) {
   const step = deadline => {
     if (ahead !== job) return;
     while (todo.length && deadline.timeRemaining() > 2) {
-      const [l, tx, ty] = todo.shift();
-      if (!tileOf(seed, known, sig, edge, l, tx, ty)) makeTile(seed, known, sig, edge, l, tx, ty);
+      const [l, tx, ty] = todo[0];
+      if (!tileOf(seed, known, sig, edge, l, tx, ty) && !makeTile(seed, known, sig, edge, l, tx, ty)) break;
+      todo.shift();
     }
     if (todo.length) idle(step);
   };
@@ -1088,7 +1153,10 @@ function drawAhead(seed, known, sig, edge, f, k) {
 export function warmTiles(seed, known, sig, edge) {
   lastWarm = [seed, known, sig, edge];
   const b = mapBounds(), k = LEVELS.at(-1), span = TILE / k;
-  for (let ty = 0; ty * span < b.h; ty++) for (let tx = 0; tx * span < b.w; tx++) if (!tileOf(seed, known, sig, edge, k, tx, ty)) makeTile(seed, known, sig, edge, k, tx, ty);
+  let left = false;
+  for (let ty = 0; ty * span < b.h; ty++) for (let tx = 0; tx * span < b.w; tx++) if (!tileOf(seed, known, sig, edge, k, tx, ty) && !makeTile(seed, known, sig, edge, k, tx, ty)) left = true;
+  // (the painters busy: the rest asked for in a moment)
+  if (left) setTimeout(() => { if (lastWarm && lastWarm[2] === sig) warmTiles(seed, known, sig, edge); }, 150);
 }
 
 // the hex under a point of the map (map units, as the map shows), as [q, r]
@@ -1117,6 +1185,27 @@ export function fit(canvas, view) {
   return { ctx, scale, width: w, height: h, x0, y0, dpr };
 }
 // the hexes whose centre falls inside a box of the map (with a hex's margin), row by row
+// the names of every picture the map draws with (images/terrain/<name>.webp)
+function terrainPictureNames() {
+  const names = new Set();
+  for (const [biome, p] of Object.entries(PLANTED)) { names.add(`${biome}-floor`); if (!p.bare) names.add(`${biome}-plants`); }
+  for (const name of Object.keys(SHORES)) names.add(`${SHORES[name].picture || name}-floor`);
+  for (const M of Object.values(PAINTED)) names.add(`${M.sheet}-plants`);
+  names.add('water-plants');
+  return [...names];
+}
+// In a worker: every picture fetched and made ready to draw before any tile is, then the lists of
+// pieces; a promise of when all is there
+export async function loadPictures() {
+  await Promise.all(terrainPictureNames().map(async name => {
+    try {
+      const res = await fetch(new URL(`../../images/terrain/${name}.webp`, import.meta.url).href);
+      const bitmap = await createImageBitmap(await res.blob());
+      textures.set(name, Object.assign(bitmap, { complete: true, naturalWidth: bitmap.width }));
+    } catch (e) { textures.set(name, { complete: true, naturalWidth: 0 }); }
+  }));
+  await preloadTerrain();
+}
 // Every picture of the ground, the plants, the mountains and the water asked for at once (they are
 // otherwise fetched as the map first needs each), and a promise of when all are there (or failed, or
 // after a while anyway), so the map can be shown only once it looks as it should
