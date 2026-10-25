@@ -367,7 +367,8 @@ function paintMap() {
   if (!mapShown && !building) { mapShown = true; const veil = document.getElementById('mapLoading'); if (veil) veil.hidden = true; }
   // the blurriest tiles of the whole map, drawn ahead once the map is up
   const sig = `${w.seed}|${w.revealed.length}`;
-  if (warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, GRID), 400); }
+  // (once the map shows, not to keep it waiting)
+  if (mapShown && warmed !== sig) { warmed = sig; setTimeout(() => warmTiles(w.seed, known, w.revealed.length, GRID), 400); }
   shadeNight(ctx, f, x1, y1, t);
   // (sizes in map units, never smaller than a few pixels on screen)
   const px = n => n / scale;

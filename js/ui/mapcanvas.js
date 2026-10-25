@@ -265,7 +265,17 @@ const hasTexture = biome => (rank(biome) >= 0 && textures.get(`${biome}-0`)?.nat
 // each density, also mirrored).
 const PLANTED = { lake: { floor: '#65a3b0', counts: [0], bare: true, span: 5 }, ocean: { floor: '#235d74', counts: [0], bare: true, span: 7 }, rock: { floor: '#8c8476', counts: [0], bare: true }, volcano: { floor: '#5e4b42', size: 11, counts: [6, 3, 1] }, desert: { floor: '#dcb77a', size: 15, counts: [1, 1, 0] }, floodplain: { floor: '#6f9a55', size: 10, counts: [14, 8, 3] }, coast: { floor: '#d8cba0', size: 9, counts: [10, 5, 2] }, subtropical: { floor: '#3a4426', size: 13, counts: [34, 20, 10, 4] }, scrub: { floor: '#a89a62', size: 10, counts: [12, 6, 2] }, swamp: { floor: '#56704a', size: 14, counts: [14, 8, 4], span: 4.5 }, meadow: { floor: '#a3bd74', size: 10, counts: [12, 6, 2] }, forest: { floor: '#3f5531', size: 12, counts: [40, 22, 12, 6, 2] } };
 const floors = new WeakMap();
-const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); if (!m.has(biome)) m.set(biome, ctx.createPattern(img, 'repeat')); return m.get(biome); };
+const floorPattern = (ctx, biome, img) => { let m = floors.get(ctx); if (!m) floors.set(ctx, m = new Map()); const id = `${biome}|${img.naturalWidth}`; if (!m.has(id)) m.set(id, ctx.createPattern(img, 'repeat')); return m.get(id); };
+// A floor's picture as small as the zoom allows: from afar a picture made smaller beforehand (by a
+// quarter, by a sixteenth: loadPictures, in the workers), as a picture shrunk many times over as it is
+// laid down turns to grain. px: a hex's size on the screen; span: hexes across one picture
+function floorOf(name, px, span) {
+  const full = picture(name);
+  if (!full.naturalWidth) return full;
+  const shrink = (SIZE * SQ3 * span / full.naturalWidth) * (px / SIZE);
+  for (const d of [16, 4]) { const m = shrink * d <= 1.5 && textures.get(`${name}@${d}`); if (m) return m; }
+  return full;
+}
 const LAYOUTS = 10;   // arrangements a density
 // (pixels a map unit an arrangement is made at: as sharp as the zoom it is drawn at needs, no sharper,
 // so from afar it costs a small part of what it does close up)
@@ -496,7 +506,7 @@ export const CITY = '<path d="M-15 10 L15 10" stroke="#5b3a1e" stroke-width="2.5
 // a hex, so a threshold between those moves a whole level. Below blend, the ground is no longer drawn
 // hex by hex at all: each hex's colour, lit as it lies, blended smoothly into its neighbours'
 // (groundField), so from afar no hex shows, only the lie of the land.
-export const LOD = { blend: 3, texture: 3, plants: 9, relief: 4, glyphs: 9, grid: 9 };
+export const LOD = { blend: 1.5, texture: 1.5, plants: 9, relief: 4, glyphs: 9, grid: 9 };
 // The whole map's ground as one small picture, two pixels a hex across and one a row of hexes down,
 // each hex's colour lit as it lies (dimmer where not yet explored), to be stretched over the map
 // smoothly: { canvas, x, y, w, h } (where it lies on the map, map units). Made again when what is known
@@ -579,7 +589,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     if (planted) {
       // (its floor: a picture laid over the whole map, not hex by hex, so it runs on from one hex into the
       // next; plain until it has come. The light is laid over it with its plants, below)
-      const floor = picture(`${biome}-floor`);
+      const floor = floorOf(`${biome}-floor`, px, PLANTED[biome].span || 2.4);
       ctx.save(); ctx.translate(x, y);
       if (floor.complete && floor.naturalWidth) {
         const k = SIZE * SQ3 * (PLANTED[biome].span || 2.4) / floor.naturalWidth, pat = floorPattern(ctx, biome, floor);
@@ -687,7 +697,7 @@ const bankAt = ([x, y]) => 0.02 + 0.14 * (0.5 + 0.25 * Math.sin(x * 0.11 + y * 0
 // a shore's picture (a lake's mud, the sea's sand) as a pattern laid over the map, or null until it has
 // come (or from afar)
 function mudOf(ctx, px, name = 'lakeshore') {
-  const img = picture(`${name}-floor`);
+  const img = floorOf(`${name}-floor`, px, 2.5);
   if (px < LOD.texture || !img.complete || !img.naturalWidth) return null;
   const pat = floorPattern(ctx, name, img), k = SIZE * SQ3 * 2.5 / img.naturalWidth;
   pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
@@ -759,7 +769,7 @@ function drawWater(ctx, seed, hexes, px, part) {
       }
     }
     if (!any) continue;
-    const floor = picture(`${kind}-floor`);
+    const floor = floorOf(`${kind}-floor`, px, PLANTED[kind].span);
     if (px >= LOD.texture && floor.complete && floor.naturalWidth) {
       const k = SIZE * SQ3 * PLANTED[kind].span / floor.naturalWidth, pat = floorPattern(ctx, kind, floor);
       pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
@@ -770,6 +780,8 @@ function drawWater(ctx, seed, hexes, px, part) {
     ctx.lineCap = 'round';
     // (wet ground just above the waterline, its kind by the land's (SHORES): a bank of its picture, wider
     // in places, fading into the land)
+    // (from afar the water alone: shores, shallows and foam would be rings round every lake)
+    if (px < LOD.grid && part === 'bank') { ctx.restore(); continue; }
     if (part === 'bank') {
       for (const [name, b] of banks) {
         const mud = mudOf(ctx, px, SHORES[name].picture || name), wide = SHORES[name].wide;
@@ -787,6 +799,7 @@ function drawWater(ctx, seed, hexes, px, part) {
       continue;
     }
     ctx.fill(area);
+    if (px < LOD.grid) { ctx.restore(); continue; }
     ctx.clip(area);
     // (the bank showing through the shallowest water)
     for (const [name, b] of banks) {
@@ -812,7 +825,7 @@ function drawWater(ctx, seed, hexes, px, part) {
 // lake's (its picture, laid over the map as the lakes' is) within a thin bank of the lakes' mud
 // (part: 'bank' only its bank, 'water' only its water; both if not given)
 function drawRivers(ctx, seed, hexes, minFlow, part) {
-  const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
+  const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = floorOf('lake-floor', scale * SIZE, PLANTED.lake.span);
   const close = scale * SIZE >= LOD.texture && lake.complete && lake.naturalWidth;
   const halves = [];
   for (const h of hexes) {
@@ -850,7 +863,7 @@ function drawRivers(ctx, seed, hexes, minFlow, part) {
   if (close) {
     // (a thin bank of the lakes' mud, fading into the land)
     const mud = mudOf(ctx, scale * SIZE), grow = Math.max(1.6, hair * 1.5);
-    if (part === 'water') {}
+    if (part === 'water' || scale * SIZE < LOD.grid) {}
     else if (mud) {
       ctx.fillStyle = mud;
       ctx.globalAlpha = 0.4; ctx.fill(shape(grow * 2.2, true), 'nonzero');
@@ -968,7 +981,7 @@ export function mapBounds() {
 // zooming never stalls), the blurrier one standing in; and once the view is all drawn, the tiles one
 // sharper and one blurrier for it are drawn ahead while the browser is idle, ready for the next zoom.
 let shownLevel = null;
-const TILE = 256, LEVELS = [4, 2, 1, 0.5, 0.25, 0.125, 0.0625, 0.03125], TILE_KEEP = 220;
+const TILE = 256, LEVELS = [4, 2, 1, 0.5, 0.25, 0.125, 0.0625], TILE_KEEP = 220;
 const tiles = new Map();
 // When a picture of the ground comes, every tile drawn before it is out of date; they are kept aside
 // (stale), still shown until their new ones are all drawn, so the map never blinks while it catches up
@@ -980,7 +993,7 @@ function retireTiles() {
   // (the whole map's blurriest tiles drawn again soon, to fall back on)
   if (lastWarm) setTimeout(() => warmTiles(...lastWarm), 300);
 }
-const detailAt = k => (SIZE * k >= 9 ? 'full' : SIZE * k >= 3 ? 'plain' : 'dots');
+const detailAt = k => (SIZE * k >= 9 ? 'full' : SIZE * k >= LOD.blend ? 'plain' : 'dots');
 function tileOf(seed, known, sig, edge, k, tx, ty) {
   const id = `${seed}|${sig}|${edge}|${k}|${tx}|${ty}`;
   if (tiles.has(id)) { const c = tiles.get(id); tiles.delete(id); tiles.set(id, c); return c; }
@@ -1198,6 +1211,17 @@ export async function loadPictures() {
       const res = await fetch(new URL(`../../images/terrain/${name}.webp`, import.meta.url).href);
       const bitmap = await createImageBitmap(await res.blob());
       textures.set(name, Object.assign(bitmap, { complete: true, naturalWidth: bitmap.width }));
+      // (a floor made smaller beforehand, halving it again and again so it stays smooth: floorOf)
+      if (name.endsWith('-floor')) {
+        let from = bitmap;
+        for (let d = 2; d <= 16; d *= 2) {
+          const w = Math.max(1, Math.round(bitmap.width / d)), h = Math.max(1, Math.round(bitmap.height / d)), c = new OffscreenCanvas(w, h), g = c.getContext('2d');
+          g.imageSmoothingQuality = 'high';
+          g.drawImage(from, 0, 0, w, h);
+          from = c;
+          if (d === 4 || d === 16) { const b = c.transferToImageBitmap(); textures.set(`${name}@${d}`, Object.assign(b, { complete: true, naturalWidth: b.width })); from = b; }
+        }
+      }
     } catch (e) { textures.set(name, { complete: true, naturalWidth: 0 }); }
   }));
   await preloadTerrain();
