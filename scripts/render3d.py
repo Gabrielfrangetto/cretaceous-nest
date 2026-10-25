@@ -1,10 +1,10 @@
 # Renders a 3D model (a .glb, rigged or not) as the game's painted-looking sprites: an orthographic
 # camera (no perspective, as a drawing), the light from the top left as on every sprite, shading in a
-# few flat bands (toon) and a dark outline, on a transparent background. One picture, or a strip of an
+# few flat bands (toon) and a dark ink line round it, on a transparent background. One picture, or a strip of an
 # animation's frames side by side.
 # Run with Blender's Python module (pip install bpy):
 #   python scripts/render3d.py model.glb out.png [--view side|front|three|back] [--height 528]
-#     [--anim walk --frames 8] [--outline 2.5] [--samples 16]
+#     [--anim walk --frames 8] [--rim 1.7] [--lines 0] [--samples 16]
 import argparse, math, sys
 import bpy
 from mathutils import Vector
@@ -16,8 +16,12 @@ ap.add_argument('--view', default='side', help='side (facing right, as the dinos
 ap.add_argument('--height', type=int, default=528, help='pixels the model stands tall')
 ap.add_argument('--anim', help='the animation to render (its name, or part of it); its frames side by side')
 ap.add_argument('--frames', type=int, default=8)
-ap.add_argument('--outline', type=float, default=1.6, help='outline thickness, pixels')
+ap.add_argument('--lines', type=float, default=0, help='lines inside the figure too (where parts overlap), this thick in pixels; none by default, as a generated mesh draws them broken')
 ap.add_argument('--samples', type=int, default=16)
+ap.add_argument('--ss', type=int, default=2, help='rendered this many times as big, then made smaller: smooth lines')
+ap.add_argument('--rim', type=float, default=1.7, help='the outline round the whole figure, pixels (of the picture as saved)')
+ap.add_argument('--light', type=float, default=1.12, help='the colours made this much brighter')
+ap.add_argument('--sat', type=float, default=0.88, help='and this saturated')
 ap.add_argument('--ink', default='#2a2420')
 a = ap.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else None)
 # (a colour as Blender takes it: linear, not as the screen shows it)
@@ -54,18 +58,26 @@ for mat in {s.material for o in meshes for s in o.material_slots if s.material}:
         inp = bsdf.inputs['Base Color']
         color = inp.links[0].from_socket if inp.links else None
         base = tuple(inp.default_value)
-    toon = nt.nodes.new('ShaderNodeBsdfToon'); toon.inputs['Size'].default_value = 0.75; toon.inputs['Smooth'].default_value = 0.04
-    glow = nt.nodes.new('ShaderNodeEmission'); glow.inputs['Strength'].default_value = 0.42
+    # (its colour a little brighter and calmer than the generator painted it)
+    hsv = nt.nodes.new('ShaderNodeHueSaturation')
+    hsv.inputs['Saturation'].default_value = a.sat; hsv.inputs['Value'].default_value = a.light
+    if color: nt.links.new(color, hsv.inputs['Color'])
+    elif bsdf: hsv.inputs['Color'].default_value = base
+    # (lit and shaded in two flat bands; the shade warm, never black)
+    toon = nt.nodes.new('ShaderNodeBsdfToon'); toon.inputs['Size'].default_value = 0.62; toon.inputs['Smooth'].default_value = 0.02
+    warm = nt.nodes.new('ShaderNodeMix'); warm.data_type = 'RGBA'; warm.blend_type = 'MULTIPLY'
+    warm.inputs['Factor'].default_value = 1.0; warm.inputs[7].default_value = (1.0, 0.78, 0.7, 1)
+    nt.links.new(hsv.outputs[0], warm.inputs[6])
+    glow = nt.nodes.new('ShaderNodeEmission'); glow.inputs['Strength'].default_value = 0.55
     add = nt.nodes.new('ShaderNodeAddShader')
-    for n in (toon, glow):
-        if color: nt.links.new(color, n.inputs['Color'])
-        elif bsdf: n.inputs['Color'].default_value = base
+    nt.links.new(hsv.outputs[0], toon.inputs['Color'])
+    nt.links.new(warm.outputs[2], glow.inputs['Color'])
     nt.links.new(toon.outputs[0], add.inputs[0]); nt.links.new(glow.outputs[0], add.inputs[1])
     nt.links.new(add.outputs[0], out.inputs['Surface'])
 
 # the light: from the top left of the picture, and a little in front
 sun = bpy.data.objects.new('sun', bpy.data.lights.new('sun', 'SUN'))
-sun.data.energy = 3.2; sun.data.angle = 0.05
+sun.data.energy = 2.6; sun.data.angle = 0.05
 sc.collection.objects.link(sun)
 world = bpy.data.worlds.new('w'); sc.world = world
 world.use_nodes = True; world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0
@@ -114,12 +126,12 @@ ren.engine = 'CYCLES'
 sc.cycles.samples = a.samples
 sc.cycles.use_denoising = True
 ren.film_transparent = True
-k = a.height / tall
+k = a.height / tall * a.ss
 ren.resolution_y = round(tall * pad * k)
 ren.resolution_x = round(across * pad * k)
-ren.use_freestyle = True
+ren.use_freestyle = a.lines > 0
 ren.line_thickness_mode = 'ABSOLUTE'
-ren.line_thickness = a.outline
+ren.line_thickness = a.lines * a.ss
 ls = sc.view_layers[0].freestyle_settings.linesets[0] if sc.view_layers[0].freestyle_settings.linesets else sc.view_layers[0].freestyle_settings.linesets.new('ink')
 if ls.linestyle is None: ls.linestyle = bpy.data.linestyles.new('ink')
 ls.select_by_visibility = True
@@ -128,7 +140,7 @@ ls.select_crease = False
 # (only the outline, and where one part passes in front of another: a generated mesh is full of creases)
 ls.select_contour = True
 ls.linestyle.color = rgb(a.ink)
-ls.linestyle.thickness = a.outline
+ls.linestyle.thickness = a.lines * a.ss
 sc.view_settings.view_transform = 'Standard'
 
 import os, tempfile
@@ -145,7 +157,20 @@ box = None
 for s in shots:
     b = s.getbbox()
     if b: box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
+from PIL import ImageFilter
+pad_px = int(a.rim * a.ss) + 2
+box = (box[0] - pad_px, box[1] - pad_px, box[2] + pad_px, box[3] + pad_px)
 shots = [s.crop(box) for s in shots]
+# (an ink line all round the figure, as thick everywhere and unbroken, under it; then made smaller)
+def inked(s):
+    al = s.getchannel('A').point(lambda v: 255 if v > 90 else 0)
+    size = int(a.rim * a.ss) * 2 + 1
+    rim = al.filter(ImageFilter.MaxFilter(size)).filter(ImageFilter.GaussianBlur(a.ss * 0.3))
+    ink = Image.new('RGBA', s.size, tuple(int(h, 16) for h in (a.ink[1:3], a.ink[3:5], a.ink[5:7])) + (0,))
+    ink.putalpha(rim)
+    ink.alpha_composite(s)
+    return ink.resize((round(s.width / a.ss), round(s.height / a.ss)), Image.LANCZOS)
+shots = [inked(s) for s in shots]
 sheet = Image.new('RGBA', (shots[0].width * len(shots), shots[0].height))
 for i, s in enumerate(shots): sheet.paste(s, (i * shots[0].width, 0))
 sheet.save(a.out)
