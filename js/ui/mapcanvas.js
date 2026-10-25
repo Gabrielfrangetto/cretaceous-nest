@@ -673,7 +673,7 @@ function mudOf(ctx, px, name = 'lakeshore') {
 // the sea foam and rocks where the waves break, a log washed up. { kind: [[chance a side of shore, how
 // far out (of SIZE), how big (map units)]] }; a mangrove's (where a swamp meets the sea) calmer, reedy
 const SHORE_THINGS = {
-  mangrove: [['reed', 0.4, 0.06, 12], ['reed', 0.2, 0.12, 11], ['foam', 0.15, 0.1, 15], ['log', 0.04, 0.12, 16]],
+  mangrove: [['reed', 0.4, 0.06, 12], ['reed', 0.2, 0.12, 11], ['log', 0.04, 0.12, 16]],
   lake: [['reed', 0.55, 0.06, 13], ['reed', 0.3, 0.1, 12], ['lily', 0.5, 0.3, 13], ['lily', 0.25, 0.45, 12], ['rock', 0.1, 0.12, 10], ['log', 0.06, 0.15, 16]],
   ocean: [['foam', 0.6, 0.1, 19], ['foam', 0.25, 0.2, 15], ['rock', 0.18, 0.14, 11], ['rock', 0.08, 0.25, 10], ['log', 0.012, 0.1, 16]],
 };
@@ -771,9 +771,10 @@ function drawWater(ctx, seed, hexes, px, part) {
       ctx.lineWidth = SIZE * w;
       ctx.stroke(edge);
     }
+    // (the waterline: foam where the sea's waves break, none on a mangrove's calm water)
     ctx.strokeStyle = kind === 'ocean' ? 'rgba(245, 250, 245, .7)' : 'rgba(225, 238, 230, .22)';
     ctx.lineWidth = kind === 'ocean' ? SIZE * 0.07 : SIZE * 0.04;
-    ctx.stroke(edge);
+    for (const [name, b] of banks) if (name !== 'mangrove') ctx.stroke(b.edge);
     ctx.restore();
   }
   if (part === 'water') drawShoreThings(ctx, things);
