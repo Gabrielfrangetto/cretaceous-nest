@@ -302,6 +302,21 @@ const seq = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(se
 const SIDES = Array.from({ length: 6 }, (_, i) => { const at = k => { const a = Math.PI / 180 * (60 * k - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; }; return [...at(i), ...at(i + 1)]; });
 // how far (x, y) is inside the hex, from its nearest side (below 0: outside)
 const inside = (x, y) => Math.min(...SIDES.map(([x0, y0, x1, y1]) => ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / Math.hypot(x1 - x0, y1 - y0)));
+// how far (x, y) is inside the hex from side i (below 0: past it)
+const fromSide = (x, y, i) => { const [x0, y0, x1, y1] = SIDES[i]; return ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / Math.hypot(x1 - x0, y1 - y0); };
+// (side i of SIDES, the one towards STEP[SIDE_STEP[i]])
+const SIDE_STEP = [0, 5, 4, 3, 2, 1];
+// The sides of land hex h its plants may grow over, into the neighbour (a bit each, SIDES' order): where
+// that is land too, so a forest runs on from hex to hex; not into water, a river's hex or a mountain's,
+// where a tree would show cut by the water or under the rock
+function openSides(seed, h) {
+  let mask = 0;
+  for (let i = 0; i < 6; i++) {
+    const [dq, dr] = STEP[SIDE_STEP[i]], n = cellAt(seed, [h[0] + dq, h[1] + dr]);
+    if (n && !isWaterCell(n) && !n.river && n.terrain !== 'mountain' && n.terrain !== 'volcano' && !n.lava) mask |= 1 << i;
+  }
+  return mask;
+}
 // ---------- shores ----------
 // Where land meets a lake or the sea the shore isn't the hexes' straight sides: each corner of it is
 // rounded off (the corner where three hexes meet moved a little into the one that is alone in being
@@ -434,22 +449,27 @@ function shoreWet(seed, h, sides) {
 // shoreWet's, off a lake's or the sea's edge); such a
 // layout is the hex's own, the last RIVER_LAYOUTS of them kept
 const RIVER_LAYOUTS = 400;
-function layoutOf(biome, set, level, k, river = null, hex = '', shore = [], res = LAYOUT_RES.at(-1)) {
+// open: the sides its plants may grow over (openSides)
+function layoutOf(biome, set, level, k, river = null, hex = '', shore = [], res = LAYOUT_RES.at(-1), open = 0) {
   const LAYOUT_PX = res;
-  const id = (river && river.length) || shore.length ? `${level}|${k}|${res}|${hex}` : `${level}|${k}|${res}`;
+  const id = (river && river.length) || shore.length ? `${level}|${k}|${res}|${open}|${hex}` : `${level}|${k}|${res}|${open}`;
   if (set.layouts.has(id)) return set.layouts.get(id);
   // (points along the river's curves and the shore, each with how far from it a plant's middle stays)
   const wet = [...shore];
   if (river) for (const { pts } of river) for (const [x, y, w] of pts) wet.push([x, y, w / 2 + 1.5]);
   const p = PLANTED[biome], unit = p.size / set.big, rand = seq(level * 7919 + k * 104729 + 17);
-  const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
+  // (room round the hex for the plants growing over its open sides)
+  const M = open ? SIZE * 0.45 : 0, w = Math.ceil((SIZE * SQ3 + M * 2) * LAYOUT_PX) + 2, h = Math.ceil((SIZE * 2 * TILT + M * 2) * LAYOUT_PX) + 2;
   const placed = [];
   for (let tries = 0; placed.length < p.counts[level] && tries < 3000; tries++) {
     const [px, py, pw, ph] = set.pieces[Math.floor(rand() ** 0.8 * set.pieces.length)];
     const s = unit * (0.85 + rand() * 0.3), r = Math.max(pw, ph) * s / 2;
     const x = (rand() - 0.5) * SIZE * SQ3, y = (rand() - 0.5) * SIZE * 2 * TILT;
-    // (wholly inside the hex; packed close in thick forest, apart where it is open)
-    if (inside(x, y) < r * 0.95) continue;
+    // (inside the hex, wholly so by a closed side, by an open one only its middle, growing over the side
+    // into the land beyond; packed close in thick forest, apart where it is open)
+    let fits = true;
+    for (let i = 0; i < 6 && fits; i++) fits = fromSide(x, y, i) >= (open & (1 << i) ? r * 0.1 : r * 0.95);
+    if (!fits) continue;
     if (placed.some(o => Math.hypot(o.x - x, o.y - y) < (o.r + r) * (level < 2 ? 0.5 : 0.85))) continue;
     if (wet.some(([wx, wy, d]) => Math.hypot(wx - x, wy - y) < d + r * 0.8)) continue;
     placed.push({ x, y, r, s, px, py, pw, ph, flip: rand() < 0.5 });
@@ -474,7 +494,7 @@ function layoutOf(biome, set, level, k, river = null, hex = '', shore = [], res 
     g.restore();
   }
   const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
-  if (wet.length) { set.rivers = (set.rivers || 0) + 1; if (set.rivers > RIVER_LAYOUTS) { for (const key of set.layouts.keys()) if (key.split('|').length > 3) { set.layouts.delete(key); break; } } }
+  if (wet.length) { set.rivers = (set.rivers || 0) + 1; if (set.rivers > RIVER_LAYOUTS) { for (const key of set.layouts.keys()) if (key.split('|').length > 4) { set.layouts.delete(key); break; } } }
   set.layouts.set(id, out);
   return out;
 }
@@ -620,10 +640,12 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
       // (a hex with a river or a shore has its own, its plants off the water: never mirrored, as its
       // water isn't)
       const river = cell.river ? riverHalves(seed, h) : null, shore = sides.length ? shoreWet(seed, h, sides) : [];
-      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h), shore, layoutRes(px));
+      const open = openSides(seed, h);
+      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h), shore, layoutRes(px), open);
       ctx.save();
       ctx.translate(x, y);
-      if (!river && !shore.length && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
+      // (mirrored only when it is the same both ways: all its sides open, or all closed)
+      if (!river && !shore.length && (open === 0 || open === 63) && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
       ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
       ctx.restore();
       continue;
