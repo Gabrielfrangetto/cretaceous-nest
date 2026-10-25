@@ -25,6 +25,7 @@ import { esc, fmt, plural, worldSpan, worldSpanMins } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
 import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, railCurve, railPoints, inTunnel } from './mapcanvas.js';
+import { drawAmbient, ambientOn } from './ambient.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
 
@@ -218,7 +219,8 @@ function shadeNight(ctx, f, x1, y1, t) {
 // The maglev's trains, on a canvas of their own over the map, drawn every frame where the timetable
 // puts them that moment, so they glide (the map under them is drawn only when it changes); once the
 // map is close enough to see them. Drawn again only as often as a train moves a third of a pixel on
-// screen (often close up, seldom from afar), or when the map has moved
+// screen (often close up, seldom from afar), or when the map has moved. Under them, what moves on the
+// map itself (ambient.js): the water, the surf, the volcanoes' smoke
 let trainCanvas = null, trainsDrawn = { at: 0, fit: null };
 function paintTrains() {
   requestAnimationFrame(paintTrains);
@@ -226,8 +228,10 @@ function paintTrains() {
   if (!c || !c.isConnected || !f || document.hidden || currentTab() !== 'world') return;
   // (a train runs a hex in about MAGLEV.minsPerHex minutes)
   const pxPerMs = SIZE * SQ3 * f.scale / (MAGLEV.minsPerHex * 60000), t = performance.now();
-  if (trainsDrawn.fit === f && t - trainsDrawn.at < Math.min(1000, 0.33 / pxPerMs)) return;
-  trainsDrawn = { at: t, fit: f };
+  // (and as often as what moves on the map needs, while some of it is in view)
+  const every = trainsDrawn.moving ? 33 : Math.min(1000, 0.33 / pxPerMs);
+  if (trainsDrawn.fit === f && t - trainsDrawn.at < every) return;
+  trainsDrawn = { at: t, fit: f, moving: false };
   // (laid exactly over the map, wherever the page puts it)
   const m = mapCanvas, place = `${m.offsetLeft}px|${m.offsetTop}px|${f.width}px|${f.height}px`;
   if (c.dataset.place !== place) { c.dataset.place = place; [c.style.left, c.style.top, c.style.width, c.style.height] = place.split('|'); }
@@ -238,6 +242,7 @@ function paintTrains() {
   ctx.clearRect(0, 0, w, h);
   ctx.setTransform(f.dpr * scale, 0, 0, f.dpr * scale, -f.x0 * f.dpr * scale, -f.y0 * f.dpr * scale);
   const seed = S.world.seed, x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale, r = Math.max(SIZE * 0.22, px(3));
+  if (ambientOn(scale)) trainsDrawn.moving = drawAmbient(ctx, seed, [f.x0, f.y0, x1, y1], t);
   // (the parties riding: aboard a train, which shows in their colour, or waiting on a platform)
   const at = now(), accent = cssVar('--accent'), riding = new Map(), placed = [];
   for (const e of S.world.expeditions) {

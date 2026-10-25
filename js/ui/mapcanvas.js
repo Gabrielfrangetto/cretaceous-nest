@@ -48,24 +48,31 @@ export function paint(ctx, svg, x, y, alpha = 1) {
 // likely the higher it stands, else a cold cone (the small pieces). False until the picture has come
 // (then drawn as shapes)
 const PAINTED = { mountain: { sheet: 'mountain' }, volcano: { sheet: 'volcano-peak', scale: 1.5 } };
-function drawPainted(ctx, r, x, y, alpha) {
+// where a painted one stands in hex (x, y): its piece, its place, whether it is a smoking volcano; or
+// null until its picture has come
+function paintedPlace(r, x, y) {
   const M = PAINTED[r.terrain];
-  if (!M) return false;
+  if (!M) return null;
   if (!M.img) {
     M.img = picture(`${M.sheet}-plants`);
     fetch(new URL(`../../images/terrain/${M.sheet}-plants.json`, import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => {});
   }
-  if (!M.pieces || !M.img.complete || !M.img.naturalWidth) return false;
+  if (!M.pieces || !M.img.complete || !M.img.naturalWidth) return null;
   const all = M.pieces.map((p, i) => i);
-  let list;
+  let list, active = false;
   if (r.terrain === 'mountain') { const snowy = r.snow >= 1 || (r.snow > 0 && r.pick < 0.5); list = all.filter(i => M.snow.has(i) === snowy); }
-  else { const active = r.pick < 0.3 + 0.6 * r.t, tall = Math.max(...M.pieces.map(p => p[3]));
+  else { active = r.pick < 0.3 + 0.6 * r.t; const tall = Math.max(...M.pieces.map(p => p[3]));
     M.cone = tall * 0.6; list = all.filter(i => (M.pieces[i][3] > M.cone) === active); }
   const [sx, sy, sw, sh] = M.pieces[list[Math.floor(r.pick * 997) % list.length]];
   const k = SIZE * SQ3 * (1.3 + 0.6 * r.t) * (M.scale || 1) * (M.cone && sh < M.cone ? 1.4 : 1) / M.big, w = sw * k, h = sh * k;
+  return { img: M.img, sx, sy, sw, sh, w, h, left: x + r.dx - w / 2, top: y + r.dy + SIZE * TILT * 0.55 - h, active };
+}
+function drawPainted(ctx, r, x, y, alpha) {
+  const p = paintedPlace(r, x, y);
+  if (!p) return false;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.drawImage(M.img, sx, sy, sw, sh, x + r.dx - w / 2, y + r.dy + SIZE * TILT * 0.55 - h, w, h);
+  ctx.drawImage(p.img, p.sx, p.sy, p.sw, p.sh, p.left, p.top, p.w, p.h);
   ctx.restore();
   return true;
 }
@@ -1089,6 +1096,30 @@ export function fit(canvas, view) {
   return { ctx, scale, width: w, height: h, x0, y0, dpr };
 }
 // the hexes whose centre falls inside a box of the map (with a hex's margin), row by row
+// What moves on the map among these hexes (ui/world.js draws it, every frame, over the map): the
+// lakes' and the sea's water (one shape each, as drawWater has them), the sea's surf (its shores where
+// waves break: not a mangrove's), and the smoking volcanoes' craters ({ x, y, size }: where their smoke
+// rises from, how big the volcano is); pending: a volcano's picture hasn't come yet
+export function ambientOf(seed, hexes) {
+  const water = new Path2D(), surf = new Path2D(), craters = [];
+  let wet = false, surfs = false, pending = false;
+  for (const h of hexes) {
+    const cell = cellAt(seed, h);
+    if (isWaterCell(cell)) {
+      wet = true;
+      const shores = [];
+      waterOutline(seed, h, water, shores);
+      for (let c = 0; c < 6; c++) tipOf(seed, h, c, water);
+      if (cell.terrain === 'ocean') for (const line of shores) if (shoreOf('ocean', line.land) === 'beach') { surfs = true; surf.moveTo(...line[0]); for (const p of line.slice(1)) surf.lineTo(...p); }
+      continue;
+    }
+    if (cell.terrain !== 'volcano') continue;
+    const r = reliefOf(cell, h, upAt(seed, h)), [x, y] = center(h), p = r && paintedPlace(r, x, y);
+    if (r && !p) pending = true;
+    if (p && p.active) craters.push({ x: p.left + p.w * 0.5, y: p.top + p.h * 0.24, size: p.w });
+  }
+  return { water: wet ? water : null, surf: surfs ? surf : null, craters, pending };
+}
 export function hexesIn(x0, y0, x1, y1) {
   const out = [], rowH = SIZE * 1.5 * TILT, colW = SIZE * SQ3;
   const r0 = Math.floor((y0 - SIZE * 2) / rowH), r1 = Math.ceil((y1 + SIZE * 2) / rowH);
