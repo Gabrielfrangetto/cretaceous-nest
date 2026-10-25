@@ -1,5 +1,6 @@
 # Renders a 3D model (a .glb, rigged or not) as the game's painted-looking sprites: an orthographic
-# camera (no perspective, as a drawing), the light from the top left as on every sprite, shading in a
+# camera (no perspective, as a drawing), the model's own painted texture as its colour and shade (the
+# generators paint the light in; --lit toon lights it here instead, from the top left, in a
 # few flat bands (toon) and a dark ink line round it, on a transparent background. One picture, or a strip of an
 # animation's frames side by side.
 # Run with Blender's Python module (pip install bpy):
@@ -22,6 +23,7 @@ ap.add_argument('--ss', type=int, default=2, help='rendered this many times as b
 ap.add_argument('--rim', type=float, default=1.7, help='the outline round the whole figure, pixels (of the picture as saved)')
 ap.add_argument('--light', type=float, default=1.12, help='the colours made this much brighter')
 ap.add_argument('--sat', type=float, default=0.88, help='and this saturated')
+ap.add_argument('--lit', default='flat', choices=['toon', 'flat', 'delight'], help="toon: lit here in bands; flat: the texture as painted, unlit (its own light baked in); delight: the light the generator baked into the texture taken out first, then lit here")
 ap.add_argument('--ink', default='#2a2420')
 a = ap.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else None)
 # (a colour as Blender takes it: linear, not as the screen shows it)
@@ -45,6 +47,24 @@ if a.anim and arm:
     arm.animation_data_create(); arm.animation_data.action = act
     f0, f1 = act.frame_range
     frames = [round(f0 + (f1 - f0) * i / a.frames) for i in range(a.frames)]
+
+# (delight: each colour texture's broad light and shade, baked in by the generator, divided out: its
+# brightness smoothed within each island of the texture, over a few dozen pixels, is taken as the light)
+if a.lit == 'delight':
+    import numpy as np
+    from scipy import ndimage
+    for im in bpy.data.images:
+        if 'normal' in im.name.lower() or im.size[0] == 0 or not any(t in im.name.lower() for t in ('base', 'color', 'albedo', 'diffuse')): continue
+        w, h = im.size
+        px = np.array(im.pixels[:], dtype=np.float32).reshape(h, w, 4)
+        lum = px[..., :3] @ np.float32([0.3, 0.59, 0.11])
+        mask = (lum > 0.03).astype(np.float32)
+        r = max(4, w / 80)
+        light = ndimage.gaussian_filter(lum * mask, r) / np.maximum(ndimage.gaussian_filter(mask, r), 1e-3)
+        level = np.median(lum[mask > 0])
+        px[..., :3] = np.clip(px[..., :3] * (level / np.maximum(light, 0.04))[..., None], 0, 1)
+        im.pixels[:] = px.ravel()
+        im.update()
 
 # the look: each material's colour (its texture, or its colour) lit in flat bands, with a little of it
 # always showing (the shade is never black)
@@ -76,6 +96,9 @@ for mat in {s.material for o in meshes for s in o.material_slots if s.material}:
     nt.links.new(warm.outputs[2], glow.inputs['Color'])
     nt.links.new(toon.outputs[0], add.inputs[0]); nt.links.new(glow.outputs[0], add.inputs[1])
     nt.links.new(add.outputs[0], out.inputs['Surface'])
+    if a.lit == 'flat':
+        flat = nt.nodes.new('ShaderNodeEmission'); flat.inputs['Strength'].default_value = 1.0
+        nt.links.new(hsv.outputs[0], flat.inputs['Color']); nt.links.new(flat.outputs[0], out.inputs['Surface'])
 
 # the light: from the top left of the picture, and a little in front
 sun = bpy.data.objects.new('sun', bpy.data.lights.new('sun', 'SUN'))
