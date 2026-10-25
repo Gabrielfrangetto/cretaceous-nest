@@ -1065,7 +1065,9 @@ function render() {
   // tracing a route: started from the hex picked (a new team) or for a party waiting out there
   // planning the way: started from the hex picked (a new team) or for a party waiting out there
   const go = document.getElementById('traceGo');
-  if (go) go.addEventListener('click', () => {
+  if (go) go.addEventListener('click', () => { try { setOff(); } catch (e) { console.error(e); message = esc(`Something went wrong setting off: ${e.message}`); render(); } });
+  // (a fault here is shown, not swallowed: a button that does nothing is the worst way to fail)
+  function setOff() {
     const { to, party } = tracing, names = team.map(unitName);
     const r = party ? act('order', { id: party, hex: to, via: route }) : act('explore', { team, hex: to, via: route });
     const mins = legMins(S, party ? (S.world.expeditions.find(e => e.id === party) || { members: [] }).members : team.flatMap(membersOf), tracing.from, to, route);
@@ -1073,7 +1075,7 @@ function render() {
       : `You set off${!party && names.length > 1 ? ` with ${esc(listNames(names.slice(1)))}` : ''}. There in ${worldSpanMins(mins)}: then you wait there for orders.`;
     if (r.ok) { tracing = null; route = []; if (!party) team = []; }
     render();
-  });
+  }
   const undo = document.getElementById('traceUndo');
   if (undo) undo.addEventListener('click', () => { route = undoRoute.pop() || []; render(); });
   const clear = document.getElementById('traceClear');

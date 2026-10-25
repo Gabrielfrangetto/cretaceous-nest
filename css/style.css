@@ -247,6 +247,8 @@ input[type="email"]:focus-visible { outline: 3px solid var(--accent); outline-of
 .check { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; font-weight: 400; color: var(--ink); cursor: pointer; }
 .check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex: none; }
 
+.notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 950; max-width: min(520px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 10px; background: #3a2a22; color: #fbeee4; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-size: .92rem; cursor: pointer; }
+.notice[hidden] { display: none; }
 .water-pop { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 900; display: flex; align-items: flex-end; gap: 4px; max-width: calc(100vw - 32px); pointer-events: none; }
 .water-pop > * { pointer-events: auto; }
 .water-pop.in { animation: water-in .45s cubic-bezier(.3, 1.5, .5, 1) both; }

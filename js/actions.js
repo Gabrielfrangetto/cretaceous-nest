@@ -9,8 +9,25 @@ export function act(name, args = {}) {
   const result = applyAction(S, name, args, now());
   if (!result.ok) return result;
   commit();
-  if (accountActive()) sendAction(name, args);
+  // (the server's answer wins: when it turns down what was done here, the game goes back to how the
+  // server has it, and the player is told why rather than seeing it quietly undone)
+  if (accountActive()) sendAction(name, args).then(res => { if (res && res.ok === false) notice(`The server didn't accept that (${res.reason || 'no reason given'}), so it was undone.`); });
   return result;
+}
+
+// A short notice at the bottom of the screen, gone after a while or when tapped
+export function notice(text) {
+  let el = document.getElementById('notice');
+  if (!el) {
+    el = Object.assign(document.createElement('div'), { id: 'notice', className: 'notice' });
+    el.setAttribute('role', 'alert');
+    el.addEventListener('click', () => { el.hidden = true; });
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(el.timer);
+  el.timer = setTimeout(() => { el.hidden = true; }, 9000);
 }
 
 // Hatching rolls the baby's sex, so for signed-in players the server rolls it and the browser waits.
