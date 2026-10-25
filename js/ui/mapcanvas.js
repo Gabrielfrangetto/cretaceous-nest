@@ -576,6 +576,9 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     under(h, sides);
     ctx.restore();
   }
+  // (the banks of mud and sand on the ground, under the plants standing by the water)
+  drawWater(ctx, seed, waters, px, 'bank');
+  drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3, 'bank');
   textured.sort((a, b) => rank(groundName(a.cell)) - rank(groundName(b.cell)));
   for (const { h, x, y, cell, tex, planted, dense, sides } of textured) {
     if (planted) {
@@ -626,8 +629,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
     ctx.restore();
   }
   // (the rivers first: where one runs into a lake or the sea, the water and its shallows lie over its end)
-  drawWater(ctx, seed, waters, px, 'bank');
-  drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3);
+  drawRivers(ctx, seed, hexes, px >= LOD.relief ? 1 : 3, 'water');
   drawWater(ctx, seed, waters, px, 'water');
   drawRails(ctx, seed, areaOf(hexes));
   // (north to south, so what stands up out of a hex, a mountain, is in front of the hexes behind it)
@@ -758,7 +760,8 @@ function drawWater(ctx, seed, hexes, px, part) {
 // Each half of river (hexdraw.js riverHalves) filled as the shape its changing width makes, all of them
 // one shape (so where they overlap, at a hex's middle, nothing shows twice). Close up, the water is the
 // lake's (its picture, laid over the map as the lakes' is) within a thin bank of the lakes' mud
-function drawRivers(ctx, seed, hexes, minFlow) {
+// (part: 'bank' only its bank, 'water' only its water; both if not given)
+function drawRivers(ctx, seed, hexes, minFlow, part) {
   const scale = Math.max(1e-6, ctx.getTransform().a), hair = 1 / scale, lake = picture('lake-floor');
   const close = scale * SIZE >= LOD.plants * 4 && lake.complete && lake.naturalWidth;
   const halves = [];
@@ -797,7 +800,8 @@ function drawRivers(ctx, seed, hexes, minFlow) {
   if (close) {
     // (a thin bank of the lakes' mud, fading into the land)
     const mud = mudOf(ctx, scale * SIZE), grow = Math.max(1.6, hair * 1.5);
-    if (mud) {
+    if (part === 'water') {}
+    else if (mud) {
       ctx.fillStyle = mud;
       ctx.globalAlpha = 0.4; ctx.fill(shape(grow * 2.2, true), 'nonzero');
       ctx.globalAlpha = 0.85; ctx.fill(shape(grow * 1.2, true), 'nonzero');
@@ -806,10 +810,11 @@ function drawRivers(ctx, seed, hexes, minFlow) {
       ctx.fillStyle = 'rgba(52, 58, 36, 0.45)';
       ctx.fill(shape(grow, true), 'nonzero');
     }
+    if (part === 'bank') { ctx.restore(); return; }
     const k = SIZE * SQ3 * PLANTED.lake.span / lake.naturalWidth, pat = floorPattern(ctx, 'lake', lake);
     pat.setTransform(new DOMMatrix([k, 0, 0, k * TILT, 0, 0]));
     ctx.fillStyle = pat;
-  } else ctx.fillStyle = RIVER_COLOR;
+  } else if (part === 'bank') { ctx.restore(); return; } else ctx.fillStyle = RIVER_COLOR;
   ctx.fill(shape(0), 'nonzero');
   ctx.restore();
 }
