@@ -645,12 +645,12 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 // The rivers of these hexes, one line from hex to hex (the ones carrying at least minFlow); from afar
 // never thinner on screen than the water they carry deserves
 // The kinds of shore (images/terrain/<name>-floor.webp): how wide (by bankAt), its colour from afar,
-// and the picture it borrows until it has one of its own. A lake's is mud; the sea's sand, but where a
+// and a picture it borrows, if it has none of its own. A lake's is mud; the sea's sand, but where a
 // swamp meets it a mangrove's mudflat
 const SHORES = {
   lakeshore: { wide: 1, color: 'rgba(80, 64, 46, .45)' },
   beach: { wide: 1.6, color: 'rgba(70, 60, 40, .22)' },
-  mangrove: { wide: 1.3, color: 'rgba(60, 58, 40, .4)', picture: 'lakeshore' },
+  mangrove: { wide: 1.3, color: 'rgba(60, 64, 50, .4)' },
 };
 const shoreOf = (kind, land) => (kind === 'lake' ? 'lakeshore' : land && land.biome === 'swamp' ? 'mangrove' : 'beach');
 // how far up onto the land a lake's bank reaches here (of SIZE): smooth over the map, the same from
