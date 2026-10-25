@@ -10,7 +10,7 @@ import { partyOf, healthOf, isDown, woundsOf, standingUnits, legMins, HOME, leve
 import { teamOdds, dangerOf, fighterOf } from '../combat.js';
 import { playFight } from './fight.js';
 import { SIZE, SQ3, center, placeName } from './hexdraw.js';
-import { GRID, fit, drawHexes, hexesIn, cssVar } from './mapcanvas.js';
+import { GRID, fit, drawHexes, hexesIn, cssVar, railPoints } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { esc, plural, realSpan, realSpanMins } from '../util.js';
 import { eventArtUrls, dressedArt, playerArt } from '../art.js';
@@ -115,7 +115,7 @@ function drawMap() {
     const now = l === fb.leg;
     ctx.save();
     ctx.beginPath();
-    [l.from, ...l.path].forEach((k, i) => { const [x, y] = center(parseKey(k)); ctx[i ? 'lineTo' : 'moveTo'](x, y); });
+    pointsOf(l).forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y));
     ctx.setLineDash([2, 7].map(n => n / scale * 1.4));
     ctx.lineCap = 'round';
     ctx.lineWidth = (now ? 5 : 4) / scale * 1.4;
@@ -131,6 +131,9 @@ function drawMap() {
   moveMarker();
 }
 const atKey = () => (fb.pos < 0 ? fb.leg.from : fb.leg.path[Math.min(fb.pos, fb.leg.path.length - 1)]);
+// a way's points, one a hex from where it set out: by train along the track as the map draws it, on
+// foot from hex to hex
+const pointsOf = l => { const keys = [l.from, ...l.path]; return l.train ? railPoints(S.world.seed, keys) : keys.map(k => center(parseKey(k))); };
 function moveMarker() {
   const canvas = document.querySelector('#journeyBody .journey-map canvas');
   if (!canvas || !fb.bg) return;
@@ -139,7 +142,7 @@ function moveMarker() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(fb.bg.canvas, 0, 0);
   ctx.restore();
-  const [x, y] = center(parseKey(atKey())), r = Math.max(10, 7 / f.scale);
+  const [x, y] = pointsOf(fb.leg)[fb.pos < 0 ? 0 : Math.min(fb.pos + 1, fb.leg.path.length)] || center(parseKey(atKey())), r = Math.max(10, 7 / f.scale);
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = cssVar('--heart');

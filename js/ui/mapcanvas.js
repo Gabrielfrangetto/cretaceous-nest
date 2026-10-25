@@ -940,18 +940,20 @@ export function railCurve(path) {
   curves.set(id, pts);
   return pts;
 }
-// A ride's way (hex keys, from its first station) along the track as drawn: each stretch between two
-// stations on its line's curve, one point a hex
+// A ride's way (hex keys, from its first station) along the track exactly as drawn: each hex's point
+// taken from the curve of the line it rides there (the whole line's, as railShapesOf draws it)
 export function railPoints(seed, keys) {
-  const stations = new Set(railsOf(seed).stations), out = [];
-  let start = 0;
-  for (let i = 1; i < keys.length; i++) {
-    if (!stations.has(keys[i]) && i < keys.length - 1) continue;
-    const pts = railCurve(keys.slice(start, i + 1));
-    out.push(...(start ? pts.slice(1) : pts));
-    start = i;
-  }
-  return out.length ? out : keys.map(k => center(k.split(',').map(Number)));
+  const lines = railsOf(seed).lines;
+  // (the line running from one hex to the next, and where each is on it)
+  const on = (a, b) => {
+    for (const l of lines) { const i = l.path.indexOf(a); if (i >= 0 && (l.path[i + 1] === b || l.path[i - 1] === b)) return { l, i }; }
+    return null;
+  };
+  const out = keys.map((k, n) => {
+    const hit = on(k, keys[n + 1]) || on(k, keys[n - 1]);
+    return hit ? railCurve(hit.l.path)[hit.i] : center(k.split(',').map(Number));
+  });
+  return out;
 }
 // whether a line runs under a mountain at its hex
 export const inTunnel = (seed, k) => { const c = cellAt(seed, k.split(',').map(Number)); return !!c && c.terrain === 'mountain'; };
