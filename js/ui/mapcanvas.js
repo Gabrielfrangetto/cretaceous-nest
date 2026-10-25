@@ -276,9 +276,18 @@ const seq = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(se
 const SIDES = Array.from({ length: 6 }, (_, i) => { const at = k => { const a = Math.PI / 180 * (60 * k - 30); return [Math.cos(a) * SIZE, Math.sin(a) * SIZE * TILT]; }; return [...at(i), ...at(i + 1)]; });
 // how far (x, y) is inside the hex, from its nearest side (below 0: outside)
 const inside = (x, y) => Math.min(...SIDES.map(([x0, y0, x1, y1]) => ((x1 - x0) * (y - y0) - (y1 - y0) * (x - x0)) / Math.hypot(x1 - x0, y1 - y0)));
-function layoutOf(biome, set, level, k) {
-  const id = `${level}|${k}`;
+// river: a hex's river (hexdraw.js riverHalves), its plants kept off the water and its bank; such a
+// layout is the hex's own, the last RIVER_LAYOUTS of them kept
+const RIVER_LAYOUTS = 400;
+function layoutOf(biome, set, level, k, river = null, hex = '') {
+  const id = river && river.length ? `${level}|${k}|${hex}` : `${level}|${k}`;
   if (set.layouts.has(id)) return set.layouts.get(id);
+  // (points along the river's curves, each with how far from it a plant's middle stays)
+  const wet = [];
+  if (river) for (const { to, bend, width } of river) for (let i = 0; i <= 14; i++) {
+    const t = i / 14, u = 1 - t;
+    wet.push([2 * u * t * bend[0] + t * t * to[0], 2 * u * t * bend[1] + t * t * to[1], width / 2 + 1.5]);
+  }
   const p = PLANTED[biome], unit = p.size / set.big, rand = seq(level * 7919 + k * 104729 + 17);
   const w = Math.ceil(SIZE * SQ3 * LAYOUT_PX) + 2, h = Math.ceil(SIZE * 2 * TILT * LAYOUT_PX) + 2;
   const placed = [];
@@ -289,6 +298,7 @@ function layoutOf(biome, set, level, k) {
     // (wholly inside the hex; packed close in thick forest, apart where it is open)
     if (inside(x, y) < r * 0.95) continue;
     if (placed.some(o => Math.hypot(o.x - x, o.y - y) < (o.r + r) * (level < 2 ? 0.5 : 0.85))) continue;
+    if (wet.some(([wx, wy, d]) => Math.hypot(wx - x, wy - y) < d + r * 0.8)) continue;
     placed.push({ x, y, r, s, px, py, pw, ph, flip: rand() < 0.5 });
   }
   placed.sort((a, b) => a.y - b.y);
@@ -312,6 +322,7 @@ function layoutOf(biome, set, level, k) {
     g.restore();
   }
   const out = { canvas: c, w: w / LAYOUT_PX, h: h / LAYOUT_PX };
+  if (wet.length) { set.rivers = (set.rivers || 0) + 1; if (set.rivers > RIVER_LAYOUTS) { for (const key of set.layouts.keys()) if (key.split('|').length > 2) { set.layouts.delete(key); break; } } }
   set.layouts.set(id, out);
   return out;
 }
@@ -438,10 +449,12 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   for (const { h, x, y, cell, tex, planted, dense } of textured) {
     if (planted) {
       if (!PLANTED[groundName(cell)].counts[dense]) continue;
-      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS));
+      // (a hex with a river has its own, its plants off the water: never mirrored, as its river isn't)
+      const river = cell.river ? riverHalves(seed, h) : null;
+      const L = planted, lay = layoutOf(groundName(cell), L, dense, Math.floor(cornerRand(h[0], h[1], 81) * LAYOUTS), river, hexKey(...h));
       ctx.save();
       ctx.translate(x, y);
-      if (cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
+      if (!river && cornerRand(h[0], h[1], 82) < 0.5) ctx.scale(-1, 1);
       ctx.drawImage(lay.canvas, -lay.w / 2, -lay.h / 2, lay.w, lay.h);
       ctx.restore();
       continue;
