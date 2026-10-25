@@ -1094,19 +1094,15 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
   // covers the view: the map changes once, when the new one is all there, never square by square)
   if (k == null && shownLevel != null && ready(shownLevel, anyTileOf)) { k = shownLevel; get = anyTileOf; }
   if (k == null) {
-    // (not all there yet: each tile of the level wanted that is, and a blurrier one standing in for
-    // each that isn't, until it is)
-    const span = TILE / want;
-    for (const [tx, ty] of tiles) {
-      const x = b.x + tx * span, y = b.y + ty * span, t = anyTileOf(seed, known, sig, edge, want, tx, ty);
-      if (t) { ctx.drawImage(t, x, y, span, span); continue; }
-      for (const l of LEVELS.filter(l => l < want)) {
-        const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2), up = anyTileOf(seed, known, sig, edge, l, px, py);
-        if (!up) continue;
-        const fx = (x - b.x - px * s2) / s2 * TILE, fy = (y - b.y - py * s2) / s2 * TILE, fw = span / s2 * TILE;
-        ctx.drawImage(up, fx, fy, fw, fw, x, y, span, span);
-        break;
-      }
+    // (not all there yet: the level wanted is never shown piece by piece, the squares of it filling in
+    // one by one; until it is all there, the map whole at its blurriest (always there) and over it what
+    // there is of the level shown last, then the new one at once)
+    const under = [LEVELS.at(-1), ...(shownLevel != null && shownLevel !== LEVELS.at(-1) ? [shownLevel] : [])];
+    for (const l of under) {
+      const span = TILE / l, cells = cover(l);
+      // (a much sharper level, zoomed far out of: too many tiles to lay, the blurriest alone does)
+      if (cells.length > 400) continue;
+      for (const [tx, ty] of cells) { const t = anyTileOf(seed, known, sig, edge, l, tx, ty); if (t) ctx.drawImage(t, b.x + tx * span, b.y + ty * span, span, span); }
     }
     return true;
   }
