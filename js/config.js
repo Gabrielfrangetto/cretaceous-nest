@@ -1115,7 +1115,7 @@ export const LOOK = {
   // (each tone painted on every body, sprites/player/<sex>-<build>-<tone>.webp; light: no suffix)
   skins: { light: '#f1c1a4', tan: '#e0996f', medium: '#c17b59', brown: '#9a5d46', dark: '#704137' },
   // (the bodies drawn so far: one not drawn yet borrows these)
-  drawn: { male: true },
+  drawn: { male: true, female: true },
 };
 export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light' };
 export const PLAYER_SLOTS = [
