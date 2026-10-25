@@ -1097,6 +1097,10 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) out.push([tx, ty]);
     return out;
   };
+  // (a tile laid down a hair bigger than it is, about half a pixel over its neighbours, so no hairline
+  // of what is under shows between tiles where they meet between two pixels)
+  const hair = 0.6 / Math.hypot(ctx.getTransform().a, ctx.getTransform().b);
+  const lay = (t, tx, ty, span) => ctx.drawImage(t, b.x + tx * span - hair, b.y + ty * span - hair, span + hair * 2, span + hair * 2);
   // the level wanted, built a few milliseconds a frame out of sight; until it is all there, the
   // nearest level that is (sharper first) is shown whole instead, so the map never shows itself
   // being built
@@ -1127,13 +1131,13 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
       const span = TILE / l, cells = cover(l);
       // (a much sharper level, zoomed far out of: too many tiles to lay, the blurriest alone does)
       if (cells.length > 400) continue;
-      for (const [tx, ty] of cells) { const t = anyTileOf(seed, known, sig, edge, l, tx, ty); if (t) ctx.drawImage(t, b.x + tx * span, b.y + ty * span, span, span); }
+      for (const [tx, ty] of cells) { const t = anyTileOf(seed, known, sig, edge, l, tx, ty); if (t) lay(t, tx, ty, span); }
     }
     return true;
   }
   shownLevel = k;
   const span = TILE / k;
-  for (const [tx, ty] of cover(k)) ctx.drawImage(get(seed, known, sig, edge, k, tx, ty), b.x + tx * span, b.y + ty * span, span, span);
+  for (const [tx, ty] of cover(k)) lay(get(seed, known, sig, edge, k, tx, ty), tx, ty, span);
   if (k !== want || get !== tileOf) return true;
   drawAhead(seed, known, sig, edge, f, k);
   return false;

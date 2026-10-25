@@ -197,7 +197,9 @@ export function riverHalves(seed, h) {
     // (on into the water, opening out as it goes, so river and lake run into one another; its bank
     // stops at the shore: pts after shore are in the water)
     const shore = pts.length - 1;
-    if (w.water) for (let i = 1; i <= 4; i++) pts.push([M[0] + w.edge.dir[0] * SIZE * 0.12 * i, M[1] + w.edge.dir[1] * SIZE * 0.12 * i, at * (1 + 0.25 * i)]);
+    // (as far as the middle of the water's hex, always water, wherever its shore has been rounded off;
+    // the water drawn over it hides all of it that lies in the lake)
+    if (w.water) for (let i = 1; i <= 7; i++) pts.push([M[0] + w.edge.dir[0] * SIZE * 0.125 * i, M[1] + w.edge.dir[1] * SIZE * 0.125 * i, at * (1 + 0.15 * i)]);
     return { pts, flow: w.flow, shore };
   });
   if (halvesCache.size > 20000) halvesCache.clear();
