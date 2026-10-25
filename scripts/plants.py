@@ -55,6 +55,9 @@ elif a.black == '-':
 else:
     # (a black sheet made smaller than the white is stretched to it: the same picture, the same framing)
     B = np.asarray(Image.open(a.black).convert('RGB').resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32)
+    # (a "black" that came out dark grey: its own background level, from the sheet's edges, taken as black)
+    bg = float(np.median(np.concatenate([B[:8].reshape(-1, 3), B[-8:].reshape(-1, 3), B[:, :8].reshape(-1, 3), B[:, -8:].reshape(-1, 3)]).mean(1)))
+    B = np.clip((B - bg) * 255 / (255 - bg), 0, 255)
     alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
     alpha[alpha < 0.05] = 0
     alpha[alpha > 0.95] = 1
