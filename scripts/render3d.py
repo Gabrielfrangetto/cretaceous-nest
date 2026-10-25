@@ -17,7 +17,7 @@ ap.add_argument('--height', type=int, default=528, help='pixels the model stands
 ap.add_argument('--anim', help='the animation to render (its name, or part of it); its frames side by side')
 ap.add_argument('--frames', type=int, default=8)
 ap.add_argument('--lines', type=float, default=0, help='lines inside the figure too (where parts overlap), this thick in pixels; none by default, as a generated mesh draws them broken')
-ap.add_argument('--samples', type=int, default=16)
+ap.add_argument('--samples', type=int, default=48)
 ap.add_argument('--ss', type=int, default=2, help='rendered this many times as big, then made smaller: smooth lines')
 ap.add_argument('--rim', type=float, default=1.7, help='the outline round the whole figure, pixels (of the picture as saved)')
 ap.add_argument('--light', type=float, default=1.12, help='the colours made this much brighter')
@@ -71,6 +71,8 @@ for mat in {s.material for o in meshes for s in o.material_slots if s.material}:
     glow = nt.nodes.new('ShaderNodeEmission'); glow.inputs['Strength'].default_value = 0.55
     add = nt.nodes.new('ShaderNodeAddShader')
     nt.links.new(hsv.outputs[0], toon.inputs['Color'])
+    # (its fine relief, the normal map: the face, the folds, the muscles)
+    if bsdf and bsdf.inputs['Normal'].links: nt.links.new(bsdf.inputs['Normal'].links[0].from_socket, toon.inputs['Normal'])
     nt.links.new(warm.outputs[2], glow.inputs['Color'])
     nt.links.new(toon.outputs[0], add.inputs[0]); nt.links.new(glow.outputs[0], add.inputs[1])
     nt.links.new(add.outputs[0], out.inputs['Surface'])
@@ -124,7 +126,8 @@ sun.rotation_euler = (math.radians(50), 0, math.radians(yaw - 55))
 ren = sc.render
 ren.engine = 'CYCLES'
 sc.cycles.samples = a.samples
-sc.cycles.use_denoising = True
+# (no denoising: it smears the painted detail; enough samples instead)
+sc.cycles.use_denoising = False
 ren.film_transparent = True
 k = a.height / tall * a.ss
 ren.resolution_y = round(tall * pad * k)
