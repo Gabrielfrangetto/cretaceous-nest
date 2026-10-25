@@ -42,21 +42,27 @@ export function paint(ctx, svg, x, y, alpha = 1) {
   ctx.restore();
 }
 
-// A painted mountain (images/terrain/mountain-plants.webp, scripts/plants.py --snow): one of the pieces,
-// snowy where it is cold, bigger the higher it stands, standing on the hex's front so a range overlaps
-// into one massif; false until the picture has come (then drawn as shapes)
-const MOUNTAINS = { img: null, pieces: null, snow: null };
-function drawMountain(ctx, r, x, y, alpha) {
-  const M = MOUNTAINS;
+// A painted mountain or volcano (images/terrain/<sheet>-plants.webp, scripts/plants.py): one of the
+// pieces of its sheet, bigger the higher it stands, standing on the hex's front so a range overlaps into
+// one massif. A mountain snowy where it is cold (--snow); a volcano smoking, its lava running, the more
+// likely the higher it stands, else a cold cone (the small pieces). False until the picture has come
+// (then drawn as shapes)
+const PAINTED = { mountain: { sheet: 'mountain' }, volcano: { sheet: 'volcano-peak', scale: 1.5 } };
+function drawPainted(ctx, r, x, y, alpha) {
+  const M = PAINTED[r.terrain];
+  if (!M) return false;
   if (!M.img) {
-    M.img = picture('mountain-plants');
-    fetch(new URL('../../images/terrain/mountain-plants.json', import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => {});
+    M.img = picture(`${M.sheet}-plants`);
+    fetch(new URL(`../../images/terrain/${M.sheet}-plants.json`, import.meta.url).href).then(res => res.json()).then(j => { M.pieces = j.pieces; M.big = j.big; M.snow = new Set(j.snow || []); retireTiles(); texturesLoaded(); }).catch(() => {});
   }
   if (!M.pieces || !M.img.complete || !M.img.naturalWidth) return false;
-  const snowy = r.snow >= 1 || (r.snow > 0 && r.pick < 0.5);
-  const list = M.pieces.map((p, i) => i).filter(i => M.snow.has(i) === snowy);
+  const all = M.pieces.map((p, i) => i);
+  let list;
+  if (r.terrain === 'mountain') { const snowy = r.snow >= 1 || (r.snow > 0 && r.pick < 0.5); list = all.filter(i => M.snow.has(i) === snowy); }
+  else { const active = r.pick < 0.3 + 0.6 * r.t, tall = Math.max(...M.pieces.map(p => p[3]));
+    M.cone = tall * 0.6; list = all.filter(i => (M.pieces[i][3] > M.cone) === active); }
   const [sx, sy, sw, sh] = M.pieces[list[Math.floor(r.pick * 997) % list.length]];
-  const k = SIZE * SQ3 * (1.3 + 0.6 * r.t) / M.big, w = sw * k, h = sh * k;
+  const k = SIZE * SQ3 * (1.3 + 0.6 * r.t) * (M.scale || 1) * (M.cone && sh < M.cone ? 1.4 : 1) / M.big, w = sw * k, h = sh * k;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.drawImage(M.img, sx, sy, sw, sh, x + r.dx - w / 2, y + r.dy + SIZE * TILT * 0.55 - h, w, h);
@@ -474,7 +480,7 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
   for (const h of [...hexes].sort((a, b) => a[1] - b[1] || a[0] - b[0])) {
     const [x, y] = center(h), cell = cellAt(seed, h), key = hexKey(...h), alpha = !isWaterCell(cell) && !known(key) ? 0.7 : 1;
     const relief = px >= LOD.relief && key !== '0,0' && !cell.city && reliefOf(cell, h, upAt(seed, h));
-    if (relief) { if (!(relief.terrain === 'mountain' && drawMountain(ctx, relief, x, y, alpha))) drawRelief(ctx, relief, x, y, alpha); continue; }
+    if (relief) { if (!drawPainted(ctx, relief, x, y, alpha)) drawRelief(ctx, relief, x, y, alpha); continue; }
     // (ground with a picture of its own needs no little drawing)
     const art = key === '0,0' ? NEST : cell.city ? CITY : px >= LOD.glyphs && !hasTexture(groundName(cell)) ? glyphOf(cell, h) : '';
     if (art) paint(ctx, art, x, y, alpha);
