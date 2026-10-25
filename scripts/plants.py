@@ -20,6 +20,7 @@ ap.add_argument('--skip', nargs='*', default=[], help='x,y points (white sheet p
 ap.add_argument('--only', nargs='*', default=[], help='x,y points of the only pieces to keep')
 ap.add_argument('--tint', help='a colour (#rrggbb) the pieces are moved to, by their average')
 ap.add_argument('--snow', action='store_true', help='list the pieces with white paint on them (snow), for the map to choose by')
+ap.add_argument('--join', type=int, default=2, help='how far apart (pixels, about) bits of one piece may be and still be one, as a rock and the ripples round it')
 ap.add_argument('--min', type=float, default=0.01, help='pieces smaller than this share of the biggest are left out (loose leaves)')
 a = ap.parse_args()
 
@@ -69,7 +70,7 @@ else:
     rgb = np.where(alpha[..., None] > 0.97, W, B / np.maximum(alpha[..., None], 1e-3))
 pic = np.dstack([np.clip(rgb, 0, 255), alpha * 255])
 
-pieces, n = ndimage.label(ndimage.binary_closing(alpha > 0.4, iterations=2))
+pieces, n = ndimage.label(ndimage.binary_dilation(alpha > 0.15, iterations=a.join) if a.join > 2 else ndimage.binary_closing(alpha > 0.4, iterations=2))
 boxes = [b for b in ndimage.find_objects(pieces)]
 sizes = ndimage.sum(np.ones_like(alpha), pieces, range(1, n + 1))
 keep = [i for i in range(n) if sizes[i] > sizes.max() * a.min]

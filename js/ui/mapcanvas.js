@@ -644,7 +644,40 @@ export function drawHexes(ctx, seed, hexes, known, edge = GRID, detail = 'full',
 // The lakes and the sea: each one shape over its hexes (no line between them), their shores wandering
 // (waterOutline); in its picture close up. Along a shore the water is shallower, paler, and on the sea a
 // line of foam, on a lake a darker wet edge
+// What lies in the water along its shores (images/terrain/water-plants.webp, scripts/plants.py; kinds
+// in its .json): on a lake reeds at the edge, water lilies a little out, now and then a rock or a log; on
+// the sea foam and rocks where the waves break, a log washed up. { kind: [[chance a side of shore, how
+// far out (of SIZE), how big (map units)]] }
+const SHORE_THINGS = {
+  lake: [['reed', 0.55, 0.06, 13], ['reed', 0.3, 0.1, 12], ['lily', 0.5, 0.3, 13], ['lily', 0.25, 0.45, 12], ['rock', 0.1, 0.12, 10], ['log', 0.06, 0.15, 16]],
+  ocean: [['foam', 0.6, 0.1, 19], ['foam', 0.25, 0.2, 15], ['rock', 0.18, 0.14, 11], ['rock', 0.08, 0.25, 10], ['log', 0.012, 0.1, 16]],
+};
+const THINGS = { img: null, pieces: null };
+function drawShoreThings(ctx, list) {
+  const T = THINGS;
+  if (!T.img) {
+    T.img = picture('water-plants');
+    fetch(new URL('../../images/terrain/water-plants.json', import.meta.url).href).then(res => res.json()).then(j => {
+      T.pieces = j.pieces; T.big = j.big; T.of = {};
+      j.kinds.forEach((k, i) => (T.of[k] = T.of[k] || []).push(i));
+      retireTiles(); texturesLoaded();
+    }).catch(() => {});
+  }
+  if (!T.pieces || !T.img.complete || !T.img.naturalWidth) return;
+  for (const t of list.sort((a, b) => a.y - b.y)) {
+    const ids = T.of[t.kind];
+    if (!ids) continue;
+    const [sx, sy, sw, sh] = T.pieces[ids[Math.floor(t.pick * 997) % ids.length]], k = t.size * (0.85 + 0.3 * t.pick) / T.big, w = sw * k, h = sh * k;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    if (t.flip && t.kind !== 'rock' && t.kind !== 'log') ctx.scale(-1, 1);
+    // (standing in the water: its foot at the point)
+    ctx.drawImage(T.img, sx, sy, sw, sh, -w / 2, t.kind === 'reed' ? -h * 0.9 : -h / 2, w, h);
+    ctx.restore();
+  }
+}
 function drawWater(ctx, seed, hexes, px) {
+  const things = [];
   for (const kind of ['ocean', 'lake']) {
     const area = new Path2D(), edge = new Path2D();
     let any = false;
@@ -654,6 +687,13 @@ function drawWater(ctx, seed, hexes, px) {
       const shores = [];
       waterOutline(seed, h, area, shores);
       for (let c = 0; c < 6; c++) tipOf(seed, h, c, area);
+      // (things along each side of shore, each its own chance, place and size)
+      if (px >= 30) shores.forEach((line, n) => SHORE_THINGS[kind].forEach(([what, chance, out, size], m) => {
+        const r = salt => cornerRand(h[0] * 7 + n, h[1] * 7 + m, salt);
+        if (r(61) >= chance) return;
+        const p = line[1 + Math.floor(r(62) * (line.length - 2))], c = center(h), d = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1, o = SIZE * out * (0.7 + 0.6 * r(63));
+        things.push({ kind: what, x: p[0] + (c[0] - p[0]) / d * o, y: p[1] + (c[1] - p[1]) / d * o, size, pick: r(64), flip: r(65) < 0.5 });
+      }));
       for (const line of shores) { edge.moveTo(...line[0]); for (const p of line.slice(1)) edge.lineTo(...p); }
     }
     if (!any) continue;
@@ -683,6 +723,7 @@ function drawWater(ctx, seed, hexes, px) {
     ctx.stroke(edge);
     ctx.restore();
   }
+  drawShoreThings(ctx, things);
 }
 // Each half of river (hexdraw.js riverHalves) filled as the shape its changing width makes, all of them
 // one shape (so where they overlap, at a hex's middle, nothing shows twice). Close up, the water is the
