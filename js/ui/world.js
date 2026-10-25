@@ -24,7 +24,7 @@ import { ITEM_ICONS } from '../art.js';
 import { esc, fmt, plural, worldSpan, worldSpanMins } from '../util.js';
 import { currentTab, onTabChange } from './tabs.js';
 import { SIZE, SQ3, TILT, center, corners, WATER, fillOf, glyphOf, placeName, NEST, riverSVG } from './hexdraw.js';
-import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, railCurve, railPoints, inTunnel } from './mapcanvas.js';
+import { GRID, fit, drawHexes, drawTiles, warmTiles, mapBounds, hexesIn, hexAt, hexPath, paint, cssVar, DETAIL_PX, onTexture, warmAround, railCurve, railPoints, inTunnel } from './mapcanvas.js';
 import { drawAmbient, ambientOn } from './ambient.js';
 import { often, chanceOf, riskOf, winOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { cleanTeams } from '../teams.js';
@@ -345,7 +345,7 @@ function paintMap() {
   const x1 = f.x0 + f.width / scale, y1 = f.y0 + f.height / scale;
   const close = SIZE * scale >= DETAIL_PX;
   const inView = close || SIZE * scale >= 6 ? hexesIn(f.x0, f.y0, x1, y1) : [];
-  if (close) drawHexes(ctx, w.seed, inView, known, GRID);
+  if (close) { drawHexes(ctx, w.seed, inView, known, GRID); warmAround(w.seed, known, w.revealed.length, GRID, f); }
   else if (drawTiles(ctx, w.seed, f, known, w.revealed.length, GRID)) drawMap();
   // the blurriest tiles of the whole map, drawn ahead once the map is up
   const sig = `${w.seed}|${w.revealed.length}`;

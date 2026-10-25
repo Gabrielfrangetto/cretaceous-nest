@@ -1009,18 +1009,21 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
     made++;
   }
   const ready = (k, get) => cover(k).every(([tx, ty]) => get(seed, known, sig, edge, k, tx, ty));
-  const order = [want, ...LEVELS.filter(l => l > want).sort((p, q) => p - q), ...LEVELS.filter(l => l < want).sort((p, q) => q - p)];
+  // (the whole view from one level, all there: the one wanted, or a sharper one; a blurrier one would
+  // look a different map (from afar the ground is drawn otherwise), so it never stands in for all of it)
+  const order = [want, ...LEVELS.filter(l => l > want).sort((p, q) => p - q)];
   // (a level all up to date; else one all there, some of it out of date)
   let k = order.find(l => ready(l, tileOf)), get = tileOf;
   if (k == null) { k = order.find(l => ready(l, anyTileOf)); get = anyTileOf; }
   if (k == null) {
-    // (nothing ready at all: the first look; drawn as far as it goes, a blurrier tile standing in)
+    // (not all there yet: each tile of the level wanted that is, and a blurrier one standing in for
+    // each that isn't, until it is)
     const span = TILE / want;
     for (const [tx, ty] of tiles) {
-      const x = b.x + tx * span, y = b.y + ty * span, t = tileOf(seed, known, sig, edge, want, tx, ty);
+      const x = b.x + tx * span, y = b.y + ty * span, t = anyTileOf(seed, known, sig, edge, want, tx, ty);
       if (t) { ctx.drawImage(t, x, y, span, span); continue; }
       for (const l of LEVELS.filter(l => l < want)) {
-        const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2), up = tileOf(seed, known, sig, edge, l, px, py);
+        const s2 = TILE / l, px = Math.floor((x - b.x) / s2), py = Math.floor((y - b.y) / s2), up = anyTileOf(seed, known, sig, edge, l, px, py);
         if (!up) continue;
         const fx = (x - b.x - px * s2) / s2 * TILE, fy = (y - b.y - py * s2) / s2 * TILE, fw = span / s2 * TILE;
         ctx.drawImage(up, fx, fy, fw, fw, x, y, span, span);
@@ -1039,6 +1042,9 @@ export function drawTiles(ctx, seed, f, known, sig, edge) {
 const TILE_MS = 8;
 // the tiles the next zoom in or out would need, drawn while the browser is idle, a few at a time
 let ahead = null;
+// Close up, where the map is drawn hex by hex (no tiles): the sharpest tiles for around the view built
+// out of sight, so a zoom out finds them ready rather than showing a blurry map while they are made
+export function warmAround(seed, known, sig, edge, f) { drawAhead(seed, known, sig, edge, f, LEVELS[0] * 2); }
 function drawAhead(seed, known, sig, edge, f, k) {
   const b = mapBounds(), x1 = f.x0 + f.width / f.scale, y1 = f.y0 + f.height / f.scale, cx = (f.x0 + x1) / 2, cy = (f.y0 + y1) / 2;
   const id = `${seed}|${sig}|${k}|${Math.round(f.x0)}|${Math.round(f.y0)}|${Math.round(x1)}`;
