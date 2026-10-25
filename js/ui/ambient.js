@@ -2,7 +2,7 @@
 // on the water, drifting; waves washing in on the sea's beaches; smoke rising from the volcanoes that
 // smoke. Only close enough to see it, and never for those who'd rather nothing moved.
 import { SIZE } from './hexdraw.js';
-import { ambientOf, hexesIn } from './mapcanvas.js';
+import { ambientOf, hexesIn, drawShoreThings } from './mapcanvas.js';
 
 // (the closest a hex is drawn, in pixels across, for any of it to show)
 export const AMBIENT_PX = 12;
@@ -38,7 +38,7 @@ let kept = { id: '', of: null };
 export function drawAmbient(ctx, seed, [x0, y0, x1, y1], t) {
   const id = `${seed}|${Math.round(x0)}|${Math.round(y0)}|${Math.round(x1)}|${Math.round(y1)}`;
   if (kept.id !== id || kept.of.pending) kept = { id, of: ambientOf(seed, hexesIn(x0 - SIZE * 2, y0 - SIZE * 2, x1 + SIZE * 2, y1 + SIZE * 4)) };
-  const { water, surf, craters } = kept.of;
+  const { water, surf, craters, foam } = kept.of;
   if (water) {
     ctx.save();
     ctx.clip(water);
@@ -70,6 +70,12 @@ export function drawAmbient(ctx, seed, [x0, y0, x1, y1], t) {
     }
     ctx.restore();
   }
+  // (the foam along the shores, each patch fading in and out in a time of its own, once the map is close
+  // enough to show it)
+  if (foam.length && SIZE * ctx.getTransform().a >= 30) drawShoreThings(ctx, foam, f => {
+    const u = ((t / (3200 + f.pick * 2400)) + f.pick * 7) % 1;
+    return Math.max(0, Math.sin(Math.PI * u)) ** 1.5;
+  });
   // (smoke from each smoking crater: puffs rising, growing, drifting with the wind, fading)
   const LIFE = 7000, PUFFS = 11;
   for (const c of craters) {
@@ -90,5 +96,5 @@ export function drawAmbient(ctx, seed, [x0, y0, x1, y1], t) {
       }
     }
   }
-  return !!(water || craters.length);
+  return !!(water || craters.length || foam.length);
 }

@@ -716,7 +716,20 @@ const SHORE_THINGS = {
   ocean: [['foam', 0.6, 0.1, 19], ['foam', 0.25, 0.2, 15], ['rock', 0.18, 0.14, 11], ['rock', 0.08, 0.25, 10], ['log', 0.012, 0.1, 16]],
 };
 const THINGS = { img: null, pieces: null };
-function drawShoreThings(ctx, list) {
+// what lies along water hex h's shores (its lines of shore, waterOutline's), each its own chance,
+// place and size
+function shoreThings(h, kind, shores) {
+  const out = [];
+  shores.forEach((line, n) => SHORE_THINGS[shoreOf(kind, line.land) === 'mangrove' ? 'mangrove' : kind].forEach(([what, chance, far, size], m) => {
+    const r = salt => cornerRand(h[0] * 7 + n, h[1] * 7 + m, salt);
+    if (r(61) >= chance) return;
+    const p = line[1 + Math.floor(r(62) * (line.length - 2))], c = center(h), d = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1, o = SIZE * far * (0.7 + 0.6 * r(63));
+    out.push({ kind: what, x: p[0] + (c[0] - p[0]) / d * o, y: p[1] + (c[1] - p[1]) / d * o, size, pick: r(64), flip: r(65) < 0.5 });
+  }));
+  return out;
+}
+// (alpha: how much each shows, by the thing; all of each if not given)
+export function drawShoreThings(ctx, list, alpha = null) {
   const T = THINGS;
   if (!T.img) {
     T.img = picture('water-plants');
@@ -731,7 +744,10 @@ function drawShoreThings(ctx, list) {
     const ids = T.of[t.kind];
     if (!ids) continue;
     const [sx, sy, sw, sh] = T.pieces[ids[Math.floor(t.pick * 997) % ids.length]], k = t.size * (0.85 + 0.3 * t.pick) / T.big, w = sw * k, h = sh * k;
+    const a = alpha ? alpha(t) : 1;
+    if (a <= 0.01) continue;
     ctx.save();
+    ctx.globalAlpha = a;
     ctx.translate(t.x, t.y);
     if (t.flip && t.kind !== 'rock' && t.kind !== 'log') ctx.scale(-1, 1);
     // (standing in the water: its foot at the point)
@@ -752,12 +768,8 @@ function drawWater(ctx, seed, hexes, px, part) {
       waterOutline(seed, h, area, shores);
       for (let c = 0; c < 6; c++) tipOf(seed, h, c, area);
       // (things along each side of shore, each its own chance, place and size)
-      if (px >= 30) shores.forEach((line, n) => SHORE_THINGS[shoreOf(kind, line.land) === 'mangrove' ? 'mangrove' : kind].forEach(([what, chance, out, size], m) => {
-        const r = salt => cornerRand(h[0] * 7 + n, h[1] * 7 + m, salt);
-        if (r(61) >= chance) return;
-        const p = line[1 + Math.floor(r(62) * (line.length - 2))], c = center(h), d = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1, o = SIZE * out * (0.7 + 0.6 * r(63));
-        things.push({ kind: what, x: p[0] + (c[0] - p[0]) / d * o, y: p[1] + (c[1] - p[1]) / d * o, size, pick: r(64), flip: r(65) < 0.5 });
-      }));
+      // (the foam comes and goes: drawn over the map, every frame, by ambient.js)
+      if (px >= 30) things.push(...shoreThings(h, kind, shores).filter(t => t.kind !== 'foam'));
       const c = center(h);
       for (const line of shores) {
         const name = shoreOf(kind, line.land);
@@ -1253,9 +1265,10 @@ export function preloadTerrain(wait = 12000) {
 // What moves on the map among these hexes (ui/world.js draws it, every frame, over the map): the
 // lakes' and the sea's water (one shape each, as drawWater has them), the sea's surf (its shores where
 // waves break: not a mangrove's), and the smoking volcanoes' craters ({ x, y, size }: where their smoke
-// rises from, how big the volcano is); pending: a volcano's picture hasn't come yet
+// rises from, how big the volcano is), the foam along the shores (drawShoreThings'); pending: a
+// volcano's picture hasn't come yet
 export function ambientOf(seed, hexes) {
-  const water = new Path2D(), surf = new Path2D(), craters = [];
+  const water = new Path2D(), surf = new Path2D(), craters = [], foam = [];
   let wet = false, surfs = false, pending = false;
   for (const h of hexes) {
     const cell = cellAt(seed, h);
@@ -1265,6 +1278,7 @@ export function ambientOf(seed, hexes) {
       waterOutline(seed, h, water, shores);
       for (let c = 0; c < 6; c++) tipOf(seed, h, c, water);
       if (cell.terrain === 'ocean') for (const line of shores) if (shoreOf('ocean', line.land) === 'beach') { surfs = true; surf.moveTo(...line[0]); for (const p of line.slice(1)) surf.lineTo(...p); }
+      foam.push(...shoreThings(h, cell.terrain, shores).filter(t => t.kind === 'foam'));
       continue;
     }
     if (cell.terrain !== 'volcano') continue;
@@ -1272,7 +1286,7 @@ export function ambientOf(seed, hexes) {
     if (r && !p) pending = true;
     if (p && p.active) craters.push({ x: p.left + p.w * 0.5, y: p.top + p.h * 0.24, size: p.w });
   }
-  return { water: wet ? water : null, surf: surfs ? surf : null, craters, pending };
+  return { water: wet ? water : null, surf: surfs ? surf : null, craters, foam, pending };
 }
 export function hexesIn(x0, y0, x1, y1) {
   const out = [], rowH = SIZE * 1.5 * TILT, colW = SIZE * SQ3;
