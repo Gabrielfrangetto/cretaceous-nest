@@ -32,7 +32,7 @@ function render() {
       <div class="field"><span class="label">Explorer</span><div class="look-row">${Object.entries(LOOK.sexes).map(([k, n]) => pick('sex', k, n)).join('')}</div></div>
       <div class="field"><span class="label">Build</span><div class="look-row">${Object.entries(LOOK.builds).map(([k, b]) => pick('build', k, b.name)).join('')}</div>
         <p class="hint">${LOOK.builds[draft.build].mods.length ? modsText(LOOK.builds[draft.build].mods) : 'Balanced: no strength or weakness.'}</p></div>
-      <div class="field"><span class="label">Skin</span><div class="look-row">${LOOK.skins.map(c => `<button type="button" class="look-swatch${draft.skin === c ? ' on' : ''}" data-skin="${c}" style="--c:${c}" aria-label="Skin tone" aria-pressed="${draft.skin === c}"></button>`).join('')}</div></div>
+      <div class="field"><span class="label">Skin</span><div class="look-row">${Object.entries(LOOK.skins).map(([id, c]) => `<button type="button" class="look-swatch${draft.skin === id ? ' on' : ''}" data-skin="${id}" style="--c:${c}" aria-label="Skin tone: ${id}" aria-pressed="${draft.skin === id}"></button>`).join('')}</div></div>
       ${LOOK.drawn[draft.sex] ? '' : '<p class="hint">This explorer is still being drawn: for now they look like the other.</p>'}
       <p class="hint warn-text" id="lookWhy" hidden></p>
       <div class="row"><button class="btn" type="button" id="lookDone">${first ? 'Start exploring' : 'Done'}</button>${first ? '' : '<button class="ghost" type="button" id="lookCancel">Cancel</button>'}</div>

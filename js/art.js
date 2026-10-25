@@ -135,7 +135,7 @@ export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 
 // The player's explorer, drawn in code (a placeholder until real art): a small figure facing right,
 // dressed in whatever it wears. height is in pixels.
 const tint = (equip, slot, fallback) => (equip[slot] && ITEMS[equip[slot]] && ITEMS[equip[slot]].color) || fallback;
-// The player's explorer as they chose to look (LOOK: a painted body, sprites/player/, its skin tinted),
+// The player's explorer as they chose to look (LOOK: a painted body, sprites/player/, in their skin tone),
 // with what they wear in hand and on the head; a canvas drawn once its pictures have come. Before the
 // bodies are there (or with no look), the drawing below
 const bodyPics = new Map();
@@ -155,8 +155,9 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   canvas.style.height = `${Math.round(height)}px`;
   canvas.style.width = `${Math.round(height * 171 / 528)}px`;
   const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
-  const body = bodyPic(name), skin = bodyPic(`${name}-skin`);
-  Promise.all([boxes, loaded(body), loaded(skin)]).then(([b]) => {
+  const tone = LOOK.skins[look.skin] && look.skin !== 'light' ? `-${look.skin}` : '';
+  const body = bodyPic(name + tone);
+  Promise.all([boxes, loaded(body)]).then(([b]) => {
     const box = b[name];
     if (!box || !body.naturalWidth) return;
     const dpr = Math.min(2, globalThis.devicePixelRatio || 1), k = height / box.h * dpr;
@@ -165,19 +166,6 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
     const g = canvas.getContext('2d');
     g.scale(k, k);
     g.drawImage(body, 0, 0, box.w, box.h);
-    // (the skin: its light and shade, multiplied by the tone chosen)
-    if (skin.naturalWidth) {
-      const t = document.createElement('canvas');
-      t.width = box.w; t.height = box.h;
-      const tg = t.getContext('2d');
-      tg.drawImage(skin, 0, 0);
-      tg.globalCompositeOperation = 'multiply';
-      tg.fillStyle = LOOK.skins.includes(look.skin) ? look.skin : DEFAULT_LOOK.skin;
-      tg.fillRect(0, 0, box.w, box.h);
-      tg.globalCompositeOperation = 'destination-in';
-      tg.drawImage(skin, 0, 0);
-      g.drawImage(t, 0, 0);
-    }
     // what they wear on the head and hold: over the head, in the hand hanging in front
     const [hx0, hy0, hx1, hy1] = box.head, hw = hx1 - hx0, hand = [hx0 + hw * 0.4, box.h * 0.63];
     const stroke = () => { g.lineWidth = 2.5; g.strokeStyle = '#2a2420'; g.stroke(); };

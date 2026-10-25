@@ -9,9 +9,11 @@ test('the explorer is made within the choices; a build gives a little of one sta
   assert.equal(s.player.look, undefined);
   const plain = statSheet(s.player).stats;
   assert.equal(applyAction(s, 'setLook', { look: { sex: 'alien', build: 'slim' } }, 1).reason, 'bad-look');
-  assert.equal(applyAction(s, 'setLook', { look: { sex: 'female', build: 'muscular', skin: '#123456' }, name: '  Ana  ' }, 1).ok, true);
+  assert.equal(applyAction(s, 'setLook', { look: { sex: 'female', build: 'muscular', skin: 'green' }, name: '  Ana  ' }, 1).ok, true);
   // (a skin not among the choices: the usual one)
-  assert.deepEqual(s.player.look, { sex: 'female', build: 'muscular', skin: LOOK.skins[1] });
+  assert.deepEqual(s.player.look, { sex: 'female', build: 'muscular', skin: 'light' });
+  assert.equal(applyAction(s, 'setLook', { look: { sex: 'male', build: 'muscular', skin: 'dark' } }, 1).ok, true);
+  assert.equal(s.player.look.skin, 'dark');
   assert.equal(s.player.name, 'Ana');
   const strong = statSheet(s.player).stats;
   assert.ok(strong.str > plain.str && strong.agi < plain.agi && strong.vit === plain.vit);
