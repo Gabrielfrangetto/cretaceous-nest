@@ -1117,7 +1117,7 @@ export const LOOK = {
   // (the bodies drawn so far: one not drawn yet borrows these)
   drawn: { male: true, female: true },
   // (the skin tones painted so far for each: the others shown in the light one until they are)
-  toned: { male: [], female: ['tan', 'medium', 'brown'] },
+  toned: { male: [], female: ['tan', 'medium', 'brown', 'dark'] },
 };
 export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light' };
 export const PLAYER_SLOTS = [
