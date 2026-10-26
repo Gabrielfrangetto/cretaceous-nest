@@ -62,6 +62,24 @@ for build in builds:
     band = ba[by0 + int((by1 - by0) * 0.45):by0 + int((by1 - by0) * 0.6)] > 128
     bnose = int(np.where(band.any(0))[0].max())
     k = (bnose - bx0) / face
+    # (the body's ear: the patch of skin closed in by ink at the side of its head; the hair is cut away
+    # over it, so the ear shows in front of the hair, as drawn)
+    bp = np.asarray(base).astype(np.float32)
+    hw, hh = bx1 - bx0, by1 - by0
+    wx0, wx1, wy0, wy1 = bx0 + int(hw * 0.05), bx0 + int(hw * 0.4), by0 + int(hh * 0.38), by0 + int(hh * 0.82)
+    win = bp[wy0:wy1, wx0:wx1]
+    ink = (win[..., :3].max(2) < 110) | (win[..., 3] < 128)
+    parts, m = ndimage.label(~ink)
+    cx, cy = (bx0 + hw * 0.21 - wx0), (by0 + hh * 0.6 - wy0)
+    best, ear = 1e9, None
+    for j in range(1, m + 1):
+        yy, xx = np.where(parts == j)
+        if not (hw * hh * 0.008 < len(xx) < hw * hh * 0.08): continue
+        d = np.hypot(xx.mean() - cx, yy.mean() - cy)
+        if d < best: best, ear = d, parts == j
+    earmask = np.zeros(ba.shape, bool)
+    if ear is not None: earmask[wy0:wy1, wx0:wx1] = ndimage.binary_dilation(ear, iterations=3)
+    earmask = np.vstack([np.zeros((PAD, ba.shape[1]), bool), earmask])
     for (nx, _, _, i), style in zip(heads, styles):
         x0, y0, x1, y1 = nx - face * 2, top1 - face // 2, nx + face // 3, top1 + face * 2
         # (this head's hair alone, not a neighbour's reaching into the window)
@@ -72,5 +90,7 @@ for build in builds:
         # (room above the body's canvas, PAD pixels, for hair standing up off the head)
         canvas = Image.new('RGBA', (base.width, base.height + PAD))
         canvas.alpha_composite(cut, (round(bnose - (nx - max(0, x0)) * k), PAD + round(by0 - (top1 - max(0, y0)) * k)))
-        canvas.save(f'sprites/player/hair/{name}-{style}.webp', 'WEBP', quality=90, method=6)
+        c = np.asarray(canvas).copy()
+        c[..., 3][earmask] = 0
+        Image.fromarray(c).save(f'sprites/player/hair/{name}-{style}.webp', 'WEBP', quality=90, method=6)
     print(name, 'scale %.3f' % k)
