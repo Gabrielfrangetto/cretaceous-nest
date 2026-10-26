@@ -1122,7 +1122,8 @@ export const LOOK = {
 // hairstyles drawn for each (sprites/player/hair/<sex>-<build>-<style>.webp, scripts/hair.py, in grey,
 // coloured as chosen) and the colours (as the hair's middle tone)
 LOOK.hairs = {
-  male: { none: 'Bald', crop: 'Crop', curly: 'Curly', ponytail: 'Ponytail', undercut: 'Undercut' },
+  // (the men's four to be drawn again, each on every build: until then, none)
+  male: { none: 'Bald' },
   female: { none: 'Bald' },
 };
 LOOK.hairColors = { black: '#2c2420', dark: '#4a3122', brown: '#7a5234', auburn: '#8c3f26', ginger: '#b5622f', blonde: '#cba25e', grey: '#9c9894' };

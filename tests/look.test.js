@@ -12,8 +12,12 @@ test('the explorer is made within the choices; a build gives a little of one sta
   assert.equal(applyAction(s, 'setLook', { look: { sex: 'female', build: 'muscular', skin: 'green' }, name: '  Ana  ' }, 1).ok, true);
   // (a skin not among the choices: the usual one)
   assert.deepEqual(s.player.look, { sex: 'female', build: 'muscular', skin: 'light', hair: 'none', hairColor: 'brown' });
+  // (a style among the choices is kept, with its colour)
+  LOOK.hairs.male.curly = 'Curly';
   assert.equal(applyAction(s, 'setLook', { look: { sex: 'male', build: 'slim', hair: 'curly', hairColor: 'ginger' } }, 1).ok, true);
   assert.equal(s.player.look.hair, 'curly');
+  assert.equal(s.player.look.hairColor, 'ginger');
+  delete LOOK.hairs.male.curly;
   // (a style that sex has none of: bald)
   assert.equal(applyAction(s, 'setLook', { look: { sex: 'female', build: 'slim', hair: 'undercut' } }, 1).ok, true);
   assert.equal(s.player.look.hair, 'none');
