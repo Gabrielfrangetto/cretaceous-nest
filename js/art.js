@@ -145,6 +145,27 @@ const bodyPic = name => {
   return bodyPics.get(name);
 };
 const loaded = img => (img.complete && img.naturalWidth ? Promise.resolve() : new Promise(ok => { img.addEventListener('load', ok, { once: true }); img.addEventListener('error', ok, { once: true }); }));
+// a hairstyle (painted in grey) in a colour: each pixel the colour times how light its grey is (its
+// middle grey the colour itself), its brightest a little lighter still; kept for each style and colour
+const hairDone = new Map(), HAIR_PAD = 64;   // (as scripts/hair.py PAD)
+function hairIn(img, color) {
+  const id = `${img.src}|${color}`;
+  if (hairDone.has(id)) return hairDone.get(id);
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data, rgb = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
+  for (let i = 0; i < px.length; i += 4) {
+    if (!px[i + 3]) continue;
+    const f = px[i] / 115, lift = Math.max(0, f - 1) * 70;
+    for (let k = 0; k < 3; k++) px[i + k] = Math.min(255, rgb[k] * f + lift);
+  }
+  g.putImageData(d, 0, 0);
+  if (hairDone.size > 40) hairDone.delete(hairDone.keys().next().value);
+  hairDone.set(id, c);
+  return c;
+}
 export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   look = look || DEFAULT_LOOK;
   const sex = LOOK.drawn[look.sex] ? look.sex : 'male', name = `${sex}-${LOOK.builds[look.build] ? look.build : 'average'}`;
@@ -156,16 +177,21 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   canvas.style.width = `${Math.round(height * 171 / 528)}px`;
   const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
   const tone = LOOK.skins[look.skin] && (LOOK.toned[sex] || []).includes(look.skin) ? `-${look.skin}` : '';
-  const body = bodyPic(name + tone);
-  Promise.all([boxes, loaded(body)]).then(([b]) => {
+  const body = bodyPic(name + tone), style = LOOK.hairs[sex] && LOOK.hairs[sex][look.hair] && look.hair !== 'none' ? look.hair : null;
+  const hair = style ? bodyPic(`hair/${name}-${style}`) : null;
+  Promise.all([boxes, loaded(body), hair ? loaded(hair) : null]).then(([b]) => {
     const box = b[name];
     if (!box || !body.naturalWidth) return;
-    const dpr = Math.min(2, globalThis.devicePixelRatio || 1), k = height / box.h * dpr;
-    canvas.width = Math.round(box.w * k); canvas.height = Math.round(box.h * k);
+    // (the body as tall as asked, with room above its head for hair: HAIR_PAD more of its pixels)
+    const dpr = Math.min(2, globalThis.devicePixelRatio || 1), k = height / box.h * dpr, H = box.h + HAIR_PAD;
+    canvas.width = Math.round(box.w * k); canvas.height = Math.round(H * k);
     canvas.style.width = `${Math.round(box.w * height / box.h)}px`;
+    canvas.style.height = `${Math.round(H * height / box.h)}px`;
     const g = canvas.getContext('2d');
     g.scale(k, k);
+    g.translate(0, HAIR_PAD);
     g.drawImage(body, 0, 0, box.w, box.h);
+    if (hair && hair.naturalWidth) g.drawImage(hairIn(hair, LOOK.hairColors[look.hairColor] || LOOK.hairColors[DEFAULT_LOOK.hairColor]), 0, -HAIR_PAD, box.w, box.h + HAIR_PAD);
     // what they wear on the head and hold: over the head, in the hand hanging in front
     const [hx0, hy0, hx1, hy1] = box.head, hw = hx1 - hx0, hand = [hx0 + hw * 0.4, box.h * 0.63];
     const stroke = () => { g.lineWidth = 2.5; g.strokeStyle = '#2a2420'; g.stroke(); };

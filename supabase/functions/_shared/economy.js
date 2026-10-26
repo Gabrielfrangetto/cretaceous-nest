@@ -549,7 +549,10 @@ export function unequipArms(s, slot) {
 // a look as chosen, inside the choices (LOOK), or null
 export function cleanLook(l) {
   if (!l || typeof l !== 'object' || !LOOK.sexes[l.sex] || !LOOK.builds[l.build]) return null;
-  return { sex: l.sex, build: l.build, skin: LOOK.skins[l.skin] ? l.skin : DEFAULT_LOOK.skin };
+  return {
+    sex: l.sex, build: l.build, skin: LOOK.skins[l.skin] ? l.skin : DEFAULT_LOOK.skin,
+    hair: LOOK.hairs[l.sex][l.hair] ? l.hair : 'none', hairColor: LOOK.hairColors[l.hairColor] ? l.hairColor : DEFAULT_LOOK.hairColor,
+  };
 }
 // The player's look, and name, set (when the game begins, or changed later at home)
 export function setLook(s, look, name) {

@@ -1119,7 +1119,14 @@ export const LOOK = {
   // (the skin tones painted so far for each: the others shown in the light one until they are)
   toned: { male: ['tan', 'medium', 'brown', 'dark'], female: ['tan', 'medium', 'brown', 'dark'] },
 };
-export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light' };
+// hairstyles drawn for each (sprites/player/hair/<sex>-<build>-<style>.webp, scripts/hair.py, in grey,
+// coloured as chosen) and the colours (as the hair's middle tone)
+LOOK.hairs = {
+  male: { none: 'Bald', crop: 'Crop', curly: 'Curly', ponytail: 'Ponytail', undercut: 'Undercut' },
+  female: { none: 'Bald' },
+};
+LOOK.hairColors = { black: '#2c2420', dark: '#4a3122', brown: '#7a5234', auburn: '#8c3f26', ginger: '#b5622f', blonde: '#cba25e', grey: '#9c9894' };
+export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light', hair: 'none', hairColor: 'brown' };
 export const PLAYER_SLOTS = [
   { id: 'weapon', name: 'Weapon' },
   { id: 'shield', name: 'Shield' },

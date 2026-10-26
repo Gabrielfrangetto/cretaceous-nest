@@ -32,6 +32,8 @@ function render() {
       <div class="field"><span class="label">Explorer</span><div class="look-row">${Object.entries(LOOK.sexes).map(([k, n]) => pick('sex', k, n)).join('')}</div></div>
       <div class="field"><span class="label">Build</span><div class="look-row">${Object.entries(LOOK.builds).map(([k, b]) => pick('build', k, b.name)).join('')}</div>
         <p class="hint">${LOOK.builds[draft.build].mods.length ? modsText(LOOK.builds[draft.build].mods) : 'Balanced: no strength or weakness.'}</p></div>
+      <div class="field"><span class="label">Hair</span><div class="look-row">${Object.entries(LOOK.hairs[draft.sex] || { none: 'Bald' }).map(([k, n]) => pick('hair', k, n)).join('')}</div>
+        ${draft.hair !== 'none' ? `<div class="look-row">${Object.entries(LOOK.hairColors).map(([id, c]) => `<button type="button" class="look-swatch${draft.hairColor === id ? ' on' : ''}" data-hair-color="${id}" style="--c:${c}" aria-label="Hair colour: ${id}" aria-pressed="${draft.hairColor === id}"></button>`).join('')}</div>` : ''}</div>
       <div class="field"><span class="label">Skin</span><div class="look-row">${Object.entries(LOOK.skins).map(([id, c]) => `<button type="button" class="look-swatch${draft.skin === id ? ' on' : ''}" data-skin="${id}" style="--c:${c}" aria-label="Skin tone: ${id}" aria-pressed="${draft.skin === id}"></button>`).join('')}</div></div>
       ${LOOK.drawn[draft.sex] ? '' : '<p class="hint">This explorer is still being drawn: for now they look like the other.</p>'}
       <p class="hint warn-text" id="lookWhy" hidden></p>
@@ -40,9 +42,15 @@ function render() {
   body.querySelector('.look-preview').appendChild(playerArt(S.player.equip, 260, draft));
   const name = body.querySelector('#lookName');
   name.addEventListener('input', () => { draft.name = name.value; });
-  for (const group of ['sex', 'build', 'skin']) body.querySelectorAll(`[data-${group}]`).forEach(b => b.addEventListener('click', () => { draft[group] = b.dataset[group]; render(); }));
+  for (const group of ['sex', 'build', 'skin', 'hair']) body.querySelectorAll(`[data-${group}]`).forEach(b => b.addEventListener('click', () => {
+    draft[group] = b.dataset[group];
+    // (a style the other sex has none of)
+    if (!(LOOK.hairs[draft.sex] || {})[draft.hair]) draft.hair = 'none';
+    render();
+  }));
+  body.querySelectorAll('[data-hair-color]').forEach(b => b.addEventListener('click', () => { draft.hairColor = b.dataset.hairColor; render(); }));
   body.querySelector('#lookDone').addEventListener('click', () => {
-    const r = act('setLook', { look: { sex: draft.sex, build: draft.build, skin: draft.skin }, name: draft.name });
+    const r = act('setLook', { look: { sex: draft.sex, build: draft.build, skin: draft.skin, hair: draft.hair, hairColor: draft.hairColor }, name: draft.name });
     if (!r.ok) { const why = body.querySelector('#lookWhy'); why.hidden = false; why.textContent = r.reason === 'away' ? 'Not while you are out exploring.' : 'That could not be set.'; return; }
     document.getElementById('lookDialog').close();
   });
