@@ -2,9 +2,9 @@
 # hairstyle painted in neutral grey; on a pure white and a pure black background) and fits each onto
 # every body of that sex (scripts/bodies.py): sprites/player/hair/<sex>-<build>-<style>.webp, on the
 # body's own canvas with PAD pixels more above it, in grey for the game to colour. The hair is told from the skin by having no colour;
-# the ink beside it comes with it. Fitted by the first head, its hair short enough to be the skull: its
-# back and top go to the back and top of the body's head, its nose to the body's nose.
-# Usage: python3 scripts/hair.py white.jpg black.jpg male crop,curly,ponytail,undercut   (Pillow, numpy, scipy)
+# the ink beside it comes with it. Fitted by the skull's top, the ear and the nose (the ears marked by
+# hand, on the sheet and in bodies.json).
+# Usage: python3 scripts/hair.py white.jpg black.jpg male crop,curly,ponytail,undercut --ears '152,467;637,465;...'   (Pillow, numpy, scipy)
 import argparse, json, os
 import numpy as np
 from PIL import Image
@@ -16,6 +16,7 @@ ap.add_argument('black')
 ap.add_argument('sex')
 ap.add_argument('styles')
 ap.add_argument('--builds', default='slim,average,heavy,muscular')
+ap.add_argument('--ears', required=True, help='the middle of each head\'s ear on the sheet, x,y;x,y;... (marked by hand: an ear\'s line seldom closes, so it is not found)')
 a = ap.parse_args()
 styles, builds = a.styles.split(','), a.builds.split(',')
 PAD = 64   # (as js/art.js HAIR_PAD)
@@ -45,12 +46,18 @@ def nose(i):
     m = lab[ys, xs] == i + 1
     band = m[int(m.shape[0] * 0.4):int(m.shape[0] * 0.55)]
     return xs.start + int(np.where(band.any(0))[0].max())
+ears = [tuple(map(float, e.split(','))) for e in a.ears.split(';')]
+assert len(ears) == len(styles), 'one ear for each head'
 heads = []
-for i in figs:
+for i, ear in zip(figs, ears):
     yy, xx = np.where((lab == i + 1) & hair)
-    heads.append((nose(i), xx.min(), yy.min(), i))
-nose1, back1, top1, _ = heads[0]
-face = nose1 - back1
+    heads.append((nose(i), ear, i))
+# (the skull's top: the first head's hair top, its hair short enough to be the skull; as high above
+# its ear on every head, as they are all the same head)
+_, ear1, i1 = heads[0]
+top_over_ear = ear1[1] - np.where(((lab == i1 + 1) & hair).any(1))[0].min()
+# (and the back of the skull: the first head's hair at its furthest back, as far behind the ear on every head)
+back_of_ear = ear1[0] - np.where(((lab == i1 + 1) & hair).any(0))[0].min()
 
 info = json.load(open('sprites/player/bodies.json'))
 os.makedirs('sprites/player/hair', exist_ok=True)
@@ -61,36 +68,35 @@ for build in builds:
     ba = np.asarray(base)[..., 3]
     band = ba[by0 + int((by1 - by0) * 0.45):by0 + int((by1 - by0) * 0.6)] > 128
     bnose = int(np.where(band.any(0))[0].max())
-    k = (bnose - bx0) / face
-    # (the body's ear: the patch of skin closed in by ink at the side of its head; the hair is cut away
-    # over it, so the ear shows in front of the hair, as drawn)
-    bp = np.asarray(base).astype(np.float32)
-    hw, hh = bx1 - bx0, by1 - by0
-    wx0, wx1, wy0, wy1 = bx0 + int(hw * 0.05), bx0 + int(hw * 0.4), by0 + int(hh * 0.38), by0 + int(hh * 0.82)
-    win = bp[wy0:wy1, wx0:wx1]
-    ink = (win[..., :3].max(2) < 110) | (win[..., 3] < 128)
-    parts, m = ndimage.label(~ink)
-    cx, cy = (bx0 + hw * 0.21 - wx0), (by0 + hh * 0.6 - wy0)
-    best, ear = 1e9, None
-    for j in range(1, m + 1):
-        yy, xx = np.where(parts == j)
-        if not (hw * hh * 0.008 < len(xx) < hw * hh * 0.08): continue
-        d = np.hypot(xx.mean() - cx, yy.mean() - cy)
-        if d < best: best, ear = d, parts == j
-    earmask = np.zeros(ba.shape, bool)
-    if ear is not None: earmask[wy0:wy1, wx0:wx1] = ndimage.binary_dilation(ear, iterations=3)
-    earmask = np.vstack([np.zeros((PAD, ba.shape[1]), bool), earmask])
-    for (nx, _, _, i), style in zip(heads, styles):
-        x0, y0, x1, y1 = nx - face * 2, top1 - face // 2, nx + face // 3, top1 + face * 2
+    # fitted by three points: the top of the skull, the middle of the ear and the tip of the nose, each
+    # head's onto the body's (marked: bodies.json ear); across by ear to nose, up by top to ear
+    ex0, ey0, ex1, ey1 = info[name]['ear']
+    bear = ((ex0 + ex1) / 2, (ey0 + ey1) / 2)
+    # (the hair cut away over the body's ear, so it shows in front, as drawn)
+    earmask = np.zeros((ba.shape[0] + PAD, ba.shape[1]), bool)
+    yy, xx = np.mgrid[0:earmask.shape[0], 0:earmask.shape[1]]
+    earmask |= (((xx - bear[0]) / ((ex1 - ex0) / 2 + 1)) ** 2 + ((yy - PAD - bear[1]) / ((ey1 - ey0) / 2 + 1)) ** 2) <= 1
+    for (nx, ear, i), style in zip(heads, styles):
+        kx = (bnose - bear[0]) / (nx - ear[0])
+        ky = (bear[1] - by0) / top_over_ear
         # (this head's hair alone, not a neighbour's reaching into the window)
         own = pic.copy()
         own[..., 3] *= ndimage.binary_dilation(lab == i + 1, iterations=2)
-        cut = Image.fromarray(np.clip(own[max(0, y0):y1, max(0, x0):x1], 0, 255).astype(np.uint8))
-        cut = cut.resize((max(1, round(cut.width * k)), max(1, round(cut.height * k))), Image.LANCZOS)
-        # (room above the body's canvas, PAD pixels, for hair standing up off the head)
+        span = nx - ear[0]
+        x0, y0, x1, y1 = int(ear[0] - span * 1.6), int(ear[1] - top_over_ear * 1.4), int(nx + span * 0.3), int(ear[1] + top_over_ear * 1.6)
+        x0, y0 = max(0, x0), max(0, y0)
+        # (in two parts, split at the ear: behind it stretched so the hair's back meets the back of the
+        # body's head, in front so its front meets the nose)
+        kb = (bear[0] - bx0) / back_of_ear
+        ex = int(round(ear[0]))
         canvas = Image.new('RGBA', (base.width, base.height + PAD))
-        canvas.alpha_composite(cut, (round(bnose - (nx - max(0, x0)) * k), PAD + round(by0 - (top1 - max(0, y0)) * k)))
+        h = max(1, round((y1 - y0) * ky))
+        # (the part behind the ear a little longer, under the other, so no seam shows where they meet)
+        for lo, hi, k, at in ((x0, ex + 3, kb, bear[0] - (ear[0] - x0) * kb), (ex, x1, kx, bear[0] + (ex - ear[0]) * kx)):
+            part = Image.fromarray(np.clip(own[y0:y1, lo:hi], 0, 255).astype(np.uint8))
+            part = part.resize((max(1, round(part.width * k)), h), Image.LANCZOS)
+            canvas.alpha_composite(part, (round(at), PAD + round(bear[1] - (ear[1] - y0) * ky)))
         c = np.asarray(canvas).copy()
         c[..., 3][earmask] = 0
         Image.fromarray(c).save(f'sprites/player/hair/{name}-{style}.webp', 'WEBP', quality=90, method=6)
-    print(name, 'scale %.3f' % k)
+    print(name, 'scale %.3f x %.3f' % ((bnose - bear[0]) / (heads[0][0] - heads[0][1][0]), (bear[1] - by0) / top_over_ear))

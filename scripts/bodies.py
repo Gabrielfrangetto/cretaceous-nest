@@ -71,6 +71,7 @@ out = {}
 path = 'sprites/player/bodies.json'
 if os.path.exists(path):
     out = json.load(open(path))
+# (an ear marked by hand on a body, its box: kept, as long as the body is the same drawing)
 for (cut, head, h, others), build in zip(cuts, builds):
     img = Image.fromarray(cut.astype(np.uint8))
     img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
@@ -82,6 +83,6 @@ for (cut, head, h, others), build in zip(cuts, builds):
         oi = Image.fromarray(o.astype(np.uint8)).resize(img.size, Image.LANCZOS)
         oc = Image.new('RGBA', (cw, ch)); oc.paste(oi, (x, y))
         oc.save(f'sprites/player/{a.sex}-{build}{suffix}.webp', 'WEBP', quality=90, method=6)
-    out[f'{a.sex}-{build}'] = {'w': cw, 'h': ch, 'head': [round(x + head[0] * k), round(y + head[1] * k), round(x + head[2] * k), round(y + head[3] * k)]}
+    out[f'{a.sex}-{build}'] = {**({'ear': out[f'{a.sex}-{build}']['ear']} if 'ear' in out.get(f'{a.sex}-{build}', {}) else {}), 'w': cw, 'h': ch, 'head': [round(x + head[0] * k), round(y + head[1] * k), round(x + head[2] * k), round(y + head[3] * k)]}
     print(f'sprites/player/{a.sex}-{build}.webp', out[f'{a.sex}-{build}'])
 json.dump(out, open(path, 'w'), indent=1)
