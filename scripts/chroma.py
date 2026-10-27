@@ -16,7 +16,9 @@ def keyed(img):
     # (greenness: green over the most of red and blue; the background's is full, the figure's none)
     spill = g - np.maximum(r, b)
     full = bg[1] - max(bg[0], bg[2])
-    alpha = np.clip(1 - (spill - 15) / (full * 0.75 - 15), 0, 1)
+    # (linear in the greenness, as a mix of ink and green is: a softer ramp would eat the dark outline,
+    # whose edge pixels are half green)
+    alpha = np.clip(1 - (spill - 12) / (full - 12 - 24), 0, 1)
     # (spill: green no higher than the most of red and blue, where there is any)
     g2 = np.where(spill > 0, np.maximum(r, b), g)
     out = np.dstack([r, g2, b, alpha * 255])
