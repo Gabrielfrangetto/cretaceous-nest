@@ -1039,7 +1039,7 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .you-panel { display: none; gap: 12px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .you-panel.open { display: grid; position: fixed; z-index: 120; top: 64px; right: 12px; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 150px); overflow: auto; box-shadow: 0 16px 40px rgb(0 0 0 / .18); }
 .you-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
-.you-top .you-art { width: 72px; display: grid; place-items: center; }
+.you-top .you-art { width: auto; min-width: 72px; display: grid; place-items: end center; }
 .you-top h2 { font-size: 19px; }
 .you-state { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .you-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin: 0; }
@@ -1154,9 +1154,9 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .row.parked { justify-content: space-between; align-items: center; }
 
 /* making the explorer (ui/look.js) */
-.look-dialog { max-width: min(720px, calc(100vw - 32px)); }
+.look-dialog { width: min(780px, calc(100vw - 32px)); max-width: none; }
 .look-layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-.look-preview { flex: 0 0 auto; min-width: 110px; display: flex; justify-content: center; padding: 8px 18px; border-radius: 12px; background: var(--panel-2, rgba(0, 0, 0, .05)); }
+.look-preview { flex: 0 0 auto; min-width: 150px; display: flex; justify-content: center; padding: 8px 18px; border-radius: 12px; background: var(--panel-2, rgba(0, 0, 0, .05)); }
 .look-fields { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .look-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .look-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--line); background: var(--c); cursor: pointer; padding: 0; }

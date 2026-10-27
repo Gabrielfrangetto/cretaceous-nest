@@ -64,7 +64,7 @@ function render() {
   // (not while a choice is being made in it)
   if (!box || box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
   box.innerHTML = html(now());
-  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 96, S.player.look));
+  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 190, S.player.look));
   box.querySelector('#gearFold').addEventListener('toggle', e => { gearOpen = e.target.open; });
   box.querySelector('[data-look]').addEventListener('click', openLook);
   const eat = box.querySelector('[data-eat]');

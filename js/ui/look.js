@@ -39,7 +39,8 @@ function render() {
       <p class="hint warn-text" id="lookWhy" hidden></p>
       <div class="row"><button class="btn" type="button" id="lookDone">${first ? 'Start exploring' : 'Done'}</button>${first ? '' : '<button class="ghost" type="button" id="lookCancel">Cancel</button>'}</div>
     </div></div>`;
-  body.querySelector('.look-preview').appendChild(playerArt(S.player.equip, 260, draft));
+  // (as tall as fits: about half the window, at most 420 px)
+  body.querySelector('.look-preview').appendChild(playerArt(S.player.equip, Math.round(Math.min(420, Math.max(240, innerHeight * 0.5))), draft));
   const name = body.querySelector('#lookName');
   name.addEventListener('input', () => { draft.name = name.value; });
   for (const group of ['sex', 'build', 'skin', 'hair']) body.querySelectorAll(`[data-${group}]`).forEach(b => b.addEventListener('click', () => {
