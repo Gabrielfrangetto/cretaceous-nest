@@ -1117,13 +1117,14 @@ export const LOOK = {
   // (the bodies drawn so far: one not drawn yet borrows these)
   drawn: { male: true, female: true },
   // (the skin tones painted so far for each: the others shown in the light one until they are)
-  toned: { male: ['tan', 'medium', 'brown', 'dark'], female: ['tan', 'medium', 'brown', 'dark'] },
+  toned: { male: ['tan', 'brown'], female: ['tan', 'medium', 'brown', 'dark'] },
 };
 // hairstyles drawn for each (sprites/player/hair/<sex>-<build>-<style>.webp, scripts/hairbody.py: each
 // painted on every build, in grey,
 // coloured as chosen) and the colours (as the hair's middle tone)
 LOOK.hairs = {
-  male: { none: 'Bald', crop: 'Crop', curly: 'Curly', ponytail: 'Ponytail', undercut: 'Undercut' },
+  // (the men's to be painted again on the new bodies)
+  male: { none: 'Bald' },
   female: { none: 'Bald' },
 };
 LOOK.hairColors = { black: '#2c2420', dark: '#4a3122', brown: '#7a5234', auburn: '#8c3f26', ginger: '#b5622f', blonde: '#cba25e', grey: '#9c9894' };

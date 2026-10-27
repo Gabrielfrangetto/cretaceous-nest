@@ -1,4 +1,5 @@
-# A skin tone painted afresh (not as an edit) on a sheet of the bodies on plain white: each figure cut
+# A skin tone painted afresh (not as an edit) on a sheet of the bodies on plain white, or with real
+# transparency: each figure cut
 # by its outline (the white reaching in from the edges is the background) and fitted onto the body of
 # its build already cut (scripts/bodies.py): as tall, feet on the same ground, the back of the head at
 # the same place. Saved as sprites/player/<sex>-<build>-<tone>.webp.
@@ -17,22 +18,28 @@ ap.add_argument('--builds', default='slim,average,heavy,muscular')
 a = ap.parse_args()
 builds = a.builds.split(',')
 
-W = np.asarray(Image.open(a.sheet).convert('RGB')).astype(np.float32)
-pale = W.min(2) > 232
-lab, _ = ndimage.label(pale)
-edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-back = np.isin(lab, list(edge))
-# (and white closed in by the figure, between an arm and the body, a hand and a leg: big enough not to
-# be a highlight, and white right through, as no paint is)
-sizes_w = ndimage.sum(np.ones(pale.shape), lab, range(1, lab.max() + 1))
-for j in range(1, lab.max() + 1):
-    if j in edge or sizes_w[j - 1] < 60: continue
-    if W[lab == j].min(1).mean() > 244: back |= lab == j
-# (at the rim, how far from white each pixel is: its share of the figure)
-rim = back & ndimage.binary_dilation(~back, iterations=2)
-alpha = np.where(back, 0.0, 1.0)
-alpha[rim] = np.clip((255 - W[rim].min(1)) / 70, 0, 1)
-rgb = np.where(alpha[..., None] > 0.97, W, (W - 255 * (1 - alpha[..., None])) / np.maximum(alpha[..., None], 1e-3))
+src = Image.open(a.sheet)
+if src.mode in ('RGBA', 'LA', 'P') and np.asarray(src.convert('RGBA'))[..., 3].min() < 250:
+    # (a sheet with real transparency: its own alpha and colours)
+    px = np.asarray(src.convert('RGBA')).astype(np.float32)
+    rgb, alpha = px[..., :3], px[..., 3] / 255
+else:
+    W = np.asarray(Image.open(a.sheet).convert('RGB')).astype(np.float32)
+    pale = W.min(2) > 232
+    lab, _ = ndimage.label(pale)
+    edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    back = np.isin(lab, list(edge))
+    # (and white closed in by the figure, between an arm and the body, a hand and a leg: big enough not to
+    # be a highlight, and white right through, as no paint is)
+    sizes_w = ndimage.sum(np.ones(pale.shape), lab, range(1, lab.max() + 1))
+    for j in range(1, lab.max() + 1):
+        if j in edge or sizes_w[j - 1] < 60: continue
+        if W[lab == j].min(1).mean() > 244: back |= lab == j
+    # (at the rim, how far from white each pixel is: its share of the figure)
+    rim = back & ndimage.binary_dilation(~back, iterations=2)
+    alpha = np.where(back, 0.0, 1.0)
+    alpha[rim] = np.clip((255 - W[rim].min(1)) / 70, 0, 1)
+    rgb = np.where(alpha[..., None] > 0.97, W, (W - 255 * (1 - alpha[..., None])) / np.maximum(alpha[..., None], 1e-3))
 pic = np.dstack([np.clip(rgb, 0, 255), alpha * 255])
 
 figs, n = ndimage.label(alpha > 0.3)

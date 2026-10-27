@@ -4,6 +4,7 @@
 # the head at the same place, so every build stands the same and the pieces laid on (hair, beard, eyes)
 # fit each by its head; and the same in other skin tones painted (--tone). The head of each (its box, in the canvas's pixels) goes in
 # sprites/player/bodies.json, for those pieces.
+# A sheet with real transparency (a PNG or WebP with alpha) needs no black one: pass - for it.
 # Usage: python3 scripts/bodies.py white.jpg black.jpg male [--tone tan tan.jpg ...] [--builds slim,average,heavy,muscular]
 #   [--height 520]   (needs Pillow, numpy, scipy)
 import argparse, json, os
@@ -22,13 +23,20 @@ ap.add_argument('--height', type=int, default=520, help='pixels from the top of 
 a = ap.parse_args()
 builds = a.builds.split(',')
 
-W = np.asarray(Image.open(a.white).convert('RGB')).astype(np.float32)
-B = np.asarray(Image.open(a.black).convert('RGB').resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32)
-# (where the two differ, the background shows through: how much of each pixel is the figure)
-alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
-alpha[alpha < 0.04] = 0
-alpha[alpha > 0.96] = 1
-rgb = np.where(alpha[..., None] > 0.97, W, B / np.maximum(alpha[..., None], 1e-3))
+src = Image.open(a.white)
+if a.black == '-' and src.mode in ('RGBA', 'LA', 'P'):
+    # (a sheet with real transparency: its own alpha, its own colours)
+    px = np.asarray(src.convert('RGBA')).astype(np.float32)
+    W, alpha = px[..., :3], px[..., 3] / 255
+    rgb = W
+else:
+    W = np.asarray(src.convert('RGB')).astype(np.float32)
+    B = np.asarray(Image.open(a.black).convert('RGB').resize((W.shape[1], W.shape[0]), Image.LANCZOS)).astype(np.float32)
+    # (where the two differ, the background shows through: how much of each pixel is the figure)
+    alpha = np.clip(1 - (W - B).mean(2) / 255, 0, 1)
+    alpha[alpha < 0.04] = 0
+    alpha[alpha > 0.96] = 1
+    rgb = np.where(alpha[..., None] > 0.97, W, B / np.maximum(alpha[..., None], 1e-3))
 pic = np.dstack([np.clip(rgb, 0, 255), alpha * 255])
 # (each other tone: its colours, from a sheet on black, so a pixel partly figure is its colour times how
 # much it is the figure; the outline is the first sheet's)
@@ -72,7 +80,6 @@ out = {}
 path = 'sprites/player/bodies.json'
 if os.path.exists(path):
     out = json.load(open(path))
-# (an ear marked by hand on a body, its box: kept, as long as the body is the same drawing)
 for (cut, head, h, others), build in zip(cuts, builds):
     img = Image.fromarray(cut.astype(np.uint8))
     img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
@@ -84,6 +91,6 @@ for (cut, head, h, others), build in zip(cuts, builds):
         oi = Image.fromarray(o.astype(np.uint8)).resize(img.size, Image.LANCZOS)
         oc = Image.new('RGBA', (cw, ch)); oc.paste(oi, (x, y))
         clean(oc).save(f'sprites/player/{a.sex}-{build}{suffix}.webp', 'WEBP', quality=90, method=6)
-    out[f'{a.sex}-{build}'] = {**({'ear': out[f'{a.sex}-{build}']['ear']} if 'ear' in out.get(f'{a.sex}-{build}', {}) else {}), 'w': cw, 'h': ch, 'head': [round(x + head[0] * k), round(y + head[1] * k), round(x + head[2] * k), round(y + head[3] * k)]}
+    out[f'{a.sex}-{build}'] = {'w': cw, 'h': ch, 'head': [round(x + head[0] * k), round(y + head[1] * k), round(x + head[2] * k), round(y + head[3] * k)]}
     print(f'sprites/player/{a.sex}-{build}.webp', out[f'{a.sex}-{build}'])
 json.dump(out, open(path, 'w'), indent=1)
