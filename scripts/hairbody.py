@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 from defringe import clean
+from chroma import keyed
 
 ap = argparse.ArgumentParser()
 ap.add_argument('sheet')
@@ -20,7 +21,9 @@ a = ap.parse_args()
 builds = a.builds.split(',')
 PAD = 64
 
-W = np.asarray(Image.open(a.sheet).convert('RGB')).astype(np.float32)
+src = Image.open(a.sheet)
+src = keyed(src) or src
+W = np.asarray(src.convert('RGB')).astype(np.float32)
 # (the figures: all but the white reaching in from the sheet's edges)
 pale = W.min(2) > 232
 lab, _ = ndimage.label(pale)

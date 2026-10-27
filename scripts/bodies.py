@@ -4,7 +4,8 @@
 # the head at the same place, so every build stands the same and the pieces laid on (hair, beard, eyes)
 # fit each by its head; and the same in other skin tones painted (--tone). The head of each (its box, in the canvas's pixels) goes in
 # sprites/player/bodies.json, for those pieces.
-# A sheet with real transparency (a PNG or WebP with alpha) needs no black one: pass - for it.
+# A sheet with real transparency (a PNG or WebP with alpha), or on flat chroma green, needs no black
+# one: pass - for it.
 # Usage: python3 scripts/bodies.py white.jpg black.jpg male [--tone tan tan.jpg ...] [--builds slim,average,heavy,muscular]
 #   [--height 520]   (needs Pillow, numpy, scipy)
 import argparse, json, os
@@ -12,6 +13,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 from defringe import clean
+from chroma import keyed
 
 ap = argparse.ArgumentParser()
 ap.add_argument('white')
@@ -24,6 +26,7 @@ a = ap.parse_args()
 builds = a.builds.split(',')
 
 src = Image.open(a.white)
+if a.black == '-' and keyed(src) is not None: src = keyed(src)
 if a.black == '-' and src.mode in ('RGBA', 'LA', 'P'):
     # (a sheet with real transparency: its own alpha, its own colours)
     px = np.asarray(src.convert('RGBA')).astype(np.float32)

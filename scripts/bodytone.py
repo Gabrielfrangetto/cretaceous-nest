@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 from defringe import clean
+from chroma import keyed
 
 ap = argparse.ArgumentParser()
 ap.add_argument('sheet')
@@ -19,6 +20,7 @@ a = ap.parse_args()
 builds = a.builds.split(',')
 
 src = Image.open(a.sheet)
+src = keyed(src) or src
 if src.mode in ('RGBA', 'LA', 'P') and np.asarray(src.convert('RGBA'))[..., 3].min() < 250:
     # (a sheet with real transparency: its own alpha and colours)
     px = np.asarray(src.convert('RGBA')).astype(np.float32)
