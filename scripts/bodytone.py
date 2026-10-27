@@ -21,6 +21,12 @@ pale = W.min(2) > 232
 lab, _ = ndimage.label(pale)
 edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
 back = np.isin(lab, list(edge))
+# (and white closed in by the figure, between an arm and the body, a hand and a leg: big enough not to
+# be a highlight, and white right through, as no paint is)
+sizes_w = ndimage.sum(np.ones(pale.shape), lab, range(1, lab.max() + 1))
+for j in range(1, lab.max() + 1):
+    if j in edge or sizes_w[j - 1] < 60: continue
+    if W[lab == j].min(1).mean() > 244: back |= lab == j
 # (at the rim, how far from white each pixel is: its share of the figure)
 rim = back & ndimage.binary_dilation(~back, iterations=2)
 alpha = np.where(back, 0.0, 1.0)
