@@ -10,6 +10,7 @@ import argparse, json, os
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+from defringe import clean
 
 ap = argparse.ArgumentParser()
 ap.add_argument('white')
@@ -78,11 +79,11 @@ for (cut, head, h, others), build in zip(cuts, builds):
     x, y = int(round(4 + back - head[0] * k)), ch - 4 - img.height
     canvas = Image.new('RGBA', (cw, ch))
     canvas.paste(img, (x, y))
-    canvas.save(f'sprites/player/{a.sex}-{build}.webp', 'WEBP', quality=90, method=6)
+    clean(canvas).save(f'sprites/player/{a.sex}-{build}.webp', 'WEBP', quality=90, method=6)
     for suffix, o in others:
         oi = Image.fromarray(o.astype(np.uint8)).resize(img.size, Image.LANCZOS)
         oc = Image.new('RGBA', (cw, ch)); oc.paste(oi, (x, y))
-        oc.save(f'sprites/player/{a.sex}-{build}{suffix}.webp', 'WEBP', quality=90, method=6)
+        clean(oc).save(f'sprites/player/{a.sex}-{build}{suffix}.webp', 'WEBP', quality=90, method=6)
     out[f'{a.sex}-{build}'] = {**({'ear': out[f'{a.sex}-{build}']['ear']} if 'ear' in out.get(f'{a.sex}-{build}', {}) else {}), 'w': cw, 'h': ch, 'head': [round(x + head[0] * k), round(y + head[1] * k), round(x + head[2] * k), round(y + head[3] * k)]}
     print(f'sprites/player/{a.sex}-{build}.webp', out[f'{a.sex}-{build}'])
 json.dump(out, open(path, 'w'), indent=1)

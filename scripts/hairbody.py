@@ -9,6 +9,7 @@ import argparse, json, os
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+from defringe import clean
 
 ap = argparse.ArgumentParser()
 ap.add_argument('sheet')
@@ -127,5 +128,5 @@ for i, build in zip(keep, builds):
     hp = hp.resize((max(1, round(hp.width * k)), max(1, round(hp.height * k))), Image.LANCZOS)
     canvas = Image.new('RGBA', (base.width, base.height + PAD))
     canvas.alpha_composite(hp, (x, y + PAD)) if x >= 0 and y + PAD >= 0 else canvas.paste(hp, (x, y + PAD), hp)
-    canvas.save(f'sprites/player/hair/{name}-{a.style}.webp', 'WEBP', quality=90, method=6)
+    clean(canvas).save(f'sprites/player/hair/{name}-{a.style}.webp', 'WEBP', quality=90, method=6)
     print(f'{name}-{a.style}', 'body %.3f' % score, 'face %.3f' % hbest[0], 'scale %.3f' % k)

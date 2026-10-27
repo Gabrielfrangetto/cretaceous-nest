@@ -7,6 +7,7 @@ import argparse, json
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+from defringe import clean
 
 ap = argparse.ArgumentParser()
 ap.add_argument('sheet')
@@ -57,5 +58,5 @@ for i, build in zip(keep, builds):
     img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
     canvas = Image.new('RGBA', base.size)
     canvas.paste(img, (round(box['head'][0] - headback * k), bb[3] - img.height))
-    canvas.save(f'sprites/player/{a.sex}-{build}-{a.tone}.webp', 'WEBP', quality=90, method=6)
+    clean(canvas).save(f'sprites/player/{a.sex}-{build}-{a.tone}.webp', 'WEBP', quality=90, method=6)
     print(f'sprites/player/{a.sex}-{build}-{a.tone}.webp')
