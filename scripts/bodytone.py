@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 from defringe import clean
-from chroma import keyed
+from chroma import keyed, despilled
 
 ap = argparse.ArgumentParser()
 ap.add_argument('sheet')
@@ -23,7 +23,7 @@ src = Image.open(a.sheet)
 src = keyed(src) or src
 if src.mode in ('RGBA', 'LA', 'P') and np.asarray(src.convert('RGBA'))[..., 3].min() < 250:
     # (a sheet with real transparency: its own alpha and colours)
-    px = np.asarray(src.convert('RGBA')).astype(np.float32)
+    px = despilled(np.asarray(src.convert('RGBA')).astype(np.float32))
     rgb, alpha = px[..., :3], px[..., 3] / 255
 else:
     W = np.asarray(Image.open(a.sheet).convert('RGB')).astype(np.float32)

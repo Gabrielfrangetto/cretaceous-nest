@@ -28,3 +28,18 @@ def keyed(img):
     mixed = (np.dstack([r, g2, b]) - bg * (1 - alpha[..., None])) / a
     out[..., :3][part] = np.clip(mixed[part], 0, 255)
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+# The green left round a figure whose background some other tool already took out (a sheet with real
+# transparency, cut from green): in the soft edge and just inside it, green no higher than the most of
+# red and blue, as no paint on these figures is greener than that; and green the tool left whole (a gap
+# closed in by the figure, between an arm and the body) taken out as the background it is.
+# despilled(px) -> the same RGBA array (floats), its edge despilled
+def despilled(px):
+    from scipy import ndimage
+    px = px.copy()
+    spill = px[..., 1] - np.maximum(px[..., 0], px[..., 2])
+    px[..., 3] *= np.clip(1 - (spill - 40) / 80, 0, 1)
+    edge = ndimage.binary_dilation(px[..., 3] < 250, iterations=3) & (px[..., 3] > 0)
+    r, g, b = px[..., 0], px[..., 1], px[..., 2]
+    px[..., 1] = np.where(edge, np.minimum(g, np.maximum(r, b)), g)
+    return px
