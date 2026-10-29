@@ -90,7 +90,9 @@ async function handleSession(session) {
   }
   if (!next) {
     // signed out: the progress stays on the server and the sign-in screen comes back
-    user = null; profile = null; choice = null; loaded = false; setRecovering(false);
+    // (a reset link still waiting for its new password: kept, as the client may drop the old session
+    // for the link's own on the way in; only the player's own signing out, or the new password, ends it)
+    user = null; profile = null; choice = null; loaded = false;
     pending.length = 0;
     replaceState(freshState(), 'cloud');
     setStatus('signed-out');
@@ -260,6 +262,7 @@ export async function resendConfirmation(email) {
 }
 
 export async function logIn(email, password) {
+  setRecovering(false);
   const { error } = await client.auth.signInWithPassword({ email, password });
   if (error) throw error;
 }
@@ -291,6 +294,7 @@ export async function signInWithGoogle() {
 }
 
 export async function signOut() {
+  setRecovering(false);
   await client.auth.signOut();
 }
 
@@ -307,5 +311,6 @@ export async function deleteAccount() {
   const { error } = await client.rpc('delete_account');
   if (error) throw error;
   // the user no longer exists on the server, so only the local session is cleared
+  setRecovering(false);
   await client.auth.signOut({ scope: 'local' });
 }
