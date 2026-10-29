@@ -8,7 +8,7 @@ import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudState, onCloudChange, inGame, resolveChoice, loadAccount,
   signInWithGoogle, signOut, logIn, signUp, confirmSignUp, resendConfirmation, sendPasswordReset,
-  usernameAvailable, USERNAME, PASSWORD_MIN,
+  usernameAvailable, USERNAME, PASSWORD_MIN, PASSWORD_RULES, passwordProblem,
 } from '../cloud.js';
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
@@ -37,7 +37,7 @@ function friendly(err, fallback) {
   if (/rate limit|too many/i.test(text)) return 'Too many emails were sent. Wait a few minutes and try again.';
   if (/invalid login credentials/i.test(text)) return 'Wrong email or password.';
   if (/database error saving new user/i.test(text)) return 'That username was just taken. Try another one.';
-  if (/password should be|weak password/i.test(text)) return `That password is too weak. Use at least ${PASSWORD_MIN} characters, mixing letters and numbers.`;
+  if (/password should be|weak password/i.test(text)) return 'That password is too weak. Use upper and lower case letters, a number and a symbol.';
   if (/expired|invalid/i.test(text)) return 'That code is wrong or expired. Check the latest email, or send a new one.';
   return text || fallback;
 }
@@ -148,7 +148,8 @@ function signedOutView() {
     <form id="signUpForm" class="account-form">
       ${field('signUpName', 'Username', 'text', `autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" placeholder="3 to 20 letters, numbers or _" value="${esc(typed.username)}"`)}
       ${field('signInEmail', 'Email', 'email', `autocomplete="email" required placeholder="you@example.com" value="${esc(typed.email)}"`)}
-      ${field('signUpPass', 'Password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" placeholder="At least ${PASSWORD_MIN} characters"`)}
+      ${field('signUpPass', 'Password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" aria-describedby="signUpRules"`)}
+      ${rulesList('signUpRules')}
       ${field('signUpPass2', 'Password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}"`)}
       <div class="row"><button class="btn" type="submit">Create account</button></div>
     </form>
@@ -161,6 +162,14 @@ function signedOutView() {
     </form>
     <p class="hint">Played before with an emailed code? Use “Forgot password?” to give your account a password.</p>
     ${googleRow()}${LEGAL}`;
+}
+
+// what a new password needs, each ticked as it is typed (watchRules)
+export const rulesList = id => `<ul class="pass-rules" id="${id}">${PASSWORD_RULES.map(r => `<li>${r.text}</li>`).join('')}</ul>`;
+export function watchRules(input, list) {
+  const tick = () => [...list.children].forEach((li, i) => li.classList.toggle('ok', PASSWORD_RULES[i].ok(input.value)));
+  input.addEventListener('input', tick);
+  tick();
 }
 
 function go(next) { view = next; message = ''; render(true); focusFirst(); }
@@ -179,6 +188,8 @@ function bindSignedOut(root) {
   root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
   const remember = () => { typed.email = value('signInEmail').trim() || typed.email; typed.username = value('signUpName').trim() || typed.username; };
   root.querySelectorAll('input').forEach(i => i.addEventListener('input', remember));
+  const pass = document.getElementById('signUpPass');
+  if (pass) watchRules(pass, document.getElementById('signUpRules'));
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('submit', fn); };
   on('logInForm', e => busy(e, async () => {
     typed.email = value('signInEmail').trim();
@@ -193,7 +204,7 @@ function bindSignedOut(root) {
     const username = value('signUpName').trim(), email = value('signInEmail').trim(), pass = value('signUpPass');
     typed.username = username; typed.email = email;
     if (!USERNAME.test(username)) throw new Error('A username is 3 to 20 letters, numbers or _ (no spaces).');
-    if (pass.length < PASSWORD_MIN) throw new Error(`The password needs at least ${PASSWORD_MIN} characters.`);
+    if (passwordProblem(pass)) throw new Error(passwordProblem(pass));
     if (pass !== value('signUpPass2')) throw new Error("The two passwords don't match.");
     if (!(await usernameAvailable(username))) throw new Error(`“${username}” is taken. Try another username.`);
     const r = await signUp(username, email, pass);

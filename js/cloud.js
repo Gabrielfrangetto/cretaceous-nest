@@ -207,6 +207,19 @@ const redirectUrl = () => location.origin + location.pathname;
 // a username as the game takes it: 3 to 20 letters, digits or underscores
 export const USERNAME = /^[A-Za-z0-9_]{3,20}$/;
 export const PASSWORD_MIN = 8;
+// what a password needs (the same as Supabase > Authentication > Email > Password requirements)
+export const PASSWORD_RULES = [
+  { text: `At least ${PASSWORD_MIN} characters`, ok: p => p.length >= PASSWORD_MIN },
+  { text: 'An uppercase letter', ok: p => /[A-Z]/.test(p) },
+  { text: 'A lowercase letter', ok: p => /[a-z]/.test(p) },
+  { text: 'A number', ok: p => /[0-9]/.test(p) },
+  { text: 'A symbol, such as ! ? @ # $ %', ok: p => /[^A-Za-z0-9\s]/.test(p) },
+];
+// what a password still lacks, as a sentence ('' when it has everything)
+export function passwordProblem(p) {
+  const missing = PASSWORD_RULES.filter(r => !r.ok(p)).map(r => r.text.toLowerCase().replace(/, such as.*/, ''));
+  return missing.length ? `The password needs ${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : '';
+}
 
 // whether a username can still be had (true when the server can't tell: the sign-up then decides)
 export async function usernameAvailable(name) {

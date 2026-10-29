@@ -206,6 +206,10 @@ img.baby-pop { image-rendering: auto; }
 .account-form input { max-width: none; }
 input[type="email"], input[type="password"] { width: 100%; font: inherit; font-size: 17px; padding: 9px 12px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); }
 input[type="email"]:focus-visible, input[type="password"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.pass-rules { list-style: none; margin: -2px 0 0; padding: 0; display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.pass-rules li::before { content: "○"; display: inline-block; width: 1.3em; }
+.pass-rules li.ok { color: var(--accent); }
+.pass-rules li.ok::before { content: "✓"; font-weight: 700; }
 .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
 .auth-tabs button { font: inherit; font-weight: 700; font-size: 15px; padding: 8px 10px; border: 0; border-radius: 9px; background: none; color: var(--muted); cursor: pointer; }
 .auth-tabs button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }

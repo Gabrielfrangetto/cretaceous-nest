@@ -37,7 +37,10 @@ Players create an account with a username, an email and a password, and log in w
 
 - **Enable Email provider**: on
 - **Confirm email**: on. A new account can't log in until its email is confirmed, which keeps out bots and typos.
-- **Minimum password length**: 8 (the game asks for at least 8 too)
+- **Minimum password length**: 8
+- **Password requirements**: *Lowercase, uppercase letters, digits and symbols*
+
+The game asks for the same (`PASSWORD_RULES` in `js/cloud.js`) and ticks each rule as the player types; the server setting makes sure no other way round it gets a weak password in.
 
 Usernames live in `profiles.username` (migration `20261029000000_usernames.sql`): 3 to 20 letters, digits or `_`, unique regardless of case. The game checks a name is free before signing up (`username_available`), and an account made before usernames picks one once from the account panel (`claim_username`).
 

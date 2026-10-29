@@ -1,7 +1,8 @@
 // Account button in the header, the account panel (username, name, password, sign out, delete) and
 // the save status line. Signing in happens on the sign-in screen (ui/gate.js) before the game shows;
 // back from a password-reset link, the panel opens by itself to choose the new password.
-import { cloudState, onCloudChange, signOut, saveDisplayName, deleteAccount, setNewPassword, claimUsername, usernameAvailable, USERNAME, PASSWORD_MIN } from '../cloud.js';
+import { cloudState, onCloudChange, signOut, saveDisplayName, deleteAccount, setNewPassword, claimUsername, usernameAvailable, USERNAME, PASSWORD_MIN, passwordProblem } from '../cloud.js';
+import { rulesList, watchRules } from './gate.js';
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
 
@@ -31,7 +32,8 @@ let changingPassword = false;
 const passwordForm = (title, hint) => `<form id="passForm" class="account-form">
       ${title ? `<h3>${title}</h3>` : ''}${hint ? `<p class="hint">${hint}</p>` : ''}
       <div class="field"><label for="newPass">New password</label>
-      <input type="password" id="newPass" autocomplete="new-password" required minlength="${PASSWORD_MIN}" placeholder="At least ${PASSWORD_MIN} characters"></div>
+      <input type="password" id="newPass" autocomplete="new-password" required minlength="${PASSWORD_MIN}" aria-describedby="newPassRules"></div>
+      ${rulesList('newPassRules')}
       <div class="field"><label for="newPass2">New password again</label>
       <input type="password" id="newPass2" autocomplete="new-password" required minlength="${PASSWORD_MIN}"></div>
       <div class="row"><button class="btn" type="submit">Save password</button></div>
@@ -116,11 +118,12 @@ function bindPassword() {
   document.getElementById('passForm').addEventListener('submit', async e => {
     e.preventDefault();
     const pass = document.getElementById('newPass').value;
-    if (pass.length < PASSWORD_MIN) { say(`The password needs at least ${PASSWORD_MIN} characters.`, true); return; }
+    if (passwordProblem(pass)) { say(passwordProblem(pass), true); return; }
     if (pass !== document.getElementById('newPass2').value) { say("The two passwords don't match.", true); return; }
     try { await setNewPassword(pass); changingPassword = false; say('Password saved. Use it to log in from now on.'); }
-    catch (err) { say(/should be|weak/i.test(err.message || '') ? 'That password is too weak. Mix letters and numbers.' : 'Could not save the password. Try again.', true); }
+    catch (err) { say(/should be|weak/i.test(err.message || '') ? 'That password is too weak. Use upper and lower case letters, a number and a symbol.' : 'Could not save the password. Try again.', true); }
   });
+  watchRules(document.getElementById('newPass'), document.getElementById('newPassRules'));
 }
 
 export function initAccount() {
