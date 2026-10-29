@@ -335,6 +335,13 @@ export const adultScale = (type, sex) => {
   const h = (ADULT_HEIGHT[type] || {})[sex];
   return h ? Math.round(h / HEIGHT_REF * 100) / 100 : 1;
 };
+// metres drawn as how many pixels beside dinosaurs drawn at px (dressedArt: an adult HEIGHT_REF metres
+// tall is px × 17 × the adult stage's scale)
+export const pxPerMetre = px => px * 17 * 1.5 / HEIGHT_REF;
+// the explorer beside them, as tall as a person stands (a man about 1.75 m, a woman 1.63 m): the height
+// to ask playerArt for, its figure filling about 97% of its picture's height
+const PLAYER_METRES = { male: 1.75, female: 1.63 };
+export const playerHeightAt = (px, look) => (PLAYER_METRES[look && look.sex] || PLAYER_METRES.male) * pxPerMetre(px) / 0.97;
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
 // juvenile sprites drawn so far (sprites/juvenile/), and how tall each is drawn against the others;

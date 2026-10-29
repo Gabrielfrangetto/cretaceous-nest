@@ -3,7 +3,7 @@
 // and the sign-in window opened from every Play button. Pictures below the first screen are only made
 // as they come near, so the page starts light.
 import { SPECIES, STARTERS, ROLES, DIET, WORLD_SEED } from '../config.js';
-import { eggSVG, NEST, dressedArt, sleepArt, playerArt } from '../art.js';
+import { eggSVG, NEST, dressedArt, sleepArt, playerArt, playerHeightAt } from '../art.js';
 import { sampleMapSVG } from './world.js';
 import { openSignIn } from './gate.js';
 
@@ -22,6 +22,8 @@ const sized = (art, h) => {
   if (h != null) art.style.setProperty('--h', h);
   return art;
 };
+// the fight's scale: the explorer about 210 px tall (a little less on a phone)
+const FIGHT_PX = matchMedia('(max-width: 480px)').matches ? 9.5 : 12;
 const flipped = art => { art.classList.add('land-flip'); return art; };
 // eggs in a nest: the nest in front, the eggs sat in it
 const nest = (types, cls = '') => el('land-nest ' + cls, el('land-nest-eggs', ...types.map((t, i) => el('land-egg', eggSVG(SPECIES[t], i === 1 ? 1 : 0)))), NEST);
@@ -95,9 +97,10 @@ const ART = {
   fight() {
     const side = (name, art, hp, cls) => el('art-fighter ' + cls, `<strong>${name}</strong><span class="hp" role="img" aria-label="${hp}% health"><i style="width:${hp}%"></i></span>`, art);
     return el('art-fight',
-      side('You', sized(el('player-box', playerArt({ weapon: 'bone_sword', shield: 'bone_shield', head: 'hide_cap', body: 'clay_armor', feet: 'feather_boots' }, 120))), 82, 'me'),
+      // (both at one scale, as tall as they stood: a grown Velociraptor comes up to a person's hip)
+      side('You', el('player-box', playerArt({ weapon: 'bone_sword', shield: 'bone_shield', head: 'hide_cap', body: 'clay_armor', feet: 'feather_boots' }, playerHeightAt(FIGHT_PX))), 82, 'me'),
       '<span class="art-vs">VS</span>',
-      side('Velociraptor', flipped(sized(dressedArt('raptor', 6, 'm', null, null, 'juvenile'))), 35, 'foe'));
+      side('Velociraptor', flipped(dressedArt('raptor', FIGHT_PX, 'm', null, null, 'adult')), 35, 'foe'));
   },
   breed() {
     return el('art-breed',

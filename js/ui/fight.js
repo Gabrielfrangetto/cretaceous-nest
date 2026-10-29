@@ -3,7 +3,7 @@
 // play out one by one with health bars and damage numbers.
 import { CREATURES, SPECIES, SEX, PLAYER_ID, FRILL } from '../config.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
-import { dressedArt, babyArt, playerArt } from '../art.js';
+import { dressedArt, babyArt, playerArt, playerHeightAt, heightOf } from '../art.js';
 import { esc } from '../util.js';
 
 const STEP_MS = 520;
@@ -24,7 +24,8 @@ function unitArt(unit, who, n) {
   const b = who(unit.members[0]);
   if (!b) return document.createElement('span');
   const scale = n > 2 ? 0.6 : n > 1 ? 0.8 : 1;
-  if (b.id === PLAYER_ID) return playerArt(b.equip, 130 * scale, b.look);
+  // (the explorer at the dinosaurs' own scale: a Velociraptor comes up to their hip)
+  if (b.id === PLAYER_ID) return playerArt(b.equip, playerHeightAt(6 * scale, b.look), b.look);
   const art = dressedArt(b.type, 6 * scale, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy);
   if (unit.kind !== 'pack') return art;
   // a pack: its leader with a few of the others peeking out behind
@@ -46,7 +47,9 @@ function foeArt(battle) {
     art.style.filter = c.tint;
     return art;
   }
-  const big = { tiny: 3.5, small: 5, medium: 6.5, large: 7.5, huge: 8.5, colossal: 9 }[SPECIES[battle.creature].size] || 6;
+  // (a kind whose height is known at the team's scale, as tall beside them as it stood; the others by
+  // their size)
+  const big = heightOf(battle.creature, 'm', 'adult') ? 6 : { tiny: 3.5, small: 5, medium: 6.5, large: 7.5, huge: 8.5, colossal: 9 }[SPECIES[battle.creature].size] || 6;
   const lead = dressedArt(battle.creature, big * (battle.lair ? 1.1 : 1), 'm', null, null, 'adult');
   if (!battle.foe.pack) return lead;
   const group = document.createElement('div');
