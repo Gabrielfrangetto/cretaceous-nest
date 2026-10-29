@@ -8,7 +8,7 @@ import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudState, onCloudChange, inGame, resolveChoice, loadAccount,
   signInWithGoogle, signOut, logIn, signUp, confirmSignUp, resendConfirmation, sendPasswordReset,
-  usernameAvailable, USERNAME, PASSWORD_MIN, PASSWORD_RULES, passwordProblem, setNewPassword,
+  usernameAvailable, USERNAME, PASSWORD_MIN, PASSWORD_RULES, passwordProblem, finishReset,
 } from '../cloud.js';
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
@@ -93,12 +93,12 @@ function render(force = false) {
   if (st.recovering && st.user) {
     const kept = [...body.querySelectorAll('#resetForm input')].map(i => [i.id, i.value]);
     body.innerHTML = `${head}<h2>Choose a new password</h2>
-      <p class="hint">For <strong>${esc(st.user.email || '')}</strong>. You'll log in with it from now on.</p>
+      <p class="hint">For <strong>${esc(st.user.email || '')}</strong>. Once it's saved, log in with it.</p>
       <form id="resetForm" class="account-form">
         ${field('resetPass', 'New password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" aria-describedby="resetRules"`)}
         ${rulesList('resetRules')}
         ${field('resetPass2', 'New password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" data-typed`)}
-        <div class="row"><button class="btn" type="submit">Save and play</button><button class="ghost" type="button" id="resetOut">Cancel and sign out</button></div>
+        <div class="row"><button class="btn" type="submit">Save password</button><button class="ghost" type="button" id="resetOut">Cancel</button></div>
       </form>${note}`;
     for (const [id, v] of kept) document.getElementById(id).value = v;
     watchRules(document.getElementById('resetPass'), document.getElementById('resetRules'));
@@ -108,8 +108,12 @@ function render(force = false) {
       const pass = value('resetPass');
       if (passwordProblem(pass)) throw new Error(passwordProblem(pass));
       if (pass !== value('resetPass2')) throw new Error("The two passwords don't match.");
-      await setNewPassword(pass);
-      message = '';
+      const email = st.user.email || '';
+      await finishReset(pass);
+      // (back on the landing page: logging in with the new password)
+      typed.email = email;
+      openSignIn('login');
+      say('Password saved. Log in with your new password.');
     }, 'Could not save the password. Try again.'));
     document.getElementById('resetPass').focus();
     return;
@@ -142,7 +146,7 @@ function render(force = false) {
   const kept = shownView === view ? [...target.querySelectorAll('input')].map(i => [i.id, i.value]) : [];
   shownView = view;
   target.innerHTML = `${head}${signedOutView()}${note}`;
-  for (const [id, v] of kept) { const i = id && document.getElementById(id); if (i && target.contains(i)) i.value = v; }
+  for (const [id, v] of kept) { const i = id && v && document.getElementById(id); if (i && target.contains(i)) i.value = v; }
   bindSignedOut(target);
 }
 

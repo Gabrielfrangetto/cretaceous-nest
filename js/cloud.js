@@ -74,6 +74,8 @@ async function callGame(action, args = {}) {
 }
 
 function adopt(state, fullReset) {
+  // (an answer arriving after the player signed out: nobody's to take)
+  if (!user) return;
   const next = migrate(state);
   next.owner = user.id;
   if (fullReset) replaceState(next, 'cloud');
@@ -116,6 +118,7 @@ export async function loadAccount() {
     setStatus('error');
     return;
   }
+  if (!user) return;
   const remote = res.state ? migrate(res.state) : null;
   // a game played in this browser before accounts were required moves into the account once
   const local = legacySave() || freshState();
@@ -129,6 +132,7 @@ export async function loadAccount() {
 }
 
 async function apply(decision, remote, local) {
+  if (!user) return;
   if (decision === 'use-remote') {
     adopt(remote, true);
     clearLegacySave();
@@ -140,6 +144,7 @@ async function apply(decision, remote, local) {
   try {
     const fresh = decision === 'start-fresh' || !local.hatched.length && !local.current && !local.coins;
     const res = await callGame('claim', fresh ? { fresh: true } : { save: local, replace: !!remote });
+    if (!user) return;
     adopt(res.state, true);
     clearLegacySave();
     loaded = true;
@@ -271,6 +276,19 @@ export async function logIn(email, password) {
 export async function sendPasswordReset(email) {
   const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
   if (error) throw error;
+}
+
+// the new password after a reset link, then signed out, to log in with it (never into the game
+// straight from the link; the page waiting for the password stays up until the session is gone)
+export async function finishReset(password) {
+  const { error } = await client.auth.updateUser({ password });
+  if (error) throw error;
+  pending.length = 0;
+  await client.auth.signOut({ scope: 'local' });
+  user = null; profile = null; choice = null; loaded = false;
+  setRecovering(false);
+  replaceState(freshState(), 'cloud');
+  setStatus('signed-out');
 }
 
 export async function setNewPassword(password) {
