@@ -549,10 +549,18 @@ export function unequipArms(s, slot) {
 // a look as chosen, inside the choices (LOOK), or null
 export function cleanLook(l) {
   if (!l || typeof l !== 'object' || !LOOK.sexes[l.sex] || !LOOK.builds[l.build]) return null;
+  const faces = Object.keys(LOOK.faces[l.sex] || {});
   return {
-    sex: l.sex, build: l.build, skin: LOOK.skins[l.skin] ? l.skin : DEFAULT_LOOK.skin,
+    sex: l.sex, build: l.build, skin: skinOf(l.sex, LOOK.skins[l.skin] ? l.skin : DEFAULT_LOOK.skin),
+    ...(faces.length ? { face: faces.includes(l.face) ? l.face : faces.includes(DEFAULT_LOOK.face) ? DEFAULT_LOOK.face : faces[0] } : {}),
     hair: LOOK.hairs[l.sex][l.hair] ? l.hair : 'none', hairColor: LOOK.hairColors[l.hairColor] ? l.hairColor : DEFAULT_LOOK.hairColor,
   };
+}
+// the skin tones painted for a sex, light first; a tone it hasn't, the nearest it has (the darker of two)
+export const skinsOf = sex => Object.keys(LOOK.skins).filter(id => id === 'light' || (LOOK.toned[sex] || []).includes(id));
+export function skinOf(sex, skin) {
+  const all = Object.keys(LOOK.skins), has = skinsOf(sex), at = all.indexOf(skin);
+  return has.includes(skin) ? skin : has.reduce((best, id) => (Math.abs(all.indexOf(id) - at) <= Math.abs(all.indexOf(best) - at) ? id : best), has[0]);
 }
 // The player's look, and name, set (when the game begins, or changed later at home)
 export function setLook(s, look, name) {

@@ -177,7 +177,9 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   canvas.style.width = `${Math.round(height * 171 / 528)}px`;
   const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
   const tone = LOOK.skins[look.skin] && (LOOK.toned[sex] || []).includes(look.skin) ? `-${look.skin}` : '';
-  const body = bodyPic(name + tone), style = LOOK.hairs[sex] && LOOK.hairs[sex][look.hair] && look.hair !== 'none' ? look.hair : null;
+  // (a face drawn into the body: that face's own pictures of it)
+  const faces = LOOK.faces[sex] || {}, face = faces[look.face] ? look.face : faces[DEFAULT_LOOK.face] ? DEFAULT_LOOK.face : Object.keys(faces)[0];
+  const body = bodyPic(face ? `${sex}-${face}-${name.slice(sex.length + 1)}${tone}` : name + tone), style = LOOK.hairs[sex] && LOOK.hairs[sex][look.hair] && look.hair !== 'none' ? look.hair : null;
   const hair = style ? bodyPic(`hair/${name}-${style}`) : null;
   Promise.all([boxes, loaded(body), hair ? loaded(hair) : null]).then(([b]) => {
     const box = b[name];

@@ -1116,8 +1116,12 @@ export const LOOK = {
   skins: { light: '#f1c1a4', tan: '#e0996f', medium: '#c17b59', brown: '#9a5d46', dark: '#704137' },
   // (the bodies drawn so far: one not drawn yet borrows these)
   drawn: { male: true, female: true },
-  // (the skin tones painted so far for each: the others shown in the light one until they are)
-  toned: { male: ['tan', 'brown'], female: ['tan', 'medium', 'brown', 'dark'] },
+  // (the skin tones painted for each besides light, the only ones offered: a tone one hasn't takes the
+  // nearest it has)
+  toned: { male: ['medium', 'brown', 'dark'], female: ['tan', 'medium', 'brown', 'dark'] },
+  // (faces: features as real people have them, each painted on every build in every tone,
+  // sprites/player/<sex>-<face>-<build>[-<tone>].webp; a sex with none has its face in its body)
+  faces: { male: { african: 'African', asian: 'East Asian', latino: 'Latino' }, female: {} },
 };
 // hairstyles drawn for each (sprites/player/hair/<sex>-<build>-<style>.webp, scripts/hairbody.py: each
 // painted on every build, in grey,
@@ -1128,7 +1132,7 @@ LOOK.hairs = {
   female: { none: 'Bald' },
 };
 LOOK.hairColors = { black: '#2c2420', dark: '#4a3122', brown: '#7a5234', auburn: '#8c3f26', ginger: '#b5622f', blonde: '#cba25e', grey: '#9c9894' };
-export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light', hair: 'none', hairColor: 'brown' };
+export const DEFAULT_LOOK = { sex: 'male', build: 'average', skin: 'light', face: 'latino', hair: 'none', hairColor: 'brown' };
 export const PLAYER_SLOTS = [
   { id: 'weapon', name: 'Weapon' },
   { id: 'shield', name: 'Shield' },

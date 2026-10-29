@@ -23,6 +23,16 @@ test('the explorer is made within the choices; a build gives a little of one sta
   assert.equal(s.player.look.hair, 'none');
   assert.equal(applyAction(s, 'setLook', { look: { sex: 'male', build: 'muscular', skin: 'dark' } }, 1).ok, true);
   assert.equal(s.player.look.skin, 'dark');
+  // (a man's face among his features, the usual one when none or another is asked; none for a sex
+  // whose face is in its body)
+  assert.equal(s.player.look.face, 'latino');
+  assert.equal(applyAction(s, 'setLook', { look: { sex: 'male', build: 'muscular', skin: 'dark', face: 'asian' } }, 1).ok, true);
+  assert.equal(s.player.look.face, 'asian');
+  assert.equal(cleanPlayer({ look: { sex: 'male', build: 'slim', face: 'martian' } }).look.face, 'latino');
+  assert.equal('face' in cleanPlayer({ look: { sex: 'female', build: 'slim', face: 'asian' } }).look, false);
+  // (a tone not painted for that sex: the nearest it has)
+  assert.equal(cleanPlayer({ look: { sex: 'male', build: 'slim', skin: 'tan' } }).look.skin, 'medium');
+  assert.equal(cleanPlayer({ look: { sex: 'female', build: 'slim', skin: 'tan' } }).look.skin, 'tan');
   assert.equal(s.player.name, 'Ana');
   const strong = statSheet(s.player).stats;
   assert.ok(strong.str > plain.str && strong.agi < plain.agi && strong.vit === plain.vit);
