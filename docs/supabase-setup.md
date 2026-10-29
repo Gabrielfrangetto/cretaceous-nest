@@ -12,7 +12,7 @@ Accounts and cloud saves stay off until `js/cloud-config.js` has a Supabase URL 
 
 1. Open **SQL Editor → New query**.
 2. Paste each file in `supabase/migrations/`, oldest first, and click **Run** for each one.
-3. Check **Table Editor**: `profiles`, `saves` and `ledger` should exist, all with RLS enabled.
+3. Check **Table Editor**: `profiles` (with a `username` column), `saves` and `ledger` should exist, all with RLS enabled.
 
 ## 2b. Deploy the game server
 
@@ -33,20 +33,32 @@ In **Authentication → URL Configuration**:
 - **Site URL**: the Render address, for example `https://cretaceous-nest.onrender.com`
 - **Redirect URLs**: add the same address, plus `http://localhost:5173` for local testing
 
-Email sign-in links work out of the box. The game uses the implicit flow, so a link works in any browser (for example, requested on a computer and opened on a phone), and the player is signed in wherever the link is opened.
+Players create an account with a username, an email and a password, and log in with the email and password. In **Authentication → Sign In / Providers → Email**:
 
-### Sign-in code in the email
+- **Enable Email provider**: on
+- **Confirm email**: on. A new account can't log in until its email is confirmed, which keeps out bots and typos.
+- **Minimum password length**: 8 (the game asks for at least 8 too)
 
-The game also accepts the code printed in the email, so a player can read the email on a phone and sign in on the computer. Add the code to both email templates in **Authentication → Emails** (`Magic Link` and `Confirm signup`), for example:
+Usernames live in `profiles.username` (migration `20261029000000_usernames.sql`): 3 to 20 letters, digits or `_`, unique regardless of case. The game checks a name is free before signing up (`username_available`), and an account made before usernames picks one once from the account panel (`claim_username`).
+
+The game uses the implicit flow, so an emailed link works in any browser (for example, requested on a computer and opened on a phone), and the player is signed in wherever the link is opened.
+
+### Confirmation code in the email
+
+The game also accepts the code printed in the confirmation email, so a player can read the email on a phone and activate the account on the computer. Put the code in the **Confirm signup** template in **Authentication → Emails**, for example:
 
 ```html
-<h2>Your Cretaceous Nest sign-in</h2>
-<p>Type this code in the game:</p>
+<h2>Welcome to Cretaceous Nest</h2>
+<p>Type this code in the game to activate your account:</p>
 <p style="font-size:28px;letter-spacing:4px"><strong>{{ .Token }}</strong></p>
-<p>Or open this link on the device you want to play on: <a href="{{ .ConfirmationURL }}">Sign in</a></p>
+<p>Or open this link on the device you want to play on: <a href="{{ .ConfirmationURL }}">Activate my account</a></p>
 ```
 
-The code expires with the link (1 hour by default). Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
+### Forgotten passwords
+
+**Log in → Forgot password?** emails a link (the **Reset Password** template). Opening it signs the player in and the game asks for a new password straight away. Players who signed up before passwords existed (with an emailed code) use the same link to give their account a password.
+
+The codes and links expire after 1 hour by default. Supabase's built-in email sender only allows a few emails per hour, which is fine for testing; before launch, set up a custom SMTP sender in **Authentication → Emails → SMTP Settings**.
 
 ### Optional: Google sign-in
 

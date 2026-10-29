@@ -1,12 +1,14 @@
 // What comes before the game. Every game needs an account, so until the player is signed in and their
 // save has loaded the game stays hidden:
 //   - signed out: the landing page (index.html #landing, ui/landing.js), whose Play buttons open the
-//     sign-in window (email code or link, Google when enabled);
+//     sign-in window: log in with email and password, or create an account (username, email,
+//     password; activated from the email it is sent), a forgotten password, Google when enabled;
 //   - signing in, loading, a failed load, or picking which progress to keep: a simple card (#gate).
 import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudState, onCloudChange, inGame, resolveChoice, loadAccount,
-  sendSignInLink, verifySignInCode, signInWithGoogle, signOut,
+  signInWithGoogle, signOut, logIn, signUp, confirmSignUp, resendConfirmation, sendPasswordReset,
+  usernameAvailable, USERNAME, PASSWORD_MIN,
 } from '../cloud.js';
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
@@ -17,8 +19,9 @@ const body = document.getElementById('gateBody');
 const game = document.getElementById('game');
 const signIn = document.getElementById('signInDialog');
 const signInBody = document.getElementById('signInBody');
-let sentTo = '';           // email a sign-in link was sent to
-let typedEmail = '';       // kept so an error does not wipe what the player typed
+// login | signup | confirm (the new account's email) | forgot | reset-sent
+let view = 'login';
+const typed = { email: '', username: '' };   // kept so an error does not wipe what the player typed
 let message = '', messageIsError = false;
 let shownKey = '';
 
@@ -31,7 +34,10 @@ function say(text, isError = false) { message = text; messageIsError = isError; 
 function friendly(err, fallback) {
   const text = err && err.message || '';
   if (!text || /fetch|network|load failed/i.test(text)) return "Couldn't reach the sign-in service. Check your connection and try again.";
-  if (/rate limit|too many/i.test(text)) return 'Too many sign-in emails were sent. Wait a few minutes and try again.';
+  if (/rate limit|too many/i.test(text)) return 'Too many emails were sent. Wait a few minutes and try again.';
+  if (/invalid login credentials/i.test(text)) return 'Wrong email or password.';
+  if (/database error saving new user/i.test(text)) return 'That username was just taken. Try another one.';
+  if (/password should be|weak password/i.test(text)) return `That password is too weak. Use at least ${PASSWORD_MIN} characters, mixing letters and numbers.`;
   if (/expired|invalid/i.test(text)) return 'That code is wrong or expired. Check the latest email, or send a new one.';
   return text || fallback;
 }
@@ -52,12 +58,12 @@ function show(mode) {
   document.body.classList.toggle('on-landing', mode === 'landing');
 }
 
-// the landing page's Play buttons
-export function openSignIn() {
+// the landing page's Play buttons: logging in, or (view 'signup') making an account
+export function openSignIn(next = 'login') {
+  if (next === 'login' || next === 'signup') { view = next; message = ''; }
   render(true);
   if (!signIn.open) signIn.showModal();
-  const field = signInBody.querySelector('input');
-  if (field) field.focus();
+  focusFirst();
 }
 
 function render(force = false) {
@@ -66,7 +72,7 @@ function render(force = false) {
   show(mode);
   if (mode === 'game') return;
   // redrawn only when what it shows changes, so typing is never interrupted
-  const key = [mode, st.status, !!st.user, !!st.choice, sentTo, message].join('|');
+  const key = [mode, st.status, !!st.user, !!st.choice, view, message].join('|');
   if (key === shownKey && !force) return;
   shownKey = key;
   const note = message ? `<p class="account-msg ${messageIsError ? 'error' : ''}" role="status">${esc(message)}</p>` : '';
@@ -106,47 +112,105 @@ function render(force = false) {
   }
 
   // signed out
-  target.innerHTML = sentTo ? `${head}
-    <h2 id="signInTitle">Check your email</h2>
-    <p>We sent a sign-in email to <strong>${esc(sentTo)}</strong>.</p>
+  target.innerHTML = `${head}${signedOutView()}${note}`;
+  bindSignedOut(target);
+}
+
+// ---------- signed out: log in, create an account, confirm its email, a forgotten password ----------
+const field = (id, label, type, attrs = '') => `<div class="field"><label for="${id}">${label}</label>
+  <input type="${type}" id="${id}" ${attrs}></div>`;
+const tabs = () => `<div class="auth-tabs" role="tablist">
+  <button type="button" role="tab" class="${view === 'login' ? 'on' : ''}" aria-selected="${view === 'login'}" data-view="login">Log in</button>
+  <button type="button" role="tab" class="${view === 'signup' ? 'on' : ''}" aria-selected="${view === 'signup'}" data-view="signup">Create account</button>
+</div>`;
+const googleRow = () => GOOGLE_SIGN_IN ? '<div class="row"><button class="ghost google" type="button" id="googleBtn">Continue with Google</button></div>' : '';
+
+function signedOutView() {
+  if (view === 'confirm') return `<h2 id="signInTitle">Confirm your email</h2>
+    <p>We sent an email to <strong>${esc(typed.email)}</strong>. Open the link in it, or type its code here, to activate your account.</p>
     <form id="codeForm" class="account-form">
-      <div class="field"><label for="signInCode">Type the code from the email</label>
-      <input type="text" id="signInCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required placeholder="123456" class="code-input"></div>
-      <div class="row"><button class="btn" type="submit">Sign in</button></div>
+      ${field('signInCode', 'Code from the email', 'text', 'inputmode="numeric" autocomplete="one-time-code" maxlength="10" required placeholder="123456" class="code-input"')}
+      <div class="row"><button class="btn" type="submit">Activate account</button></div>
     </form>
-    <p class="hint">Or open the link in the email. The link signs you in on the browser where you open it, so on a phone it signs in the phone.</p>
-    <p class="hint">No email after a few minutes? Check your spam folder.</p>
-    <div class="row"><button class="ghost" type="button" id="again">Send again or use a different email</button></div>
-    ${note}` : `${head}
-    <h2 id="signInTitle">Sign in to play</h2>
-    <p class="hint">A free account keeps your nest safe on our server, so you can play on any device and never lose progress. New here? Signing in creates your account.</p>
-    <form id="signInForm" class="account-form">
-      <div class="field"><label for="signInEmail">Email</label>
-      <input type="email" id="signInEmail" autocomplete="email" required placeholder="you@example.com" value="${esc(typedEmail)}"></div>
-      <div class="row"><button class="btn" type="submit">Email me a sign-in code</button></div>
+    <p class="hint">The link signs you in on the browser where you open it, so on a phone it signs in the phone. No email after a few minutes? Check your spam folder.</p>
+    <div class="row"><button class="ghost" type="button" id="resendBtn">Send the email again</button><button class="ghost" type="button" data-view="login">Back to log in</button></div>`;
+  if (view === 'forgot') return `<h2 id="signInTitle">Forgot your password?</h2>
+    <p class="hint">Type your account's email and we'll send you a link to choose a new password.</p>
+    <form id="forgotForm" class="account-form">
+      ${field('signInEmail', 'Email', 'email', `autocomplete="email" required placeholder="you@example.com" value="${esc(typed.email)}"`)}
+      <div class="row"><button class="btn" type="submit">Send the link</button><button class="ghost" type="button" data-view="login">Back to log in</button></div>
+    </form>`;
+  if (view === 'reset-sent') return `<h2 id="signInTitle">Check your email</h2>
+    <p>If <strong>${esc(typed.email)}</strong> has an account, an email is on its way with a link to choose a new password. Open it on the device you want to play on.</p>
+    <div class="row"><button class="ghost" type="button" data-view="login">Back to log in</button></div>`;
+  if (view === 'signup') return `${tabs()}
+    <p class="hint">A free account keeps your nest safe on our server, so you can play on any device and never lose progress.</p>
+    <form id="signUpForm" class="account-form">
+      ${field('signUpName', 'Username', 'text', `autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" placeholder="3 to 20 letters, numbers or _" value="${esc(typed.username)}"`)}
+      ${field('signInEmail', 'Email', 'email', `autocomplete="email" required placeholder="you@example.com" value="${esc(typed.email)}"`)}
+      ${field('signUpPass', 'Password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" placeholder="At least ${PASSWORD_MIN} characters"`)}
+      ${field('signUpPass2', 'Password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}"`)}
+      <div class="row"><button class="btn" type="submit">Create account</button></div>
     </form>
-    ${GOOGLE_SIGN_IN ? '<div class="row"><button class="ghost google" type="button" id="googleBtn">Continue with Google</button></div>' : ''}
-    ${note}${LEGAL}`;
-  if (sentTo) {
-    document.getElementById('again').addEventListener('click', () => { sentTo = ''; message = ''; render(true); });
-    document.getElementById('codeForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const button = e.submitter || e.target.querySelector('button');
-      button.disabled = true;
-      try { await verifySignInCode(sentTo, document.getElementById('signInCode').value); message = ''; }
-      catch (err) { button.disabled = false; say(friendly(err, 'Could not sign in with that code.'), true); }
-    });
-    document.getElementById('signInCode').focus();
-    return;
-  }
-  document.getElementById('signInForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    const email = document.getElementById('signInEmail').value.trim();
-    typedEmail = email;
-    const button = e.submitter || e.target.querySelector('button');
-    button.disabled = true;
-    try { await sendSignInLink(email); sentTo = email; message = ''; render(true); }
-    catch (err) { button.disabled = false; say(friendly(err, 'Could not send the email. Try again in a minute.'), true); }
+    ${googleRow()}${LEGAL}`;
+  return `${tabs()}
+    <form id="logInForm" class="account-form">
+      ${field('signInEmail', 'Email', 'email', `autocomplete="email" required placeholder="you@example.com" value="${esc(typed.email)}"`)}
+      ${field('logInPass', 'Password', 'password', 'autocomplete="current-password" required')}
+      <div class="row"><button class="btn" type="submit">Log in</button><button class="ghost" type="button" data-view="forgot">Forgot password?</button></div>
+    </form>
+    <p class="hint">Played before with an emailed code? Use “Forgot password?” to give your account a password.</p>
+    ${googleRow()}${LEGAL}`;
+}
+
+function go(next) { view = next; message = ''; render(true); focusFirst(); }
+function focusFirst() { const f = (signIn.open ? signInBody : body).querySelector('input'); if (f) f.focus(); }
+// the form's button held down while the request is out, and the answer (or what went wrong) shown
+async function busy(e, work, fallback) {
+  e.preventDefault();
+  const button = e.submitter || e.target.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try { await work(); }
+  catch (err) { if (button) button.disabled = false; say(friendly(err, fallback), true); }
+}
+const value = id => (document.getElementById(id)?.value || '');
+
+function bindSignedOut(root) {
+  root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
+  const remember = () => { typed.email = value('signInEmail').trim() || typed.email; typed.username = value('signUpName').trim() || typed.username; };
+  root.querySelectorAll('input').forEach(i => i.addEventListener('input', remember));
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('submit', fn); };
+  on('logInForm', e => busy(e, async () => {
+    typed.email = value('signInEmail').trim();
+    try { await logIn(typed.email, value('logInPass')); message = ''; }
+    catch (err) {
+      // (an account whose email is not confirmed yet: straight to confirming it)
+      if (/not confirmed/i.test(err.message || '')) { view = 'confirm'; say('Your email is not confirmed yet. Open the link we sent, or type its code below.', true); return; }
+      throw err;
+    }
+  }, 'Could not log in. Try again.'));
+  on('signUpForm', e => busy(e, async () => {
+    const username = value('signUpName').trim(), email = value('signInEmail').trim(), pass = value('signUpPass');
+    typed.username = username; typed.email = email;
+    if (!USERNAME.test(username)) throw new Error('A username is 3 to 20 letters, numbers or _ (no spaces).');
+    if (pass.length < PASSWORD_MIN) throw new Error(`The password needs at least ${PASSWORD_MIN} characters.`);
+    if (pass !== value('signUpPass2')) throw new Error("The two passwords don't match.");
+    if (!(await usernameAvailable(username))) throw new Error(`“${username}” is taken. Try another username.`);
+    const r = await signUp(username, email, pass);
+    if (r === 'exists') { view = 'login'; say('That email already has an account. Log in, or use “Forgot password?”.', true); return; }
+    if (r === 'confirm') { view = 'confirm'; message = ''; render(true); focusFirst(); }
+  }, 'Could not create the account. Try again.'));
+  on('codeForm', e => busy(e, async () => { await confirmSignUp(typed.email, value('signInCode')); message = ''; }, 'Could not activate with that code.'));
+  on('forgotForm', e => busy(e, async () => {
+    typed.email = value('signInEmail').trim();
+    await sendPasswordReset(typed.email);
+    go('reset-sent');
+  }, 'Could not send the email. Try again in a minute.'));
+  const resend = document.getElementById('resendBtn');
+  if (resend) resend.addEventListener('click', async () => {
+    resend.disabled = true;
+    try { await resendConfirmation(typed.email); say('Sent again. Check your inbox (and spam).'); }
+    catch (err) { resend.disabled = false; say(friendly(err, 'Could not send the email. Try again in a minute.'), true); }
   });
   const google = document.getElementById('googleBtn');
   if (google) google.addEventListener('click', async () => {
@@ -159,7 +223,7 @@ export function initGate() {
   // a click on the dimmed backdrop closes the window too
   signIn.addEventListener('click', e => { if (e.target === signIn) signIn.close(); });
   onCloudChange(() => {
-    if (cloudState().user) { sentTo = ''; message = ''; }
+    if (cloudState().user) { view = 'login'; message = ''; }
     render();
   });
   render();

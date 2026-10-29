@@ -19,13 +19,14 @@ let profile = null;
 let status = 'starting';
 let loaded = false;         // the signed-in player's save has arrived from the server
 let choice = null;          // { local, remote, remoteSave, localSave } while the player picks a save
+let recovering = false;     // signed in by a password-reset link: a new password is to be chosen
 
 const listeners = new Set();
 export const onCloudChange = fn => listeners.add(fn);
 const emit = () => { for (const fn of listeners) fn(); };
 const setStatus = s => { status = s; emit(); };
 
-export const cloudState = () => ({ enabled: cloudEnabled, ready: !!client, user, profile, status, choice, loaded });
+export const cloudState = () => ({ enabled: cloudEnabled, ready: !!client, user, profile, status, choice, loaded, recovering });
 // the game can be shown: signed in, save loaded, nothing left to choose
 export const inGame = () => !!(user && loaded && !choice);
 
@@ -36,8 +37,9 @@ export async function initCloud() {
   if (!cloudEnabled) { setStatus('unavailable'); return; }
   try {
     const { createClient } = await import(SDK_URL);
-    // implicit flow: the emailed link signs the player in on whatever browser opens it, which matters
-    // when the link is requested on a computer and opened in a phone's mail app
+    // implicit flow: an emailed link (confirming a new account, or resetting a password) signs the
+    // player in on whatever browser opens it, which matters when it is asked for on a computer and
+    // opened in a phone's mail app
     client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: true },
     });
@@ -46,7 +48,10 @@ export async function initCloud() {
     return;
   }
   // supabase-js asks not to await its own calls inside this callback, so the work runs right after it
-  client.auth.onAuthStateChange((event, session) => { setTimeout(() => handleSession(session), 0); });
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') recovering = true;
+    setTimeout(() => handleSession(session), 0);
+  });
   // coming back to the tab picks up anything done on another device meanwhile
   document.addEventListener('visibilitychange', () => { if (!document.hidden && accountActive() && !pending.length && !working) resync(); });
   emit();
@@ -76,7 +81,7 @@ async function handleSession(session) {
   }
   if (!next) {
     // signed out: the progress stays on the server and the sign-in screen comes back
-    user = null; profile = null; choice = null; loaded = false;
+    user = null; profile = null; choice = null; loaded = false; recovering = false;
     pending.length = 0;
     replaceState(freshState(), 'cloud');
     setStatus('signed-out');
@@ -189,7 +194,9 @@ async function resync() {
 }
 
 async function loadProfile() {
-  const { data } = await client.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+  let { data, error } = await client.from('profiles').select('display_name, username').eq('id', user.id).maybeSingle();
+  // (a database not yet given usernames)
+  if (error) ({ data } = await client.from('profiles').select('display_name').eq('id', user.id).maybeSingle());
   profile = data || { display_name: null };
   emit();
 }
@@ -197,15 +204,63 @@ async function loadProfile() {
 // ---------- actions for the account panel ----------
 const redirectUrl = () => location.origin + location.pathname;
 
-export async function sendSignInLink(email) {
-  const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectUrl() } });
+// a username as the game takes it: 3 to 20 letters, digits or underscores
+export const USERNAME = /^[A-Za-z0-9_]{3,20}$/;
+export const PASSWORD_MIN = 8;
+
+// whether a username can still be had (true when the server can't tell: the sign-up then decides)
+export async function usernameAvailable(name) {
+  const { data, error } = await client.rpc('username_available', { name });
+  return error ? true : !!data;
+}
+
+// a new account: nothing to play with until the email is confirmed (by the link or the code in the
+// email the server sends). 'exists' when the email already has an account.
+export async function signUp(username, email, password) {
+  const { data, error } = await client.auth.signUp({ email, password, options: { data: { username }, emailRedirectTo: redirectUrl() } });
+  if (error) throw error;
+  // (an email already signed up comes back as an account with no ways in, so as not to tell anyone
+  // which emails have accounts)
+  if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) return 'exists';
+  return data.session ? 'signed-in' : 'confirm';
+}
+
+// the code printed in the confirmation email; confirms and signs in on this browser wherever the
+// email was read
+export async function confirmSignUp(email, code) {
+  const { error } = await client.auth.verifyOtp({ email, token: code.replace(/\s+/g, ''), type: 'signup' });
   if (error) throw error;
 }
 
-// the code printed in the sign-in email; signs in on this browser wherever the email was read
-export async function verifySignInCode(email, code) {
-  const { error } = await client.auth.verifyOtp({ email, token: code.replace(/\s+/g, ''), type: 'email' });
+export async function resendConfirmation(email) {
+  const { error } = await client.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectUrl() } });
   if (error) throw error;
+}
+
+export async function logIn(email, password) {
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+// a forgotten password: the emailed link signs the player in to choose a new one (recovering)
+export async function sendPasswordReset(email) {
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+  if (error) throw error;
+}
+
+export async function setNewPassword(password) {
+  const { error } = await client.auth.updateUser({ password });
+  if (error) throw error;
+  recovering = false;
+  emit();
+}
+
+// an account made before usernames picks one, once
+export async function claimUsername(name) {
+  const { error } = await client.rpc('claim_username', { name });
+  if (error) throw error;
+  profile = { ...profile, username: name, display_name: profile?.display_name || name };
+  emit();
 }
 
 export async function signInWithGoogle() {

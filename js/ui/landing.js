@@ -125,7 +125,7 @@ export function initLanding() {
   // sections alternate sides: odd ones put the picture first
   root.querySelectorAll('.land-sec').forEach((sec, i) => sec.classList.add(i % 2 ? 'flip' : 'straight'));
   root.querySelectorAll('.land-steps li').forEach((li, i) => li.style.setProperty('--i', i));
-  root.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', openSignIn));
+  root.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => openSignIn(b.dataset.play || 'login')));
 
   // the first screen's pictures now, the rest as they come near
   const spots = [...root.querySelectorAll('[data-art]')];
