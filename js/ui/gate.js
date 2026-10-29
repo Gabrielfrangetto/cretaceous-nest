@@ -22,6 +22,7 @@ const signInBody = document.getElementById('signInBody');
 // login | signup | confirm (the new account's email) | forgot | reset-sent
 let view = 'login';
 const typed = { email: '', username: '' };   // kept so an error does not wipe what the player typed
+let shownView = '';
 let message = '', messageIsError = false;
 let shownKey = '';
 
@@ -111,8 +112,11 @@ function render(force = false) {
     return;
   }
 
-  // signed out
+  // signed out (what is typed kept when only the message changes, so an error never empties a field)
+  const kept = shownView === view ? [...target.querySelectorAll('input')].map(i => [i.id, i.value]) : [];
+  shownView = view;
   target.innerHTML = `${head}${signedOutView()}${note}`;
+  for (const [id, v] of kept) { const i = id && document.getElementById(id); if (i && target.contains(i)) i.value = v; }
   bindSignedOut(target);
 }
 
@@ -148,9 +152,10 @@ function signedOutView() {
     <form id="signUpForm" class="account-form">
       ${field('signUpName', 'Username', 'text', `autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" placeholder="3 to 20 letters, numbers or _" value="${esc(typed.username)}"`)}
       ${field('signInEmail', 'Email', 'email', `autocomplete="email" required placeholder="you@example.com" value="${esc(typed.email)}"`)}
+      ${field('signUpEmail2', 'Email again', 'email', 'autocomplete="off" required data-typed placeholder="Type it again (no pasting)"')}
       ${field('signUpPass', 'Password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" aria-describedby="signUpRules"`)}
       ${rulesList('signUpRules')}
-      ${field('signUpPass2', 'Password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}"`)}
+      ${field('signUpPass2', 'Password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" data-typed placeholder="Type it again (no pasting)"`)}
       <div class="row"><button class="btn" type="submit">Create account</button></div>
     </form>
     ${googleRow()}${LEGAL}`;
@@ -188,6 +193,14 @@ function bindSignedOut(root) {
   root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
   const remember = () => { typed.email = value('signInEmail').trim() || typed.email; typed.username = value('signUpName').trim() || typed.username; };
   root.querySelectorAll('input').forEach(i => i.addEventListener('input', remember));
+  // (the second email and password typed again by hand, so a slip in the first shows: no pasting or
+  // dropping text in)
+  root.querySelectorAll('[data-typed]').forEach(i => ['paste', 'drop'].forEach(ev => i.addEventListener(ev, e => {
+    e.preventDefault();
+    // (said under the field, not by redrawing the form, which would empty what is typed)
+    const box = i.closest('.field');
+    if (!box.querySelector('.no-paste')) box.insertAdjacentHTML('beforeend', '<p class="hint warn-text no-paste" role="status">Type it again by hand: pasting is off here, so a typo in the first one shows up.</p>');
+  })));
   const pass = document.getElementById('signUpPass');
   if (pass) watchRules(pass, document.getElementById('signUpRules'));
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('submit', fn); };
@@ -204,6 +217,7 @@ function bindSignedOut(root) {
     const username = value('signUpName').trim(), email = value('signInEmail').trim(), pass = value('signUpPass');
     typed.username = username; typed.email = email;
     if (!USERNAME.test(username)) throw new Error('A username is 3 to 20 letters, numbers or _ (no spaces).');
+    if (email.toLowerCase() !== value('signUpEmail2').trim().toLowerCase()) throw new Error("The two emails don't match.");
     if (passwordProblem(pass)) throw new Error(passwordProblem(pass));
     if (pass !== value('signUpPass2')) throw new Error("The two passwords don't match.");
     if (!(await usernameAvailable(username))) throw new Error(`“${username}” is taken. Try another username.`);

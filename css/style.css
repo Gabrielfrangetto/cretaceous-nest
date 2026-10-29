@@ -600,7 +600,10 @@ body.on-landing > .site-footer { display: none; }
 .land-nav nav { display: flex; gap: 4px; margin-left: auto; overflow-x: auto; scrollbar-width: none; }
 .land-nav nav a { padding: 6px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14px; white-space: nowrap; }
 .land-nav nav a:hover, .land-nav nav a:focus-visible { color: var(--ink); background: var(--panel); }
-@media (max-width: 680px) { .land-nav nav { display: none; } .land-nav .btn { margin-left: auto; } }
+.land-auth { display: flex; gap: 8px; flex-shrink: 0; }
+/* (on a phone the two buttons beside the egg; the title is just below) */
+@media (max-width: 440px) { .land-logo-name { display: none; } }
+@media (max-width: 680px) { .land-nav nav { display: none; } .land-auth { margin-left: auto; } }
 
 .landing .btn.big { font-size: 19px; padding: 14px 30px; border-radius: 14px; box-shadow: 0 6px 0 color-mix(in srgb, var(--accent) 60%, #000), 0 14px 30px rgba(0, 0, 0, .18); transition: transform .15s, box-shadow .15s; }
 .landing .btn.big:hover { transform: translateY(-2px); box-shadow: 0 8px 0 color-mix(in srgb, var(--accent) 60%, #000), 0 18px 34px rgba(0, 0, 0, .2); }
