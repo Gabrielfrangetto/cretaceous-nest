@@ -735,6 +735,8 @@ img.land-sprite { display: block; height: auto; }
 /* fight */
 .art-fight { display: grid; grid-template-columns: minmax(0, .8fr) auto minmax(0, 1.2fr); align-items: end; gap: 10px; width: 100%; }
 .art-fighter { display: grid; gap: 6px; justify-items: center; min-width: 0; }
+/* (the explorer's canvas a block, so no line's room under it lifts them off the ground the foe stands on) */
+.art-fighter .player-art { display: block; }
 .art-fighter strong { font-family: var(--display); font-size: 15px; }
 .art-fighter .hp { width: 100%; max-width: 160px; height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; display: block; }
 .art-fighter .hp i { display: block; height: 100%; background: #4f8a3a; }
