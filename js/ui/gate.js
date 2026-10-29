@@ -8,7 +8,7 @@ import { GOOGLE_SIGN_IN } from '../cloud-config.js';
 import {
   cloudState, onCloudChange, inGame, resolveChoice, loadAccount,
   signInWithGoogle, signOut, logIn, signUp, confirmSignUp, resendConfirmation, sendPasswordReset,
-  usernameAvailable, USERNAME, PASSWORD_MIN, PASSWORD_RULES, passwordProblem,
+  usernameAvailable, USERNAME, PASSWORD_MIN, PASSWORD_RULES, passwordProblem, setNewPassword,
 } from '../cloud.js';
 import { devMode } from '../state.js';
 import { esc } from '../util.js';
@@ -45,6 +45,8 @@ function friendly(err, fallback) {
 
 // 'game' | 'landing' | 'gate'
 function modeOf(st) {
+  // (back from a password-reset link: the new password first, the game after)
+  if (st.recovering && st.user) return 'gate';
   if (devMode() || inGame()) return 'game';
   // the landing page also shows while the session is checked, since most visitors are signed out
   if (!st.user && ['starting', 'signed-out', 'unavailable', 'error'].includes(st.status)) return 'landing';
@@ -73,7 +75,7 @@ function render(force = false) {
   show(mode);
   if (mode === 'game') return;
   // redrawn only when what it shows changes, so typing is never interrupted
-  const key = [mode, st.status, !!st.user, !!st.choice, view, message].join('|');
+  const key = [mode, st.status, !!st.user, !!st.choice, !!st.recovering, view, message].join('|');
   if (key === shownKey && !force) return;
   shownKey = key;
   const note = message ? `<p class="account-msg ${messageIsError ? 'error' : ''}" role="status">${esc(message)}</p>` : '';
@@ -86,6 +88,30 @@ function render(force = false) {
     target.innerHTML = `${head}<p class="hint">The game can't reach its server right now. Check your connection and try again.</p>
       <div class="row"><button class="btn" type="button" id="gateRetry">Try again</button></div>`;
     document.getElementById('gateRetry').addEventListener('click', () => location.reload());
+    return;
+  }
+  if (st.recovering && st.user) {
+    const kept = [...body.querySelectorAll('#resetForm input')].map(i => [i.id, i.value]);
+    body.innerHTML = `${head}<h2>Choose a new password</h2>
+      <p class="hint">For <strong>${esc(st.user.email || '')}</strong>. You'll log in with it from now on.</p>
+      <form id="resetForm" class="account-form">
+        ${field('resetPass', 'New password', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" aria-describedby="resetRules"`)}
+        ${rulesList('resetRules')}
+        ${field('resetPass2', 'New password again', 'password', `autocomplete="new-password" required minlength="${PASSWORD_MIN}" data-typed`)}
+        <div class="row"><button class="btn" type="submit">Save and play</button><button class="ghost" type="button" id="resetOut">Cancel and sign out</button></div>
+      </form>${note}`;
+    for (const [id, v] of kept) document.getElementById(id).value = v;
+    watchRules(document.getElementById('resetPass'), document.getElementById('resetRules'));
+    noPaste(body);
+    document.getElementById('resetOut').addEventListener('click', () => signOut());
+    document.getElementById('resetForm').addEventListener('submit', e => busy(e, async () => {
+      const pass = value('resetPass');
+      if (passwordProblem(pass)) throw new Error(passwordProblem(pass));
+      if (pass !== value('resetPass2')) throw new Error("The two passwords don't match.");
+      await setNewPassword(pass);
+      message = '';
+    }, 'Could not save the password. Try again.'));
+    document.getElementById('resetPass').focus();
     return;
   }
   if (st.user && st.status === 'error') {
@@ -189,18 +215,21 @@ async function busy(e, work, fallback) {
 }
 const value = id => (document.getElementById(id)?.value || '');
 
+// the second email and password typed again by hand, so a slip in the first shows: no pasting or
+// dropping text in (said under the field, not by redrawing the form, which would empty what is typed)
+function noPaste(root) {
+  root.querySelectorAll('[data-typed]').forEach(i => ['paste', 'drop'].forEach(ev => i.addEventListener(ev, e => {
+    e.preventDefault();
+    const box = i.closest('.field');
+    if (!box.querySelector('.no-paste')) box.insertAdjacentHTML('beforeend', '<p class="hint warn-text no-paste" role="status">Type it again by hand: pasting is off here, so a typo in the first one shows up.</p>');
+  })));
+}
+
 function bindSignedOut(root) {
   root.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
   const remember = () => { typed.email = value('signInEmail').trim() || typed.email; typed.username = value('signUpName').trim() || typed.username; };
   root.querySelectorAll('input').forEach(i => i.addEventListener('input', remember));
-  // (the second email and password typed again by hand, so a slip in the first shows: no pasting or
-  // dropping text in)
-  root.querySelectorAll('[data-typed]').forEach(i => ['paste', 'drop'].forEach(ev => i.addEventListener(ev, e => {
-    e.preventDefault();
-    // (said under the field, not by redrawing the form, which would empty what is typed)
-    const box = i.closest('.field');
-    if (!box.querySelector('.no-paste')) box.insertAdjacentHTML('beforeend', '<p class="hint warn-text no-paste" role="status">Type it again by hand: pasting is off here, so a typo in the first one shows up.</p>');
-  })));
+  noPaste(root);
   const pass = document.getElementById('signUpPass');
   if (pass) watchRules(pass, document.getElementById('signUpRules'));
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('submit', fn); };

@@ -19,7 +19,14 @@ let profile = null;
 let status = 'starting';
 let loaded = false;         // the signed-in player's save has arrived from the server
 let choice = null;          // { local, remote, remoteSave, localSave } while the player picks a save
-let recovering = false;     // signed in by a password-reset link: a new password is to be chosen
+// signed in by a password-reset link: no game until a new password is chosen (kept for the tab, so a
+// reload doesn't let the link in without one)
+const RECOVERY_KEY = 'nest-recovering';
+let recovering = (() => { try { return sessionStorage.getItem(RECOVERY_KEY) === '1'; } catch (e) { return false; } })();
+function setRecovering(on) {
+  recovering = on;
+  try { if (on) sessionStorage.setItem(RECOVERY_KEY, '1'); else sessionStorage.removeItem(RECOVERY_KEY); } catch (e) { /* private mode */ }
+}
 
 const listeners = new Set();
 export const onCloudChange = fn => listeners.add(fn);
@@ -28,13 +35,15 @@ const setStatus = s => { status = s; emit(); };
 
 export const cloudState = () => ({ enabled: cloudEnabled, ready: !!client, user, profile, status, choice, loaded, recovering });
 // the game can be shown: signed in, save loaded, nothing left to choose
-export const inGame = () => !!(user && loaded && !choice);
+export const inGame = () => !!(user && loaded && !choice && !recovering);
 
 // true when actions should go to the server
 export const accountActive = () => !!(client && user && !choice && status !== 'loading');
 
 export async function initCloud() {
   if (!cloudEnabled) { setStatus('unavailable'); return; }
+  // (a reset link's address says what it is, read before the client takes the session from it)
+  if (/type=recovery/.test(location.hash + location.search)) setRecovering(true);
   try {
     const { createClient } = await import(SDK_URL);
     // implicit flow: an emailed link (confirming a new account, or resetting a password) signs the
@@ -49,7 +58,7 @@ export async function initCloud() {
   }
   // supabase-js asks not to await its own calls inside this callback, so the work runs right after it
   client.auth.onAuthStateChange((event, session) => {
-    if (event === 'PASSWORD_RECOVERY') recovering = true;
+    if (event === 'PASSWORD_RECOVERY') setRecovering(true);
     setTimeout(() => handleSession(session), 0);
   });
   // coming back to the tab picks up anything done on another device meanwhile
@@ -81,7 +90,7 @@ async function handleSession(session) {
   }
   if (!next) {
     // signed out: the progress stays on the server and the sign-in screen comes back
-    user = null; profile = null; choice = null; loaded = false; recovering = false;
+    user = null; profile = null; choice = null; loaded = false; setRecovering(false);
     pending.length = 0;
     replaceState(freshState(), 'cloud');
     setStatus('signed-out');
@@ -264,7 +273,7 @@ export async function sendPasswordReset(email) {
 export async function setNewPassword(password) {
   const { error } = await client.auth.updateUser({ password });
   if (error) throw error;
-  recovering = false;
+  setRecovering(false);
   emit();
 }
 
