@@ -17,6 +17,7 @@ ap.add_argument('sheet')
 ap.add_argument('sex')
 ap.add_argument('style')
 ap.add_argument('--builds', default='slim,average,heavy,muscular')
+ap.add_argument('--ref', help='a folder to save each figure as painted, laid as its hair is (for scripts/hairfit.py)')
 a = ap.parse_args()
 builds = a.builds.split(',')
 PAD = 64
@@ -72,6 +73,7 @@ sizes = ndimage.sum(np.ones_like(alpha), figs, range(1, n + 1))
 keep = sorted([i for i in range(n) if sizes[i] > sizes.max() * 0.2], key=lambda i: boxes[i][1].start)
 assert len(keep) == len(builds), f'{len(keep)} figures found, {len(builds)} builds named'
 
+own_full = lambda i: figs == i + 1
 info = json.load(open('sprites/player/bodies.json'))
 os.makedirs('sprites/player/hair', exist_ok=True)
 for i, build in zip(keep, builds):
@@ -138,4 +140,13 @@ for i, build in zip(keep, builds):
     canvas = Image.new('RGBA', (base.width, base.height + PAD))
     canvas.alpha_composite(hp, (x, y + PAD)) if x >= 0 and y + PAD >= 0 else canvas.paste(hp, (x, y + PAD), hp)
     clean(canvas).save(f'sprites/player/hair/{name}-{a.style}.webp', 'WEBP', quality=90, method=6)
+    if a.ref:
+        # (the whole figure as painted with this hair, laid the same way: what scripts/hairfit.py fits
+        # each face's ear to)
+        fp = Image.fromarray(np.clip(np.dstack([W, alpha * 255 * own_full(i)])[ys, xs], 0, 255).astype(np.uint8))
+        fp = fp.resize(hp.size, Image.LANCZOS)
+        ref = Image.new('RGBA', canvas.size)
+        ref.paste(fp, (x, y + PAD), fp)
+        os.makedirs(a.ref, exist_ok=True)
+        ref.save(f'{a.ref}/{name}-{a.style}.png')
     print(f'{name}-{a.style}', 'body %.3f' % score, 'face %.3f' % hbest[0], 'scale %.3f' % k)

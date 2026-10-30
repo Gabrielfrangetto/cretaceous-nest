@@ -180,7 +180,8 @@ export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
   // (a face drawn into the body: that face's own pictures of it)
   const faces = LOOK.faces[sex] || {}, face = faces[look.face] ? look.face : faces[DEFAULT_LOOK.face] ? DEFAULT_LOOK.face : Object.keys(faces)[0];
   const body = bodyPic(face ? `${sex}-${face}-${name.slice(sex.length + 1)}${tone}` : name + tone), style = LOOK.hairs[sex] && LOOK.hairs[sex][look.hair] && look.hair !== 'none' ? look.hair : null;
-  const hair = style ? bodyPic(`hair/${name}-${style}`) : null;
+  // (a face's own copy of the hair, fitted to its ear: scripts/hairfit.py)
+  const hair = style ? bodyPic(face ? `hair/${sex}-${face}-${name.slice(sex.length + 1)}${tone}-${style}` : `hair/${name}-${style}`) : null;
   Promise.all([boxes, loaded(body), hair ? loaded(hair) : null]).then(([b]) => {
     const box = b[name];
     if (!box || !body.naturalWidth) return;
