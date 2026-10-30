@@ -1127,8 +1127,7 @@ export const LOOK = {
 // painted on every build, in grey,
 // coloured as chosen) and the colours (as the hair's middle tone)
 LOOK.hairs = {
-  // (the men's to be painted again on the new bodies)
-  male: { none: 'Bald' },
+  male: { none: 'Bald', crop: 'Short crop' },
   female: { none: 'Bald' },
 };
 LOOK.hairColors = { black: '#2c2420', dark: '#4a3122', brown: '#7a5234', auburn: '#8c3f26', ginger: '#b5622f', blonde: '#cba25e', grey: '#9c9894' };

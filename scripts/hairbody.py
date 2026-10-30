@@ -1,5 +1,5 @@
 # Cuts a hairstyle painted on every build (a sheet of the bodies, as scripts/bodies.py's, now with
-# hair painted in neutral grey, on plain white) and fits each build's hair onto the body of that build
+# hair painted in neutral grey, on plain white or chroma green) and fits each build's hair onto the body of that build
 # already cut: the figure (its hair left out) laid over the body where the two match best, from the
 # shoulders down, and the hair moved with it, nothing stretched. sprites/player/hair/<sex>-<build>-
 # <style>.webp, on the body's canvas with PAD pixels more above it (as js/art.js HAIR_PAD), in grey
@@ -22,22 +22,28 @@ builds = a.builds.split(',')
 PAD = 64
 
 src = Image.open(a.sheet)
-src = keyed(src) or src
-W = np.asarray(src.convert('RGB')).astype(np.float32)
-# (the figures: all but the white reaching in from the sheet's edges)
-pale = W.min(2) > 232
-lab, _ = ndimage.label(pale)
-edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-back = np.isin(lab, list(edge))
-# (and white closed in by the figure, between an arm and the body, a hand and a leg: big enough not to
-# be a highlight, and white right through, as no paint is)
-sizes_w = ndimage.sum(np.ones(pale.shape), lab, range(1, lab.max() + 1))
-for j in range(1, lab.max() + 1):
-    if j in edge or sizes_w[j - 1] < 60: continue
-    if W[lab == j].min(1).mean() > 244: back |= lab == j
-rim = back & ndimage.binary_dilation(~back, iterations=2)
-alpha = np.where(back, 0.0, 1.0)
-alpha[rim] = np.clip((255 - W[rim].min(1)) / 70, 0, 1)
+green = keyed(src)
+if green is not None:
+    # (on chroma green: the background as the key finds it)
+    px = np.asarray(green).astype(np.float32)
+    W, alpha = px[..., :3], px[..., 3] / 255
+    back = alpha < 0.5
+else:
+    W = np.asarray(src.convert('RGB')).astype(np.float32)
+    # (the figures: all but the white reaching in from the sheet's edges)
+    pale = W.min(2) > 232
+    lab, _ = ndimage.label(pale)
+    edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    back = np.isin(lab, list(edge))
+    # (and white closed in by the figure, between an arm and the body, a hand and a leg: big enough not
+    # to be a highlight, and white right through, as no paint is)
+    sizes_w = ndimage.sum(np.ones(pale.shape), lab, range(1, lab.max() + 1))
+    for j in range(1, lab.max() + 1):
+        if j in edge or sizes_w[j - 1] < 60: continue
+        if W[lab == j].min(1).mean() > 244: back |= lab == j
+    rim = back & ndimage.binary_dilation(~back, iterations=2)
+    alpha = np.where(back, 0.0, 1.0)
+    alpha[rim] = np.clip((255 - W[rim].min(1)) / 70, 0, 1)
 # (the hair: no colour, not dark; and the ink round it)
 mx, mn = W.max(2), W.min(2)
 sat = (mx - mn) / np.maximum(mx, 1)
