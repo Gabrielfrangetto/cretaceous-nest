@@ -1121,7 +1121,7 @@ export const LOOK = {
   toned: { male: ['medium', 'brown', 'dark'], female: ['tan', 'medium', 'brown', 'dark'] },
   // (faces: features as real people have them, each painted on every build in every tone,
   // sprites/player/<sex>-<face>-<build>[-<tone>].webp; a sex with none has its face in its body)
-  faces: { male: { african: 'African', asian: 'East Asian', european: 'European', latino: 'Latino' }, female: {} },
+  faces: { male: { african: 'African', asian: 'East Asian', european: 'European', latino: 'Latino', mideast: 'Middle Eastern' }, female: {} },
 };
 // hairstyles drawn for each (sprites/player/hair/<sex>-<build>-<style>.webp, scripts/hairbody.py: each
 // painted on every build, in grey,
