@@ -1,8 +1,10 @@
-# Each face's own copy of a hairstyle. The cutter lays every face and tone of a build with its skull
-# where the faceless body's is (within a pixel), so the hair stays where it was painted, the same on
-# all of them; only each drawing's ear (a pixel or three apart from one to the next) and the edge of its
-# head differ: the hair is brought a little over that ear's rim, and kept inside that head's own outline
-# (the hair painted on the skull, not standing out from it), any skin left between them covered.
+# Each face's own copy of a hairstyle. The figure the hair was painted on (scripts/hairbody.py --ref)
+# was laid on the body by its shoulders, but its head was drawn a few percent bigger: the hair is first
+# scaled and moved, as one, so that figure's head lies on the bald head's outline. The skulls of a
+# build's faces and tones lie within a pixel of each other, so the hair stays there, the same on all of
+# them; only about the ear, which sits a pixel or three apart from one drawing to the next, it is moved
+# with that drawing's ear and brought a pixel over its rim, and it is kept to that head's own outline
+# (painted on the skull, not standing out from it), any skin left between them covered.
 # Saved as sprites/player/hair/<sex>-<face>-<build>[-<tone>]-<style>.webp (js/art.js takes it when there).
 # Usage: python3 scripts/hairfit.py male crop refs/   (Pillow, numpy, scipy)
 import json, sys, glob, os
@@ -66,32 +68,30 @@ def hug_ear(hair, body, ear, dx, dy, grow=2):
     na = np.clip(sd + 0.5, 0, 1)[..., None] * 255
     out = hair.copy()
     out[..., :3] = hair[..., :3] * (1 - wz) + col * wz
-    out[..., 3:] = hair[..., 3:] * (1 - wz) + na * wz
+    # (never thinner than painted: a thin lock behind the ear kept whole)
+    out[..., 3:] = np.maximum(hair[..., 3:], hair[..., 3:] * (1 - wz) + na * wz)
     return out, notch
 
-def follow_outline(hair, body, box, ear, ink=2.5, reach=7):
+def follow_outline(hair, body, box, ear, ink=2.0, reach=7):
     # The hair as painted stands out a little from the skull, like a cap, or (on a drawing whose skull
     # is a little bigger) falls short of its edge, leaving skin between. Laid on a drawing it keeps to
-    # that drawing's own outline: nothing of it outside the head or over the head's ink line (its
-    # outermost ink pixels), which frames it as it frames the skin, and any skin left between it and
-    # that line, up to reach pixels, covered; its own dark rim along the line taken for the hair's colour,
-    # so the line isn't doubled.
+    # that drawing's own outline: cut to its silhouette, any skin left between it and the edge (up to
+    # reach pixels, above the ear and never over it) covered, and its outermost ink pixels drawn in the
+    # hair's own dark rim, so the head's edge is a line where it's hair as where it's skin.
     ba = body[..., 3] / 255
     out_ = ba < 0.5
     near = ndimage.distance_transform_edt(~out_)
-    line = ~out_ & (near <= ink)
     hm = hair[..., 3] > 128
     lum = hair[..., :3].mean(2)
     inner = hm & (lum >= 100)
     _, (iy, ix) = ndimage.distance_transform_edt(~inner, return_indices=True)
     out = hair.copy()
-    # (skin between the hair and the line: where, going in toward the head's middle from it, hair
-    # comes within reach; only above the ear, as below it the head's edge is the jaw's)
+    # (skin between the hair and the edge: where, going in toward the head's middle from it, hair
+    # comes within reach)
     hx0, hy0, hx1, hy1 = box
     cx, cy = (hx0 + hx1) / 2, (hy0 + hy1) / 2
-    band = ~out_ & ~line & (near <= ink + reach) & ~hm
+    band = ~out_ & (near <= ink + reach) & ~hm
     band[int(cy + (hy1 - hy0) * 0.1):] = False
-    # (nor about the ear, which the hair was just fitted round)
     band &= ~ndimage.binary_dilation(ear, iterations=5)
     ys, xs = np.nonzero(band)
     fill = np.zeros_like(hm)
@@ -105,20 +105,53 @@ def follow_outline(hair, body, box, ear, ink=2.5, reach=7):
             hit |= hm[py, px]
         fill[ys[hit], xs[hit]] = True
     fill = ndimage.binary_closing(fill, iterations=1) & band
-    grown = hm | fill
     out[fill, :3] = hair[iy[fill], ix[fill], :3]
     out[fill, 3] = 255
-    # (dark hair pixels within reach of the line: the hair's own colour)
-    swap = hm & (lum < 100) & (ndimage.distance_transform_edt(~line) <= 4)
-    out[swap, :3] = hair[iy[swap], ix[swap], :3]
-    soft = ndimage.gaussian_filter((~line & ~out_).astype(np.float32), 0.6)
-    out[..., 3] = np.where(grown, out[..., 3], 0) * np.where(line | out_, 0, soft)
-    # (crumbs the cut left, a few pixels cut off from the rest: gone)
+    # (cut to the head's silhouette, soft as its own edge is)
+    out[..., 3] = np.where(hm | fill, out[..., 3], 0) * ba
+    # (its outermost pixels the hair's dark rim; further in, its own colour where its old rim was)
+    got = out[..., 3] > 20
+    rimc = hair[hm & (lum < 70), :3]
+    rimcol = np.median(rimc, axis=0) if len(rimc) else np.array([40, 40, 40], np.float32)
+    edge = got & (near <= ink)
+    inside = got & (near > ink) & (near <= ink + 4) & (lum < 100)
+    out[inside, :3] = hair[iy[inside], ix[inside], :3]
+    out[edge, :3] = rimcol
+    # (crumbs, a few pixels cut off from the rest: gone)
     lab, n = ndimage.label(out[..., 3] > 20)
     if n > 1:
         sizes = ndimage.sum(np.ones(lab.shape), lab, range(1, n + 1))
         out[..., 3] *= np.isin(lab, [i + 1 for i in range(n) if sizes[i] >= 40])
     return out
+
+def by_head(hair, ref, base, box):
+    # The figure the hair was painted on was laid on the body by its shoulders, but its head was drawn
+    # a few percent bigger than the bald body's: the hair, sized for that head, stands out from this one
+    # and is cut short at its edge. The hair (and its figure) scaled and moved, as one, so that the
+    # figure's head, hair and all, covers the bald head's outline above the jaw as closely as can be: the
+    # hair's outer edge on the skull's, every lock where it was against the ear.
+    x0, y0, x1, y1 = box
+    y0, y1 = y0 + PAD, y1 + PAD
+    H, W = hair.shape[:2]
+    top = max(0, y0 - 10)
+    rows = slice(top, y1 - (y1 - y0) // 4)
+    cols = slice(max(0, x0 - 12), x1 + 4)
+    tgt = base[..., 3][rows, cols] > 128
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    src = ref[..., 3] / 255
+    best = (-1, 1, 0, 0)
+    for k in np.arange(0.88, 1.0001, 0.01):
+        for dy in range(-4, 5):
+            for dx in range(-4, 5):
+                # (output pixel p from source c + (p - c - d) / k)
+                m = ndimage.affine_transform(src, [1 / k, 1 / k], offset=[cy - (cy + dy) / k, cx - (cx + dx) / k], order=0)
+                a = m[rows, cols] > 0.5
+                sc = (a & tgt).sum() / max(1, (a | tgt).sum())
+                if sc > best[0]: best = (sc, k, dx, dy)
+    _, k, dx, dy = best
+    move = lambda img: np.dstack([ndimage.affine_transform(img[..., c], [1 / k, 1 / k], offset=[cy - (cy + dy) / k, cx - (cx + dx) / k], order=1) for c in range(4)])
+    print('head fit', round(k, 3), dx, dy, 'iou %.3f' % best[0])
+    return move(hair), move(ref)
 
 def padded(img):
     c = Image.new('RGBA', (img.width, img.height + PAD))
@@ -131,6 +164,7 @@ for build in ['slim', 'average', 'heavy', 'muscular']:
     if not os.path.exists(hp): continue
     hair = np.asarray(Image.open(hp)).astype(np.float32)
     ref = np.asarray(Image.open(f'{refdir}/{name}-{style}.png')).astype(np.float32)
+    hair, ref = by_head(hair, ref, padded(Image.open(f'sprites/player/{name}.webp')), info[name]['head'])
     base = padded(Image.open(f'sprites/player/{name}.webp'))
     x0, y0, x1, y1 = info[name]['head']
     y0, y1 = y0 + PAD, y1 + PAD
@@ -144,25 +178,24 @@ for build in ['slim', 'average', 'heavy', 'muscular']:
     ey, ex = [v.mean() for v in np.nonzero(ear)] if ear.any() else ((y0 + y1) / 2, x0 + (x1 - x0) * 0.3)
     eys, exs = np.nonzero(ear) if ear.any() else ([int(ey)], [int(ex)])
     ewin = (max(0, min(eys) - 8), min(H, max(eys) + 10), max(0, min(exs) - 10), min(W, max(exs) + 8))
-    swin = (max(0, y0 - 8), int(ey) - 4, max(0, x0 - 10), (x0 + x1) // 2)
     # (the ear's own lines in the figure the hair was painted on: its ink, but not the hair's)
-    ref_ink, base_ink = ink(ref) & ~ndimage.binary_dilation(hm, iterations=2), ink(base)
-    sigma = max(6.0, (max(eys) - min(eys)) * 0.8)
+    ref_ink = ink(ref) & ~ndimage.binary_dilation(hm, iterations=2)
     for f in sorted(glob.glob(f'sprites/player/{sex}-*-{build}.webp') + glob.glob(f'sprites/player/{sex}-*-{build}-*.webp')):
         key = os.path.basename(f)[:-5]
         v = padded(Image.open(f))
         v_ink = ink(v)
-        # (how far this drawing's skull and ear are from where the hair was laid: the hair to move as much)
-        # (the skulls all lie within a pixel of each other, as the cutter lines them up: the hair stays
-        # where it is, the same on every face, only fitted round each one's ear and outline below)
-        sdx = sdy = edx = edy = 0
+        # (the hair stays where it is, the same on every face, as their skulls lie within a pixel of each
+        # other; only the hole for the ear follows this drawing's ear, a pixel or three off the painted one)
+        _, edx, edy = best_shift(ref_ink, v_ink, ewin, 4, lines_only=True)
+        # (the hair about the ear moved with it, fading out a few pixels from it: the rest stays put)
+        d = ndimage.distance_transform_edt(~ear)
+        w = np.exp(-(d ** 2) / (2 * 5.0 ** 2))
         yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-        w = np.exp(-((yy - ey) ** 2 + (xx - ex) ** 2) / (2 * sigma ** 2))
-        dx = w * edx + (1 - w) * sdx
-        dy = w * edy + (1 - w) * sdy
-        # (each pixel of the moved hair taken from where it came from)
-        moved = np.dstack([ndimage.map_coordinates(hair[..., c], [yy - dy, xx - dx], order=1, mode='constant') for c in range(4)])
-        moved, notch = hug_ear(moved, v, ear, dx, dy)
-        moved = follow_outline(moved, v, (x0, y0, x1, y1), notch)
+        moved = np.dstack([ndimage.map_coordinates(hair[..., c], [yy - w * edy, xx - w * edx], order=1, mode='constant') for c in range(4)])
+        hole = np.zeros_like(ear)
+        ys_, xs_ = np.nonzero(ear)
+        hole[np.clip(ys_ + edy, 0, H - 1), np.clip(xs_ + edx, 0, W - 1)] = True
+        moved, _ = hug_ear(moved, v, hole, np.zeros((H, W)), np.zeros((H, W)), grow=1)
+        moved = follow_outline(moved, v, (x0, y0, x1, y1), hole)
         Image.fromarray(np.clip(moved, 0, 255).astype(np.uint8)).save(f'sprites/player/hair/{key}-{style}.webp', 'WEBP', quality=90, method=6)
-        print(key, 'skull', (sdx, sdy), 'ear', (edx, edy))
+        print(key, 'ear', (edx, edy))
