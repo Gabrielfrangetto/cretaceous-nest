@@ -1,10 +1,8 @@
-# Each face's own copy of a hairstyle. Every face and tone was painted afresh, and so was the figure
-# the hair was painted on, so their ears and skulls sit a pixel or three apart: the hair cut round one
-# ear shows skin beside another, or covers its rim. Each drawing's head is matched to the faceless body's
-# by the skull (its outline behind the face) and its ear to the ear the hair was painted round (the
-# figure scripts/hairbody.py --ref saved), and the hair moved by the one about the skull and by the other
-# about the ear, blending between them; then brought a little over the ear's rim, and kept inside the
-# head's own outline (the hair painted on the skull, not standing out from it).
+# Each face's own copy of a hairstyle. The cutter lays every face and tone of a build with its skull
+# where the faceless body's is (within a pixel), so the hair stays where it was painted, the same on
+# all of them; only each drawing's ear (a pixel or three apart from one to the next) and the edge of its
+# head differ: the hair is brought a little over that ear's rim, and kept inside that head's own outline
+# (the hair painted on the skull, not standing out from it), any skin left between them covered.
 # Saved as sprites/player/hair/<sex>-<face>-<build>[-<tone>]-<style>.webp (js/art.js takes it when there).
 # Usage: python3 scripts/hairfit.py male crop refs/   (Pillow, numpy, scipy)
 import json, sys, glob, os
@@ -155,8 +153,9 @@ for build in ['slim', 'average', 'heavy', 'muscular']:
         v = padded(Image.open(f))
         v_ink = ink(v)
         # (how far this drawing's skull and ear are from where the hair was laid: the hair to move as much)
-        _, sdx, sdy = best_shift(base_ink, v_ink, swin, 4)
-        _, edx, edy = best_shift(ref_ink, v_ink, ewin, 3, lines_only=True)
+        # (the skulls all lie within a pixel of each other, as the cutter lines them up: the hair stays
+        # where it is, the same on every face, only fitted round each one's ear and outline below)
+        sdx = sdy = edx = edy = 0
         yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
         w = np.exp(-((yy - ey) ** 2 + (xx - ex) ** 2) / (2 * sigma ** 2))
         dx = w * edx + (1 - w) * sdx
