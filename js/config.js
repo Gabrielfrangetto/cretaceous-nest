@@ -1104,6 +1104,7 @@ export const PLAYER_BASE = { str: 40, agi: 45, vit: 45, res: 35 };   // 165
 // How the player's explorer looks, chosen when the game begins (and changed later): a body (sprites/
 // player/<sex>-<build>[-<tone>].webp, scripts/bodies.py) in the skin tone chosen, each painted. A build gives a little of
 // one stat for a little of another (as gear's 'increased' bonuses).
+// (the explorer's drawings are put aside for now: these choices are kept for when they come back)
 export const LOOK = {
   sexes: { male: 'Man', female: 'Woman' },
   builds: {

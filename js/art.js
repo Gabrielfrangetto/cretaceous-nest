@@ -132,114 +132,17 @@ Object.assign(ITEM_ICONS, {
 export const BAG = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10 C11 4 21 4 21 10" stroke="#6d4e2a" stroke-width="2.6" fill="none"/><rect x="5" y="9" width="22" height="20" rx="6" fill="#9c7240"/><rect x="9.5" y="17" width="13" height="9" rx="2.5" fill="#c49a5c"/><rect x="14" y="15.5" width="4" height="3.4" rx="1" fill="#6d4e2a"/></svg>';
 
 // ---------- the player ----------
-// The player's explorer, drawn in code (a placeholder until real art): a small figure facing right,
-// dressed in whatever it wears. height is in pixels.
-const tint = (equip, slot, fallback) => (equip[slot] && ITEMS[equip[slot]] && ITEMS[equip[slot]].color) || fallback;
-// The player's explorer as they chose to look (LOOK: a painted body, sprites/player/, in their skin tone),
-// with what they wear in hand and on the head; a canvas drawn once its pictures have come. Before the
-// bodies are there (or with no look), the drawing below
-const bodyPics = new Map();
-let bodyBoxes = null;
-const bodyPic = name => {
-  if (!bodyPics.has(name)) { const img = new Image(); img.src = asset(`sprites/player/${name}.webp`); bodyPics.set(name, img); }
-  return bodyPics.get(name);
-};
-const loaded = img => (img.complete && img.naturalWidth ? Promise.resolve() : new Promise(ok => { img.addEventListener('load', ok, { once: true }); img.addEventListener('error', ok, { once: true }); }));
-// a hairstyle (painted in grey) in a colour: each pixel the colour times how light its grey is (its
-// middle grey the colour itself), its brightest a little lighter still; kept for each style and colour
-const hairDone = new Map(), HAIR_PAD = 64;   // (as scripts/hair.py PAD)
-function hairIn(img, color) {
-  const id = `${img.src}|${color}`;
-  if (hairDone.has(id)) return hairDone.get(id);
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
-  const g = c.getContext('2d');
-  g.drawImage(img, 0, 0);
-  const d = g.getImageData(0, 0, c.width, c.height), px = d.data, rgb = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
-  for (let i = 0; i < px.length; i += 4) {
-    if (!px[i + 3]) continue;
-    const f = px[i] / 115, lift = Math.max(0, f - 1) * 70;
-    for (let k = 0; k < 3; k++) px[i + k] = Math.min(255, rgb[k] * f + lift);
-  }
-  g.putImageData(d, 0, 0);
-  if (hairDone.size > 40) hairDone.delete(hairDone.keys().next().value);
-  hairDone.set(id, c);
-  return c;
-}
-export function playerArt(equip = {}, height = 120, look = DEFAULT_LOOK) {
-  look = look || DEFAULT_LOOK;
-  const sex = LOOK.drawn[look.sex] ? look.sex : 'male', name = `${sex}-${LOOK.builds[look.build] ? look.build : 'average'}`;
-  const canvas = document.createElement('canvas');
-  canvas.className = 'player-art';
-  canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Your explorer');
-  canvas.style.height = `${Math.round(height)}px`;
-  canvas.style.width = `${Math.round(height * 171 / 528)}px`;
-  const boxes = bodyBoxes || (bodyBoxes = fetch(asset('sprites/player/bodies.json')).then(r => r.json()).catch(() => ({})));
-  const tone = LOOK.skins[look.skin] && (LOOK.toned[sex] || []).includes(look.skin) ? `-${look.skin}` : '';
-  // (a face drawn into the body: that face's own pictures of it)
-  const faces = LOOK.faces[sex] || {}, face = faces[look.face] ? look.face : faces[DEFAULT_LOOK.face] ? DEFAULT_LOOK.face : Object.keys(faces)[0];
-  const body = bodyPic(face ? `${sex}-${face}-${name.slice(sex.length + 1)}${tone}` : name + tone), style = LOOK.hairs[sex] && LOOK.hairs[sex][look.hair] && look.hair !== 'none' ? look.hair : null;
-  // (a face's own copy of the hair, fitted to its ear: scripts/hairfit.py)
-  const hair = style ? bodyPic(face ? `hair/${sex}-${face}-${name.slice(sex.length + 1)}${tone}-${style}` : `hair/${name}-${style}`) : null;
-  Promise.all([boxes, loaded(body), hair ? loaded(hair) : null]).then(([b]) => {
-    const box = b[name];
-    if (!box || !body.naturalWidth) return;
-    // (the body as tall as asked, with room above its head for hair: HAIR_PAD more of its pixels)
-    const dpr = Math.min(2, globalThis.devicePixelRatio || 1), k = height / box.h * dpr, H = box.h + HAIR_PAD;
-    canvas.width = Math.round(box.w * k); canvas.height = Math.round(H * k);
-    canvas.style.width = `${Math.round(box.w * height / box.h)}px`;
-    canvas.style.height = `${Math.round(H * height / box.h)}px`;
-    const g = canvas.getContext('2d');
-    g.scale(k, k);
-    g.translate(0, HAIR_PAD);
-    g.drawImage(body, 0, 0, box.w, box.h);
-    if (hair && hair.naturalWidth) g.drawImage(hairIn(hair, LOOK.hairColors[look.hairColor] || LOOK.hairColors[DEFAULT_LOOK.hairColor]), 0, -HAIR_PAD, box.w, box.h + HAIR_PAD);
-    // what they wear on the head and hold: over the head, in the hand hanging in front
-    const [hx0, hy0, hx1, hy1] = box.head, hw = hx1 - hx0, hand = [hx0 + hw * 0.4, box.h * 0.63];
-    const stroke = () => { g.lineWidth = 2.5; g.strokeStyle = '#2a2420'; g.stroke(); };
-    if (equip.shield) { g.beginPath(); g.ellipse(hand[0] - hw * 0.25, hand[1] - box.h * 0.06, hw * 0.42, hw * 0.52, 0, 0, Math.PI * 2); g.fillStyle = tint(equip, 'shield', '#9a6a3a'); g.fill(); stroke(); }
-    if (equip.weapon && ITEMS[equip.weapon]) {
-      g.save(); g.translate(...hand); g.rotate(-0.5);
-      g.beginPath(); g.roundRect(-4, -hw * 1.3, 8, hw * 1.45, 3); g.fillStyle = ITEMS[equip.weapon].color; g.fill(); stroke();
-      g.restore();
-    }
-    if (equip.head) {
-      g.beginPath(); g.ellipse(hx0 + hw * 0.48, hy0 + (hy1 - hy0) * 0.32, hw * 0.56, (hy1 - hy0) * 0.36, 0, Math.PI, 0); g.closePath();
-      g.fillStyle = tint(equip, 'head', '#a77b4f'); g.fill(); stroke();
-    }
-  });
-  return canvas;
-}
-// the explorer as first drawn, before the painted bodies
-export function playerSketch(equip = {}, height = 120) {
-  const skin = '#e3b48a', hair = '#4a3324';
-  const shirt = tint(equip, 'body', '#d8c8a2'), shoes = tint(equip, 'feet', skin);
-  const weapon = equip.weapon && ITEMS[equip.weapon];
-  const blade = weapon ? weapon.color : null;
-  const weaponSVG = !weapon ? ''
-    : equip.weapon === 'wooden_club'
-      ? `<path d="M70 82 L86 46" stroke="${blade}" stroke-width="6" stroke-linecap="round"/><ellipse cx="87" cy="42" rx="7" ry="9" fill="${blade}" stroke="#5a3a1e" stroke-width="1.5" transform="rotate(25 87 42)"/>`
-      : `<path d="M71 80 L92 34 L95 30 L94 36 L74 82Z" fill="${blade}" stroke="#2a2420" stroke-width="1.4" stroke-linejoin="round"/><path d="M66 76 L78 82" stroke="#6b4a2e" stroke-width="4" stroke-linecap="round"/>`;
-  const shield = equip.shield ? `<g transform="translate(22 72)"><ellipse rx="15" ry="18" fill="${tint(equip, 'shield', '#9a6a3a')}" stroke="#4a3420" stroke-width="2"/><circle r="4" fill="#c9c2b0" stroke="#4a3420" stroke-width="1.2"/></g>` : '';
-  const helm = equip.head ? `<path d="M34 34 C34 14 46 8 56 8 C68 8 78 16 78 34 Z" fill="${tint(equip, 'head', '#a77b4f')}" stroke="#2a2420" stroke-width="2"/><path d="M32 34 H80" stroke="#2a2420" stroke-width="3" stroke-linecap="round"/>` : '';
-  const svg = `<svg class="player-art" viewBox="0 0 100 140" style="height:${Math.round(height)}px;width:auto" role="img" aria-label="Your explorer">
-    <path d="M44 84 L36 100" stroke="${skin}" stroke-width="8" stroke-linecap="round"/>
-    ${shield}
-    <rect x="40" y="100" width="9" height="26" rx="3" fill="#6b4a2e"/><rect x="54" y="100" width="9" height="26" rx="3" fill="#5a3d24"/>
-    <path d="M36 126 h16 v8 h-18 Z M51 126 h16 v8 h-18 Z" fill="${shoes}" stroke="#2a2420" stroke-width="1.5"/>
-    <path d="M34 62 Q36 52 52 52 Q68 52 70 62 L72 104 H32 Z" fill="${shirt}" stroke="#2a2420" stroke-width="2"/>
-    <path d="M32 98 H72" stroke="#2a2420" stroke-width="1.5" opacity=".4"/>
-    <circle cx="56" cy="34" r="20" fill="${skin}" stroke="#2a2420" stroke-width="2"/>
-    <path d="M36 32 C36 16 48 12 58 12 C70 12 76 20 76 28 C68 24 58 26 52 22 C48 28 42 30 36 32Z" fill="${hair}"/>
-    <circle cx="66" cy="36" r="2.6" fill="#1b1a17"/><path d="M62 46 Q67 48 71 44" stroke="#7a4a32" stroke-width="2" fill="none" stroke-linecap="round"/>
-    ${helm}
-    ${weaponSVG}
-    <path d="M62 64 Q70 72 70 80" stroke="${skin}" stroke-width="8" stroke-linecap="round" fill="none"/>
-  </svg>`;
+// The player's place in a team, until the explorer is drawn: a round badge with a compass, as big as
+// asked (height in pixels), the colour of what they hold showing on its rim.
+export function playerArt(equip = {}, height = 120) {
+  const rim = (equip.weapon && ITEMS[equip.weapon] && ITEMS[equip.weapon].color) || '#b48114';
+  const size = Math.round(Math.min(height, 120) * 0.7);
   const wrap = document.createElement('span');
-  wrap.className = 'player-wrap';
-  wrap.innerHTML = svg;
+  wrap.innerHTML = `<svg class="player-art" viewBox="0 0 64 64" style="height:${size}px;width:${size}px" role="img" aria-label="You">
+    <circle cx="32" cy="32" r="29" fill="#f3ead2" stroke="${rim}" stroke-width="5"/>
+    <circle cx="32" cy="32" r="20" fill="none" stroke="#c9b78c" stroke-width="1.5"/>
+    <path d="M32 13 L37 32 L32 51 L27 32 Z" fill="#c9b78c"/><path d="M32 13 L37 32 L27 32 Z" fill="#d2493f"/>
+    <circle cx="32" cy="32" r="3" fill="#5a4630"/></svg>`;
   return wrap.firstElementChild;
 }
 
@@ -339,10 +242,6 @@ export const adultScale = (type, sex) => {
 // metres drawn as how many pixels beside dinosaurs drawn at px (dressedArt: an adult HEIGHT_REF metres
 // tall is px × 17 × the adult stage's scale)
 export const pxPerMetre = px => px * 17 * 1.5 / HEIGHT_REF;
-// the explorer beside them, as tall as a person stands (a man about 1.75 m, a woman 1.63 m): the height
-// to ask playerArt for, its figure filling about 97% of its picture's height
-const PLAYER_METRES = { male: 1.75, female: 1.63 };
-export const playerHeightAt = (px, look) => (PLAYER_METRES[look && look.sex] || PLAYER_METRES.male) * pxPerMetre(px) / 0.97;
 export const adultSpriteUrl = (type, sex) => (ADULT_SPRITES[type] && ADULT_SPRITES[type][sex]) || null;
 
 // juvenile sprites drawn so far (sprites/juvenile/), and how tall each is drawn against the others;
