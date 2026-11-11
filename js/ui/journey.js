@@ -13,7 +13,7 @@ import { SIZE, SQ3, center, placeName } from './hexdraw.js';
 import { GRID, fit, drawHexes, hexesIn, cssVar, railPoints } from './mapcanvas.js';
 import { chanceOf, riskOf, cap, article, listNames, healthWord, wildName } from './words.js';
 import { esc, plural, realSpan, realSpanMins } from '../util.js';
-import { eventArtUrls, dressedArt, playerArt } from '../art.js';
+import { eventArtUrls, dressedArt } from '../art.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
 
 const STEP_MS = 160;
@@ -327,8 +327,7 @@ function drawTeam() {
       <div class="hp" role="meter" aria-label="${esc(me ? 'Your' : (b ? b.name : '?') + "'s")} health" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${cur}"><i style="width:${left * 100}%"></i><span>${cur} / ${max}</span></div>
       <span class="hint">${cap(healthWord(left))}${needs.length ? `, ${needs.map(w => w.toLowerCase()).join(', ')}` : ''}</span>
       ${btns.length ? `<span class="member-care">${btns.map(([w, label]) => `<button class="ghost small" type="button" data-care="${esc(id)}|${w}" ${stopped ? '' : 'disabled'}>${label}</button>`).join('')}</span>` : ''}`;
-    if (me) card.querySelector('.member-art').appendChild(playerArt(S.player.equip, 52));
-    else if (b && b.type) card.querySelector('.member-art').appendChild(dressedArt(b.type, 3, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
+    if (!me && b && b.type) card.querySelector('.member-art').appendChild(dressedArt(b.type, 3, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, now()), b.sewn, b.id, b.blind));
     list.appendChild(card);
   }
   box.appendChild(list);

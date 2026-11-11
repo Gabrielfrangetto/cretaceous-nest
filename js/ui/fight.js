@@ -3,7 +3,7 @@
 // play out one by one with health bars and damage numbers.
 import { CREATURES, SPECIES, SEX, PLAYER_ID, FRILL } from '../config.js';
 import { sexOf, stageOf, wornGear } from '../economy.js';
-import { dressedArt, babyArt, playerArt, heightOf } from '../art.js';
+import { dressedArt, babyArt, heightOf } from '../art.js';
 import { esc } from '../util.js';
 
 const STEP_MS = 520;
@@ -24,7 +24,8 @@ function unitArt(unit, who, n) {
   const b = who(unit.members[0]);
   if (!b) return document.createElement('span');
   const scale = n > 2 ? 0.6 : n > 1 ? 0.8 : 1;
-  if (b.id === PLAYER_ID) return playerArt(b.equip, 130 * scale);
+  // (the explorer has no drawing for now: their name and health only)
+  if (b.id === PLAYER_ID) return document.createElement('span');
   const art = dressedArt(b.type, 6 * scale, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy);
   if (unit.kind !== 'pack') return art;
   // a pack: its leader with a few of the others peeking out behind

@@ -7,7 +7,7 @@ import { S } from '../state.js';
 import { woundsOf } from '../journey.js';
 import { bodyOf } from '../world.js';
 import { sexOf, wornGear, stageOf } from '../economy.js';
-import { dressedArt, playerArt } from '../art.js';
+import { dressedArt } from '../art.js';
 import { esc } from '../util.js';
 
 const sizeOf = id => (id === PLAYER_ID ? 'player' : bodyOf(S, id).size || 'medium');
@@ -17,7 +17,8 @@ export const labelOf = id => (id === PLAYER_ID ? 'You' : esc((S.hatched.find(x =
 export const aboard = board => Object.values(board.places);
 
 function artOf(id, px) {
-  if (id === PLAYER_ID) return playerArt(S.player.equip, 58);
+  // (the explorer has no drawing for now: their seat shows their name)
+  if (id === PLAYER_ID) return document.createElement('span');
   const b = S.hatched.find(x => x.id === id);
   if (!b) return document.createElement('span');
   return dressedArt(b.type, px, sexOf(b), wornGear(b), b.outfit, stageOf(b).id, b.scars, b.scarBy, woundsOf(S, b, Date.now()), b.sewn, b.id, b.blind);

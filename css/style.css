@@ -558,7 +558,6 @@ button.baby:focus-visible { outline: 3px solid var(--accent); outline-offset: 2p
 .you-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
 .you-head h3 { margin: 0; }
 .you-head p { margin: 2px 0 0; }
-.you-art { display: grid; place-items: end center; min-width: 80px; }
 
 /* sign-in screen: covers the game until the player is signed in and their nest has loaded */
 .gate { min-height: 100dvh; display: grid; place-items: center; padding: 32px 16px; background: radial-gradient(ellipse at 50% 0%, var(--panel) 0%, var(--bg) 70%); }
@@ -786,17 +785,16 @@ img.land-sprite { display: block; height: auto; }
 .signin-dialog .gate-card.plain { border: 0; box-shadow: none; padding: 0; background: none; }
 
 /* the guide (Professor Ivy Fern): the water reminder's corner pop-up, a little wider */
-.guide-bubble { width: min(320px, calc(100vw - 170px)); margin-bottom: 120px; gap: 10px; }
+.guide-bubble { width: min(340px, calc(100vw - 32px)); gap: 10px; }
+/* (no one beside it to speak from, for now: no tail) */
+.guide-bubble::after { display: none; }
 .guide-msg { font-size: 16px; line-height: 1.5; }
 .guide-row { align-items: center; justify-content: flex-end; }
 .guide-dots { display: inline-flex; gap: 5px; margin-right: auto; }
 .guide-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .guide-dots i.on { background: var(--accent); }
-.guide-char { flex: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); }
-.guide-char svg { display: block; }
 @media (max-width: 560px) {
   .guide-bubble { width: min(320px, calc(100vw - 32px)); margin-bottom: 0; }
-  .guide-char svg { height: 140px !important; }
 }
 
 .guide-shade { position: fixed; inset: 0; z-index: 890; background: rgba(20, 24, 18, .55); backdrop-filter: blur(1.5px); animation: shade-in .35s ease-out both; }
@@ -805,13 +803,10 @@ img.land-sprite { display: block; height: auto; }
 
 /* the guide on the left: she stands on the left, facing her bubble on the right */
 .guide-pop.left { right: auto; left: max(16px, env(safe-area-inset-left, 0px)); flex-direction: row-reverse; }
-.guide-pop.left .guide-char svg { transform: scaleX(-1); }
-.guide-pop.left .guide-bubble::after { right: auto; left: -12px; border-left-color: transparent; border-right-color: var(--ink); }
 /* the part of the page she talks about, lit up above the shade; it can't be clicked until she is done */
 .guide-spot { position: relative; z-index: 895; pointer-events: none; box-shadow: 0 0 0 4px var(--accent), 0 12px 40px rgba(0, 0, 0, .3); border-radius: 18px; }
 @media (max-width: 560px) {
   .guide-pop.left { flex-direction: column; align-items: flex-start; }
-  .guide-pop.left .guide-bubble::after { left: 46px; bottom: -16px; border-right-color: transparent; border-top-color: var(--ink); }
 }
 
 .guide-spot { scroll-margin-top: 12px; }
@@ -1010,7 +1005,6 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .legend-fold[open] summary::before, .fold[open] summary::before { transform: rotate(90deg); }
 .legend-fold .map-legend { margin-top: 8px; }
 .fold[open] { display: grid; gap: 10px; }
-.you-head .you-art { width: 72px; display: grid; place-items: center; }
 .you-head h3 { font-size: 17px; }
 
 /* lists of things: an icon, a name and a line on it, an action at the end */
@@ -1050,7 +1044,6 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 .you-panel { display: none; gap: 12px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .you-panel.open { display: grid; position: fixed; z-index: 120; top: 64px; right: 12px; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 150px); overflow: auto; box-shadow: 0 16px 40px rgb(0 0 0 / .18); }
 .you-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
-.you-top .you-art { width: auto; min-width: 72px; display: grid; place-items: end center; }
 .you-top h2 { font-size: 19px; }
 .you-state { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .you-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin: 0; }
@@ -1075,7 +1068,6 @@ nav.tabs .tab { font-family: var(--body); font-weight: 700; font-size: 14px; gap
 /* narrower margins; You as a slim column: the picture on top, the numbers one under another */
 .wrap { max-width: 1600px; }
 .you-top { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: 6px; }
-.you-top .you-art { width: auto; }
 .you-stats { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .you-stats div { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 2px; border-radius: 0; background: none; border-bottom: 1px solid var(--line); }
 .you-stats div:last-child { border-bottom: 0; }

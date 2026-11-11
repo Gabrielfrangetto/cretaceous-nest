@@ -6,13 +6,11 @@ import { S, subscribe } from '../state.js';
 import { act } from '../actions.js';
 import { inGame } from '../cloud.js';
 import { devMode } from '../state.js';
-import { guideArt } from '../art.js';
 import { esc } from '../util.js';
 import { setTab } from './tabs.js';
 
 const pop = document.getElementById('guidePop');
 const bubble = document.getElementById('guideBubble');
-const who = document.getElementById('guideChar');
 // the game fades behind the guide while she talks
 const shade = document.getElementById('guideShade');
 let showing = null, page = 0, timer = null;
@@ -91,8 +89,6 @@ export function showGuide(id) {
   showing = id; page = 0;
   if (tip.tab) setTab(tip.tab);
   pop.classList.toggle('left', tip.side === 'left');
-  who.innerHTML = '';
-  who.appendChild(guideArt(180));
   render();
   pop.hidden = false;
   shade.hidden = false;

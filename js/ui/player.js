@@ -7,7 +7,7 @@ import { isHungry, isArms, statSheet, carriedWeight, carryCapacity, itemWeight, 
 import { expeditionOf, injuredLeft } from '../world.js';
 import { act } from '../actions.js';
 import { now } from '../clock.js';
-import { ITEM_ICONS, playerArt } from '../art.js';
+import { ITEM_ICONS } from '../art.js';
 import { modsHTML, loadHTML } from './stats.js';
 import { esc, fmt } from '../util.js';
 
@@ -40,7 +40,7 @@ function html(t) {
       </div>
     </li>`;
   }).join('');
-  return `<div class="you-top"><span class="you-art"></span>
+  return `<div class="you-top">
       <div><h2>${esc(p.name)}</h2>
       <p class="you-state ${hurt ? 'warn-text' : ''}">${away ? 'Out exploring' : hurt ? `Injured · heals in ${fmt(hurt)}` : 'At the nest'}</p></div></div>
     <dl class="you-stats">
@@ -62,7 +62,6 @@ function render() {
   // (not while a choice is being made in it)
   if (!box || box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
   box.innerHTML = html(now());
-  box.querySelector('.you-art').appendChild(playerArt(S.player.equip, 120));
   box.querySelector('#gearFold').addEventListener('toggle', e => { gearOpen = e.target.open; });
   const eat = box.querySelector('[data-eat]');
   if (eat) eat.addEventListener('click', () => { act('feed', { id: PLAYER_ID }); render(); });
