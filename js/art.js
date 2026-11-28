@@ -160,7 +160,7 @@ export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: a
 // frames and their time, so the walker moves exactly as fast as its feet carry it; advance (when
 // measured): how far the body moves on from each frame to the next, in the sprite's pixels, as far as
 // the foot on the ground goes back in it, so that foot stays where it is on the ground
-export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } }, bary: { m: { src: asset('sprites/adult/bary-m-walk.webp'), step: 0.5, frames: 8, ms: 140, advance: [16, 3, 155, 42, 33, 39, 293, -102] } } };
+export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } }, bary: { m: { src: asset('sprites/adult/bary-m-walk.webp'), step: 0.5, frames: 8, ms: 140, advance: [16, 3, 156, 41, 33, 37, 122, 68] } } };
 export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
 // an animated picture's sheet (js/sheets.js), if it has one
 export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || null;
