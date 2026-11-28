@@ -58,3 +58,13 @@ test('a code can be switched off, and one can give a dinosaur already grown, str
     assert.equal(stageOf(migrate(JSON.parse(JSON.stringify(s))).hatched.find(b => b.type === 'rex')).id, 'adult');
   } finally { delete PROMO_CODES.test2; delete PROMO_CODES.test3; }
 });
+
+test('the Baryonyx code gives an adult male, as the code names its sex', async () => {
+  const { stageOf } = await import('../js/economy.js');
+  const s = freshState();
+  const r = applyAction(s, 'redeem', { code: 'baryonyx' }, T0);
+  assert.equal(r.ok, true, r.reason);
+  const bary = s.hatched.find(b => b.type === 'bary');
+  assert.ok(bary && stageOf(bary).id === 'adult');
+  assert.equal(bary.sex, 'm');
+});

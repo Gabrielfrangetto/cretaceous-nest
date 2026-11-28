@@ -624,7 +624,9 @@ export function redeemCode(s, code, now) {
   if (r.dino) {
     // one hatched already, grown to its stage: its genes and sex settled as an egg's would be
     const rand = seededRand(`promo:${id}:${(s.world && s.world.seed) || 1}`), [lo, hi] = EGG_GENES(EGG_STEP, false);
-    const b = { id: newId(), type: r.dino, sex: rand() < 0.5 ? 'm' : 'f', name: suggestName(s, r.dino), at: now, gen: 1,
+    // (a sex drawn even when the code names one, so its genes stay as they were)
+    const drawn = rand() < 0.5 ? 'm' : 'f';
+    const b = { id: newId(), type: r.dino, sex: r.sex || drawn, name: suggestName(s, r.dino), at: now, gen: 1,
       genes: Object.fromEntries(STATS.map(({ id: st }) => [st, lo + Math.floor(rand() * (hi - lo + 1))])),
       fed: CAPSULES[r.dino][r.stage || 'baby'] || 0, lastFed: now, equip: {} };
     s.hatched.unshift(b);

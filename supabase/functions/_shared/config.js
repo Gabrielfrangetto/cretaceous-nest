@@ -1077,6 +1077,8 @@ export const PROMO_CODES = {
   'rex-egg': { hash: 'a90ac73eab92cfb63aa2365772291af3071d523f428a357294f104f7695b0696', reward: { egg: 'rex' }, off: true },
   // for testing: an adult Tyrannosaurus straight in the nest
   'rex-adult': { hash: '36a20069a587270c258c1715ee6bf9fa23b2e9756645211e61c6f0734503090b', reward: { dino: 'rex', stage: 'adult' } },
+  // for testing: an adult male Baryonyx, the first with a walk of its own drawn frame by frame
+  'bary-adult': { hash: '131e79ca259b7c8f4a132130dfd7edac9e307e2996a8423409e50792391474e6', reward: { dino: 'bary', stage: 'adult', sex: 'm' } },
 };
 
 // The Forge: equipment made from materials. needs: { item: count }.

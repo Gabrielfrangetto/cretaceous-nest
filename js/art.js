@@ -158,7 +158,7 @@ export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: a
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
 // step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
 // frames and their time, so the walker moves exactly as fast as its feet carry it
-export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } } };
+export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } }, bary: { m: { src: asset('sprites/adult/bary-m-walk.webp'), step: 0.5, frames: 8, ms: 140 } } };
 export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
 // an animated picture's sheet (js/sheets.js), if it has one
 export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || null;
