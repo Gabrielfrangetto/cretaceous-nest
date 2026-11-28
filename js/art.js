@@ -157,8 +157,10 @@ const BABY_SCALE = { dilo: 0.8, rex: 0.8, raptor: 0.8 };
 export const ADULT_SPRITES = { rex: { m: asset('sprites/adult/rex-m.webp'), f: asset('sprites/adult/rex-f.webp') }, raptor: { m: asset('sprites/adult/raptor-m.webp'), f: asset('sprites/adult/raptor-f.webp') }, dilo: { m: asset('sprites/adult/dilo-m.webp') }, psitta: { m: asset('sprites/adult/psitta-m.webp'), f: asset('sprites/adult/psitta-f.webp') }, coelo: { m: asset('sprites/adult/coelo-m.webp'), f: asset('sprites/adult/coelo-f.webp') }, allo: { m: asset('sprites/adult/allo-m.webp') }, bary: { m: asset('sprites/adult/bary-m.webp'), f: asset('sprites/adult/bary-f.webp') } };
 // adults that walk with their own cycle (sprites/adult/*-walk.webp, on the same canvas as the idle):
 // step, how far a foot travels in half a cycle as a share of the sprite's height, and the cycle's
-// frames and their time, so the walker moves exactly as fast as its feet carry it
-export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } }, bary: { m: { src: asset('sprites/adult/bary-m-walk.webp'), step: 0.5, frames: 8, ms: 140 } } };
+// frames and their time, so the walker moves exactly as fast as its feet carry it; advance (when
+// measured): how far the body moves on from each frame to the next, in the sprite's pixels, as far as
+// the foot on the ground goes back in it, so that foot stays where it is on the ground
+export const ADULT_WALKS = { raptor: { f: { src: asset('sprites/adult/raptor-f-walk.webp'), step: 0.667, frames: 4, ms: 220 } }, bary: { m: { src: asset('sprites/adult/bary-m-walk.webp'), step: 0.5, frames: 8, ms: 140, advance: [16, 3, 155, 42, 33, 39, 293, -102] } } };
 export const adultWalk = (type, sex) => (ADULT_WALKS[type] && ADULT_WALKS[type][sex]) || null;
 // an animated picture's sheet (js/sheets.js), if it has one
 export const sheetFor = src => (src && SHEETS[src.slice(asset('').length)]) || null;
@@ -588,7 +590,8 @@ export function dressedArt(type, px, sex = 'f', equip = null, outfit = null, sta
   const wearing = !look && Object.entries(equip || {}).some(([slot, id]) => DRAWN_SLOTS.includes(slot) && ITEM_ICONS[id] && !(FITTED[id] && FITTED[id][type] && FITTED[id][type][sex]));
   // (a walker with its own walk draws it from its sheet too, when it has one, or keeps its picture)
   const walk = stage === 'adult' && adultWalk(type, sex);
-  const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))))
+  // (a walk with its steps measured is drawn from its sheet, frame by frame as the feet go: ui/nest.js)
+  const base = sheet && (scarred.length || (wearing && (!walk || sheetFor(walk.src))) || (walk && walk.advance && sheetFor(walk.src)))
     ? sheetArt(sheet, px * st.scale * size, babyLabel(type, sex), scarred.map(([part, mark]) => [scarPlace(type, sex, part, stage, mark), mark, part, scarAnchor(type, sex, part, stage), part === tookEye ? blind : shownSide(sideOf(seed, part), scarAnchor(type, sex, part, stage)), part === tookEye]).filter(([a]) => a), src, seed)
     : babyArt(type, px * st.scale * size, sex, false, look ? asset(look.sprites[sex]) : own);
   if (base.sheet) { base.eye = ownScars(type, sex, stage).eye || null; base.feathers = noScarOf(type, sex, stage); base.metres = heightOf(type, sex, metresAt); }

@@ -25,7 +25,11 @@ function gaitOf(b, art) {
   // (drawn from its sheets, with its scars and equipment: the walk's sheet while it walks)
   if (img.tagName === 'CANVAS') {
     const walk = sheetFor(g.src), idle = img.sheet;
-    return walk && idle ? { speed, swap: on => { img.sheet = on ? walk : idle; img.dirty = true; } } : null;
+    if (!walk || !idle) return null;
+    // (its steps measured: each frame shown as long as it lasts, and the body moved on, frame by frame,
+    // as far as the foot on the ground goes back, scaled to how big it is drawn)
+    const steps = g.advance && { advance: g.advance.map(d => d * tall / walk.h), ms: g.ms, frames: g.frames, show: k => { img.hold = k; } };
+    return { speed, steps, swap: on => { img.sheet = on ? walk : idle; img.hold = null; img.dirty = true; } };
   }
   const still = img.src;
   return { speed, swap: on => { img.src = on ? g.src : still; } };
@@ -285,8 +289,15 @@ function step(t) {
     else if (w.pause > 0) w.pause -= dt;
     else {
       moving = true;
-      // (one walking with its own feet keeps their pace, hungry or not)
-      w.x += w.dir * w.speed * (w.hungry && !w.gait ? 0.45 : 1) * dt;
+      // (one walking with its own feet keeps their pace, hungry or not; one whose steps are measured
+      // moves on as its foot on the ground goes back, frame by frame)
+      const st = w.gait && w.gait.steps;
+      if (st) {
+        if (!w.walking) w.phase = 0;
+        const from = Math.floor(w.phase);
+        w.phase += dt * 1000 / st.ms;
+        for (let k = from; k < Math.floor(w.phase); k++) w.x += w.dir * st.advance[k % st.frames];
+      } else w.x += w.dir * w.speed * (w.hungry && !w.gait ? 0.45 : 1) * dt;
       w.walk -= dt; w.t += dt * 12;
       if (w.x < 4) { w.x = 4; w.dir = 1; }
       if (w.x > maxX) { w.x = maxX; w.dir = -1; }
@@ -294,6 +305,7 @@ function step(t) {
     }
     // its own walk when it has one (its body already bobs in it), a little bounce otherwise
     if (w.gait && moving !== w.walking) { w.walking = moving; w.gait.swap(moving); }
+    if (w.walking && w.gait.steps) w.gait.steps.show(Math.floor(w.phase) % w.gait.steps.frames);
     let lift = moving && !w.gait ? Math.abs(Math.sin(w.t)) * 3 : 0;
     if (w.hop > 0) { w.hop -= dt; lift += Math.sin(Math.PI * (1 - Math.max(0, w.hop) / 0.45)) * 16; }
     w.el.style.transform = `translate(${w.x.toFixed(1)}px, ${(-lift).toFixed(1)}px)`;
